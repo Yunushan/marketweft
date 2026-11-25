@@ -19,3 +19,11 @@ tauri = { version = "2", features = [] }
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
+# GTK3 consumers require the 0.18 API. See docs/native-advisories.md for
+# the upstream archive, Debian backport, review gate and retirement criteria.
+[patch.crates-io]
+glib = { path = "vendor/glib-0.18.5" }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+glib = "=0.18.5"
+

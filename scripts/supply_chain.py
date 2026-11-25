@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tomllib
 from urllib.parse import quote
+from desktop_backport import PATCHED_TREE, UPSTREAM, VENDOR, verified_glib
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "docs" / "dependencies.cdx.json"
@@ -91,6 +92,18 @@ def cargo_components(directory, scope):
                                      cwd=directory)
     for package in json.loads(result)["packages"]:
         if not package["source"]:
+            if Path(package["manifest_path"]).resolve() == VENDOR / "Cargo.toml":
+                if scope != "desktop" or (package["name"], package["version"]) != verified_glib():
+                    raise ValueError("Unreviewed vendored glib version or scope")
+                item = component("cargo", "glib", "0.18.5", package["license"], scope,
+                                 [{"alg": "SHA-256", "content": PATCHED_TREE}])
+                item["properties"].extend([
+                    {"name": "marketweft:source-hash-algorithm", "value": "sorted-path-NUL-fileSHA256"},
+                    {"name": "marketweft:upstream-archive-sha256", "value": UPSTREAM},
+                    {"name": "marketweft:backport", "value": "Debian glib 0.18.5-7 patch 0007"},
+                ])
+                yield item
+                continue
             if not Path(package["manifest_path"]).resolve().is_relative_to(ROOT) or package["license"] != "0BSD":
                 raise ValueError(f"Unreviewed path dependency: {package['name']}")
             continue
