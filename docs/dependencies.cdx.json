@@ -2832,13 +2832,25 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "233daaf6e83ae6a12a52055f568f9d7cf4671dabb78ff9560ab6da230ce00ee5"
+          "content": "e8dbbd51b181d6ffc6d5e002bc28334a94760799a200181dedbfc263382076b1"
         }
       ],
       "properties": [
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:source-hash-algorithm",
+          "value": "sorted-path-NUL-fileSHA256"
+        },
+        {
+          "name": "marketweft:upstream-archive-sha256",
+          "value": "233daaf6e83ae6a12a52055f568f9d7cf4671dabb78ff9560ab6da230ce00ee5"
+        },
+        {
+          "name": "marketweft:backport",
+          "value": "Debian glib 0.18.5-7 patch 0007"
         }
       ]
     },

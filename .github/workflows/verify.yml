@@ -76,10 +76,14 @@ jobs:
           node-version: 26.8.2
           cache: npm
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth dbus-x11 xdotool python3-pyatspi at-spi2-core
       - run: npm ci
       - run: npm run build
       - run: cargo build --locked --manifest-path apps/desktop/Cargo.toml
+      - if: runner.os == 'Linux'
+        run: cargo test --locked --manifest-path apps/desktop/Cargo.toml --test glib_variant_iter
+      - if: runner.os == 'Linux'
+        run: PATH="/usr/bin:$PATH" sh apps/desktop/tests/smoke-x11.sh apps/desktop/target/debug/marketweft-desktop
 
   native-advisories:
     runs-on: ubuntu-24.04
