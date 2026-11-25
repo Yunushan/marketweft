@@ -521,7 +521,9 @@ export function App({
                 </span>
               )}
             </div>
-            <Chart key={asset.id} asset={asset} sma={sma} ema={ema} />
+            {/* A restore can replace a series under its existing ID. Reset the
+                chart's bar-indexed viewport and crosshair when its length changes. */}
+            <Chart key={`${asset.id}:${bars.length}`} asset={asset} sma={sma} ema={ema} />
           </article>
           <aside>
             <section className="side-card watchlist">

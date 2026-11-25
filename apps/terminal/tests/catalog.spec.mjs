@@ -124,6 +124,11 @@ test('migrates once and restores every source, tick, identity and preference in 
     manifest: { seriesCount: 3, barCount: 4 },
   })
   expect(bundle.sha256).toBe(digest(bundle.manifest))
+  // Golden digest of all bundled timestamps and fixed-point values, in catalog order.
+  expect(bundle.manifest.sampleSet).toEqual({
+    version: 1,
+    sha256: '618256872c46662bbaceb30a79b942c230e725dd01ea71b5e54cc52a359220d8',
+  })
   for (const row of bundle.manifest.series) {
     const { sha256, ...entry } = row
     expect(sha256).toBe(digest(entry))
@@ -223,6 +228,18 @@ test('rejects corrupt payloads, mismatched counts and dangling selections before
     },
     (b) => {
       b.manifest.barCount += 1
+      b.sha256 = digest(b.manifest)
+    },
+    (b) => {
+      b.manifest.sampleSet.sha256 = '0'.repeat(64)
+      b.sha256 = digest(b.manifest)
+    },
+    (b) => {
+      const { sha256, ...row } = b.manifest.series[0]
+      row.csv = header + '\n0,3,2,1,0,1'
+      row.barCount = 1
+      b.manifest.series[0] = { ...row, sha256: digest(row) }
+      b.manifest.barCount = b.manifest.series.reduce((n, item) => n + item.barCount, 0)
       b.sha256 = digest(b.manifest)
     },
     (b) => {
