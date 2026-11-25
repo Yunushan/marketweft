@@ -117,6 +117,58 @@ body:has(dialog[open]) {
   background: #1c3029;
   color: #c5f8e1;
 }
+.backup-btn {
+  color: #c5d3ca;
+  background: transparent;
+}
+.workspace-notice {
+  color: var(--mint);
+  margin-bottom: 12px;
+}
+.series-details { margin-bottom: 12px; }
+.metadata-fields,
+.backup-summary,
+.series-provenance {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.metadata-fields {
+  padding: 12px 0 2px;
+  color: var(--soft);
+  font-size: 12px;
+}
+.metadata-fields input { margin-top: 5px; }
+.backup-panel > .outline { margin-top: 12px; }
+.backup-panel h3 {
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.backup-panel .file-field { margin-top: 10px; }
+.backup-summary { margin: 14px 0; }
+.series-provenance {
+  margin: 8px 0 0;
+  padding: 12px 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.backup-summary dt, .series-provenance dt {
+  color: var(--soft);
+  font-size: 11px;
+}
+.backup-summary dd, .series-provenance dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+@media (max-width: 650px) {
+  .backup-btn span { display: none; }
+  .series-provenance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 button:not(:disabled):hover {
   filter: brightness(1.17);
 }

@@ -52,7 +52,16 @@ test('deployment limits apply to new CSVs while samples and larger saved histori
     const server = await createServer({...config, server:{host:'127.0.0.1', port:0}})
     try {
       await server.listen()
-      await page.goto('http://127.0.0.1:' + server.httpServer.address().port)
+      const url = 'http://127.0.0.1:' + server.httpServer.address().port
+      await page.addInitScript(csv => {
+        if (!localStorage.getItem('marketweft.workspace.v1')) {
+          localStorage.setItem('marketweft.workspace.v1', JSON.stringify({
+            version:1, selected:'NASDAQ:NVDA', watchlist:['NASDAQ:NVDA','LOCAL:PRIOR'],
+            imports:[{venue:'LOCAL',symbol:'PRIOR',filename:'earlier.csv',csv}], sma:true, ema:false,
+          }))
+        }
+      }, [header,...rows].join('\n'))
+      await page.goto(url)
       await expect(page.getByTestId('viewport')).toHaveText('121–180 of 180')
       const upload = async csv => {
         await page.locator('input[type=file]').setInputFiles({name:'history.csv', mimeType:'text/csv', buffer:Buffer.from(csv)})
@@ -66,15 +75,8 @@ test('deployment limits apply to new CSVs while samples and larger saved histori
       await expect(page.getByRole('alert')).toContainText('at most 2 bars')
       await upload(accepted)
       await expect(page.getByTestId('viewport')).toHaveText('1–2 of 2')
-      await page.evaluate(csv => {
-        const key = 'marketweft.workspace.v1'
-        const state = JSON.parse(localStorage.getItem(key))
-        state.imports.push({venue:'LOCAL', symbol:'PRIOR', filename:'earlier.csv', csv})
-        state.selected = 'LOCAL:PRIOR'
-        state.watchlist.push(state.selected)
-        localStorage.setItem(key, JSON.stringify(state))
-      }, [header,...rows].join('\n'))
       await page.reload()
+      await page.getByRole('button',{name:'Select LOCAL:PRIOR'}).click()
       await expect(page.getByRole('heading',{name:'PRIOR',exact:true})).toBeVisible()
       await expect(page.getByTestId('viewport')).toHaveText('1–3 of 3')
     } finally {

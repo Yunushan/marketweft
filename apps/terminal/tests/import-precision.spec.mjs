@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures.mjs'
+import { catalogContents, seedLegacy } from './catalog-fixtures.mjs'
 
 const key = 'marketweft.workspace.v1'
 const tinyBars = [
@@ -13,13 +14,11 @@ test('six-place prices, the close change and fractional volume survive import an
   await page.goto('/')
   await page.getByRole('button', { name: 'Import CSV' }).click()
   await page.getByLabel('Symbol', { exact: true }).fill('EURUSD')
-  await page
-    .locator('input[type=file]')
-    .setInputFiles({
-      name: 'fx.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from(tinyBars),
-    })
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'fx.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(tinyBars),
+  })
   await page.getByRole('button', { name: 'Import to watchlist' }).click()
   await expect(page.locator('.quote strong')).toHaveText('1.084532')
   await expect(page.locator('.quote')).toContainText('+0.000001')
@@ -32,7 +31,6 @@ test('six-place prices, the close change and fractional volume survive import an
 test('salvages good history and preserves the raw original before saving repaired settings', async ({
   page,
 }) => {
-  await page.goto('/')
   const raw = JSON.stringify({
     version: 1,
     selected: 'LOCAL:FX',
@@ -44,8 +42,8 @@ test('salvages good history and preserves the raw original before saving repaire
     sma: 'broken',
     ema: true,
   })
-  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [key, raw])
-  await page.reload()
+  await seedLegacy(page, raw)
+  await page.goto('/')
   await expect(page.getByRole('alert')).toContainText(
     'Recovered the readable parts',
   )
@@ -54,41 +52,54 @@ test('salvages good history and preserves the raw original before saving repaire
   ).toBeVisible()
   await expect(page.locator('.quote strong')).toHaveText('1.084532')
   expect(await page.evaluate((k) => localStorage.getItem(k), key)).toBe(raw)
-  await page.getByRole('button', { name: 'Select LOCAL:FX' }).click()
-  const snapshot = await page.evaluate(
-    (k) => ({
-      backup: localStorage.getItem(k + '.recovery.1'),
-      saved: JSON.parse(localStorage.getItem(k)),
-    }),
-    key,
-  )
-  expect(snapshot.backup).toBe(raw)
-  expect(snapshot.saved.watchlist).toEqual(['LOCAL:FX'])
-  expect(snapshot.saved.imports).toHaveLength(1)
+  const snapshot = await catalogContents(page)
+  expect(snapshot.series).toHaveLength(1)
+  expect(snapshot.series[0].csv).toBe(tinyBars)
+  await page.getByRole('button', { name: /Indicators/ }).click()
+  await page.getByRole('checkbox', { name: /Exponential/ }).uncheck()
+  await page.keyboard.press('Escape')
+  expect(await page.evaluate((k) => localStorage.getItem(k), key)).toBe(raw)
   await page.reload()
   await expect(page.locator('.quote strong')).toHaveText('1.084532')
   await expect(page.getByRole('alert')).toHaveCount(0)
 })
 
-test('an unseen external save is retained when a stale workspace tries to write', async ({
+test('two tabs writing from the same revision cannot overwrite one another', async ({
   page,
+  context,
 }) => {
+  // Delivery can be delayed in a suspended tab. Keep both starting revisions
+  // identical and verify the database transaction itself detects the conflict.
+  await context.addInitScript(() => {
+    if (typeof BroadcastChannel !== 'undefined')
+      BroadcastChannel.prototype.postMessage = () => {}
+    window.addEventListener(
+      'storage',
+      (e) => e.stopImmediatePropagation(),
+      true,
+    )
+  })
   await page.goto('/')
+  const other = await context.newPage()
+  await other.goto(page.url())
+  await expect(
+    other.getByRole('heading', { name: 'NVDA', exact: true }),
+  ).toBeVisible()
   await page.getByRole('button', { name: 'Select NASDAQ:AAPL' }).click()
-  const external = await page.evaluate((k) => {
-    const data = JSON.parse(localStorage.getItem(k))
-    data.ema = true
-    const serialized = JSON.stringify(data)
-    localStorage.setItem(k, serialized)
-    return serialized
-  }, key)
-  await page.getByRole('button', { name: 'Select NASDAQ:MSFT' }).click()
-  await expect(page.getByRole('alert')).toContainText('saved workspace changed')
-  expect(await page.evaluate((k) => localStorage.getItem(k), key)).toBe(
-    external,
-  )
   await expect(
     page.getByRole('heading', { name: 'AAPL', exact: true }),
   ).toBeVisible()
-  await expect(page.locator('.legend')).toContainText('EMA 9')
+  const first = await catalogContents(page)
+  await other.getByRole('button', { name: 'Select NASDAQ:MSFT' }).click()
+  await expect(other.getByRole('alert')).toContainText(
+    /changed|stale|another tab/i,
+  )
+  await expect(
+    other.getByRole('heading', { name: 'AAPL', exact: true }),
+  ).toBeVisible()
+  expect(await catalogContents(other)).toEqual(first)
+  await other.getByRole('button', { name: 'Select NASDAQ:MSFT' }).click()
+  await expect(
+    other.getByRole('heading', { name: 'MSFT', exact: true }),
+  ).toBeVisible()
 })

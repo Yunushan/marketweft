@@ -144,16 +144,3 @@ test('fits a phone viewport and keeps chart and import controls accessible', asy
     page.getByRole('button', { name: 'Import to watchlist' }),
   ).toBeInViewport()
 })
-
-test('recovers visibly from unusable saved state', async ({ page }) => {
-  await page.evaluate(() =>
-    localStorage.setItem('marketweft.workspace.v1', '{'),
-  )
-  await page.reload()
-  await expect(page.getByRole('alert')).toContainText(
-    'Saved workspace could not be read',
-  )
-  await expect(
-    page.getByRole('heading', { name: 'NVDA', exact: true }),
-  ).toBeVisible()
-})

@@ -3,19 +3,17 @@ import type { ReactNode, FormEvent } from 'react'
 import type { MarketCore } from './market-core'
 import { Chart, Spark } from './Chart'
 import { Icon, Mark } from './Icons'
-import {
-  KEY,
-  backupWorkspace,
-  changeString,
-  dateLabel,
-  importedAsset,
-  movement,
-  price,
-  readWorkspace,
-  sampleAssets,
-  volume,
-} from './workspace'
-import type { Asset, SavedImport, Workspace } from './workspace'
+import { changeString, dateLabel, movement, price, volume } from './workspace'
+import type { Asset, SavedImport } from './workspace'
+import { CatalogConflictError, createHistory } from './catalog'
+import type {
+  Catalog,
+  CatalogData,
+  CatalogSnapshot,
+  Preferences,
+  SeriesDescriptor,
+} from './catalog'
+import { WorkspaceBackup } from './WorkspaceBackup'
 import { checkImportRows, type ImportPolicy } from './import-policy'
 
 declare const __MARKETWEFT_IMPORT_POLICY__: ImportPolicy
@@ -68,12 +66,25 @@ function Dialog({
   )
 }
 
-function ImportForm({ save }: { save: (item: SavedImport) => void }) {
+type ImportMetadata = Pick<
+  SeriesDescriptor,
+  'barInterval' | 'source' | 'usageGrant' | 'adjustmentPolicy'
+>
+
+function ImportForm({
+  save,
+}: {
+  save: (item: SavedImport, metadata: ImportMetadata) => Promise<void>
+}) {
   const [venue, setVenue] = useState('LOCAL'),
     [symbol, setSymbol] = useState(''),
     [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
+  const [barInterval, setBarInterval] = useState('')
+  const [source, setSource] = useState('')
+  const [grant, setGrant] = useState('Local storage and analysis')
+  const [adjustment, setAdjustment] = useState('')
   async function submit(e: FormEvent) {
     e.preventDefault()
     setError('')
@@ -82,14 +93,24 @@ function ImportForm({ save }: { save: (item: SavedImport) => void }) {
       return
     }
     if (file.size > importPolicy.maxBytes) {
-      setError(`Choose a CSV of at most ${importPolicy.maxBytes.toLocaleString('en-US')} bytes.`)
+      setError(
+        `Choose a CSV of at most ${importPolicy.maxBytes.toLocaleString('en-US')} bytes.`,
+      )
       return
     }
     setBusy(true)
     try {
       const csv = await file.text()
       checkImportRows(csv, importPolicy)
-      save({ venue, symbol, filename: file.name, csv })
+      await save(
+        { venue, symbol, filename: file.name, csv },
+        {
+          barInterval: barInterval.trim() || 'unspecified',
+          source: source.trim() || file.name,
+          usageGrant: grant.trim() || 'unspecified',
+          adjustmentPolicy: adjustment.trim() || 'unspecified',
+        },
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed.')
     } finally {
@@ -133,12 +154,46 @@ function ImportForm({ save }: { save: (item: SavedImport) => void }) {
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
       </label>
+      <details className="series-details">
+        <summary>Series details</summary>
+        <div className="metadata-fields">
+          <label>
+            Bar interval
+            <input
+              value={barInterval}
+              placeholder="e.g. 1 day"
+              onChange={(e) => setBarInterval(e.target.value)}
+            />
+          </label>
+          <label>
+            Source
+            <input
+              value={source}
+              placeholder={file?.name || 'CSV filename'}
+              onChange={(e) => setSource(e.target.value)}
+            />
+          </label>
+          <label>
+            Usage grant
+            <input value={grant} onChange={(e) => setGrant(e.target.value)} />
+          </label>
+          <label>
+            Adjustment policy
+            <input
+              value={adjustment}
+              placeholder="e.g. split-adjusted"
+              onChange={(e) => setAdjustment(e.target.value)}
+            />
+          </label>
+        </div>
+      </details>
       <details>
         <summary>CSV format</summary>
         <p>
           Use ascending UTC timestamps or dates with a header and up to six
-          decimal places. Maximum per file: {importPolicy.maxBytes.toLocaleString('en-US')} bytes
-          {' '}and {importPolicy.maxBars.toLocaleString('en-US')} bars.
+          decimal places. Maximum per file:{' '}
+          {importPolicy.maxBytes.toLocaleString('en-US')} bytes and{' '}
+          {importPolicy.maxBars.toLocaleString('en-US')} bars.
         </p>
         <pre>
           time,open,high,low,close,volume{'\n'}2025-01-02,10,12,9,11,500
@@ -162,10 +217,12 @@ function Library({
   assets,
   ws,
   toggle,
+  saving,
 }: {
   assets: Asset[]
-  ws: Workspace
+  ws: Preferences
   toggle: (a: Asset) => void
+  saving: boolean
 }) {
   const [query, setQuery] = useState('')
   const visible = assets.filter((a) =>
@@ -193,7 +250,7 @@ function Library({
               </div>
               <button
                 className={'outline ' + (added ? 'already' : '')}
-                disabled={added && ws.watchlist.length === 1}
+                disabled={saving || (added && ws.watchlist.length === 1)}
                 aria-label={(added ? 'Remove ' : 'Add ') + a.id}
                 onClick={() => toggle(a)}
               >
@@ -209,16 +266,40 @@ function Library({
   )
 }
 
-export function App({ core }: { core: MarketCore }) {
-  const samples = useMemo(() => sampleAssets(core), [core])
-  const [saved, setSaved] = useState(() => readWorkspace(core, samples))
-  const { workspace: ws, assets, warning } = saved
-  const [dialog, setDialog] = useState<'import' | 'list' | 'indicators' | null>(
-    null,
+export function App({
+  core,
+  catalog,
+  initial,
+}: {
+  core: MarketCore
+  catalog: Catalog
+  initial: CatalogSnapshot
+}) {
+  const samples = useMemo(
+    () => initial.assets.filter((asset) => asset.source === 'sample'),
+    [initial],
   )
+  const [saved, setSaved] = useState(initial)
+  const [pendingPrefs, setPendingPrefs] = useState<{
+    revision: number
+    prefs: Preferences
+  } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const inFlight = useRef(false)
+  const { assets, warning } = saved
+  const ws =
+    pendingPrefs?.revision === saved.revision
+      ? pendingPrefs.prefs
+      : saved.preferences
+  const [dialog, setDialog] = useState<
+    'import' | 'list' | 'indicators' | 'backup' | null
+  >(null)
   const [saveError, setSaveError] = useState(''),
     [offlineReady, setOfflineReady] = useState(false)
-  const asset = assets.find((a) => a.id === ws.selected)!
+  const [notice, setNotice] = useState('')
+  const asset =
+    assets.find((a) => a.id === ws.selected) ??
+    assets.find((a) => a.id === saved.preferences.selected)!
   const { bars } = asset,
     last = bars.at(-1)!,
     move = movement(bars)
@@ -232,16 +313,39 @@ export function App({ core }: { core: MarketCore }) {
     [core, ws.ema, bars],
   )
   const source = asset.source === 'sample' ? 'Synthetic sample' : 'Imported CSV'
+  const descriptor = saved.series.find(
+    (item) => item.id === asset.id,
+  )?.descriptor
+  function accept(next: CatalogSnapshot) {
+    setSaved((previous) =>
+      next.revision >= previous.revision ? next : previous,
+    )
+  }
   useEffect(() => {
-    const refresh = (e: StorageEvent) => {
-      if (e.key === KEY || e.key === null) {
-        setSaved(readWorkspace(core, samples))
-        setSaveError('')
-      }
+    let mounted = true
+    const refresh = () => {
+      catalog
+        .read()
+        .then((latest) => {
+          if (mounted) accept(latest)
+        })
+        .catch((cause: unknown) => {
+          if (mounted)
+            setSaveError(
+              cause instanceof Error
+                ? cause.message
+                : 'Could not refresh the workspace.',
+            )
+        })
     }
-    window.addEventListener('storage', refresh)
-    return () => window.removeEventListener('storage', refresh)
-  }, [core, samples])
+    const unsubscribe = catalog.subscribe(refresh)
+    // A different tab may have committed between opening and mounting the catalog.
+    refresh()
+    return () => {
+      mounted = false
+      unsubscribe()
+    }
+  }, [catalog])
   useEffect(() => {
     if (
       !import.meta.env.PROD ||
@@ -261,64 +365,47 @@ export function App({ core }: { core: MarketCore }) {
       mounted = false
     }
   }, [])
-  function update(
-    workspace: Workspace,
-    nextAssets = assets,
-    mustPersist = false,
-  ) {
-    let error = ''
-    let persisted = saved.persisted
-    let stale = false
+  async function commit(operation: () => Promise<CatalogSnapshot>) {
+    if (inFlight.current)
+      throw Error('Wait for the current workspace change to finish.')
+    inFlight.current = true
+    setSaving(true)
+    setSaveError('')
+    setNotice('')
     try {
-      stale = localStorage.getItem(KEY) !== persisted
-      if (!stale) {
-        if (saved.needsBackup && typeof persisted === 'string')
-          backupWorkspace(persisted)
-        const serialized = JSON.stringify(workspace)
-        localStorage.setItem(KEY, serialized)
-        persisted = serialized
+      accept(await operation())
+    } catch (cause) {
+      if (cause instanceof CatalogConflictError) {
+        accept(await catalog.read())
       }
-    } catch {
-      error =
-        'Browser storage is unavailable or full. Changes are available for this session.'
-      if (mustPersist)
-        throw Error(
-          'Browser storage is unavailable or full. Free space or import a smaller CSV.',
-        )
+      throw cause
+    } finally {
+      inFlight.current = false
+      setSaving(false)
     }
-    if (stale) {
-      const message =
-        'The saved workspace changed. Review the latest version and try again.'
-      setSaved(readWorkspace(core, samples))
-      setSaveError(message)
-      if (mustPersist) throw Error(message)
-      return
-    }
-    setSaveError(error)
-    setSaved({
-      workspace,
-      assets: nextAssets,
-      persisted,
-      needsBackup: !!error && saved.needsBackup,
-    })
   }
-  function addImport(item: SavedImport) {
-    const a = importedAsset(core, item)
-    if (assets.some((x) => x.id === a.id))
-      throw Error(
-        'This venue and symbol already exist. Use a different identity.',
+  function update(prefs: Preferences) {
+    if (inFlight.current) return
+    setPendingPrefs({ revision: saved.revision, prefs })
+    void commit(() => catalog.savePreferences(saved.revision, prefs))
+      .catch((cause) =>
+        setSaveError(
+          cause instanceof Error
+            ? cause.message
+            : 'Could not save the workspace.',
+        ),
       )
-    update(
-      {
-        ...ws,
-        selected: a.id,
-        watchlist: [...ws.watchlist, a.id],
-        imports: [...ws.imports, item],
-      },
-      [...assets, a],
-      true,
-    )
+      .finally(() => setPendingPrefs(null))
+  }
+  async function addImport(item: SavedImport, metadata: ImportMetadata) {
+    const history = createHistory(core, item, metadata)
+    await commit(() => catalog.addSeries(saved.revision, history))
     setDialog(null)
+  }
+  async function restore(revision: number, data: CatalogData) {
+    await commit(() => catalog.restore(revision, data))
+    setDialog(null)
+    setNotice('Workspace restored.')
   }
   function toggle(a: Asset) {
     const present = ws.watchlist.includes(a.id)
@@ -345,6 +432,16 @@ export function App({ core }: { core: MarketCore }) {
           <i />
           Local workspace
         </div>
+        <button
+          className="outline backup-btn"
+          aria-label="Workspace backup"
+          title="Workspace backup"
+          disabled={saving}
+          onClick={() => setDialog('backup')}
+        >
+          <Icon name="database" />
+          <span>Workspace backup</span>
+        </button>
         <button className="import-btn" onClick={() => setDialog('import')}>
           <Icon name="import" />
           Import CSV
@@ -360,7 +457,12 @@ export function App({ core }: { core: MarketCore }) {
         </div>
         {(warning || saveError) && (
           <p className="warning" role="alert">
-            {warning || saveError}
+            {saveError || warning}
+          </p>
+        )}
+        {notice && (
+          <p className="workspace-notice" role="status">
+            {notice}
           </p>
         )}
         <div className="layout">
@@ -454,6 +556,7 @@ export function App({ core }: { core: MarketCore }) {
                       key={id}
                       aria-label={'Select ' + id}
                       aria-pressed={id === asset.id}
+                      disabled={saving}
                       onClick={() => update({ ...ws, selected: id })}
                     >
                       <div className="watch-symbol">
@@ -534,6 +637,26 @@ export function App({ core }: { core: MarketCore }) {
             <b>{bars.length.toLocaleString('en-US')} bars</b>
           </div>
         </section>
+        {descriptor && (
+          <dl className="series-provenance">
+            <div>
+              <dt>Bar interval</dt>
+              <dd>{descriptor.barInterval}</dd>
+            </div>
+            <div>
+              <dt>Source</dt>
+              <dd>{descriptor.source}</dd>
+            </div>
+            <div>
+              <dt>Usage grant</dt>
+              <dd>{descriptor.usageGrant}</dd>
+            </div>
+            <div>
+              <dt>Adjustment policy</dt>
+              <dd>{descriptor.adjustmentPolicy}</dd>
+            </div>
+          </dl>
+        )}
         <footer>
           <span>
             <i className="footer-dot" />
@@ -545,18 +668,30 @@ export function App({ core }: { core: MarketCore }) {
       {dialog && (
         <Dialog
           title={
-            dialog === 'import'
-              ? 'Import historical data'
-              : dialog === 'list'
-                ? 'Manage watchlist'
-                : 'Indicator overlays'
+            dialog === 'backup'
+              ? 'Workspace backup'
+              : dialog === 'import'
+                ? 'Import historical data'
+                : dialog === 'list'
+                  ? 'Manage watchlist'
+                  : 'Indicator overlays'
           }
-          close={() => setDialog(null)}
+          close={() => {
+            if (!inFlight.current) setDialog(null)
+          }}
         >
-          {dialog === 'import' ? (
+          {dialog === 'backup' ? (
+            <WorkspaceBackup
+              core={core}
+              samples={samples}
+              catalog={catalog}
+              snapshot={saved}
+              restore={restore}
+            />
+          ) : dialog === 'import' ? (
             <ImportForm save={addImport} />
           ) : dialog === 'list' ? (
-            <Library assets={assets} ws={ws} toggle={toggle} />
+            <Library assets={assets} ws={ws} toggle={toggle} saving={saving} />
           ) : (
             <>
               <p className="intro">
@@ -576,6 +711,7 @@ export function App({ core }: { core: MarketCore }) {
                   </span>
                   <input
                     type="checkbox"
+                    disabled={saving}
                     checked={ws[k]}
                     onChange={(e) => update({ ...ws, [k]: e.target.checked })}
                   />

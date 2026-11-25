@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { loadMarketCore } from './market-core'
+import { openCatalog } from './catalog'
 import './styles.css'
 
 const root = createRoot(document.getElementById('root')!)
@@ -12,7 +13,8 @@ async function start() {
   )
   try {
     const core = await loadMarketCore()
-    root.render(<App core={core} />)
+    const { catalog, snapshot } = await openCatalog(core)
+    root.render(<App core={core} catalog={catalog} initial={snapshot} />)
   } catch (error) {
     root.render(
       <main className="startup">
