@@ -58,6 +58,7 @@ test('salvages good history and preserves the raw original before saving repaire
   await page.getByRole('button', { name: /Indicators/ }).click()
   await page.getByRole('checkbox', { name: /Exponential/ }).uncheck()
   await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(await page.evaluate((k) => localStorage.getItem(k), key)).toBe(raw)
   await page.reload()
   await expect(page.locator('.quote strong')).toHaveText('1.084532')

@@ -286,6 +286,7 @@ export function App({
   } | null>(null)
   const [saving, setSaving] = useState(false)
   const inFlight = useRef(false)
+  const dismissAfterSave = useRef(false)
   const { assets, warning } = saved
   const ws =
     pendingPrefs?.revision === saved.revision
@@ -374,12 +375,14 @@ export function App({
     setNotice('')
     try {
       accept(await operation())
+      if (dismissAfterSave.current) setDialog(null)
     } catch (cause) {
       if (cause instanceof CatalogConflictError) {
         accept(await catalog.read())
       }
       throw cause
     } finally {
+      dismissAfterSave.current = false
       inFlight.current = false
       setSaving(false)
     }
@@ -428,9 +431,9 @@ export function App({
           <Mark />
           <strong>MarketWeft</strong>
         </div>
-        <div className="status">
+        <div className="status" aria-live="polite">
           <i />
-          Local workspace
+          {saving ? 'Saving workspace…' : 'Local workspace'}
         </div>
         <button
           className="outline backup-btn"
@@ -680,6 +683,8 @@ export function App({
           }
           close={() => {
             if (!inFlight.current) setDialog(null)
+            else if (dialog === 'list' || dialog === 'indicators')
+              dismissAfterSave.current = true
           }}
         >
           {dialog === 'backup' ? (
@@ -719,6 +724,20 @@ export function App({
                   />
                 </label>
               ))}
+            </>
+          )}
+          {(dialog === 'list' || dialog === 'indicators') && (
+            <>
+              {saving && (
+                <p className="intro" role="status">
+                  Saving preferences…
+                </p>
+              )}
+              {saveError && (
+                <p className="error" role="alert">
+                  {saveError}
+                </p>
+              )}
             </>
           )}
         </Dialog>

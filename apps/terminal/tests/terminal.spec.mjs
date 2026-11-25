@@ -58,11 +58,13 @@ test('watchlist, selected instrument and indicator choices survive reload', asyn
   await page.getByRole('textbox', { name: 'Search instruments' }).fill('AMD')
   await page.getByRole('button', { name: 'Add NASDAQ:AMD' }).click()
   await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.getByRole('button', { name: 'Select NASDAQ:AMD' }).click()
   await page.getByRole('button', { name: /Indicators/ }).click()
   await page.getByRole('checkbox', { name: /Exponential/ }).check()
   await page.getByRole('checkbox', { name: /Simple/ }).uncheck()
   await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.reload()
   await expect(
     page.getByRole('heading', { name: 'AMD', exact: true }),
