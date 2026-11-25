@@ -1,6 +1,8 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
-use crate::{indicator, parse_csv, Average, Instrument, MAX_BARS, MAX_INPUT_BYTES};
+use crate::{
+    indicator, parse_csv, parse_sessions, replay, Average, Instrument, MAX_BARS, MAX_INPUT_BYTES,
+};
 use std::cell::RefCell;
 
 thread_local! {
@@ -89,5 +91,38 @@ pub extern "C" fn mw_indicator(kind: u32, period: usize) -> u32 {
             .into_iter()
             .flat_map(|v| v.unwrap_or(i64::MIN).to_le_bytes())
             .collect())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_replay(calendar_bytes: usize, interval: u32) -> u32 {
+    process(|input| {
+        let (calendar, bar_bytes) = input
+            .split_at_checked(calendar_bytes)
+            .ok_or("Invalid calendar length.")?;
+        let (values, trailing) = bar_bytes.as_chunks::<8>();
+        if !trailing.is_empty() || values.len() > MAX_BARS {
+            return Err("Invalid bar time series length.".into());
+        }
+        let sessions = parse_sessions(utf8(calendar)?)?;
+        let times: Vec<i64> = values.iter().copied().map(i64::from_le_bytes).collect();
+        let events = replay(&sessions, &times, interval)?;
+        let mut bytes = Vec::with_capacity(events.len() * 32);
+        for event in events {
+            let session = sessions[event.session_index];
+            bytes.extend_from_slice(&event.event_time.to_le_bytes());
+            bytes.extend_from_slice(&event.observed_at.to_le_bytes());
+            bytes.extend_from_slice(
+                &event
+                    .bar_index
+                    .map_or(-1, |index| index as i32)
+                    .to_le_bytes(),
+            );
+            bytes.extend_from_slice(&(event.session_index as u32).to_le_bytes());
+            bytes.extend_from_slice(&session.utc_offset_minutes.to_le_bytes());
+            let flags = event.kind as u32 | ((session.early_close as u32) << 8);
+            bytes.extend_from_slice(&flags.to_le_bytes());
+        }
+        Ok(bytes)
     })
 }

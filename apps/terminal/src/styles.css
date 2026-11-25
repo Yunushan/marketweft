@@ -184,6 +184,100 @@ main {
   margin-bottom: 22px;
   gap: 20px;
 }
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 16px;
+}
+.page-actions .outline,
+.replay-controls button {
+  white-space: nowrap;
+}
+.replay-page {
+  max-width: 1340px;
+  padding-bottom: 36px;
+}
+.replay-setup {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  gap: 16px;
+  align-items: start;
+}
+.replay-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: clamp(14px, 2vw, 24px);
+  min-width: 0;
+}
+.replay-panel > button {
+  justify-self: start;
+}
+.replay-panel p, .replay-empty {
+  color: var(--soft);
+  line-height: 1.55;
+}
+.replay-panel form, .replay-panel label {
+  display: grid;
+  gap: 6px;
+}
+.replay-panel select, .replay-panel input {
+  max-width: 100%;
+  padding: 7px;
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.replay-panel pre {
+  overflow: auto;
+}
+.replay-error {
+  grid-column: 1 / -1;
+}
+.replay-controls, .replay-heading, .replay-state, .replay-times {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+}
+.replay-heading, .replay-state {
+  justify-content: space-between;
+}
+.replay-state {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.replay-controls label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.replay-times {
+  margin: 0;
+}
+.replay-times dt {
+  color: var(--soft);
+  font-size: 12px;
+}
+.replay-times dd {
+  margin: 4px 0 0;
+  font: 13px var(--mono);
+}
+.replay-chart, .replay-empty {
+  margin-top: 16px;
+}
+.replay-chart .plot-toolbar strong {
+  margin-inline-end: 16px;
+}
+@media (max-width: 650px) {
+  .replay-setup {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .dataset-title small {
   font: 10px var(--mono);
   letter-spacing: 1.65px;

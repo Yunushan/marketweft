@@ -9,6 +9,38 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('Wasm replay schedules the expected UTC cutoffs and every indicator prefix', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
+  const bars = core.parseCsv(await fixture('nyse-2025-replay-ohlcv.csv'));
+  const calendar = await fixture('nyse-2025-replay-sessions.csv');
+  const events = core.replay(calendar, 1800, bars);
+  assert.equal(events.length, 294);
+  const utc = text => Date.parse(text) / 1000;
+  const opens = events.filter(event => event.kind === 'open');
+  assert.deepEqual(opens.slice(0, 2).map(event => [event.eventTime, event.utcOffsetMinutes]), [
+    [utc('2025-10-31T13:30:00Z'), -240], [utc('2025-11-03T14:30:00Z'), -300],
+  ]);
+  assert.deepEqual(events.filter(event => event.kind === 'missing').map(event => [event.eventTime, event.observedAt, event.barIndex]), [
+    [utc('2025-11-03T15:00:00Z'), utc('2025-11-03T15:30:00Z'), null],
+  ]);
+  assert.equal(events.at(-1).observedAt, utc('2025-11-28T18:00:00Z'));
+  assert.equal(events.at(-1).earlyClose, true);
+  const batch = [['sma', 20], ['ema', 9]].map(([kind, period]) => [kind, period, core.indicator(kind, period, bars)]);
+  const visible = [];
+  for (const event of events) {
+    if (event.barIndex !== null) {
+      assert.equal(event.barIndex, visible.length);
+      assert.equal(event.observedAt, bars[event.barIndex].time + 1800);
+      visible.push(bars[event.barIndex]);
+    }
+    for (const [kind, period, expected] of batch) {
+      assert.deepEqual(core.indicator(kind, period, visible), expected.slice(0, visible.length));
+    }
+  }
+  assert.equal(visible.length, bars.length);
+  assert.throws(() => core.replay(calendar, 1800, [{ ...bars[0], time: bars[0].time + 1 }]), /off the interval grid/);
+});
+
 test('the shipped wasm asset reproduces the native golden reference', () => {
   const bars = core.parseCsv(csv);
   assert.equal(core.instrument(' xnas', 'aapl '), 'XNAS:AAPL');

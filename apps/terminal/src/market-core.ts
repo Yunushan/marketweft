@@ -8,10 +8,22 @@ export interface Bar {
   volume: number;
 }
 
+const replayKinds = ['open', 'bar', 'missing', 'close'] as const;
+export interface ReplayEvent {
+  kind: typeof replayKinds[number];
+  eventTime: number;
+  observedAt: number;
+  barIndex: number | null;
+  sessionIndex: number;
+  utcOffsetMinutes: number;
+  earlyClose: boolean;
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
   indicator(kind: 'sma' | 'ema', period: number, bars: readonly Bar[]): (number | null)[];
+  replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -23,6 +35,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_instrument(): number;
   mw_parse(): number;
   mw_indicator(kind: number, period: number): number;
+  mw_replay(calendarBytes: number, intervalSeconds: number): number;
 }
 
 const SCALE = 1_000_000;
@@ -91,6 +104,38 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         const v = out.getBigInt64(i * 8, true);
         return v === MISSING ? null : Number(v) / SCALE;
       });
+    },
+    replay(calendar, intervalSeconds, bars) {
+      if (!Number.isInteger(intervalSeconds) || intervalSeconds < 1 || intervalSeconds > 86_400) {
+        throw new Error('Replay interval must be 1–86,400 seconds.');
+      }
+      if (bars.length > 100_000) throw new Error('Replay supports up to 100,000 bars.');
+      const calendarLimit = 1024 * 1024;
+      if (calendar.length > calendarLimit) throw new Error('Session calendar exceeds 1 MiB.');
+      const encoded = encoder.encode(calendar);
+      if (encoded.length > calendarLimit) throw new Error('Session calendar exceeds 1 MiB.');
+      const dest = input(encoded.length + bars.length * 8);
+      new Uint8Array(dest.buffer, dest.byteOffset, encoded.length).set(encoded);
+      bars.forEach(({ time }, i) => {
+        if (!Number.isSafeInteger(time)) throw new Error('Bar time must be integer UTC seconds.');
+        dest.setBigInt64(encoded.length + i * 8, BigInt(time), true);
+      });
+      const out = output(api.mw_replay(encoded.length, intervalSeconds));
+      const events: ReplayEvent[] = [];
+      for (let i = 0; i < out.byteLength; i += 32) {
+        const index = out.getInt32(i + 16, true);
+        const flags = out.getUint32(i + 28, true);
+        events.push({
+          kind: replayKinds[flags & 255],
+          eventTime: Number(out.getBigInt64(i, true)),
+          observedAt: Number(out.getBigInt64(i + 8, true)),
+          barIndex: index < 0 ? null : index,
+          sessionIndex: out.getUint32(i + 20, true),
+          utcOffsetMinutes: out.getInt32(i + 24, true),
+          earlyClose: Boolean(flags & 256),
+        });
+      }
+      return events;
     },
   };
 }

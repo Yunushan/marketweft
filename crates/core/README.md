@@ -26,3 +26,7 @@ node --experimental-strip-types scripts/bench-wasm.mjs
 ```
 
 The native benchmark measures parsing and calculation over 100,000 bars. The WebAssembly benchmark includes JavaScript transfer and result materialization. Both report elapsed time for ten warm passes. The repository includes the compiled WASM asset for browser builds.
+
+## Session replay
+
+The native `parse_sessions` and `replay` functions build the deterministic session event plan used by the terminal. The Wasm ABI encodes each event in 32 little-endian bytes. Two signed 64-bit UTC timestamps are followed by a signed 32-bit source bar index (−1 for no bar), an unsigned 32-bit session index, a signed 32-bit opening offset in minutes and unsigned 32-bit flags. The low byte encodes open, bar, missing or close as 0–3. Bit 8 marks an early close. [Calendar and observation rules](../../docs/historical-replay.md).

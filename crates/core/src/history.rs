@@ -34,7 +34,7 @@ fn decimal(text: &str) -> Option<i64> {
 const MIN_TIME: i64 = -62_135_596_800; // 0001-01-01T00:00:00Z
 const MAX_TIME: i64 = 253_402_300_799; // 9999-12-31T23:59:59Z
 
-fn timestamp(text: &str) -> Option<i64> {
+pub(crate) fn timestamp(text: &str) -> Option<i64> {
     if let Ok(seconds) = text.parse::<i64>() {
         return (MIN_TIME..=MAX_TIME).contains(&seconds).then_some(seconds);
     }

@@ -21,6 +21,7 @@ import type {
   SeriesDescriptor,
 } from './catalog'
 import { WorkspaceBackup } from './WorkspaceBackup'
+import { HistoricalReplay } from './HistoricalReplay'
 import { checkImportRows, type ImportPolicy } from './import-policy'
 
 declare const __MARKETWEFT_IMPORT_POLICY__: ImportPolicy
@@ -299,6 +300,15 @@ export function App({
     [initial],
   )
   const [saved, setSaved] = useState(initial)
+  const [replaying, setReplaying] = useState(false)
+  const replayButton = useRef<HTMLButtonElement>(null)
+  const restoreReplayFocus = useRef(false)
+  useLayoutEffect(() => {
+    if (!replaying && restoreReplayFocus.current) {
+      restoreReplayFocus.current = false
+      replayButton.current?.focus()
+    }
+  }, [replaying])
   const [pendingPrefs, setPendingPrefs] = useState<{
     revision: number
     prefs: Preferences
@@ -443,6 +453,19 @@ export function App({
   }
   const span = last.high - last.low,
     position = span === 0 ? 50 : ((last.close - last.low) / span) * 100
+  if (replaying) {
+    return (
+      <HistoricalReplay
+        core={core}
+        assets={assets.filter((item) => item.source === 'import')}
+        selected={ws.selected}
+        close={() => {
+          restoreReplayFocus.current = true
+          setReplaying(false)
+        }}
+      />
+    )
+  }
   return (
     <>
       <header className="app-header">
@@ -472,9 +495,19 @@ export function App({
       <main>
         <div className="page-head">
           <h1>Research terminal</h1>
-          <div className="asof">
-            <span>{source} through</span>
-            <b>{dateLabel(last.time)}</b>
+          <div className="page-actions">
+            <div className="asof">
+              <span>{source} through</span>
+              <b>{dateLabel(last.time)}</b>
+            </div>
+            <button
+              ref={replayButton}
+              className="outline"
+              disabled={saving}
+              onClick={() => setReplaying(true)}
+            >
+              <Icon name="chart" /> Historical replay
+            </button>
           </div>
         </div>
         {(warning || saveError) && (
@@ -545,7 +578,12 @@ export function App({
             </div>
             {/* A restore can replace a series under its existing ID. Reset the
                 chart's bar-indexed viewport and crosshair when its length changes. */}
-            <Chart key={`${asset.id}:${bars.length}`} asset={asset} sma={sma} ema={ema} />
+            <Chart
+              key={`${asset.id}:${bars.length}`}
+              asset={asset}
+              sma={sma}
+              ema={ema}
+            />
           </article>
           <aside>
             <section className="side-card watchlist">
