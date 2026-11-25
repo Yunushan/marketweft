@@ -1,0 +1,22 @@
+{
+  "name": "@marketweft/trading-bot",
+  "version": "0.1.0",
+  "description": "Read-only trading-bot service v1 observations for MarketWeft",
+  "license": "0BSD",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.json && node --test test/observer.test.mjs",
+    "test:upstream": "tsc -p tsconfig.json && node test/upstream-smoke.mjs",
+    "prepack": "npm run build"
+  },
+  "devDependencies": { "typescript": "5.9.3" }
+}
