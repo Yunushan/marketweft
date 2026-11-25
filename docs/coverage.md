@@ -1,6 +1,6 @@
 # MarketWeft requirements and acceptance evidence
 
-The evidence column tracks delivery through 0.2.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
+The evidence column tracks delivery through 0.3.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
 
 | ID | Behavior and acceptance criterion | Evidence or next test |
 | --- | --- | --- |
@@ -16,11 +16,11 @@ The evidence column tracks delivery through 0.2.0. “Backlog” identifies beha
 | MW-010 | Start the same terminal in a Tauri desktop window without granting shell, filesystem or broker permissions. | Wrapper and native CI build path. See [platforms.md](platforms.md) before making a binary support claim. |
 | MW-011 | Build from lockfiles, inventory each dependency, check licenses, scan advisories and test on proposed release hosts. | CI configured. Local gate results and gaps in verification.md. |
 | MW-012 | Restore multiple chart panes with independent series and linked crosshairs. Validate 35 distinct chart types against per-type fixtures. | Backlog. Start with two panes and a common UTC cursor, then add one tested bar construction at a time. |
-| MW-013 | Build custom timeframes, tick bars, replay and multi-symbol studies without leaking future values. | Backlog. Replaying one event at a time must equal the prefix of a batch computation across DST and session gaps. |
+| MW-013 | Build custom timeframes, tick bars, replay and multi-symbol studies without leaking future values. | 0.3.0 replays one imported fixed-interval series against dated sessions. Native/Wasm tests compare the observed indicator prefix at all 294 events and browser tests exercise the DST change, a half-day and a missing interval offline. Tick bars, aggregation and multi-symbol studies are open. [Replay](historical-replay.md). |
 | MW-014 | Save editable drawings in data coordinates. Maintain an inventory of 150 distinct tools and 600 distinct built-in indicators. | Two indicators implemented. Test drawing serialization across zoom, then add only individually specified and verified tools and studies to counts. |
 | MW-015 | Specify an open time-series language with deterministic missing values, bounded evaluation and isolated plugins. | Backlog. Publish grammar, interpreter conformance vectors and quota tests before accepting user programs. |
 | MW-016 | Support custom financial/statistical formulas and Rust, TS, Python and Wasm SDKs. | Partial TS observation package. Future SDKs must exchange identical typed input and output fixtures and expose version negotiation. |
-| MW-017 | Track exchange sessions, action adjustments and point-in-time membership. | 0.2.0 preserves the supplied interval and adjustment policy. Session handling and applied corporate actions still require authorized split, dividend, half-day, delisting and DST fixtures. |
+| MW-017 | Track exchange sessions, action adjustments and point-in-time membership. | 0.3.0 validates supplied UTC-resolved sessions, offsets, early closes and gaps. Applied corporate actions and point-in-time membership are open. |
 | MW-018 | Screen an as-of universe and group a heatmap by sector, weight and return. | Backlog. Publish ranking and missing-data rules. Reconcile screen and heatmap constituents to the same timestamp. |
 | MW-019 | Rebuild depth, footprint, TPO, volume profiles and cumulative delta from ordered trades/quotes. | Backlog. Detect a sequence gap, resnapshot, and reconcile size totals and aggressor classifications. |
 | MW-020 | Backtest and optimize strategies with fees, slippage, execution delays and survivorship controls. | Backlog. A signal at close cannot fill before the next eligible event. Test a delisted constituent, partial fills and cash reconciliation. |

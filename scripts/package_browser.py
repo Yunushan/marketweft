@@ -36,6 +36,11 @@ On another profile or device, select the backup file, review the verified
 counts and confirm Restore workspace to replace that profile's catalog.
 Opening a 0.1.0 workspace on the same browser origin migrates it to IndexedDB.
 
+Choose Historical replay and Start demo for the NYSE session example. Replay
+reveals each bar at its scheduled close and marks missing intervals in-session.
+To replay your own import, choose a matching UTC session calendar and bar
+interval. The replay-*.csv files let you try the import workflow with the demo.
+
 The chart supports panning, zooming, a crosshair and moving-average overlays.
 This build has no broker connection or order entry. Press Ctrl+C in the
 launcher's terminal to stop serving the application.
@@ -55,12 +60,16 @@ def main():
                          "example.csv": "crates/core/tests/fixtures/reference.csv"}.items():
         files[name] = (ROOT / source).read_bytes()
     files["START-HERE.txt"] = START.encode("utf-8")
+    fixture = ROOT / "crates/core/tests/fixtures"
+    files["replay-sessions.csv"] = (fixture / "nyse-2025-replay-sessions.csv").read_bytes()
+    files["replay-ohlcv.csv"] = (fixture / "nyse-2025-replay-ohlcv.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
     inventory["components"] = [item for item in inventory["components"]
                                if any(p["value"] == "web-runtime" for p in item["properties"])]
     toolchain = tomllib.loads((ROOT / "rust-toolchain.toml").read_text(encoding="utf-8"))
+    core = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]
     inventory["components"].append({
-        "type": "library", "name": "marketweft_core.wasm", "version": "0.1.0",
+        "type": "library", "name": "marketweft_core.wasm", "version": core["version"],
         "hashes": [{"alg": "SHA-256", "content": hashlib.sha256(files["dist/marketweft_core.wasm"]).hexdigest()}],
         "properties": [{"name": "marketweft:rust-toolchain", "value": toolchain["toolchain"]["channel"]},
                        {"name": "marketweft:standard-library-notices", "value": "dist/rust-library-notices.html"}],

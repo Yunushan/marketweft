@@ -1,5 +1,19 @@
 # MarketWeft verification
 
+## 0.3.0 · Session-aware historical replay
+
+| Check | Observed result |
+| --- | --- |
+| Clock change | The NYSE fixture opens October 31, 2025 at 13:30 UTC (UTC−04:00) and November 3 at 14:30 UTC (UTC−05:00), both at 09:30 local. Each session uses its explicit UTC boundaries. |
+| Thanksgiving and early close | November 27 emits no events. November 28 has seven half-hour candles and closes at 18:00 UTC (13:00 local). The test also verifies a shorter final interval using a one-hour grid. |
+| Missing interval | The slot starting November 3 at 15:00 UTC is reported missing at 15:30 UTC. Its event reveals zero new bars and leaves the previous close visible. The engine rejects off-grid, duplicate and out-of-session bars. |
+| Prefix correctness | Native Rust and the Wasm bridge checked SMA(20) and EMA(9) at every one of the 294 events against the corresponding prefix of the fixed-point batch result. The example contains 20 sessions, 253 observed candles and one missing slot. |
+| Terminal behavior | Production Chromium ran through the demo with the network disabled. It verified the initial empty view, clock change, gap, last close, rewind and reset. A separate imported-series test exercised file selection, off-grid rejection, six-place quotes and an unchanged local catalog. The replay screen also fit a 360-pixel viewport. |
+| Local regression counts | Eight native Rust tests ran on Linux x64 with toolchain 1.100.0. Four compiled Wasm, four launcher and two dependency-policy tests passed. Six SDK and 25 Playwright tests passed with Node 26.8.2, TypeScript 7.0.2 and the pinned Chrome Headless Shell on Windows x64. The Windows host's Application Control denied direct execution of the new native test binary. |
+| Documentation | 21 complete README editions pass checks for 11 corresponding sections, identical runnable examples and valid navigation. The selection covers the 20 highest published positions by total speakers, including both languages listed at the rounded rank-20 boundary. |
+
+The schedule uses published NYSE core hours and an explicit U.S. Eastern offset at each opening. The OHLCV fixture is synthetic. [Replay contract and source citations](historical-replay.md) · [Hosted workflow evidence](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.2.0 · Transactional history and workspace recovery
 
 | Check | Observed result |
