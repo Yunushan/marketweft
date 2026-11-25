@@ -4,25 +4,39 @@ import subprocess
 import time
 
 import pyatspi
+from gi.repository import GLib
 
 
 def descendants(node, depth=0):
+    try:
+        if node is None or node.getState().contains(pyatspi.STATE_DEFUNCT):
+            return
+        count = min(node.childCount, 128) if depth < 15 else 0
+    except GLib.Error:
+        # Startup helpers can disappear between querying the desktop and reading a child.
+        return
     yield node
-    if depth < 15:
-        for i in range(min(node.childCount, 128)):
+    for i in range(count):
+        try:
             child = node.getChildAtIndex(i)
-            if child is not None:
-                yield from descendants(child, depth + 1)
+        except GLib.Error:
+            continue
+        yield from descendants(child, depth + 1)
 
 
 def wait_for(find, description):
     until = time.monotonic() + 12
+    last_error = None
     while time.monotonic() < until:
-        result = find(list(descendants(pyatspi.Registry.getDesktop(0))))
-        if result is not None:
-            return result
+        try:
+            result = find(list(descendants(pyatspi.Registry.getDesktop(0))))
+            if result is not None:
+                return result
+        except GLib.Error as error:
+            # WebKit can replace an accessibility object after enumeration.
+            last_error = error
         time.sleep(0.25)
-    raise RuntimeError("Timed out waiting for " + description)
+    raise RuntimeError("Timed out waiting for " + description) from last_error
 
 
 def named(nodes, name):

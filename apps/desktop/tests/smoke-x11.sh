@@ -9,7 +9,7 @@ if [ "${1:-}" != --display-ready ]; then
         echo "Usage: sh smoke-x11.sh PATH_TO_COMPILED_MARKETWEFT_DESKTOP" >&2
         exit 2
     fi
-    exec dbus-run-session -- xvfb-run -a -s '-screen 0 1600x1000x24' sh "$0" --display-ready "$1"
+    exec xvfb-run -a -s '-screen 0 1600x1000x24' dbus-run-session -- sh "$0" --display-ready "$1"
 fi
 
 binary=$2
