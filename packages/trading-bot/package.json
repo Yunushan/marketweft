@@ -18,5 +18,5 @@
     "test:upstream": "tsc -p tsconfig.json && node test/upstream-smoke.mjs",
     "prepack": "npm run build"
   },
-  "devDependencies": { "typescript": "5.9.3" }
+  "devDependencies": { "typescript": "7.0.2" }
 }
