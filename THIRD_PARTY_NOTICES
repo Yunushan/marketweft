@@ -1,0 +1,35 @@
+MarketWeft original code and generated example prices are distributed under 0BSD.
+The policy is based on complete SPDX expressions. At least one approved branch of
+an OR must be available. Every license in an AND must be satisfied.
+
+Browser distribution
+--------------------
+Preserve THIRD-PARTY.txt and rust-library-notices.html alongside the compiled
+browser assets. The first file contains the installed production npm package
+notices. The second is the Rust toolchain's standard-library copyright and
+license inventory. OS-provided fonts and WebViews are system components.
+
+Native desktop and development tools
+------------------------------------
+The desktop wrapper is a separate Cargo workspace. Its Tauri graph contains
+unmodified MPL-2.0 files in cssparser, cssparser-macros, dtoa-short, option-ext
+and selectors. The web build uses the unmodified MPL-2.0 lightningcss tool and
+its platform bindings. These file-scoped terms apply to the respective packages.
+No MPL package enters the financial crate or the browser's npm runtime graph.
+The policy also accepts the permissive Zlib and Unicode-3.0 terms and the
+Apache-2.0 license with the LLVM exception. For dual-licensed packages select
+an approved permissive branch. Preserve the terms of each required license.
+
+docs/dependencies.cdx.json lists exact package versions, integrity digests and
+declared licenses, including optional target packages. Rust package source
+archives are available at https://crates.io/api/v1/crates/NAME/VERSION/download.
+npm source distributions are identified by their resolved URLs in package-lock.json.
+Supply corresponding source for any distributed MPL-covered files and retain
+all upstream notices. Before shipping a native installer, assemble the native
+dependency notices, system-library terms, corresponding source information and
+signing evidence for that target. This milestone ships a source wrapper.
+
+To check the inventory, install the locked npm tree, fetch both Cargo
+workspaces with cargo fetch --locked, and run python scripts/supply_chain.py
+--check from the repository root. Omit --check to regenerate after reviewing a
+lockfile change. License gates fail closed for unknown required terms.
