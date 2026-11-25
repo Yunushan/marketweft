@@ -1,0 +1,13 @@
+node_modules/
+target/
+dist/
+playwright-report/
+test-results/
+coverage/
+.DS_Store
+.env
+.env.*
+*.log
+/reports/
+/apps/desktop/gen/
+
