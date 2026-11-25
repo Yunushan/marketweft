@@ -1,0 +1,171 @@
+<!-- MarketWeft README · locale=de -->
+
+# MarketWeft
+
+**0.3.0 · 0BSD**
+
+**Sprachen der Dokumentation**
+
+[English](../../README.md) · [简体中文](../../docs/readme/README.zh-Hans.md) · [हिन्दी](../../docs/readme/README.hi.md) · [Español](../../docs/readme/README.es.md) · [العربية الفصحى](../../docs/readme/README.ar.md) · [Français](../../docs/readme/README.fr.md) · [বাংলা](../../docs/readme/README.bn.md)
+[Português](../../docs/readme/README.pt.md) · [Bahasa Indonesia](../../docs/readme/README.id.md) · [اردو](../../docs/readme/README.ur.md) · [Русский](../../docs/readme/README.ru.md) · **Deutsch** · [日本語](../../docs/readme/README.ja.md) · [Naijá](../../docs/readme/README.pcm.md)
+[العربي المصري](../../docs/readme/README.arz.md) · [मराठी](../../docs/readme/README.mr.md) · [Tiếng Việt](../../docs/readme/README.vi.md) · [తెలుగు](../../docs/readme/README.te.md) · [Kiswahili](../../docs/readme/README.sw.md) · [Hausa](../../docs/readme/README.ha.md) · [Türkçe](../../docs/readme/README.tr.md)
+
+<!-- section:01 -->
+## Was MarketWeft bietet
+
+MarketWeft ist ein lokal arbeitendes Rechercheterminal für Analysten, Entwickler und Betreiber. Es öffnet berechtigte OHLCV-Dateien, zeichnet Kerzen und Volumen, berechnet SMA und EMA in Festkommaarithmetik und speichert Beobachtungsliste, Instrument und Indikatoren in IndexedDB. Nach dem Zwischenspeichern der Anwendung funktioniert es offline. Die mitgelieferten Kurse und Volumina sind synthetisch und brauchen kein Konto.
+
+Version 0.3.0 ergänzt die sitzungsbezogene Wiedergabe einer unveränderlichen Historie. Das Repository enthält außerdem einen unabhängigen lesenden TypeScript-Client für trading-bot und eine experimentelle Tauri-Anwendung. Kapitalmaßnahmen, Datenfeeds, Aufträge, Mehrbenutzerbetrieb und signierte Installer stehen auf der Roadmap.
+
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
+
+<!-- section:02 -->
+## Portables Terminal starten
+
+Laden Sie browser-terminal-attempt-N aus einem erfolgreichen GitHub-Lauf herunter. Entpacken Sie MarketWeft-browser-0.3.0.zip, lassen Sie dist/ neben serve-terminal.mjs und führen Sie dort den Befehl aus. Öffnen Sie http://127.0.0.1:4173/ in einem aktuellen Browser mit WebAssembly, Canvas, BigInt und IndexedDB. Der Starter benötigt Node.js ab 22.12 und keine npm-Installation. Warten Sie vor dem Trennen auf Offline ready.
+
+```sh
+node serve-terminal.mjs
+```
+
+[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md)
+
+<!-- section:03 -->
+## NYSE-Beispiel wiedergeben
+
+Öffnen Sie Historical replay und Start demo. Next event und Previous event schalten vor und zurück, Play und Pause steuern den Lauf und Reset leert den sichtbaren Verlauf. Eine Kerze erscheint am Ende ihres Intervalls. Event time nennt den Beginn oder die Sitzungsgrenze. Observed at nennt die Verfügbarkeit. Die Geschwindigkeit beeinflusst nur den Anzeigetakt.
+
+Die Öffnung verschiebt sich von 13:30 UTC (UTC−04:00) am 31.10.2025 auf 14:30 UTC (UTC−05:00) am 03.11. Das Fehlen des Intervalls ab 15:00 wird um 15:30 sichtbar. Thanksgiving erzeugt keine Intervalle. Am 28.11. schließt die Sitzung um 18:00 UTC nach sieben 30-Minuten-Kerzen. Der Beispieldatensatz umfasst 20 Sitzungen, 253 Kerzen und 294 Ereignisse mit synthetischen Daten und öffentlichen NYSE-Zeiten.
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+
+<!-- section:04 -->
+## Eigene Daten importieren und abspielen
+
+Wählen Sie Import CSV, geben Sie Handelsplatz und Symbol ein und öffnen Sie eine zulässige OHLCV-Datei in UTF-8. Nutzen Sie streng steigende Unix-Sekunden, UTC-Daten oder UTC-Zeitstempel mit Z. Werte haben höchstens sechs Nachkommastellen. Volumen ist nichtnegativ und Hoch und Tief umfassen Öffnung und Schluss. Eine ungültige Zeile verhindert den Import. Series details erfasst Intervall, Quelle, Nutzungsrecht und Anpassungsmethode.
+
+Kennzeichnen Sie jede Kerze mit dem Intervallbeginn. Wählen Sie in Historical replay das Instrument und einen Kalender als CSV, dann ganze Intervallsekunden (1–86.400). Geben Sie exakte UTC-Grenzen, den Versatz bei der Öffnung in Minuten und regular oder early an. Das Raster beginnt an der Öffnung, der letzte Abschnitt endet spätestens am Schluss. Unpassende Kerzen werden abgelehnt. Eine Lücke bewegt die Uhr und belässt die letzten Werte.
+
+Standard sind 1.500.000 Bytes und 100.000 Kerzen pro Datei. Die Build-Konfiguration erlaubt bis zu 8 MiB und 100.000 Zeilen. Der Kalender unterstützt 1 MiB, 10.000 getrennte Segmente und 200.000 Ereignisse. Browserspeicherquoten gelten zusätzlich.
+
+```csv
+time,open,high,low,close,volume
+2025-11-28T14:30:00Z,10,12,9,11,200.000001
+2025-11-28T15:00:00Z,11,13,10,12,150
+```
+
+```csv
+date,open_utc,close_utc,utc_offset_minutes,kind
+2025-11-28,2025-11-28T14:30:00Z,2025-11-28T18:00:00Z,-300,early
+```
+
+[apps/terminal/README.md](../../apps/terminal/README.md) · [crates/core/README.md](../../crates/core/README.md)
+
+<!-- section:05 -->
+## Sichern, migrieren und wiederherstellen
+
+Workspace backup → Export workspace speichert versioniertes JSON mit Original-CSV, Herkunft, sichtbaren und ausgeblendeten Historien, Liste, Auswahl und Indikatoren. Wählen Sie im Zielprofil Backup file, prüfen Sie die Summen und klicken Sie Restore workspace. Eine Transaktion ersetzt den Zielkatalog. Exportieren Sie den Zielbestand zuvor, falls er benötigt wird.
+
+Behalten Sie Schema, Host, Port und Profil beim Upgrade bei. Die Migration von 0.1.0 nach IndexedDB überprüft die gespeicherten Daten und erhält den ursprünglichen Wert. Schließen Sie alte Tabs. Die Sicherung ist Klartext. SHA-256 prüft die Integrität. Die Datennutzungsrechte bestimmen Aufbewahrung und Zugriff.
+
+[docs/workspace-backup.md](../../docs/workspace-backup.md) · [SECURITY.md](../../SECURITY.md)
+
+<!-- section:06 -->
+## Architektur und Rechenregeln
+
+Rust validiert Identität, UTC und OHLCV, rechnet in ganzzahligen Millionsteln und erstellt den Sitzungsplan. Das React-Terminal nutzt denselben Kern als Wasm, Canvas für Diagramme, IndexedDB für Transaktionen und einen Service Worker für statische Dateien. Revisionen erkennen konkurrierende Änderungen. Der Zustand gehört zu Profil und Origin.
+
+SMA benutzt eine exakte rollende Summe. EMA startet mit dem ersten vollen Fenster und rundet jeden Wert auf ein Millionstel, bei halben Werten von null weg. Die Wiedergabe nutzt nur beobachtete Schlusswerte. Das geplante Intervallende bestimmt die Verfügbarkeit. Provider-Ankunft, Revisionen und Zeiten innerhalb der Kerze benötigen getrennte Daten. Quellzeilen bleiben erhalten.
+
+[docs/adr/0002-transactional-history.md](../../docs/adr/0002-transactional-history.md) · [docs/adr/0003-session-replay.md](../../docs/adr/0003-session-replay.md)
+
+<!-- section:07 -->
+## Bereitstellung und Betriebsumfang
+
+Stellen Sie dist/ über HTTPS oder den Loopback-Starter bereit. Derselbe Origin erhält den Arbeitsbereich. Andere Ports, Profile oder private Fenster nutzen einen eigenen Speicher. Für Tauri bauen Sie zuerst das Terminal und installieren die Systemvoraussetzungen. CI baut auf Windows Server 2022, macOS 15 und Ubuntu 24.04 und öffnet das Linux-Fenster. Die Matrix nennt Mobilgeräte, ARM und BSD. Für Akzeptanztests nutzen Sie Desktop-Chromium.
+
+Aktuell ist ein lokaler Nutzer pro Profil vorgesehen. Speichern Sie Daten auf zugelassenen Geräten. Anmeldung, Mandantentrennung, Überwachung, Aufbewahrung und Wiederherstellung benötigen eine geprüfte Betriebsarchitektur. Der ZIP enthält Lizenzhinweise und eine CycloneDX-SBOM. Passende Versions-Tags aktivieren eine Attestierung.
+
+```sh
+npm ci
+npm run build
+cargo run --locked --manifest-path apps/desktop/Cargo.toml
+```
+
+[docs/platforms.md](../../docs/platforms.md) · [Tauri](https://v2.tauri.app/start/prerequisites/) · [CycloneDX](../../docs/dependencies.cdx.json)
+
+<!-- section:08 -->
+## Externen Dienst abfragen
+
+TradingBotObserverV1 liest runtime, status, account und portfolio aus einem separat eingerichteten trading-bot. Nutzen Sie einen vertrauenswürdigen Origin, HTTPS außerhalb von Loopback und ein berechtigtes Token aus der Prozesskonfiguration. Jede Beobachtung hat ihre eigene Zeit. Ein leerer Datensatz oder gesunder Dienst belegt keine weiteren Salden oder Positionen. Zugangsdaten, Aufträge und Ausführung liegen beim externen Dienst.
+
+```js
+import { TradingBotObserverV1 } from "@marketweft/trading-bot";
+
+const observer = new TradingBotObserverV1({
+  baseUrl: process.env.TRADING_BOT_URL ?? "http://127.0.0.1:8000",
+  token: process.env.TRADING_BOT_TOKEN,
+});
+const snapshot = await observer.account();
+console.log(snapshot.observedAt, snapshot.totalBalance, snapshot.currency);
+```
+
+[docs/trading-bot.md](../../docs/trading-bot.md) · [trading-bot](https://github.com/Yunushan/trading-bot)
+
+<!-- section:09 -->
+## Aus dem Quellcode bauen und prüfen
+
+Benötigt werden Node.js ab 22.12 mit npm, Rustup gemäß rust-toolchain.toml und Python ab 3.11. Starten Sie im Projektstamm. Vite nennt die Entwicklungsadresse, meist Port 5173. Die Produktionsversion nutzt 4173. Installieren Sie vor den Tests das festgelegte Chromium.
+
+Geprüft werden Rust, Wasm, Browser, SDK, lokaler Server, Lizenzen, SBOM und Sicherheitshinweise. Beide gleitenden Durchschnitte gleichen an jedem Ereignis dem passenden Batch-Präfix, auch bei Zeitwechsel, Lücke und frühem Schluss. CI wartet auf die genaue Artefakt-ID und vergleicht die heruntergeladenen Bytes. Attestierung erfolgt bei passenden Versions-Tags.
+
+```sh
+git clone https://github.com/Yunushan/marketweft.git
+cd marketweft
+npm ci
+npm run dev
+```
+
+```sh
+node scripts/build-wasm.mjs
+npm run build
+node scripts/serve-terminal.mjs
+```
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
+cargo test --workspace --locked
+node --experimental-strip-types --test scripts/core-wasm.test.mjs
+node --test scripts/serve-terminal.test.mjs
+npx --no-install playwright install chromium
+npm test
+cargo fetch --locked --manifest-path apps/desktop/Cargo.toml
+python -B scripts/test_supply_chain.py
+python -B scripts/supply_chain.py --check
+python -B scripts/check_readmes.py
+npm audit --audit-level=high
+python -B scripts/advisories.py
+python -B scripts/package_browser.py
+```
+
+[verify.yml](../../.github/workflows/verify.yml) · [docs/native-advisories.md](../../docs/native-advisories.md)
+
+<!-- section:10 -->
+## Fehler untersuchen und reproduzieren
+
+Ist der Port belegt, verwenden Sie --port 4174. Übertragen Sie Daten mit Export und Wiederherstellung. Öffnen Sie bei Offline-Problemen zuerst den Produktionsbuild mit Netz und warten Sie auf Offline ready. Bei einer Ablehnung prüfen Sie die Meldungszeile, den Beginn der Kerze und den Kalender für Markt und Datum.
+
+Bewahren Sie CSV, Kalender, Intervall, Git-Revision, Browserversion und Zeit des Ereignisses auf. Melden Sie den ersten Fehlschritt mit einem synthetischen Beispiel. Der Prüfbericht enthält Plattformnachweise und die Roadmap die nächsten Ziele.
+
+[docs/verification.md](../../docs/verification.md) · [ROADMAP.md](../../ROADMAP.md)
+
+<!-- section:11 -->
+## Repository, Beiträge und Lizenz
+
+Kern und Fixtures liegen in crates/core, Terminal und Tests in apps/terminal, Tauri in apps/desktop, SDK in packages/trading-bot und Werkzeuge in scripts. Halten Sie Änderungen klein und getestet. Wahren Sie Datenrechte und Hinweise, aktualisieren Sie das Abhängigkeitsinventar und melden Sie Sicherheitslücken vertraulich.
+
+Der Originalcode steht unter 0BSD. Abhängigkeiten behalten ihre Lizenzen. Die vollständigen Ausgaben basieren auf Ethnologue 2026 nach Erst- und Zweitsprachlern und schließen beide gerundet auf Platz 20 liegenden Sprachen ein. Verlinkte Handbücher und die Oberfläche können Englisch verwenden.
+
+[CONTRIBUTING.md](../../CONTRIBUTING.md) · [SECURITY.md](../../SECURITY.md) · [THIRD_PARTY_NOTICES](../../THIRD_PARTY_NOTICES) · [0BSD](../../LICENSE) · [Ethnologue 2026](https://www.ethnologue.com/insights/ethnologue200/) · [Ethnologue 2026 · L1 + L2](https://en.wikipedia.org/w/index.php?title=List_of_languages_by_total_number_of_speakers&oldid=1385320542#Ethnologue_(2026))

@@ -1,0 +1,171 @@
+<!-- MarketWeft README · locale=id -->
+
+# MarketWeft
+
+**0.3.0 · 0BSD**
+
+**Bahasa dokumentasi**
+
+[English](../../README.md) · [简体中文](../../docs/readme/README.zh-Hans.md) · [हिन्दी](../../docs/readme/README.hi.md) · [Español](../../docs/readme/README.es.md) · [العربية الفصحى](../../docs/readme/README.ar.md) · [Français](../../docs/readme/README.fr.md) · [বাংলা](../../docs/readme/README.bn.md)
+[Português](../../docs/readme/README.pt.md) · **Bahasa Indonesia** · [اردو](../../docs/readme/README.ur.md) · [Русский](../../docs/readme/README.ru.md) · [Deutsch](../../docs/readme/README.de.md) · [日本語](../../docs/readme/README.ja.md) · [Naijá](../../docs/readme/README.pcm.md)
+[العربي المصري](../../docs/readme/README.arz.md) · [मराठी](../../docs/readme/README.mr.md) · [Tiếng Việt](../../docs/readme/README.vi.md) · [తెలుగు](../../docs/readme/README.te.md) · [Kiswahili](../../docs/readme/README.sw.md) · [Hausa](../../docs/readme/README.ha.md) · [Türkçe](../../docs/readme/README.tr.md)
+
+<!-- section:01 -->
+## Kemampuan MarketWeft
+
+MarketWeft adalah terminal riset lokal untuk analis, pengembang, dan operator. Terminal membuka OHLCV yang diizinkan, menampilkan kandil dan volume, menghitung SMA dan EMA dengan titik tetap, dan menyimpan daftar pantauan, instrumen, serta indikator di IndexedDB. Aplikasi berjalan luring setelah aset tersimpan. Harga dan volume bawaan bersifat sintetis dan tidak memerlukan akun penyedia.
+
+Versi 0.3.0 memutar ulang satu rangkaian historis yang tidak diubah sesuai sesi. Repositori menyediakan SDK TypeScript hanya baca untuk trading-bot terpisah dan wadah Tauri eksperimental. Aksi korporasi, umpan data, order, hosting multi-pengguna, dan installer bertanda tangan ada dalam peta jalan.
+
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
+
+<!-- section:02 -->
+## Memulai terminal portabel
+
+Unduh browser-terminal-attempt-N dari verifikasi GitHub yang berhasil. Ekstrak MarketWeft-browser-0.3.0.zip. Simpan dist/ di samping serve-terminal.mjs lalu jalankan perintah di folder itu. Buka http://127.0.0.1:4173/ dengan peramban yang mendukung WebAssembly, Canvas, BigInt, dan IndexedDB. Pakai Node.js 22.12 atau lebih baru. Instalasi npm tidak diperlukan. Tunggu Offline ready sebelum memutus koneksi.
+
+```sh
+node serve-terminal.mjs
+```
+
+[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md)
+
+<!-- section:03 -->
+## Memutar ulang contoh NYSE
+
+Di Historical replay pilih Start demo. Next event maju, Previous event mundur, Play dan Pause mengontrol pemutaran, serta Reset mengosongkan riwayat tampilan. Grafik mulai kosong. Kandil muncul saat interval berakhir. Event time adalah awal interval atau batas sesi. Observed at menunjukkan ketersediaan. Kecepatan hanya mengubah laju tampilan.
+
+Pembukaan bergeser dari 13:30 UTC (UTC−04:00) pada 31 Oktober 2025 ke 14:30 UTC (UTC−05:00) pada 3 November. Interval 15:00 yang hilang dilaporkan pukul 15:30. Hari Thanksgiving tidak memiliki slot. Pada 28 November sesi tutup lebih awal pukul 18:00 UTC setelah tujuh kandil 30 menit. Contoh memuat 20 sesi, 253 kandil, dan 294 peristiwa, dengan data sintetis dan jam publik NYSE.
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+
+<!-- section:04 -->
+## Mengimpor dan memutar ulang data sendiri
+
+Di Import CSV masukkan pasar dan simbol, lalu pilih OHLCV UTF-8 yang diizinkan. Urutkan detik Unix, tanggal UTC, atau waktu UTC berakhiran Z secara menaik. Gunakan paling banyak enam desimal, volume nonnegatif, dan nilai tertinggi dan terendah yang mencakup pembukaan dan penutupan. Satu baris tidak sah membatalkan impor. Catat interval, sumber, hak, dan penyesuaian di Series details.
+
+Tandai kandil dengan waktu mulai. Di Historical replay pilih instrumen, kalender CSV, dan interval detik bulat (1–86.400). Tulis batas UTC, offset menit saat buka, dan regular atau early. Kisi berawal saat buka dan slot akhir dapat lebih singkat. Kandil di luar sesi atau kisi ditolak. Kekosongan memajukan jam dan mempertahankan nilai terakhir.
+
+Batas baku adalah 1.500.000 byte dan 100.000 kandil per file. Konfigurasi build bisa mencapai 8 MiB dan 100.000 baris. Kalender menerima 1 MiB, 10.000 segmen tak tumpang tindih, dan 200.000 peristiwa. Kuota peramban berlaku terpisah.
+
+```csv
+time,open,high,low,close,volume
+2025-11-28T14:30:00Z,10,12,9,11,200.000001
+2025-11-28T15:00:00Z,11,13,10,12,150
+```
+
+```csv
+date,open_utc,close_utc,utc_offset_minutes,kind
+2025-11-28,2025-11-28T14:30:00Z,2025-11-28T18:00:00Z,-300,early
+```
+
+[apps/terminal/README.md](../../apps/terminal/README.md) · [crates/core/README.md](../../crates/core/README.md)
+
+<!-- section:05 -->
+## Mencadangkan, memindahkan, dan memulihkan
+
+Workspace backup → Export workspace menyimpan JSON berversi berisi CSV asli, asal, riwayat tampak dan tersembunyi, urutan daftar, pilihan, serta indikator. Pada profil tujuan, pilih Backup file, periksa jumlah, dan tekan Restore workspace. Satu transaksi mengganti katalog tujuan. Ekspor tujuan terlebih dahulu jika perlu disimpan.
+
+Pertahankan skema, host, port, dan profil saat memutakhirkan. Ruang 0.1.0 pindah ke IndexedDB, dibaca kembali untuk verifikasi, dan nilai lama disimpan. Tutup tab versi lama. Cadangan berupa teks biasa. SHA-256 memeriksa integritas. Ikuti hak data untuk penyimpanan, akses, dan retensi.
+
+[docs/workspace-backup.md](../../docs/workspace-backup.md) · [SECURITY.md](../../SECURITY.md)
+
+<!-- section:06 -->
+## Arsitektur dan perhitungan
+
+Rust memvalidasi identitas, UTC, dan OHLCV, berhitung dalam sepersejuta bilangan bulat, serta menyusun jadwal. React memakai mesin Wasm yang sama, Canvas, transaksi IndexedDB, dan service worker untuk cache. Revisi mendeteksi penulisan serentak. Keadaan terikat ke profil dan asal.
+
+SMA memakai jumlah bergulir eksak. EMA dimulai pada jendela lengkap pertama dan dibulatkan setiap langkah ke sepersejuta, menjauhi nol saat seri. Pemutaran memakai harga penutupan yang sudah muncul. Akhir slot menentukan ketersediaan historis. Kedatangan dari penyedia, revisi, dan waktu dalam kandil butuh data lain. Baris sumber tetap utuh.
+
+[docs/adr/0002-transactional-history.md](../../docs/adr/0002-transactional-history.md) · [docs/adr/0003-session-replay.md](../../docs/adr/0003-session-replay.md)
+
+<!-- section:07 -->
+## Penyebaran dan cakupan operasi
+
+Sajikan dist/ melalui HTTPS atau gunakan peluncur loopback. Pertahankan asal untuk menemukan ruang kerja. Port, profil, atau jendela privat lain punya penyimpanan sendiri. Untuk mengevaluasi Tauri, bangun web dan pasang prasyarat sistem. CI membangun Windows Server 2022, macOS 15, dan Ubuntu 24.04 serta membuka jendela Linux. Matriks memuat seluler, ARM, dan BSD. Gunakan Chromium desktop untuk pengujian.
+
+Model kini satu pengguna lokal per profil. Simpan data dan cadangan di perangkat resmi. Autentikasi, isolasi pengguna, pemantauan, retensi, dan target pemulihan perlu penerapan teruji sendiri. ZIP menyertakan pemberitahuan lisensi dan SBOM CycloneDX. Tag rilis menjalankan pengesahan artefak.
+
+```sh
+npm ci
+npm run build
+cargo run --locked --manifest-path apps/desktop/Cargo.toml
+```
+
+[docs/platforms.md](../../docs/platforms.md) · [Tauri](https://v2.tauri.app/start/prerequisites/) · [CycloneDX](../../docs/dependencies.cdx.json)
+
+<!-- section:08 -->
+## Mengamati layanan eksternal
+
+TradingBotObserverV1 membaca runtime, status, account, dan portfolio dari trading-bot yang diatur terpisah. Gunakan asal tepercaya, HTTPS di luar loopback, dan token sah melalui konfigurasi proses. Tinjau waktu setiap pengamatan. Potret kosong atau layanan sehat tidak memberi saldo maupun posisi tambahan. Kredensial, order, dan eksekusi adalah tanggung jawab layanan eksternal.
+
+```js
+import { TradingBotObserverV1 } from "@marketweft/trading-bot";
+
+const observer = new TradingBotObserverV1({
+  baseUrl: process.env.TRADING_BOT_URL ?? "http://127.0.0.1:8000",
+  token: process.env.TRADING_BOT_TOKEN,
+});
+const snapshot = await observer.account();
+console.log(snapshot.observedAt, snapshot.totalBalance, snapshot.currency);
+```
+
+[docs/trading-bot.md](../../docs/trading-bot.md) · [trading-bot](https://github.com/Yunushan/trading-bot)
+
+<!-- section:09 -->
+## Membangun dan memverifikasi sumber
+
+Pakai Node.js 22.12 atau baru dengan npm, Rustup sesuai rust-toolchain.toml, dan Python 3.11 atau baru. Jalankan dari akar repo. Vite mencetak URL pengembangan, biasanya 5173. Server produksi memakai 4173. Pasang Chromium terkunci sebelum uji.
+
+Verifikasi mencakup Rust, Wasm, peramban, SDK, server lokal, lisensi, SBOM, dan advisori. Setiap peristiwa membandingkan kedua rata-rata dengan bagian awal hasil batch, termasuk pergantian jam, kekosongan, dan penutupan awal. CI menunggu ID ZIP yang tepat lalu mencocokkan byte unduhan. Tag yang cocok dengan versi memicu pengesahan.
+
+```sh
+git clone https://github.com/Yunushan/marketweft.git
+cd marketweft
+npm ci
+npm run dev
+```
+
+```sh
+node scripts/build-wasm.mjs
+npm run build
+node scripts/serve-terminal.mjs
+```
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
+cargo test --workspace --locked
+node --experimental-strip-types --test scripts/core-wasm.test.mjs
+node --test scripts/serve-terminal.test.mjs
+npx --no-install playwright install chromium
+npm test
+cargo fetch --locked --manifest-path apps/desktop/Cargo.toml
+python -B scripts/test_supply_chain.py
+python -B scripts/supply_chain.py --check
+python -B scripts/check_readmes.py
+npm audit --audit-level=high
+python -B scripts/advisories.py
+python -B scripts/package_browser.py
+```
+
+[verify.yml](../../.github/workflows/verify.yml) · [docs/native-advisories.md](../../docs/native-advisories.md)
+
+<!-- section:10 -->
+## Menelusuri dan mereproduksi masalah
+
+Jika port sibuk gunakan --port 4174 dan pindahkan data dengan ekspor dan pemulihan. Saat mode luring gagal, buka versi produksi secara daring dan tunggu Offline ready. Jika file ditolak, periksa baris yang disebut, waktu mulai, serta kalender pasar dan tanggal.
+
+Simpan CSV, kalender, interval, revisi Git, versi peramban, dan waktu peristiwa. Laporkan contoh sintetis dan langkah pertama yang gagal. Catatan verifikasi memuat bukti per platform dan peta jalan menyebut target berikutnya.
+
+[docs/verification.md](../../docs/verification.md) · [ROADMAP.md](../../ROADMAP.md)
+
+<!-- section:11 -->
+## Repositori, kontribusi, dan lisensi
+
+Mesin dan fixture di crates/core, terminal dan uji di apps/terminal, host di apps/desktop, SDK di packages/trading-bot, dan alat di scripts. Buat perubahan kecil dan teruji. Hormati hak serta pemberitahuan, perbarui inventaris saat dependensi berubah, dan laporkan kerentanan secara pribadi.
+
+Kode asli memakai 0BSD dan dependensi memakai lisensinya sendiri. Edisi lengkap mengikuti jumlah penutur bahasa pertama dan kedua Ethnologue 2026, termasuk dua bahasa yang seri di peringkat 20 setelah pembulatan. Antarmuka dan panduan tertaut mungkin berbahasa Inggris.
+
+[CONTRIBUTING.md](../../CONTRIBUTING.md) · [SECURITY.md](../../SECURITY.md) · [THIRD_PARTY_NOTICES](../../THIRD_PARTY_NOTICES) · [0BSD](../../LICENSE) · [Ethnologue 2026](https://www.ethnologue.com/insights/ethnologue200/) · [Ethnologue 2026 · L1 + L2](https://en.wikipedia.org/w/index.php?title=List_of_languages_by_total_number_of_speakers&oldid=1385320542#Ethnologue_(2026))

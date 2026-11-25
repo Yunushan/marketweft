@@ -1,0 +1,171 @@
+<!-- MarketWeft README · locale=hi -->
+
+# MarketWeft
+
+**0.3.0 · 0BSD**
+
+**दस्तावेज़ की भाषाएँ**
+
+[English](../../README.md) · [简体中文](../../docs/readme/README.zh-Hans.md) · **हिन्दी** · [Español](../../docs/readme/README.es.md) · [العربية الفصحى](../../docs/readme/README.ar.md) · [Français](../../docs/readme/README.fr.md) · [বাংলা](../../docs/readme/README.bn.md)
+[Português](../../docs/readme/README.pt.md) · [Bahasa Indonesia](../../docs/readme/README.id.md) · [اردو](../../docs/readme/README.ur.md) · [Русский](../../docs/readme/README.ru.md) · [Deutsch](../../docs/readme/README.de.md) · [日本語](../../docs/readme/README.ja.md) · [Naijá](../../docs/readme/README.pcm.md)
+[العربي المصري](../../docs/readme/README.arz.md) · [मराठी](../../docs/readme/README.mr.md) · [Tiếng Việt](../../docs/readme/README.vi.md) · [తెలుగు](../../docs/readme/README.te.md) · [Kiswahili](../../docs/readme/README.sw.md) · [Hausa](../../docs/readme/README.ha.md) · [Türkçe](../../docs/readme/README.tr.md)
+
+<!-- section:01 -->
+## MarketWeft की क्षमताएँ
+
+MarketWeft विश्लेषकों, डेवलपरों और संचालकों के लिए स्थानीय शोध टर्मिनल है। यह अधिकृत OHLCV फ़ाइलें खोलता है, कैंडल और मात्रा दिखाता है, स्थिर दशमलव में SMA और EMA निकालता है और निगरानी सूची, चयन तथा संकेतक IndexedDB में रखता है। संसाधनों की कैशिंग के बाद ऑफ़लाइन चलता है। शामिल भाव और मात्राएँ कृत्रिम हैं और खाता नहीं चाहिए।
+
+0.3.0 में एक अपरिवर्तनीय ऐतिहासिक शृंखला का सत्र-आधारित पुनर्चालन है। अलग trading-bot सेवा का केवल-पठन TypeScript SDK और प्रयोगात्मक Tauri होस्ट भी हैं। कॉर्पोरेट कार्रवाइयाँ, डेटा फ़ीड, ऑर्डर, बहु-उपयोगकर्ता होस्टिंग और हस्ताक्षरित इंस्टॉलर भावी कार्य हैं।
+
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
+
+<!-- section:02 -->
+## पोर्टेबल टर्मिनल शुरू करें
+
+सफल GitHub सत्यापन से browser-terminal-attempt-N डाउनलोड करें। MarketWeft-browser-0.3.0.zip खोलें, dist/ को serve-terminal.mjs के साथ रखें और उसी फ़ोल्डर में आदेश चलाएँ। WebAssembly, Canvas, BigInt और IndexedDB वाले आधुनिक ब्राउज़र में http://127.0.0.1:4173/ खोलें। Node.js 22.12 या नया चाहिए। npm इंस्टॉल नहीं चाहिए। नेटवर्क बंद करने से पहले Offline ready देखें।
+
+```sh
+node serve-terminal.mjs
+```
+
+[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md)
+
+<!-- section:03 -->
+## NYSE का उदाहरण चलाएँ
+
+Historical replay में Start demo चुनें। Next event से आगे, Previous event से पीछे, Play और Pause से चालू और विराम, Reset से दिखाई देने वाला इतिहास साफ़ करें। ग्राफ़ खाली शुरू होता है। कैंडल अंतराल समाप्त होने पर दिखती है। Event time आरंभ या सत्र की सीमा है। Observed at उपलब्धता का समय है। गति केवल प्रदर्शन की चाल बदलती है।
+
+31 अक्टूबर 2025 को खुलना 13:30 UTC (UTC−04:00) है, 3 नवंबर को 14:30 UTC (UTC−05:00)। 3 नवंबर का 15:00 अंतराल 15:30 पर अनुपस्थित दिखता है। थैंक्सगिविंग पर स्लॉट नहीं हैं। 28 नवंबर को सात 30-मिनट कैंडल के बाद 18:00 UTC पर जल्दी बंद होता है। उदाहरण में 20 सत्र, 253 कैंडल और 294 घटनाएँ हैं। भाव कृत्रिम हैं और समय NYSE के प्रकाशित तथ्यों पर हैं।
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+
+<!-- section:04 -->
+## अपना डेटा आयात और पुनर्चालित करें
+
+Import CSV में बाज़ार और प्रतीक भरें और अधिकृत UTF-8 OHLCV चुनें। बढ़ते Unix सेकंड, UTC तारीखें या Z पर समाप्त UTC समय दें। छह दशमलव तक, गैर-ऋणात्मक मात्रा और खुलने-बंद होने के भाव समेटने वाले उच्च व निम्न रखें। एक गलत पंक्ति आयात रोकती है। Series details में अंतराल, स्रोत, उपयोग अधिकार और समायोजन नीति लिखें।
+
+शुरू के समय से कैंडल चिह्नित करें। Historical replay में प्रतीक, सत्र CSV और 1–86,400 के बीच पूरे सेकंड चुनें। हर पंक्ति में ठीक UTC सीमाएँ, खुलने का मिनट ऑफ़सेट और regular या early दें। ग्रिड खुलने से शुरू होता है और अंतिम अंतराल छोटा हो सकता है। बाहर या ग्रिड से अलग कैंडल अस्वीकार होती है। अनुपस्थिति घड़ी बढ़ाती है और दृश्य भाव बचाती है।
+
+डिफ़ॉल्ट प्रति फ़ाइल 1,500,000 बाइट और 100,000 कैंडल हैं। बिल्ड सेटिंग 8 MiB और 100,000 पंक्तियों तक जा सकती है। कैलेंडर 1 MiB, 10,000 गैर-ओवरलैप खंड और 200,000 घटनाओं तक है। ब्राउज़र कोटा अलग है।
+
+```csv
+time,open,high,low,close,volume
+2025-11-28T14:30:00Z,10,12,9,11,200.000001
+2025-11-28T15:00:00Z,11,13,10,12,150
+```
+
+```csv
+date,open_utc,close_utc,utc_offset_minutes,kind
+2025-11-28,2025-11-28T14:30:00Z,2025-11-28T18:00:00Z,-300,early
+```
+
+[apps/terminal/README.md](../../apps/terminal/README.md) · [crates/core/README.md](../../crates/core/README.md)
+
+<!-- section:05 -->
+## बैकअप, माइग्रेशन और पुनर्स्थापन
+
+Workspace backup → Export workspace संस्करणित JSON में मूल CSV, स्रोत, दृश्य व छिपे इतिहास, सूची क्रम, चयन व संकेतक सहेजता है। लक्ष्य प्रोफ़ाइल में Backup file चुनें, गिनतियाँ देखें और Restore workspace दबाएँ। एक लेनदेन लक्ष्य कैटलॉग बदलता है। लक्ष्य बचाना हो तो पहले उसे निर्यात करें।
+
+उसी स्कीम, होस्ट, पोर्ट और प्रोफ़ाइल पर अपग्रेड करें। 0.1.0 का डेटा IndexedDB में जाकर दोबारा पढ़कर सत्यापित होता है और मूल मान बचता है। पुराने टैब बंद करें। बैकअप सादा पाठ है। SHA-256 अखंडता जाँचता है। डेटा-अधिकार के अनुसार पहुँच, भंडारण और अवधि तय करें।
+
+[docs/workspace-backup.md](../../docs/workspace-backup.md) · [SECURITY.md](../../SECURITY.md)
+
+<!-- section:06 -->
+## संरचना और गणना
+
+Rust पहचान, UTC और OHLCV की जाँच करता है, पूर्णांक दस लाखवें में गणना करता है और सत्र योजना बनाता है। React वही Wasm, चित्र के लिए Canvas, लेनदेन के लिए IndexedDB और संसाधनों के लिए service worker उपयोग करता है। संशोधन संख्या समानांतर लेखन पहचानती है। स्थिति प्रोफ़ाइल और मूल पते से जुड़ी है।
+
+SMA सटीक चलता योग लेता है। EMA पहली पूरी अवधि से शुरू होकर हर चरण दस लाखवें तक गोल करता है, बराबरी पर शून्य से दूर। पुनर्चालन केवल दिख चुके बंद भाव उपयोग करता है। नियत अंतराल का अंत उपलब्धता है। वास्तविक फ़ीड आगमन, सुधार और अंतराल के भीतर के समय अलग इनपुट हैं। मूल पंक्तियाँ बनी रहती हैं।
+
+[docs/adr/0002-transactional-history.md](../../docs/adr/0002-transactional-history.md) · [docs/adr/0003-session-replay.md](../../docs/adr/0003-session-replay.md)
+
+<!-- section:07 -->
+## तैनाती और संचालन
+
+dist/ को HTTPS पर परोसें या loopback लॉन्चर चलाएँ। वही मूल पता कार्यक्षेत्र रखता है। अलग पोर्ट, प्रोफ़ाइल या निजी विंडो का भंडारण अलग है। Tauri के लिए वेब बिल्ड और सिस्टम आवश्यकताएँ पूरी करें। CI Windows Server 2022, macOS 15 और Ubuntu 24.04 पर बनाता है और Linux विंडो खोलता है। मोबाइल, ARM और BSD की स्थिति मैट्रिक्स में है। परीक्षण डेस्कटॉप Chromium पर चलाएँ।
+
+अभी हर प्रोफ़ाइल में एक स्थानीय उपयोगकर्ता है। डेटा अनुमोदित उपकरणों पर रखें। प्रमाणीकरण, उपयोगकर्ता पृथक्करण, निगरानी, प्रतिधारण और पुनर्प्राप्ति लक्ष्य अलग सत्यापित तैनाती माँगते हैं। ZIP में लाइसेंस नोटिस और CycloneDX SBOM हैं। रिलीज़ टैग कार्यप्रवाह में साक्ष्य प्रमाणीकरण है।
+
+```sh
+npm ci
+npm run build
+cargo run --locked --manifest-path apps/desktop/Cargo.toml
+```
+
+[docs/platforms.md](../../docs/platforms.md) · [Tauri](https://v2.tauri.app/start/prerequisites/) · [CycloneDX](../../docs/dependencies.cdx.json)
+
+<!-- section:08 -->
+## बाहरी सेवा देखें
+
+TradingBotObserverV1 अलग trading-bot से runtime, status, account और portfolio पढ़ता है। भरोसेमंद पता, loopback के बाहर HTTPS और प्रक्रिया से दिया अधिकृत टोकन उपयोग करें। हर स्नैपशॉट का अपना समय पढ़ें। खाली स्नैपशॉट या स्वस्थ सेवा से अतिरिक्त शेष अथवा पोज़िशन पता नहीं चलती। पहचान-पत्र, ऑर्डर और निष्पादन बाहरी सेवा के पास हैं।
+
+```js
+import { TradingBotObserverV1 } from "@marketweft/trading-bot";
+
+const observer = new TradingBotObserverV1({
+  baseUrl: process.env.TRADING_BOT_URL ?? "http://127.0.0.1:8000",
+  token: process.env.TRADING_BOT_TOKEN,
+});
+const snapshot = await observer.account();
+console.log(snapshot.observedAt, snapshot.totalBalance, snapshot.currency);
+```
+
+[docs/trading-bot.md](../../docs/trading-bot.md) · [trading-bot](https://github.com/Yunushan/trading-bot)
+
+<!-- section:09 -->
+## स्रोत से बनाएँ और सत्यापित करें
+
+Node.js 22.12 या नया, npm, rust-toolchain.toml में तय Rustup और Python 3.11 या नया उपयोग करें। रिपॉज़िटरी की जड़ में चलाएँ। Vite आम तौर पर 5173 पर विकास URL दिखाता है। उत्पादन 4173 पर चलता है। टेस्ट से पहले तय Chromium स्थापित करें।
+
+जाँच में Rust, Wasm, ब्राउज़र, SDK, स्थानीय सर्वर, लाइसेंस, SBOM और सुरक्षा सूचनाएँ हैं। DST, अनुपस्थिति और जल्दी बंद सहित हर घटना पर दोनों औसत बैच के उसी शुरुआती हिस्से से मिलते हैं। CI सटीक आर्टिफ़ैक्ट ID की प्रतीक्षा करता है और ZIP के डाउनलोड किए बाइट मिलाता है। मेल खाता रिलीज़ टैग प्रमाणीकरण चलाता है।
+
+```sh
+git clone https://github.com/Yunushan/marketweft.git
+cd marketweft
+npm ci
+npm run dev
+```
+
+```sh
+node scripts/build-wasm.mjs
+npm run build
+node scripts/serve-terminal.mjs
+```
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
+cargo test --workspace --locked
+node --experimental-strip-types --test scripts/core-wasm.test.mjs
+node --test scripts/serve-terminal.test.mjs
+npx --no-install playwright install chromium
+npm test
+cargo fetch --locked --manifest-path apps/desktop/Cargo.toml
+python -B scripts/test_supply_chain.py
+python -B scripts/supply_chain.py --check
+python -B scripts/check_readmes.py
+npm audit --audit-level=high
+python -B scripts/advisories.py
+python -B scripts/package_browser.py
+```
+
+[verify.yml](../../.github/workflows/verify.yml) · [docs/native-advisories.md](../../docs/native-advisories.md)
+
+<!-- section:10 -->
+## समस्या समझें और दोहराएँ
+
+पोर्ट व्यस्त हो तो --port 4174 चलाएँ और मूल पतों के बीच निर्यात व पुनर्स्थापन करें। ऑफ़लाइन समस्या पर पहले ऑनलाइन उत्पादन बिल्ड खोलें और Offline ready देखें। अस्वीकृति पर त्रुटि पंक्ति, अंतराल का आरंभ और बाज़ार/तारीख का कैलेंडर जाँचें।
+
+CSV, कैलेंडर, अंतराल, Git संशोधन, ब्राउज़र और घटना का समय रखें। प्रथम असफल चरण के साथ कृत्रिम उदाहरण दें। सत्यापन रिकॉर्ड में प्लेटफ़ॉर्म साक्ष्य और रोडमैप में अगले लक्ष्य हैं।
+
+[docs/verification.md](../../docs/verification.md) · [ROADMAP.md](../../ROADMAP.md)
+
+<!-- section:11 -->
+## रिपॉज़िटरी, योगदान और लाइसेंस
+
+इंजन और नमूने crates/core में, ब्राउज़र व परीक्षण apps/terminal में, होस्ट apps/desktop में, SDK packages/trading-bot में और उपकरण scripts में हैं। छोटे परीक्षित बदलाव दें। अधिकार व नोटिस रखें, निर्भरता बदलने पर सूची अद्यतन करें और कमज़ोरी निजी रूप से बताएँ।
+
+मूल कोड 0BSD है और निर्भरताओं के अपने लाइसेंस हैं। पूर्ण संस्करण Ethnologue 2026 में प्रथम और द्वितीय भाषा के कुल वक्ताओं के अनुसार हैं, जिनमें गोलाई पर बीसवें स्थान की दोनों भाषाएँ शामिल हैं। जुड़े मैन्युअल और इंटरफ़ेस अंग्रेज़ी में हो सकते हैं।
+
+[CONTRIBUTING.md](../../CONTRIBUTING.md) · [SECURITY.md](../../SECURITY.md) · [THIRD_PARTY_NOTICES](../../THIRD_PARTY_NOTICES) · [0BSD](../../LICENSE) · [Ethnologue 2026](https://www.ethnologue.com/insights/ethnologue200/) · [Ethnologue 2026 · L1 + L2](https://en.wikipedia.org/w/index.php?title=List_of_languages_by_total_number_of_speakers&oldid=1385320542#Ethnologue_(2026))

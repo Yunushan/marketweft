@@ -1,0 +1,171 @@
+<!-- MarketWeft README · locale=zh-Hans -->
+
+# MarketWeft
+
+**0.3.0 · 0BSD**
+
+**文档语言**
+
+[English](../../README.md) · **简体中文** · [हिन्दी](../../docs/readme/README.hi.md) · [Español](../../docs/readme/README.es.md) · [العربية الفصحى](../../docs/readme/README.ar.md) · [Français](../../docs/readme/README.fr.md) · [বাংলা](../../docs/readme/README.bn.md)
+[Português](../../docs/readme/README.pt.md) · [Bahasa Indonesia](../../docs/readme/README.id.md) · [اردو](../../docs/readme/README.ur.md) · [Русский](../../docs/readme/README.ru.md) · [Deutsch](../../docs/readme/README.de.md) · [日本語](../../docs/readme/README.ja.md) · [Naijá](../../docs/readme/README.pcm.md)
+[العربي المصري](../../docs/readme/README.arz.md) · [मराठी](../../docs/readme/README.mr.md) · [Tiếng Việt](../../docs/readme/README.vi.md) · [తెలుగు](../../docs/readme/README.te.md) · [Kiswahili](../../docs/readme/README.sw.md) · [Hausa](../../docs/readme/README.ha.md) · [Türkçe](../../docs/readme/README.tr.md)
+
+<!-- section:01 -->
+## MarketWeft 的功能
+
+MarketWeft 是面向分析师、开发人员和运维人员的本地优先研究终端。它读取有权使用的 OHLCV 文件，绘制交互式蜡烛图与成交量，用定点数计算 SMA 和 EMA，并把自选列表、选中标的和指标保存在 IndexedDB。应用资源缓存后即可离线使用。内置价格与成交量均为合成数据，无需行情商账户。
+
+0.3.0 支持按交易时段回放一条不可变历史序列。仓库另有适用于 trading-bot 服务的独立 TypeScript 只读客户端，以及实验性的 Tauri 桌面壳。公司行为、联网行情、订单、多用户托管和签名安装包仍在路线图中。
+
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
+
+<!-- section:02 -->
+## 启动便携终端
+
+从 GitHub 成功的验证运行中下载 browser-terminal-attempt-N，解压其中的 MarketWeft-browser-0.3.0.zip。让 dist/ 与 serve-terminal.mjs 位于同一目录，在该目录运行下列命令。使用支持 WebAssembly、Canvas、BigInt 和 IndexedDB 的新版浏览器打开 http://127.0.0.1:4173/。启动器需要 Node.js 22.12 或更高版本，无需通过 npm 安装。断网前等待显示 Offline ready。
+
+```sh
+node serve-terminal.mjs
+```
+
+[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md)
+
+<!-- section:03 -->
+## 回放纽约证券交易所示例
+
+进入 Historical replay，选择 Start demo。用 Next event 单步，用 Play 和 Pause 控制连续回放，Previous event 后退一步，Reset 清空已显示的历史。图表起初为空，蜡烛在时段结束时才显示。Event time 是区间起点或会话边界，Observed at 是信息可用的时刻。速度只影响屏幕上的播放节奏。
+
+2025 年 10 月 31 日的开盘是 13:30 UTC（UTC−04:00），11 月 3 日改为 14:30 UTC（UTC−05:00）。11 月 3 日 15:00 的缺失区间在 15:30 报告。感恩节当天没有时间槽，11 月 28 日在七根 30 分钟蜡烛后提前于 18:00 UTC 收盘。示例有 20 个交易日、253 根蜡烛和 294 个事件，采用合成行情与公开的 NYSE 核心交易时间。
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+
+<!-- section:04 -->
+## 导入并回放自己的数据
+
+用 Import CSV 填写市场和代码，选择获准存储的 UTF-8 OHLCV。使用严格递增的 Unix 秒、UTC 日期或以 Z 结尾的 UTC 时间戳。数值至多六位小数，成交量不得为负，最高价和最低价须覆盖开收盘价。任意错误行会拒绝整次导入。在 Series details 填写周期、来源、使用权限和复权策略。
+
+回放要求时间戳为区间起点。在 Historical replay 选标的、提供会话 CSV，并输入 1 至 86,400 的整数秒。每行明确 UTC 开收盘、开盘时的分钟偏移，以及 regular 或 early。时间网格从开盘开始，末段可缩短至收盘。系统拒绝时段外或不在网格上的蜡烛。缺档推进时钟并保留上一个可见值。
+
+默认单文件限 1,500,000 字节和 100,000 根蜡烛，构建时可调整至 8 MiB 和 100,000 行。日历限 1 MiB、10,000 个不重叠时段和 200,000 个事件。浏览器存储配额另行生效。
+
+```csv
+time,open,high,low,close,volume
+2025-11-28T14:30:00Z,10,12,9,11,200.000001
+2025-11-28T15:00:00Z,11,13,10,12,150
+```
+
+```csv
+date,open_utc,close_utc,utc_offset_minutes,kind
+2025-11-28,2025-11-28T14:30:00Z,2025-11-28T18:00:00Z,-300,early
+```
+
+[apps/terminal/README.md](../../apps/terminal/README.md) · [crates/core/README.md](../../crates/core/README.md)
+
+<!-- section:05 -->
+## 备份、迁移与恢复
+
+用 Workspace backup → Export workspace 保存带版本的 JSON，其中有原始 CSV、来源、可见和隐藏历史、自选顺序、选中标的与指标。目标浏览器配置使用 Backup file 选择文件，核对数量，再按 Restore workspace。目标目录在一个事务中被替换。如需保留目标数据，应先导出。
+
+升级时沿用同一浏览器配置、协议、主机和端口。0.1.0 工作区迁入 IndexedDB，系统回读校验并保留旧值。关闭仍运行旧版的标签页。备份为明文，SHA-256 校验完整性。按数据授权管理存储、访问和保留。
+
+[docs/workspace-backup.md](../../docs/workspace-backup.md) · [SECURITY.md](../../SECURITY.md)
+
+<!-- section:06 -->
+## 架构与计算规则
+
+Rust 验证标的、UTC 时间和 OHLCV，以整数百万分之一计算并生成会话事件。React 终端运行同一套 Wasm 引擎，使用 Canvas 绘图，IndexedDB 保存事务，服务工作线程缓存静态资源。修订号检测并发写入。状态属于本地的浏览器配置与源站。
+
+SMA 使用精确滚动和，EMA 由首个完整窗口初始化，每一步取整到百万分之一，平分时远离零。回放指标只使用已公布收盘价。历史模型以计划区间末端为可用时间。供应商实际到达、修订和区间内时间戳需要独立输入。回放保留原始行。
+
+[docs/adr/0002-transactional-history.md](../../docs/adr/0002-transactional-history.md) · [docs/adr/0003-session-replay.md](../../docs/adr/0003-session-replay.md)
+
+<!-- section:07 -->
+## 部署与运行范围
+
+通过 HTTPS 部署 dist/ 或用回环启动器。同源才保留现有工作区。不同端口、配置或隐私窗口使用不同存储。评估 Tauri 时先构建终端并安装系统依赖。CI 在 Windows Server 2022、macOS 15 与 Ubuntu 24.04 构建，并启动 Linux 窗口验证。移动、ARM、BSD 证据见平台矩阵。验收测试请用桌面 Chromium。
+
+当前运行模式为一个配置对应一个本地用户。数据和备份存放于获准设备。认证、租户隔离、监控、保留期和恢复目标需要独立验证的部署方案。ZIP 含许可声明与 CycloneDX 运行时 SBOM。版本标签工作流包含产物证明。
+
+```sh
+npm ci
+npm run build
+cargo run --locked --manifest-path apps/desktop/Cargo.toml
+```
+
+[docs/platforms.md](../../docs/platforms.md) · [Tauri](https://v2.tauri.app/start/prerequisites/) · [CycloneDX](../../docs/dependencies.cdx.json)
+
+<!-- section:08 -->
+## 读取外部服务
+
+TradingBotObserverV1 可查询独立交易服务的 runtime、status、account 和 portfolio。选可信地址，回环之外用 HTTPS，授权令牌由可信进程配置注入。按各自时间戳判断快照。服务健康或空快照无法提供进一步的余额和仓位信息。凭据、订单和执行由外部服务管理。
+
+```js
+import { TradingBotObserverV1 } from "@marketweft/trading-bot";
+
+const observer = new TradingBotObserverV1({
+  baseUrl: process.env.TRADING_BOT_URL ?? "http://127.0.0.1:8000",
+  token: process.env.TRADING_BOT_TOKEN,
+});
+const snapshot = await observer.account();
+console.log(snapshot.observedAt, snapshot.totalBalance, snapshot.currency);
+```
+
+[docs/trading-bot.md](../../docs/trading-bot.md) · [trading-bot](https://github.com/Yunushan/trading-bot)
+
+<!-- section:09 -->
+## 从源码构建并验证
+
+使用 Node.js 22.12 或更新版本与 npm、rust-toolchain.toml 固定的 Rustup 工具链，以及 Python 3.11 或更新版本。从仓库根目录执行。Vite 输出开发地址，通常用 5173 端口。生产启动器用 4173。运行浏览器验收前安装锁定的 Chromium。
+
+验证包含原生 Rust、Wasm、浏览器、SDK、本地服务、许可、SBOM 和安全公告。对时钟切换、缺档及提前收盘在内的每个事件，将两种均线与批处理前缀逐一比较。CI 等待精确的 ZIP 产物 ID，再按字节校验下载文件。版本一致的标签触发证明。
+
+```sh
+git clone https://github.com/Yunushan/marketweft.git
+cd marketweft
+npm ci
+npm run dev
+```
+
+```sh
+node scripts/build-wasm.mjs
+npm run build
+node scripts/serve-terminal.mjs
+```
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
+cargo test --workspace --locked
+node --experimental-strip-types --test scripts/core-wasm.test.mjs
+node --test scripts/serve-terminal.test.mjs
+npx --no-install playwright install chromium
+npm test
+cargo fetch --locked --manifest-path apps/desktop/Cargo.toml
+python -B scripts/test_supply_chain.py
+python -B scripts/supply_chain.py --check
+python -B scripts/check_readmes.py
+npm audit --audit-level=high
+python -B scripts/advisories.py
+python -B scripts/package_browser.py
+```
+
+[verify.yml](../../.github/workflows/verify.yml) · [docs/native-advisories.md](../../docs/native-advisories.md)
+
+<!-- section:10 -->
+## 故障排查与复现
+
+端口占用时用 --port 4174，跨源搬迁数据请用导出恢复。离线启动有问题时先联网打开生产版本并等 Offline ready。若文件被拒绝，核对报错行、区间起点以及市场和日期对应的日历。
+
+保留 CSV、日历、间隔、Git 修订、浏览器版本和事件时间。报告故障时提供合成示例及第一个出错步骤。验证记录列出各平台证据，路线图列出下一步验收目标。
+
+[docs/verification.md](../../docs/verification.md) · [ROADMAP.md](../../ROADMAP.md)
+
+<!-- section:11 -->
+## 仓库、贡献与许可证
+
+crates/core 存放引擎和样本，apps/terminal 存放浏览器和测试，apps/desktop 存放桌面壳，packages/trading-bot 存放观测 SDK，scripts 存放构建、策略与打包工具。让修改小而可测，保留数据权利与第三方声明，依赖变更后更新清单，私下报告漏洞。
+
+原创代码采用 0BSD，依赖保留各自许可证。完整译本按 Ethnologue 2026 的第一与第二语言使用者总人数选择，并包含四舍五入后并列第 20 位的两种语言。链接的技术手册和应用界面可能为英文。
+
+[CONTRIBUTING.md](../../CONTRIBUTING.md) · [SECURITY.md](../../SECURITY.md) · [THIRD_PARTY_NOTICES](../../THIRD_PARTY_NOTICES) · [0BSD](../../LICENSE) · [Ethnologue 2026](https://www.ethnologue.com/insights/ethnologue200/) · [Ethnologue 2026 · L1 + L2](https://en.wikipedia.org/w/index.php?title=List_of_languages_by_total_number_of_speakers&oldid=1385320542#Ethnologue_(2026))

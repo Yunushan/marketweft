@@ -1,0 +1,171 @@
+<!-- MarketWeft README · locale=sw -->
+
+# MarketWeft
+
+**0.3.0 · 0BSD**
+
+**Lugha za mwongozo**
+
+[English](../../README.md) · [简体中文](../../docs/readme/README.zh-Hans.md) · [हिन्दी](../../docs/readme/README.hi.md) · [Español](../../docs/readme/README.es.md) · [العربية الفصحى](../../docs/readme/README.ar.md) · [Français](../../docs/readme/README.fr.md) · [বাংলা](../../docs/readme/README.bn.md)
+[Português](../../docs/readme/README.pt.md) · [Bahasa Indonesia](../../docs/readme/README.id.md) · [اردو](../../docs/readme/README.ur.md) · [Русский](../../docs/readme/README.ru.md) · [Deutsch](../../docs/readme/README.de.md) · [日本語](../../docs/readme/README.ja.md) · [Naijá](../../docs/readme/README.pcm.md)
+[العربي المصري](../../docs/readme/README.arz.md) · [मराठी](../../docs/readme/README.mr.md) · [Tiếng Việt](../../docs/readme/README.vi.md) · [తెలుగు](../../docs/readme/README.te.md) · **Kiswahili** · [Hausa](../../docs/readme/README.ha.md) · [Türkçe](../../docs/readme/README.tr.md)
+
+<!-- section:01 -->
+## MarketWeft inafanya nini
+
+MarketWeft ni kituo cha utafiti cha ndani kwa wachambuzi, wasanidi na waendeshaji. Hufungua OHLCV iliyoidhinishwa, huchora vinara na kiasi, hukokotoa SMA na EMA kwa nukta isiyohama, na huhifadhi orodha, chombo kilichochaguliwa na viashiria katika IndexedDB. Hufanya kazi bila mtandao baada ya kuhifadhi rasilimali. Bei na kiasi vya mfano ni vya kutungwa na havihitaji akaunti.
+
+Toleo 0.3.0 hucheza tena mfululizo mmoja usiobadilishwa kwa vipindi vya soko. Hazina pia ina SDK huru ya TypeScript ya kusoma trading-bot na ganda la majaribio la Tauri. Matukio ya kampuni, milisho, maagizo, upangishaji wa watumiaji wengi na visakinishi vilivyosainiwa yako kwenye mpango.
+
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
+
+<!-- section:02 -->
+## Anzisha kituo kinachobebeka
+
+Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.3.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
+
+```sh
+node serve-terminal.mjs
+```
+
+[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md)
+
+<!-- section:03 -->
+## Cheza mfano wa NYSE
+
+Katika Historical replay chagua Start demo. Next event husonga, Previous event hurudi, Play na Pause hudhibiti uchezaji, na Reset hufuta historia iliyoonekana. Chati huanza tupu. Kinara huonekana baada ya muda wake. Event time ni mwanzo au mpaka wa kipindi. Observed at ni wakati habari inapopatikana. Kasi hubadili mwendo wa kuonyesha tu.
+
+Oktoba 31, 2025 hufunguka 13:30 UTC (UTC−04:00), na Novemba 3 hufunguka 14:30 UTC (UTC−05:00). Sehemu iliyokosekana kuanzia 15:00 hujulikana 15:30. Thanksgiving haina sehemu za soko. Novemba 28 hufungwa mapema saa 18:00 UTC baada ya vinara saba vya dakika 30. Kuna vipindi 20, vinara 253 na matukio 294, bei za kutungwa na saa za NYSE zilizochapishwa.
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+
+<!-- section:04 -->
+## Ingiza na cheza data yako
+
+Katika Import CSV weka soko na alama, uchague OHLCV ya UTF-8 yenye ruhusa. Tumia sekunde za Unix, tarehe za UTC au muda wa UTC unaoishia Z kwa mpangilio mkali wa kuongezeka. Tumia hadi nafasi sita za desimali, kiasi kisicho hasi na viwango vya juu na chini vinavyofunika ufunguzi na kufungwa. Safu potovu hukataa uingizaji wote. Weka muda, chanzo, ruhusa na sera ya marekebisho katika Series details.
+
+Weka saa ya mwanzo kwa kila kinara. Katika Historical replay chagua chombo na kalenda ya CSV, kisha sekunde kamili 1–86,400. Andika mipaka ya UTC, tofauti ya dakika wakati wa ufunguzi na regular au early. Gridi inaanza soko likifunguka. Sehemu ya mwisho inaweza kuwa fupi. Vinara nje ya kipindi au gridi hukataliwa. Pengo husogeza saa na huhifadhi bei iliyoonekana.
+
+Kikomo cha msingi kwa faili ni baiti 1,500,000 na vinara 100,000. Usanidi wa ujenzi unaweza kufikia 8 MiB na safu 100,000. Kalenda hukubali 1 MiB, sehemu 10,000 zisizopishana na matukio 200,000. Mgao wa hifadhi ya kivinjari ni tofauti.
+
+```csv
+time,open,high,low,close,volume
+2025-11-28T14:30:00Z,10,12,9,11,200.000001
+2025-11-28T15:00:00Z,11,13,10,12,150
+```
+
+```csv
+date,open_utc,close_utc,utc_offset_minutes,kind
+2025-11-28,2025-11-28T14:30:00Z,2025-11-28T18:00:00Z,-300,early
+```
+
+[apps/terminal/README.md](../../apps/terminal/README.md) · [crates/core/README.md](../../crates/core/README.md)
+
+<!-- section:05 -->
+## Hifadhi nakala, hamisha na rejesha
+
+Workspace backup → Export workspace huhifadhi JSON yenye toleo, CSV asili, chanzo, historia inayoonekana na iliyofichwa, mpangilio, chombo na viashiria. Katika wasifu lengwa chagua Backup file, kagua idadi na ubonyeze Restore workspace. Muamala mmoja hubadilisha katalogi lengwa. Hamisha katalogi iliyopo kwanza ikiwa unaihitaji.
+
+Sasisha kwa skimu, seva, bandari na wasifu uleule. Nafasi ya 0.1.0 huhamia IndexedDB na kusomwa tena kwa uhakiki, huku thamani asili ikihifadhiwa. Funga vichupo vya zamani. Nakala ni maandishi wazi. SHA-256 hukagua ukamilifu. Tumia haki za data kuamua hifadhi, ufikiaji na muda wa kuhifadhi.
+
+[docs/workspace-backup.md](../../docs/workspace-backup.md) · [SECURITY.md](../../SECURITY.md)
+
+<!-- section:06 -->
+## Muundo na kanuni za hesabu
+
+Rust hukagua utambulisho, UTC na OHLCV, huhesabu kwa sehemu za milioni zilizo namba kamili na kuunda mpango wa vipindi. React hutumia Wasm hiyohiyo, Canvas kuchora, miamala ya IndexedDB na service worker ya akiba. Namba za marekebisho hugundua uandishi unaogongana. Hali inafungamana na wasifu na anwani asili.
+
+SMA hutumia jumla inayosogea iliyo sahihi. EMA huanza kwenye dirisha kamili la kwanza na kuzungusha kila hatua hadi milioni moja ya sehemu, mbali na sufuri ikiwa sawa. Uchezaji hutumia bei za kufunga zilizofichuliwa. Mwisho wa nafasi ndio wakati wa upatikanaji. Muda halisi wa mtoa data, masahihisho na muda ndani ya kinara huhitaji ingizo tofauti. Safu asili hubaki.
+
+[docs/adr/0002-transactional-history.md](../../docs/adr/0002-transactional-history.md) · [docs/adr/0003-session-replay.md](../../docs/adr/0003-session-replay.md)
+
+<!-- section:07 -->
+## Usambazaji na mipaka ya uendeshaji
+
+Hudumia dist/ kwa HTTPS au tumia kizindua cha loopback. Dumisha anwani asili ili kuhifadhi nafasi ya kazi. Bandari, wasifu au dirisha la faragha tofauti lina hifadhi tofauti. Ili kujaribu Tauri jenga wavuti na sakinisha mahitaji ya mfumo. CI hujenga Windows Server 2022, macOS 15 na Ubuntu 24.04 na hukagua dirisha la Linux. Jedwali lina simu, ARM na BSD. Tumia Chromium ya kompyuta kupima.
+
+Muundo wa sasa ni mtumiaji mmoja wa ndani kwa wasifu. Hifadhi data na nakala katika vifaa vilivyoidhinishwa. Uthibitisho wa utambulisho, utengaji, ufuatiliaji, muda wa kuhifadhi na malengo ya kurejesha huhitaji usanifu mwingine uliothibitishwa. ZIP ina taarifa za leseni na CycloneDX SBOM. Lebo ya toleo huanzisha uthibitisho wa kifurushi.
+
+```sh
+npm ci
+npm run build
+cargo run --locked --manifest-path apps/desktop/Cargo.toml
+```
+
+[docs/platforms.md](../../docs/platforms.md) · [Tauri](https://v2.tauri.app/start/prerequisites/) · [CycloneDX](../../docs/dependencies.cdx.json)
+
+<!-- section:08 -->
+## Angalia huduma ya nje
+
+TradingBotObserverV1 husoma runtime, status, account na portfolio kutoka trading-bot iliyosanidiwa kando. Tumia chanzo kinachoaminika, HTTPS nje ya loopback na tokeni iliyoidhinishwa kutoka usanidi wa mchakato. Tumia wakati wa kila picha ya hali. Picha tupu au huduma iliyo sawa haitoi taarifa zaidi za salio na nafasi. Vitambulisho, maagizo na utekelezaji ni vya huduma ya nje.
+
+```js
+import { TradingBotObserverV1 } from "@marketweft/trading-bot";
+
+const observer = new TradingBotObserverV1({
+  baseUrl: process.env.TRADING_BOT_URL ?? "http://127.0.0.1:8000",
+  token: process.env.TRADING_BOT_TOKEN,
+});
+const snapshot = await observer.account();
+console.log(snapshot.observedAt, snapshot.totalBalance, snapshot.currency);
+```
+
+[docs/trading-bot.md](../../docs/trading-bot.md) · [trading-bot](https://github.com/Yunushan/trading-bot)
+
+<!-- section:09 -->
+## Jenga na thibitisha kutoka msimbo
+
+Tumia Node.js 22.12 au mpya na npm, Rustup iliyowekwa rust-toolchain.toml, na Python 3.11 au mpya. Endesha kwenye mzizi wa hazina. Vite huonyesha anwani ya maendeleo, kawaida 5173. Toleo la uzalishaji hutumia 4173. Sakinisha Chromium iliyowekwa kabla ya majaribio.
+
+Ukaguzi unahusu Rust, Wasm, kivinjari, SDK, seva, leseni, SBOM na arifa. Kila tukio hupima wastani zote dhidi ya sehemu ya mwanzo ya hesabu ya pamoja, pamoja na mabadiliko ya saa, pengo na kufungwa mapema. CI husubiri kitambulisho halisi cha ZIP na kulinganisha baiti za kupakua. Lebo inayolingana na toleo huanzisha uthibitisho.
+
+```sh
+git clone https://github.com/Yunushan/marketweft.git
+cd marketweft
+npm ci
+npm run dev
+```
+
+```sh
+node scripts/build-wasm.mjs
+npm run build
+node scripts/serve-terminal.mjs
+```
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
+cargo test --workspace --locked
+node --experimental-strip-types --test scripts/core-wasm.test.mjs
+node --test scripts/serve-terminal.test.mjs
+npx --no-install playwright install chromium
+npm test
+cargo fetch --locked --manifest-path apps/desktop/Cargo.toml
+python -B scripts/test_supply_chain.py
+python -B scripts/supply_chain.py --check
+python -B scripts/check_readmes.py
+npm audit --audit-level=high
+python -B scripts/advisories.py
+python -B scripts/package_browser.py
+```
+
+[verify.yml](../../.github/workflows/verify.yml) · [docs/native-advisories.md](../../docs/native-advisories.md)
+
+<!-- section:10 -->
+## Tambua tatizo na lirudie
+
+Ikiwa bandari inatumika, tumia --port 4174 na hamisha data kwa uhamishaji nje na urejeshaji. Kwa tatizo la nje ya mtandao, fungua toleo la uzalishaji ukiwa mtandaoni na subiri Offline ready. Faili ikikataliwa, kagua safu iliyotajwa, mwanzo wa muda na kalenda ya soko na tarehe.
+
+Hifadhi CSV, kalenda, muda, marekebisho ya Git, kivinjari na saa ya tukio. Ripoti mfano wa kutungwa na hatua ya kwanza iliyoshindwa. Rekodi ya ukaguzi ina ushahidi wa majukwaa na mpango una malengo yanayofuata.
+
+[docs/verification.md](../../docs/verification.md) · [ROADMAP.md](../../ROADMAP.md)
+
+<!-- section:11 -->
+## Hazina, michango na leseni
+
+Injini na mifano ziko crates/core, kituo na majaribio apps/terminal, mwenyeji apps/desktop, SDK packages/trading-bot, na zana scripts. Fanya mabadiliko madogo yaliyopimwa. Heshimu haki na arifa, sasisha orodha baada ya kubadili vitegemezi, na toa taarifa ya udhaifu kwa faragha.
+
+Msimbo asili una 0BSD. Vitegemezi vina leseni zao. Matoleo kamili yanafuata Ethnologue 2026 kwa jumla ya wazungumzaji wa lugha ya kwanza na ya pili, pamoja na lugha zote mbili zilizo sawa kwenye nafasi ya 20 baada ya kuzungusha. Miongozo iliyounganishwa na programu zinaweza kutumia Kiingereza.
+
+[CONTRIBUTING.md](../../CONTRIBUTING.md) · [SECURITY.md](../../SECURITY.md) · [THIRD_PARTY_NOTICES](../../THIRD_PARTY_NOTICES) · [0BSD](../../LICENSE) · [Ethnologue 2026](https://www.ethnologue.com/insights/ethnologue200/) · [Ethnologue 2026 · L1 + L2](https://en.wikipedia.org/w/index.php?title=List_of_languages_by_total_number_of_speakers&oldid=1385320542#Ethnologue_(2026))
