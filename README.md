@@ -4,7 +4,7 @@ MarketWeft is an offline-capable financial research terminal. Open a local OHLCV
 
 ## Run the prebuilt terminal
 
-Download the **browser-terminal** artifact from a successful verification run, then extract the enclosed **MarketWeft-browser-0.2.0.zip**. If you already have the MarketWeft ZIP, extract it directly. [Verification runs and artifacts](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+Download the **browser-terminal-attempt-N** artifact from the successful workflow attempt, then extract the enclosed **MarketWeft-browser-0.2.0.zip**. If you already have the MarketWeft ZIP, extract it directly. [Verification runs and artifacts](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 From the directory containing `serve-terminal.mjs`, run:
 
