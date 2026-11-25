@@ -1,0 +1,11 @@
+:root {
+  color-scheme: dark;
+  --bg: #101518;
+  --card: #171e21;
+  --line: #303a3d;
+  --text: #e7eeea;
+  --soft: #a2b0a9;
+  --mint: #74dbad;
+  --sans: 'Inter', 'Segoe UI', Arial, sans-serif;
+  --mono: 'IBM Plex Mono', Consolas, 'Liberation Mono', monospace;
+}
