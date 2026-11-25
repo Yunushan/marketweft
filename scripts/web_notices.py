@@ -7,7 +7,8 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 public = root / "apps/terminal/public"
 entries = json.loads((root / "package-lock.json").read_text(encoding="utf-8"))["packages"]
-notices = ["MarketWeft 0.1.0 · Third-party notices\n"]
+version = json.loads((root / "package.json").read_text(encoding="utf-8"))["version"]
+notices = [f"MarketWeft {version} · Third-party notices\n"]
 for path, entry in sorted(entries.items()):
     if "node_modules/" not in path or entry.get("link") or entry.get("dev"):
         continue

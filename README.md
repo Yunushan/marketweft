@@ -4,7 +4,7 @@ MarketWeft is an offline-capable financial research terminal. Open a local OHLCV
 
 ## Run the prebuilt terminal
 
-Download the **browser-terminal** artifact from a successful verification run, then extract the enclosed **MarketWeft-browser-0.1.0.zip**. If you already have the MarketWeft ZIP, extract it directly. [Verification runs and artifacts](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+Download the **browser-terminal** artifact from a successful verification run, then extract the enclosed **MarketWeft-browser-0.2.0.zip**. If you already have the MarketWeft ZIP, extract it directly. [Verification runs and artifacts](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 From the directory containing `serve-terminal.mjs`, run:
 
@@ -50,6 +50,12 @@ time,open,high,low,close,volume
 ```
 
 Use strictly increasing UTC seconds, UTC dates or UTC timestamps ending in Z. Prices and volumes accept up to six decimal places. The browser defaults to 1,500,000 bytes and 100,000 bars per file. Deployments can set lower limits or raise the byte limit to the core's 8 MiB maximum. Browser storage quotas can further limit an import. Imported history and watchlists live in this browser profile, at this origin. Keep original CSV files for recovery. Opening another port, using private browsing or clearing site data changes which workspace you can see. [Deployment settings](apps/terminal/README.md) · [Data contract and numerical rules](crates/core/README.md).
+
+## Back up or move a workspace
+
+Open **Workspace backup → Export workspace** to download all imported histories, their source and usage metadata, the watchlist order, selected instrument and indicator settings. On the destination, choose **Backup file**, review the verified series and bar counts, then select **Restore workspace**. The restore replaces the destination's catalog in one transaction. Export the destination first if you want to keep it.
+
+When opening 0.2.0 for the first time, use the same profile, host and port as 0.1.0. MarketWeft migrates the old workspace into IndexedDB and verifies the committed history. It retains the original v1 data in browser storage. Close tabs running the old version before switching. A workspace backup contains the original CSV text, so handle the file according to its data grants. [Backup format and restore behavior](docs/workspace-backup.md).
 
 ## Verify the milestone
 

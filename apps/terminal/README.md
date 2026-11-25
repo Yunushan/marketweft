@@ -18,3 +18,5 @@ npm run build
 Values accept positive base-10 integers in digits only, with no leading zero, unit suffix, sign or thousands separator. Unset variables use their defaults. Invalid, empty or oversized values fail build and development-server startup.
 
 The import dialog shows the effective limits. It checks file size before reading and checks row count before sending the CSV to Rust. These limits apply to each newly selected user file. Sample histories and previously saved imports remain readable after a deployment lowers its limits. Browser storage quotas still apply when saving a workspace.
+
+A workspace backup preserves the accepted CSV histories, source and usage metadata, watchlist and overlay settings across browser profiles. [Export and restore instructions](../../docs/workspace-backup.md).

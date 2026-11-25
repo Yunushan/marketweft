@@ -1,10 +1,10 @@
 # Prioritized implementation backlog
 
-0.1.0 establishes a local chart, its numerical oracle, and a separately usable observer. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.2.0 adds transactional storage and portable workspace recovery to the existing chart and read-only observer. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
-| P0 · next | Versioned historical storage and recovery (MW-002, MW-007, MW-017, MW-029) | Create a series descriptor with venue, symbol, bar interval, source, usage grant and adjustment policy. Persist imports transactionally in IndexedDB with a migration from v1 browser storage. Add a versioned export/import bundle with record counts and checksums. An interrupted write, second tab and denied quota must preserve the prior data. Restore on a clean profile and compare every tick and identity. |
+| Delivered · 0.2.0 | Versioned historical storage and recovery (MW-002, MW-007, MW-017, MW-029) | IndexedDB stores original histories and versioned series descriptors. Browser tests cover migration, read-back, competing tabs, an interrupted write, a denied quota, checksum validation and exact tick and identity comparison after clean-profile restore. [Backup format](docs/workspace-backup.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market time, provenance and replay (MW-013, MW-017, MW-029) | Add explicit calendars and sessions, corporate actions, as-of membership and deterministic bar replay. Use authorized test fixtures for DST, splits, delisting and missing intervals. Switch between raw and adjusted series without rewriting source history. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Persist two chart panes with linked UTC crosshairs, one measured drawing in data coordinates, reusable indicator parameters and CSV export. Restore exact settings after a versioned migration. |
@@ -16,5 +16,5 @@
 
 ## Handoff for the next change
 
-Start by importing the golden CSV under a new instrument key, changing an overlay and reloading offline. Preserve that behavior while migrating persistence. Define the new catalog and backup schemas first, then implement transactional migration with fixtures from this release, export and restore, corruption handling, UI affordances and browser tests in that order. Keep the current v1 storage untouched until a read-back verifies the migrated data. Do not couple the catalog migration to a broker connection.
+The next research milestone starts with session-aware historical replay. Define event time and observation time, obtain an authorized exchange calendar fixture, and replay one immutable series across a DST transition, a half-day and a missing interval. Require the output after each event to equal the corresponding prefix of the batch calculation. Preserve the 0.2.0 backup contract and keep the source CSV unchanged when adding derived bars or adjustment data.
 

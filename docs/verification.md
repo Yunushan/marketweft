@@ -1,6 +1,22 @@
-# Initial milestone verification · 2026-11-25
+# MarketWeft verification
 
-## Browser and core
+## 0.2.0 · Transactional history and workspace recovery
+
+| Check | Observed result |
+| --- | --- |
+| Upgrade from the distributed 0.1.0 ZIP | Imported two histories through the previous terminal, hid one from the watchlist, selected the other and enabled EMA only. Opening 0.2.0 on the same origin upgraded the active service worker and migrated both histories. Chrome retained the original v1 storage value byte for byte. |
+| Recovery without a network connection | Exported the upgraded workspace, installed the new terminal in a separate browser context and disconnected it before restoring. The recovered workspace matched all 25 timestamps and all 125 six-place OHLCV values, both instrument identities, watchlist membership, selection and overlay settings. Chrome reported zero page errors. |
+| Migration failure and retry | Browser tests interrupt an IndexedDB transaction, change the legacy workspace while migration is in progress, deny legacy storage access and present orphaned records or an unknown schema. The terminal preserves the source and reports the failure. A retry after an interrupted migration succeeds. |
+| Restore and concurrency | Tests cover altered digests, inconsistent counts or identifiers, invalid CSV, stale previews in another tab and an abort after writes have begun. Each rejected replacement leaves the prior catalog intact. A Chrome quota override applied before the database is opened exercises an actual out-of-quota write and verifies the committed workspace after reload. |
+| Portable format | A separate Node implementation recalculates sample, manifest and series digests. A clean-profile restore compares integer timestamps and fixed-point OHLCV values, including negative prices and six-decimal volumes, and the imported metadata and preferences. |
+
+These recovery drills exercise the production browser build on desktop Chromium. The hosted workflow also builds the native wrapper on Windows, macOS and Linux and runs a Linux window smoke test. A backup is unencrypted and anyone who can edit it can recompute its checksums. [Backup instructions](workspace-backup.md) · [Workflow runs by revision](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
+## 0.1.0 · Initial milestone record
+
+The results and recovery instructions below describe the original release.
+
+### Browser and core
 
 | Check | Observed result |
 | --- | --- |
@@ -14,7 +30,7 @@
 | Dependency checks | The inventory comprises 489 external package versions across the locks, including the native backport and optional targets. Two license-expression tests passed. npm audit reported zero known vulnerabilities. OSV queried 432 native package versions, confirmed the reviewed backport for the two aliases of one GLib advisory, and reported two maintenance warnings. [Native dependency review](native-advisories.md). |
 | trading-bot SDK | Six SDK tests passed. Two additional scenarios called all four real FastAPI routes on a pinned upstream checkout inside an isolated Linux container. They distinguished an empty standalone process from timestamped, synthetic account and position snapshots. See [endpoints, commit and reproduction](trading-bot.md). |
 
-## Desktop and benchmarks
+### Desktop and benchmarks
 
 A Debian GNU/Linux 12 x86_64 release-profile build completed against the final browser assets and patched GLib, with GTK 3.24.38, WebKitGTK 2.50.6, Rust 1.100.0 and Tauri 2.12.7. The optimized GLib consumer regression passed. In an unprivileged Xvfb/D-Bus session the 1440×900 native window exposed the chart and watchlist through AT-SPI. The smoke test opened Import CSV, expanded the format disclosure and read the configured 1,500,000-byte and 100,000-bar limits. The older vendored GTK binding produces nonfatal compiler warnings. Windows Application Control rejected unsigned dependency build executables (error 4551) on the local machine. Hosted Windows build evidence is recorded separately below.
 
@@ -28,7 +44,7 @@ The initial hosted run passed the browser verification job and built the desktop
 
 Each figure is a mean across ten warm passes from one run. Browser-facing Wasm timings include JavaScript data transfer and result creation. Native Windows benchmark execution was blocked by Application Control. These measurements establish a baseline, not a service-level target.
 
-## Production readiness and recovery
+### Production readiness and recovery at 0.1.0
 
 - **Local research.** The existing data paths are generated histories, entitled user files and a separately configured trading-bot observer. Import checks and fixed-point calculations have release fixtures. There is no real-money or simulated order-entry path. Exchange sessions, corporate actions, feed entitlements for remote providers and point-in-time financial statements are backlog requirements.
 - **Storage.** Each accepted import is persisted in the current browser origin. Quota failures are surfaced. On damaged storage the terminal salvages readable imports and preserves raw state under `marketweft.workspace.v1.recovery.N` before a later save. Retain original CSV files outside the profile. After a lost profile, relaunch on the same origin and re-import those files. Validated full-workspace export and restore is the next milestone.

@@ -7,8 +7,9 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "apps/terminal/dist"
-OUTPUT = ROOT / "reports/MarketWeft-browser-0.1.0.zip"
-START = """MarketWeft 0.1.0 | Local research terminal
+APP_VERSION = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
+OUTPUT = ROOT / f"reports/MarketWeft-browser-{APP_VERSION}.zip"
+START = f"""MarketWeft {APP_VERSION} | Local research terminal
 
 Extract this entire archive, keep dist/ next to serve-terminal.mjs, then run:
 
@@ -29,6 +30,11 @@ Times are UTC. Prices and volume accept up to six decimal places. The source
 files remain yours. Chart, watchlist and imported data belong to this origin
 and browser profile. Keep your original files. Wait for Offline ready before
 disconnecting. Use the same launcher port to reopen your saved workspace.
+
+Choose Workspace backup to export all imported histories and chart settings.
+On another profile or device, select the backup file, review the verified
+counts and confirm Restore workspace to replace that profile's catalog.
+Opening a 0.1.0 workspace on the same browser origin migrates it to IndexedDB.
 
 The chart supports panning, zooming, a crosshair and moving-average overlays.
 This build has no broker connection or order entry. Press Ctrl+C in the

@@ -138,7 +138,8 @@ def main():
             raise ValueError(f"Inconsistent package integrity for {key}")
         components[key] = item
     report = {"bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
-              "metadata": {"component": {"type": "application", "name": "MarketWeft", "version": "0.1.0"}},
+              "metadata": {"component": {"type": "application", "name": "MarketWeft",
+                                         "version": json.loads((ROOT / "package.json").read_text())["version"]}},
               "components": [components[k] for k in sorted(components)]}
     data = (json.dumps(report, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     if "--check" in sys.argv:

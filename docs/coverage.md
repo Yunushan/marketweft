@@ -1,8 +1,8 @@
 # MarketWeft requirements and acceptance evidence
 
-The 0.1 column describes the first source milestone. “Backlog” means there is no release evidence for the stated behavior. The tests and limitations observed on the development machine are recorded in [verification.md](verification.md). Reference product observations are catalogued in [references.md](references.md).
+The evidence column tracks delivery through 0.2.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
 
-| ID | Behavior and acceptance criterion | 0.1 evidence or next test |
+| ID | Behavior and acceptance criterion | Evidence or next test |
 | --- | --- | --- |
 | MW-001 | Canonicalize venue and symbol to a stable key. The same ticker on two venues must remain distinct. | Implemented. Rust identity tests and the Wasm bridge suite. |
 | MW-002 | Ingest one ordered UTC OHLCV series atomically. Reject malformed dates, reversed ranges, duplicates, negative volume and excess precision. | Implemented. Parser fixtures, calendar boundaries, import error cases and 100,000-bar boundary tests. |
@@ -10,7 +10,7 @@ The 0.1 column describes the first source milestone. “Backlog” means there i
 | MW-004 | Compute an exponentially weighted average seeded by the first full window. Round half away from zero each step. | Implemented. Golden vectors, independent recurrence and negative rounding cases. |
 | MW-005 | The browser and native code must use the same implementation. | Implemented. Rust builds as a native library and Wasm. The Node tests call the browser-facing TypeScript wrapper. |
 | MW-006 | Inspect a historical chart with candles, volume and price overlays. Change the visible range and inspect an individual bar. | Browser terminal. See the tested interactions in verification.md. |
-| MW-007 | Select an instrument from a watchlist, import locally and reload the saved workspace. An invalid import cannot replace valid history. | Browser storage and import acceptance tests. Keep the source CSV for recovery. |
+| MW-007 | Select an instrument from a watchlist, import locally and reload the saved workspace. Migrate, export and restore settings and every imported OHLCV tick. | 0.2.0 IndexedDB transactions and versioned workspace backups. Browser tests compare every OHLCV value, retain hidden instruments, roll back interrupted transactions and reject stale writes and damaged backups. |
 | MW-008 | Open the production browser build offline after its initial asset cache completes. | Manifest and versioned service-worker cache. Offline reload is a browser acceptance case. |
 | MW-009 | Read a versioned trading-bot status, account and position view. Preserve absent observations and expose runtime capabilities. | Independent observation SDK. See [trading-bot.md](trading-bot.md) for pinned upstream behavior and tests. |
 | MW-010 | Start the same terminal in a Tauri desktop window without granting shell, filesystem or broker permissions. | Wrapper and native CI build path. See [platforms.md](platforms.md) before making a binary support claim. |
@@ -20,7 +20,7 @@ The 0.1 column describes the first source milestone. “Backlog” means there i
 | MW-014 | Save editable drawings in data coordinates. Maintain an inventory of 150 distinct tools and 600 distinct built-in indicators. | Two indicators implemented. Test drawing serialization across zoom, then add only individually specified and verified tools and studies to counts. |
 | MW-015 | Specify an open time-series language with deterministic missing values, bounded evaluation and isolated plugins. | Backlog. Publish grammar, interpreter conformance vectors and quota tests before accepting user programs. |
 | MW-016 | Support custom financial/statistical formulas and Rust, TS, Python and Wasm SDKs. | Partial TS observation package. Future SDKs must exchange identical typed input and output fixtures and expose version negotiation. |
-| MW-017 | Track exchange sessions, action adjustments and point-in-time membership. | Backlog. Compare a split, ex-dividend day, half-day, delisting and DST transition with authorized reference fixtures. |
+| MW-017 | Track exchange sessions, action adjustments and point-in-time membership. | 0.2.0 preserves the supplied interval and adjustment policy. Session handling and applied corporate actions still require authorized split, dividend, half-day, delisting and DST fixtures. |
 | MW-018 | Screen an as-of universe and group a heatmap by sector, weight and return. | Backlog. Publish ranking and missing-data rules. Reconcile screen and heatmap constituents to the same timestamp. |
 | MW-019 | Rebuild depth, footprint, TPO, volume profiles and cumulative delta from ordered trades/quotes. | Backlog. Detect a sequence gap, resnapshot, and reconcile size totals and aggressor classifications. |
 | MW-020 | Backtest and optimize strategies with fees, slippage, execution delays and survivorship controls. | Backlog. A signal at close cannot fill before the next eligible event. Test a delisted constituent, partial fills and cash reconciliation. |
@@ -32,6 +32,6 @@ The 0.1 column describes the first source milestone. “Backlog” means there i
 | MW-026 | Observe option chains and calculate Greeks and implied volatility surfaces. | Backlog. Check put-call parity, finite-difference Greeks, inversion error and invalid quote handling. |
 | MW-027 | Trigger auditable alerts and webhooks from explicit, replayable rules and recognized patterns. | Backlog. Replay a crossing twice, deduplicate the notification and verify bounded delivery retries. |
 | MW-028 | Offer versioned MarketWeft REST, WebSocket, gRPC and read-only MCP research surfaces. | Backlog. Test schema compatibility, auth scopes, throttling, provenance and disconnect/resume. The trading-bot SDK is a client of a separate service. |
-| MW-029 | Enforce provider-specific display, storage, redistribution and automated-use rights. | Local generated examples and user-authorized CSV only. Gate any network feed on a grant, operation and expiry test. |
-| MW-030 | Support local, self-hosted, enterprise and hosted deployments with backup and recovery. | Static self-hosting in first milestone. Add schema-versioned backups, restore drills, database migrations, auth and signed artifacts before enterprise release. |
+| MW-029 | Enforce provider-specific display, storage, redistribution and automated-use rights. | 0.2.0 records source and usage-grant text with imported CSV and preserves them across backup and restore. Automated entitlement and expiry checks remain a requirement before adding a network feed. |
+| MW-030 | Support local, self-hosted, enterprise and hosted deployments with backup and recovery. | 0.2.0 supports static self-hosting, browser database migration and a versioned backup with clean-profile restore drills. Enterprise authentication, server-database recovery and signed installers remain open. |
 
