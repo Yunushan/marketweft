@@ -49,29 +49,25 @@ jobs:
           name: browser-terminal-attempt-${{ github.run_attempt }}
           path: reports/MarketWeft-browser-*.zip
           if-no-files-found: error
-      - name: Wait for the published artifact to appear in this run
+      - name: Download and verify the published browser artifact
         env:
           GH_TOKEN: ${{ github.token }}
           ARTIFACT_ID: ${{ steps.publish.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.publish.outputs.artifact-digest }}
         run: |
           [[ "$ARTIFACT_ID" =~ ^[0-9]+$ ]]
-          endpoint="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100"
-          for delay in 0 2 4 8 16 30; do
-            sleep "$delay"
-            if gh api "$endpoint" --paginate --jq '.artifacts[].id' | grep -Fxq "$ARTIFACT_ID"; then
-              exit 0
-            fi
-          done
-          echo "Artifact $ARTIFACT_ID did not appear in run $GITHUB_RUN_ID." >&2
-          exit 1
-      - name: Download the published browser artifact
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          artifact-ids: ${{ steps.publish.outputs.artifact-id }}
-          github-token: ${{ github.token }}
-          path: ${{ runner.temp }}/browser-artifact
-      - name: Verify the downloaded ZIP matches the tested package
-        run: cmp reports/MarketWeft-browser-*.zip "$RUNNER_TEMP"/browser-artifact/MarketWeft-browser-*.zip
+          digest="${ARTIFACT_DIGEST#sha256:}"
+          [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
+          archive="$RUNNER_TEMP/browser-artifact.zip"
+          package="MarketWeft-browser-$(node -p 'require("./package.json").version').zip"
+          # Artifact listings can lag the upload or return inconsistent cached results.
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --retry 5 --retry-all-errors --retry-max-time 60 --max-time 20 \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --output "$archive" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip"
+          printf '%s  %s\n' "$digest" "$archive" | sha256sum --check --strict
+          unzip -p "$archive" "$package" > "$RUNNER_TEMP/$package"
+          cmp "reports/$package" "$RUNNER_TEMP/$package"
 
   attest-browser:
     needs: verify
