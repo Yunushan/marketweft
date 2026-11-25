@@ -11,7 +11,7 @@
 | Quick-start launcher | Four Node tests passed, covering both ZIP and source layouts, loopback serving, asset MIME types, and the boundary around public assets. |
 | Extracted browser ZIP | Launched the shipping server from a clean extraction. Chrome displayed the chart, installed its offline cache and imported the included reference CSV. The last close was 15.00 before and after an offline reload. No page errors were recorded. |
 | Package reproducibility | Packaging the same built assets twice produced SHA-256 `7f26c963fa4dfd8f09d93a791e97c63cc0a6942d9ef11db25f3172fe5d053328`. This tests local archive reproducibility. |
-| Dependency checks | The initial lock inventory comprised 489 external package versions, including all optional native targets. Two license-expression tests passed. npm audit reported zero known vulnerabilities for the tested lock. See the separately tracked [native dependency findings](native-advisories.md). |
+| Dependency checks | The inventory comprises 489 external package versions across the locks, including the native backport and optional targets. Two license-expression tests passed. npm audit reported zero known vulnerabilities. OSV queried 432 native package versions, confirmed the reviewed backport for the two aliases of one GLib advisory, and reported two maintenance warnings. [Native dependency review](native-advisories.md). |
 | trading-bot SDK | Six SDK tests passed. Two additional scenarios called all four real FastAPI routes on a pinned upstream checkout inside an isolated Linux container. They distinguished an empty standalone process from timestamped, synthetic account and position snapshots. See [endpoints, commit and reproduction](trading-bot.md). |
 
 ## Desktop and benchmarks

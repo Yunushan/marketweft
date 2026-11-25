@@ -12,6 +12,10 @@ license inventory. OS-provided fonts and WebViews are system components.
 Native desktop and development tools
 ------------------------------------
 The desktop wrapper is a separate Cargo workspace. Its Tauri graph contains
+the MIT-licensed glib 0.18.5 source with a Debian backport of an upstream
+iterator fix. Its original LICENSE and COPYRIGHT files are in
+apps/desktop/vendor/glib-0.18.5. Exact provenance is in docs/native-advisories.md.
+The desktop dependency graph also contains
 unmodified MPL-2.0 files in cssparser, cssparser-macros, dtoa-short, option-ext
 and selectors. The web build uses the unmodified MPL-2.0 lightningcss tool and
 its platform bindings. These file-scoped terms apply to the respective packages.
