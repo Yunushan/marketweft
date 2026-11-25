@@ -4,7 +4,9 @@ MarketWeft is an offline-capable financial research terminal. Open a local OHLCV
 
 ## Run the prebuilt terminal
 
-Extract the **entire browser ZIP**. From the extracted directory run:
+Download the **browser-terminal** artifact from a successful verification run, then extract the enclosed **MarketWeft-browser-0.1.0.zip**. If you already have the MarketWeft ZIP, extract it directly. [Verification runs and artifacts](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
+From the directory containing `serve-terminal.mjs`, run:
 
 ```sh
 node serve-terminal.mjs
@@ -64,7 +66,7 @@ npm audit --audit-level=high
 python -B scripts/advisories.py
 ```
 
-Python checks require Python 3.11+. Linux CI also installs Playwright's system dependencies. The native advisory command currently reports open upstream findings. The two benchmark commands are `cargo bench --locked --bench history` and `node --experimental-strip-types scripts/bench-wasm.mjs`. After building the web workspace, `python scripts/package_browser.py` writes a portable browser ZIP under `reports/`.
+Python checks require Python 3.11+. Linux CI also installs Playwright's system dependencies. The native scan reports two upstream maintenance notices and verifies the identity of a vendored GLib backport. The two benchmark commands are `cargo bench --locked --bench history` and `node --experimental-strip-types scripts/bench-wasm.mjs`. After building the web workspace, `python scripts/package_browser.py` writes a portable browser ZIP under `reports/`. [GitHub Actions runs](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ## Repository map
 
