@@ -51,3 +51,5 @@ npm run test:upstream -w @marketweft/trading-bot
 ```
 
 The harness creates a temporary profile, starts the upstream FastAPI application on an ephemeral loopback port with read-only mode enabled, and uses a disposable bearer token. It exercises an empty standalone process and a process containing timestamped synthetic snapshots injected before startup. The HTTP client reads all four endpoints in both cases. The test also checks the upstream local executor's heartbeat descriptor without starting a trading session. External broker connectivity, desktop-hosted accounts and live execution require separate evidence.
+
+On 2026-11-25 all six SDK tests passed with Node 26.8.2 on Windows x64. Both upstream scenarios passed in a Linux x64 container with external networking disabled, read-only source mounts, Node 22.22.0 and Python 3.12.12.

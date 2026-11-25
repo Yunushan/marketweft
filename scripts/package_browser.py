@@ -1,5 +1,8 @@
 """Build a portable browser distribution from the locally verified Vite output."""
+import hashlib
+import json
 from pathlib import Path
+import tomllib
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +49,17 @@ def main():
                          "example.csv": "crates/core/tests/fixtures/reference.csv"}.items():
         files[name] = (ROOT / source).read_bytes()
     files["START-HERE.txt"] = START.encode("utf-8")
+    inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
+    inventory["components"] = [item for item in inventory["components"]
+                               if any(p["value"] == "web-runtime" for p in item["properties"])]
+    toolchain = tomllib.loads((ROOT / "rust-toolchain.toml").read_text(encoding="utf-8"))
+    inventory["components"].append({
+        "type": "library", "name": "marketweft_core.wasm", "version": "0.1.0",
+        "hashes": [{"alg": "SHA-256", "content": hashlib.sha256(files["dist/marketweft_core.wasm"]).hexdigest()}],
+        "properties": [{"name": "marketweft:rust-toolchain", "value": toolchain["toolchain"]["channel"]},
+                       {"name": "marketweft:standard-library-notices", "value": "dist/rust-library-notices.html"}],
+    })
+    files["SBOM.cdx.json"] = (json.dumps(inventory, indent=2) + "\n").encode("utf-8")
     OUTPUT.parent.mkdir(exist_ok=True)
     with zipfile.ZipFile(OUTPUT, "w") as archive:
         for name in sorted(files):

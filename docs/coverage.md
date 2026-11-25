@@ -1,0 +1,37 @@
+# MarketWeft requirements and acceptance evidence
+
+The 0.1 column describes the first source milestone. “Backlog” means there is no release evidence for the stated behavior. The tests and limitations observed on the development machine are recorded in [verification.md](verification.md). Reference product observations are catalogued in [references.md](references.md).
+
+| ID | Behavior and acceptance criterion | 0.1 evidence or next test |
+| --- | --- | --- |
+| MW-001 | Canonicalize venue and symbol to a stable key. The same ticker on two venues must remain distinct. | Implemented. Rust identity tests and the Wasm bridge suite. |
+| MW-002 | Ingest one ordered UTC OHLCV series atomically. Reject malformed dates, reversed ranges, duplicates, negative volume and excess precision. | Implemented. Parser fixtures, calendar boundaries, import error cases and 100,000-bar boundary tests. |
+| MW-003 | Compute simple moving averages over fixed-point closes. Emit a missing value until the full window is available. | Implemented. Six-place golden vector, rolling-vs-naive property checks and prefix invariance. |
+| MW-004 | Compute an exponentially weighted average seeded by the first full window. Round half away from zero each step. | Implemented. Golden vectors, independent recurrence and negative rounding cases. |
+| MW-005 | The browser and native code must use the same implementation. | Implemented. Rust builds as a native library and Wasm. The Node tests call the browser-facing TypeScript wrapper. |
+| MW-006 | Inspect a historical chart with candles, volume and price overlays. Change the visible range and inspect an individual bar. | Browser terminal. See the tested interactions in verification.md. |
+| MW-007 | Select an instrument from a watchlist, import locally and reload the saved workspace. An invalid import cannot replace valid history. | Browser storage and import acceptance tests. Keep the source CSV for recovery. |
+| MW-008 | Open the production browser build offline after its initial asset cache completes. | Manifest and versioned service-worker cache. Offline reload is a browser acceptance case. |
+| MW-009 | Read a versioned trading-bot status, account and position view. Preserve absent observations and expose runtime capabilities. | Independent observation SDK. See [trading-bot.md](trading-bot.md) for pinned upstream behavior and tests. |
+| MW-010 | Start the same terminal in a Tauri desktop window without granting shell, filesystem or broker permissions. | Wrapper and native CI build path. See [platforms.md](platforms.md) before making a binary support claim. |
+| MW-011 | Build from lockfiles, inventory each dependency, check licenses, scan advisories and test on proposed release hosts. | CI configured. Local gate results and gaps in verification.md. |
+| MW-012 | Restore multiple chart panes with independent series and linked crosshairs. Validate 35 distinct chart types against per-type fixtures. | Backlog. Start with two panes and a common UTC cursor, then add one tested bar construction at a time. |
+| MW-013 | Build custom timeframes, tick bars, replay and multi-symbol studies without leaking future values. | Backlog. Replaying one event at a time must equal the prefix of a batch computation across DST and session gaps. |
+| MW-014 | Save editable drawings in data coordinates. Maintain an inventory of 150 distinct tools and 600 distinct built-in indicators. | Two indicators implemented. Test drawing serialization across zoom, then add only individually specified and verified tools and studies to counts. |
+| MW-015 | Specify an open time-series language with deterministic missing values, bounded evaluation and isolated plugins. | Backlog. Publish grammar, interpreter conformance vectors and quota tests before accepting user programs. |
+| MW-016 | Support custom financial/statistical formulas and Rust, TS, Python and Wasm SDKs. | Partial TS observation package. Future SDKs must exchange identical typed input and output fixtures and expose version negotiation. |
+| MW-017 | Track exchange sessions, action adjustments and point-in-time membership. | Backlog. Compare a split, ex-dividend day, half-day, delisting and DST transition with authorized reference fixtures. |
+| MW-018 | Screen an as-of universe and group a heatmap by sector, weight and return. | Backlog. Publish ranking and missing-data rules. Reconcile screen and heatmap constituents to the same timestamp. |
+| MW-019 | Rebuild depth, footprint, TPO, volume profiles and cumulative delta from ordered trades/quotes. | Backlog. Detect a sequence gap, resnapshot, and reconcile size totals and aggressor classifications. |
+| MW-020 | Backtest and optimize strategies with fees, slippage, execution delays and survivorship controls. | Backlog. A signal at close cannot fill before the next eligible event. Test a delisted constituent, partial fills and cash reconciliation. |
+| MW-021 | Run an isolated paper ledger with fees, position limits, exposure caps, idempotency and kill switch. | Backlog. A repeated order must have one effect. Disallowed exposure, stopped accounts and unauthorized live routes must fail closed. |
+| MW-022 | Gate live execution by operator authorization and deterministic risk decisions. | Backlog. Prove a read-only or AI client cannot escalate, retry or bypass limits. Require venue-specific acceptance evidence. |
+| MW-023 | Research financial statements and valuation using publication-time vintages, currencies and restatements. | Backlog. Reproduce a dated valuation with original and revised filings. |
+| MW-024 | Serve economic events with release time, actual, forecast and revision lineage. | Backlog. An as-of query before a release must yield no actual for that release. |
+| MW-025 | Run walk-forward optimization and seeded Monte Carlo, report drawdown, exposure and portfolio risk. | Backlog. Enforce disjoint evaluation periods and reproduce percentiles on a synthetic portfolio. |
+| MW-026 | Observe option chains and calculate Greeks and implied volatility surfaces. | Backlog. Check put-call parity, finite-difference Greeks, inversion error and invalid quote handling. |
+| MW-027 | Trigger auditable alerts and webhooks from explicit, replayable rules and recognized patterns. | Backlog. Replay a crossing twice, deduplicate the notification and verify bounded delivery retries. |
+| MW-028 | Offer versioned MarketWeft REST, WebSocket, gRPC and read-only MCP research surfaces. | Backlog. Test schema compatibility, auth scopes, throttling, provenance and disconnect/resume. The trading-bot SDK is a client of a separate service. |
+| MW-029 | Enforce provider-specific display, storage, redistribution and automated-use rights. | Local generated examples and user-authorized CSV only. Gate any network feed on a grant, operation and expiry test. |
+| MW-030 | Support local, self-hosted, enterprise and hosted deployments with backup and recovery. | Static self-hosting in first milestone. Add schema-versioned backups, restore drills, database migrations, auth and signed artifacts before enterprise release. |
+
