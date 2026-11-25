@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { ReactNode, FormEvent } from 'react'
 import type { MarketCore } from './market-core'
 import { Chart, Spark } from './Chart'
@@ -29,10 +36,22 @@ function Dialog({
   children: ReactNode
 }) {
   const ref = useRef<HTMLDialogElement>(null)
+  const dismissOnEscape = useEffectEvent(close)
   useLayoutEffect(() => {
     const el = ref.current!
     el.showModal()
-    return () => el.close()
+    // Disabling a focused form control can move keyboard events to the document.
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing)
+        return
+      event.preventDefault()
+      dismissOnEscape()
+    }
+    el.ownerDocument.addEventListener('keydown', onKeyDown)
+    return () => {
+      el.ownerDocument.removeEventListener('keydown', onKeyDown)
+      el.close()
+    }
   }, [])
   return (
     <dialog

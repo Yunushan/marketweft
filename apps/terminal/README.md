@@ -20,3 +20,7 @@ Values accept positive base-10 integers in digits only, with no leading zero, un
 The import dialog shows the effective limits. It checks file size before reading and checks row count before sending the CSV to Rust. These limits apply to each newly selected user file. Sample histories and previously saved imports remain readable after a deployment lowers its limits. Browser storage quotas still apply when saving a workspace.
 
 A workspace backup preserves the accepted CSV histories, source and usage metadata, watchlist and overlay settings across browser profiles. [Export and restore instructions](../../docs/workspace-backup.md).
+
+## Run browser tests
+
+Run `npx --no-install playwright install chromium` after `npm ci`. The tests use the Chromium build pinned by Playwright on all platforms. For a second pass against an installed Chrome build, set `MARKETWEFT_CHROME` to that browser's executable path before running `npm test`.
