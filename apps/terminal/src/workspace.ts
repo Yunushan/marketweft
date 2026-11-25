@@ -137,92 +137,74 @@ export function defaults(assets: Asset[]): Workspace {
     ema: false,
   }
 }
-type Loaded = {
+type LegacyWorkspace = {
   workspace: Workspace
-  assets: Asset[]
-  persisted: string | null | undefined
-  needsBackup?: boolean
   warning?: string
 }
-export function readWorkspace(core: MarketCore, samples: Asset[]): Loaded {
+export function readLegacyWorkspace(
+  core: MarketCore,
+  samples: Asset[],
+  raw: string | null,
+): LegacyWorkspace {
   const initial = defaults(samples)
-  const fresh = { workspace: initial, assets: samples }
-  let saved: string | null | undefined
+  if (raw === null) return { workspace: initial }
+  let state: Workspace
   try {
-    saved = localStorage.getItem(KEY)
-    if (saved === null) return { ...fresh, persisted: saved }
-    const state: Workspace = JSON.parse(saved)
-    if (state.version !== 1) throw Error()
-    const assets = [...samples],
-      imports: SavedImport[] = []
-    const ids = new Set(samples.map((a) => a.id))
-    let repaired =
-      !Array.isArray(state.imports) || !Array.isArray(state.watchlist)
-    for (const item of Array.isArray(state.imports) ? state.imports : []) {
-      try {
-        const asset = importedAsset(core, item)
-        if (ids.has(asset.id)) {
-          repaired = true
-          continue
-        }
-        assets.push(asset)
-        imports.push(item)
-        ids.add(asset.id)
-      } catch {
-        repaired = true
-      }
-    }
-    const storedList = Array.isArray(state.watchlist) ? state.watchlist : []
-    let watchlist = [...new Set(storedList.filter((id) => ids.has(id)))]
-    if (watchlist.length !== storedList.length || !watchlist.length)
-      repaired = true
-    if (!watchlist.length) watchlist = initial.watchlist
-    const selected = watchlist.includes(state.selected)
-      ? state.selected
-      : watchlist[0]
-    if (
-      selected !== state.selected ||
-      typeof state.ema !== 'boolean' ||
-      typeof state.sma !== 'boolean'
-    )
-      repaired = true
-    return {
-      assets,
-      persisted: saved,
-      needsBackup: repaired,
-      workspace: {
-        version: 1,
-        imports,
-        watchlist,
-        selected,
-        ema: typeof state.ema === 'boolean' ? state.ema : initial.ema,
-        sma: typeof state.sma === 'boolean' ? state.sma : initial.sma,
-      },
-      warning: repaired
-        ? 'Recovered the readable parts of your workspace. The next save will keep a recovery copy.'
-        : undefined,
-    }
+    state = JSON.parse(raw)
   } catch {
     return {
-      ...fresh,
-      persisted: saved,
-      needsBackup: typeof saved === 'string',
+      workspace: initial,
       warning:
-        'Saved workspace could not be read. Showing the sample workspace.',
+        'Saved workspace could not be read. The original stays in browser storage.',
     }
   }
-}
-
-// Preserve even the malformed rows before committing a repaired workspace.
-// Failed backup writes propagate so the original key can never be overwritten.
-export function backupWorkspace(raw: string) {
-  for (let index = 1; ; index++) {
-    const key = KEY + '.recovery.' + index
-    const existing = localStorage.getItem(key)
-    if (existing === raw) return
-    if (existing === null) {
-      localStorage.setItem(key, raw)
-      return
+  if (state?.version !== 1) {
+    throw Error(
+      'Unrecognized legacy workspace version. The original workspace has been preserved.',
+    )
+  }
+  const imports: SavedImport[] = []
+  const ids = new Set(samples.map((a) => a.id))
+  let repaired =
+    !Array.isArray(state.imports) || !Array.isArray(state.watchlist)
+  for (const item of Array.isArray(state.imports) ? state.imports : []) {
+    try {
+      const asset = importedAsset(core, item)
+      if (ids.has(asset.id)) {
+        repaired = true
+        continue
+      }
+      imports.push(item)
+      ids.add(asset.id)
+    } catch {
+      repaired = true
     }
+  }
+  const storedList = Array.isArray(state.watchlist) ? state.watchlist : []
+  let watchlist = [...new Set(storedList.filter((id) => ids.has(id)))]
+  if (watchlist.length !== storedList.length || !watchlist.length)
+    repaired = true
+  if (!watchlist.length) watchlist = initial.watchlist
+  const selected = watchlist.includes(state.selected)
+    ? state.selected
+    : watchlist[0]
+  if (
+    selected !== state.selected ||
+    typeof state.ema !== 'boolean' ||
+    typeof state.sma !== 'boolean'
+  )
+    repaired = true
+  return {
+    workspace: {
+      version: 1,
+      imports,
+      watchlist,
+      selected,
+      ema: typeof state.ema === 'boolean' ? state.ema : initial.ema,
+      sma: typeof state.sma === 'boolean' ? state.sma : initial.sma,
+    },
+    warning: repaired
+      ? 'Recovered the readable parts of your workspace. The original stays in browser storage.'
+      : undefined,
   }
 }
