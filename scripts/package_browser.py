@@ -92,7 +92,9 @@ the source's observation and sequence evidence.
 Select the NVDA chart and open Recorded footprint. Load the demo or open
 footprint-trades.csv. The price bins keep labeled buy, sell and unknown size.
 The cumulative delta follows the execution window and changes when a late
-trade reaches the selected knowledge cutoff.
+trade reaches the selected knowledge cutoff. Expand Price profiles to
+compare total trade size and distinct time-price opportunities over that
+same window, and export both profiles and their value areas.
 Under Delisting proceeds, load the demo or import delisting-terms.csv.
 Set both universe cutoffs to 14:35 UTC to see missing proceeds, 14:37
 for the USD receivable, and 14:50 for the first cash posting.

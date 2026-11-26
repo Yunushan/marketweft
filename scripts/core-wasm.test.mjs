@@ -9,6 +9,37 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('observed price profiles preserve distinct TPO brackets and exact volume value areas', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-footprint.csv', import.meta.url), 'utf8');
+  const instrument = 'NASDAQ:NVDA';
+  const utc = seconds => new Date(seconds * 1000).toISOString().replace('.000Z', 'Z');
+  const at = (known, target = 7000) => core.recordedPriceProfile(instrument, csv, {
+    bucketSeconds: 60, priceWidth: '0.5', from: utc(-1), through: utc(60), known: utc(known),
+  }, target);
+  assert.deepEqual(at(-1), {
+    levels: [], volume: null, timeOpportunities: null, observedBrackets: 0, valueAreaBasisPoints: 7000,
+  });
+  const early = at(60);
+  assert.equal(early.observedBrackets, 3);
+  assert.deepEqual(early.levels.map(row => row.opportunities), [2, 1, 1]);
+  assert.deepEqual(early.volume, {
+    pointOfControlFrom: 100500000n, pointOfControlTo: 101000000n,
+    valueFrom: 100500000n, valueTo: 101500000n, covered: 5000000n, total: 6500000n,
+  });
+  assert.deepEqual(early.timeOpportunities, {
+    pointOfControlFrom: -500000n, pointOfControlTo: 0n,
+    valueFrom: -500000n, valueTo: 101000000n, covered: 3n, total: 4n,
+  });
+  const late = at(61);
+  assert.equal(late.volume.covered, 13000001n);
+  assert.equal(late.volume.total, 16600001n);
+  assert.equal(late.levels[0].volume.trades, 3);
+  assert.deepEqual(late.timeOpportunities, early.timeOpportunities);
+  assert.deepEqual(at(65), late);
+  assert.deepEqual(at(60), early);
+  assert.throws(() => at(61, 10001), /1 to 10,000 basis points/);
+});
+
 test('recorded footprint decodes execution buckets, unknown volume and exact cumulative deltas', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-footprint.csv', import.meta.url), 'utf8');
   const instrument = 'NASDAQ:NVDA';

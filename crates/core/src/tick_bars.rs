@@ -7,6 +7,9 @@ use crate::{
 mod footprint;
 use footprint::AggressorSide;
 pub use footprint::{FlowVolume, FootprintBar, FootprintLevel, TradeWindow};
+#[path = "price_profile.rs"]
+mod price_profile;
+pub use price_profile::{PriceProfile, ProfileArea, ProfileLevel};
 
 const HEADER: &str = "instrument,executed_at,observed_at,sequence,price,size";
 const AGGRESSOR_HEADER: &str = "instrument,executed_at,observed_at,sequence,price,size,aggressor";

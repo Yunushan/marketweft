@@ -1395,20 +1395,8 @@ pub extern "C" fn mw_footprint_window() -> u32 {
 pub extern "C" fn mw_trade_footprint(bucket_seconds: u32) -> u32 {
     use std::fmt::Write;
     process(|input| {
-        let (instrument, rest) = recorded_source(input)?;
-        let mut fields = rest.splitn(5, '\n');
-        let mut time = || {
-            fields
-                .next()
-                .and_then(exact_utc)
-                .ok_or("Footprint times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
-        };
-        let (from_at, through_at, known_at) = (time()?, time()?, time()?);
-        let price_width = fields
-            .next()
-            .and_then(crate::history::decimal)
-            .ok_or("Use an exact footprint price increment with up to six fractional digits.")?;
-        let csv = fields.next().ok_or("Missing footprint trade CSV.")?;
+        let (instrument, [from_at, through_at, known_at, price_width], csv) =
+            footprint_input(input)?;
         let bars = crate::TradeTape::parse_aggressors(csv, &instrument)?.footprint(
             bucket_seconds,
             price_width,
@@ -1446,6 +1434,84 @@ pub extern "C" fn mw_trade_footprint(bucket_seconds: u32) -> u32 {
                 )
                 .unwrap();
             }
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+fn footprint_input(input: &[u8]) -> Result<(Instrument, [i64; 4], &str), String> {
+    let (instrument, rest) = recorded_source(input)?;
+    let mut fields = rest.splitn(5, '\n');
+    let mut time = || {
+        fields
+            .next()
+            .and_then(exact_utc)
+            .ok_or("Footprint times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+    };
+    let (from_at, through_at, known_at) = (time()?, time()?, time()?);
+    let price_width = fields
+        .next()
+        .and_then(crate::history::decimal)
+        .ok_or("Use an exact footprint price increment with up to six fractional digits.")?;
+    let csv = fields.next().ok_or("Missing footprint trade CSV.")?;
+    Ok((
+        instrument,
+        [from_at, through_at, known_at, price_width],
+        csv,
+    ))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_price_profile(bracket_seconds: u32, value_area_basis_points: u32) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let (instrument, [from_at, through_at, known_at, price_width], csv) =
+            footprint_input(input)?;
+        let target = u16::try_from(value_area_basis_points)
+            .map_err(|_| "Use a value-area target from 1 to 10,000 basis points.")?;
+        let profile = crate::TradeTape::parse_aggressors(csv, &instrument)?.price_profile(
+            bracket_seconds,
+            price_width,
+            from_at,
+            through_at,
+            known_at,
+            target,
+        )?;
+        let mut text = String::new();
+        writeln!(
+            &mut text,
+            "H\t{}\t{}",
+            profile.observed_brackets, profile.value_area_basis_points
+        )
+        .unwrap();
+        for (tag, area) in [('V', profile.volume), ('T', profile.time_opportunities)] {
+            if let Some(area) = area {
+                writeln!(
+                    &mut text,
+                    "{tag}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    area.point_of_control_from,
+                    area.point_of_control_to,
+                    area.value_from,
+                    area.value_to,
+                    area.covered,
+                    area.total,
+                )
+                .unwrap();
+            }
+        }
+        for bin in profile.levels {
+            writeln!(
+                &mut text,
+                "L\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                bin.price_from,
+                bin.price_to,
+                bin.volume.buy,
+                bin.volume.sell,
+                bin.volume.unknown,
+                bin.volume.trades,
+                bin.opportunities,
+            )
+            .unwrap();
         }
         Ok(text.into_bytes())
     })

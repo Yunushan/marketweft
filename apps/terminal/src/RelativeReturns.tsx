@@ -200,7 +200,7 @@ export function RelativeReturns({
   const rows = report?.rows
   const knownReturns = rows?.some(row => row.left.returnUnits !== null || row.right.returnUnits !== null)
   return (
-    <details className="relative-returns">
+    <details className="research-details">
       <summary>Relative returns</summary>
       <section aria-label="Relative returns">
         <form className="universe-query" onSubmit={apply}>

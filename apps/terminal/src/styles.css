@@ -307,25 +307,25 @@ main {
 .universe-table td {
   white-space: nowrap;
 }
-.relative-returns {
+.research-details {
   border-top: 1px solid var(--line);
   padding-top: 14px;
   min-width: 0;
 }
-.relative-returns summary {
+.research-details summary {
   cursor: pointer;
   font-weight: 600;
 }
-.relative-returns section {
+.research-details section {
   display: grid;
   gap: 12px;
   margin-top: 12px;
   min-width: 0;
 }
-.relative-returns section > button {
+.research-details section > button {
   justify-self: start;
 }
-.relative-returns p,
+.research-details p,
 .relative-plot {
   margin: 0;
 }
@@ -347,6 +347,22 @@ main {
   width: 100%;
   height: 170px;
 }
+.profile-summaries {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
+  gap: 12px;
+}
+.profile-summaries h4 { margin: 0; }
+.profile-histogram { position: relative; }
+.profile-histogram span {
+  position: absolute;
+  inset: 4px auto 4px 0;
+  border-radius: 2px;
+  opacity: .25;
+}
+.profile-histogram.volume span { background: var(--mint); }
+.profile-histogram.tpo span { background: #e8ba70; }
+.profile-histogram b { position: relative; font-weight: 400; }
 .depth-ladders {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));

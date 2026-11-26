@@ -4,6 +4,7 @@ import { quoteText } from './chart-export'
 import { downloadFile } from './download'
 import { fixed } from './fixed-point'
 import { Mark } from './Icons'
+import { PriceProfiles } from './PriceProfiles'
 import type { FootprintBar, FootprintQuery, MarketCore, TradeFlowVolume } from './market-core'
 import { utc } from './workspace'
 import type { Asset } from './workspace'
@@ -260,6 +261,7 @@ export function FootprintResearch({ core, asset, close }: { core: MarketCore; as
                 <FootprintRows key={JSON.stringify([bar.startsAt, report.query])} bar={bar} />
               </>
             ) : <p role="status">No trades match these execution and observation cutoffs.</p>}
+            <PriceProfiles core={core} instrument={asset.id} source={report.source} query={report.query} />
           </section>
         )}
       </main>
