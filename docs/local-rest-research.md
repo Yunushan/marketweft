@@ -23,7 +23,7 @@ Both endpoints accept `offset` and `limit`. The default page contains up to 200 
 
 The response carries exact integer values as decimal strings. Alongside each screen row the service returns the selected membership change and selected close observation timestamps. Missing prices and unavailable returns are `null`. [Research universe screening](research-universe-screen.md) · [Time-series formulas](time-series-language.md).
 
-The service accepts at most 16 MiB per JSON body and reads each body within five seconds. Two requests can hold a research slot simultaneously. The server returns 429 when slots are occupied, 401 for missing or invalid tokens, 403 for a different scope or origin, and 422 for inputs rejected by the research engine.
+The service accepts at most 16 MiB per JSON body and reads each body within five seconds. The server returns 401 for missing or invalid tokens, 403 for a different scope or origin, and 422 for inputs rejected by the research engine.
 
 ## WebSocket streaming
 
@@ -33,7 +33,7 @@ Send one JSON text message using the corresponding REST request fields. The serv
 
 Keep the `next_offset` from the last fully received and accepted page. If the connection ends before the terminal page, reconnect with the same query, CSV data and cutoffs. Set `offset` to that saved `next_offset`. The new connection recomputes the results from those inputs. A null `next_offset` marks completion.
 
-Send the query within five seconds. The message limit is 16 MiB and delivery has a 30-second deadline after the query arrives. The same two research slots are shared by REST requests and WebSocket connections.
+Send the query within five seconds. The message limit is 16 MiB and delivery has a 30-second deadline after the query arrives.
 
 ## gRPC research
 
@@ -44,7 +44,7 @@ Use a Protobuf client over plaintext HTTP/2 at the printed IPv4 loopback address
 | `EvaluateFormula` | `MARKETWEFT_FORMULA_TOKEN` |
 | `ScreenUniverse` | `MARKETWEFT_SCREEN_TOKEN` |
 
-Send the bearer token as `authorization` metadata. Reuse the same query and its data and cutoffs with `offset` set to the previous page’s `next_offset`. An absent `next_offset` marks the last page. The schema uses optional fields for unavailable formula values, ranks and close observations, and strings for exact ticks and returns. The server shares the two research slots with REST and WebSocket, caps each Protobuf message at 16 MiB and applies a 15-second deadline to each call.
+Send the bearer token as `authorization` metadata. Reuse the same query and its data and cutoffs with `offset` set to the previous page’s `next_offset`. An absent `next_offset` marks the last page. The schema uses optional fields for unavailable formula values, ranks and close observations, and strings for exact ticks and returns. The server caps each Protobuf message at 16 MiB and applies a 15-second deadline to each call.
 
 ## SQLite audit receipts
 
@@ -70,3 +70,9 @@ Use the standalone service executable to snapshot a running ledger and restore i
 ```
 
 Both commands report the verified receipt and unfinished counts. SQLite reads a consistent snapshot of committed data, verifies the destination and publishes a single file. Choose unused destination paths, including their SQLite sidecar names. To resume service with recovered data, start it with `MARKETWEFT_RESEARCH_AUDIT_DB` set to the recovered file. The next receipt follows the restored sequence.
+
+## Concurrency and retries
+
+The service shares two active research slots across REST, WebSocket and gRPC by default. Set `MARKETWEFT_RESEARCH_SLOTS` from 1 to 8 to change the local limit. A slot covers request intake and computation or delivery, including any enabled audit receipt.
+
+When all slots are occupied, REST requests and WebSocket upgrades receive HTTP 429 with `Retry-After: 1`, and gRPC calls receive `ResourceExhausted`. Retry the same query after capacity returns. Preserve the original datasets, time cutoffs and last accepted `next_offset` when resuming a page.

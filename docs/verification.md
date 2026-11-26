@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.56.0 · Shared research admission and replay recovery
+
+| Check | Observed result |
+| --- | --- |
+| Saturated admission | A real localhost process held three configured WebSocket connections and rejected a fourth upgrade, a REST request and 32 concurrent gRPC calls. REST and WebSocket supplied HTTP 429 and a retry hint, and gRPC returned `ResourceExhausted`. |
+| Disconnect and resume | Dropping one stalled socket freed a shared slot. The next gRPC call returned ALFA first at +2%. WebSocket resumed at the returned offset and retained BETA’s missing close and rank. |
+| Configuration boundary | Zero, nine and the largest supported integer failed before the service opened an audit database. |
+
+[Concurrency and retries](local-rest-research.md#concurrency-and-retries) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.55.0 · Audit database recovery
 
 | Check | Observed result |

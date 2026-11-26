@@ -33,6 +33,9 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 const BODY_LIMIT: usize = 16 * 1024 * 1024;
 const BODY_TIMEOUT: Duration = Duration::from_secs(5);
 const TOKEN_BYTES: usize = 64;
+/// Default maximum number of active research requests across transports.
+pub const DEFAULT_RESEARCH_SLOTS: usize = 2;
+const MAX_RESEARCH_SLOTS: usize = 8;
 
 #[derive(Clone)]
 struct Token([u8; TOKEN_BYTES]);
@@ -129,6 +132,10 @@ impl IntoResponse for ApiError {
             response
                 .headers_mut()
                 .insert(header::WWW_AUTHENTICATE, HeaderValue::from_static("Bearer"));
+        } else if self.status == StatusCode::TOO_MANY_REQUESTS {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, HeaderValue::from_static("1"));
         }
         response
     }
@@ -136,7 +143,12 @@ impl IntoResponse for ApiError {
 
 /// Construct the v1 API for the exact IPv4 loopback address bound by the service.
 pub fn research_router(address: SocketAddr, tokens: Tokens) -> Result<Router, &'static str> {
-    Ok(configure_router(authority(address)?, tokens, None))
+    Ok(configure_router(
+        authority(address)?,
+        tokens,
+        None,
+        DEFAULT_RESEARCH_SLOTS,
+    ))
 }
 
 /// Open a local SQLite audit database before enabling the loopback research API.
@@ -145,9 +157,28 @@ pub fn research_router_with_audit(
     tokens: Tokens,
     path: &Path,
 ) -> io::Result<Router> {
+    configured_research_router(address, tokens, Some(path), DEFAULT_RESEARCH_SLOTS)
+}
+
+/// Configure the shared admission budget and optional SQLite audit database.
+pub fn configured_research_router(
+    address: SocketAddr,
+    tokens: Tokens,
+    audit_path: Option<&Path>,
+    slots: usize,
+) -> io::Result<Router> {
     let authority = authority(address).map_err(io::Error::other)?;
-    let trail = Trail::open(path).map_err(io::Error::other)?;
-    Ok(configure_router(authority, tokens, Some(trail)))
+    if !(1..=MAX_RESEARCH_SLOTS).contains(&slots) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Set between one and eight research slots.",
+        ));
+    }
+    let trail = audit_path
+        .map(Trail::open)
+        .transpose()
+        .map_err(io::Error::other)?;
+    Ok(configure_router(authority, tokens, trail, slots))
 }
 
 fn authority(address: SocketAddr) -> Result<String, &'static str> {
@@ -161,13 +192,18 @@ fn authority(address: SocketAddr) -> Result<String, &'static str> {
     })
 }
 
-fn configure_router(authority: String, tokens: Tokens, audit: Option<Trail>) -> Router {
+fn configure_router(
+    authority: String,
+    tokens: Tokens,
+    audit: Option<Trail>,
+    slots: usize,
+) -> Router {
     let origin = format!("http://{authority}");
     let state = Arc::new(Server {
         authority,
         origin,
         tokens,
-        slots: Arc::new(Semaphore::new(2)),
+        slots: Arc::new(Semaphore::new(slots)),
         audit,
     });
     let grpc_routes = grpc::routes(Arc::clone(&state));

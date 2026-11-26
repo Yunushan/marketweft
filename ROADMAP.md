@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.55.0 adds verified SQLite audit backup and recovery to the research-service executable. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.56.0 adds configurable shared research slots and verifies overload, disconnects and exact page recovery. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -58,6 +58,7 @@
 | Delivered · 0.53.0 | Local gRPC research (MW-028) | Publish a Protobuf contract for exact formulas and ranked universes, preserve absent values and enforce the existing research scopes over HTTP/2. [gRPC research](docs/local-rest-research.md#grpc-research). |
 | Delivered · 0.54.0 | Local SQLite research audit (MW-028, MW-030) | Record scoped admissions and outcomes, preserve unfinished receipts after process exit and reopen the ledger across restarts. [SQLite audit](docs/local-rest-research.md#sqlite-audit-receipts). |
 | Delivered · 0.55.0 | Audit database recovery (MW-030) | Take a consistent audit snapshot during live writes and restore it into a fresh database with the same receipt sequence. [Audit recovery](docs/local-rest-research.md#audit-backup-and-recovery). |
+| Delivered · 0.56.0 | Shared research admission (MW-028, MW-030) | Verify cross-transport overload, retry hints, slot release and exact resumed results with missing prices. [Concurrency and retries](docs/local-rest-research.md#concurrency-and-retries). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -69,5 +70,5 @@
 
 ## Handoff for the next change
 
-Measure local research service concurrency and recovery under load. Verify saturated admission, disconnects and resumed requests before adding authenticated remote access.
+Add expiring and revocable scoped research credentials. Verify credential issuance, expiration and revocation before exposing authenticated remote access.
 

@@ -16,7 +16,7 @@ pub struct ResearchProcess {
 }
 
 impl ResearchProcess {
-    pub fn start(path: Option<&Path>) -> Self {
+    pub fn start(path: Option<&Path>, slots: Option<usize>) -> Self {
         let executable = env::var_os("MARKETWEFT_TEST_BINARY")
             .unwrap_or_else(|| env!("CARGO_BIN_EXE_marketweft-research-service").into());
         let mut command = Command::new(executable);
@@ -25,9 +25,13 @@ impl ResearchProcess {
             .env("MARKETWEFT_SCREEN_TOKEN", SCREEN_TOKEN)
             .env("MARKETWEFT_RESEARCH_PORT", "0")
             .env_remove("MARKETWEFT_RESEARCH_AUDIT_DB")
+            .env_remove("MARKETWEFT_RESEARCH_SLOTS")
             .stdout(Stdio::piped());
         if let Some(path) = path {
             command.env("MARKETWEFT_RESEARCH_AUDIT_DB", path);
+        }
+        if let Some(slots) = slots {
+            command.env("MARKETWEFT_RESEARCH_SLOTS", slots.to_string());
         }
         let process = command.spawn().unwrap();
         let mut server = Self {

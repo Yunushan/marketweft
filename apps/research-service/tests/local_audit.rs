@@ -151,7 +151,7 @@ fn existing_unrelated_database_is_rejected_without_modifying_its_schema() {
 async fn records_grpc_and_websocket_outcomes_and_preserves_interrupted_admissions() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("research.sqlite");
-    let server = ResearchProcess::start(Some(&path));
+    let server = ResearchProcess::start(Some(&path), None);
     let channel = Endpoint::from_shared(server.origin.clone())
         .unwrap()
         .connect_timeout(IO_DEADLINE)
@@ -225,7 +225,7 @@ async fn records_grpc_and_websocket_outcomes_and_preserves_interrupted_admission
         .unwrap()
         .unwrap();
     drop(server);
-    let _restarted = ResearchProcess::start(Some(&path));
+    let _restarted = ResearchProcess::start(Some(&path), None);
     assert_eq!(
         receipts(&path),
         [

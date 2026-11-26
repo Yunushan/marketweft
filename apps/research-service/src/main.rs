@@ -1,5 +1,5 @@
 use marketweft_research_service::{
-    copy_audit_database, research_router, research_router_with_audit, Tokens,
+    configured_research_router, copy_audit_database, Tokens, DEFAULT_RESEARCH_SLOTS,
 };
 use std::env::{self, VarError};
 use std::io;
@@ -47,10 +47,13 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
     let tokens = Tokens::new(formula.as_deref(), screen.as_deref()).map_err(io::Error::other)?;
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await?;
     let address = listener.local_addr()?;
-    let endpoint = match env::var_os("MARKETWEFT_RESEARCH_AUDIT_DB") {
-        Some(path) => research_router_with_audit(address, tokens, Path::new(&path))?,
-        None => research_router(address, tokens).map_err(io::Error::other)?,
-    };
+    let slots = setting("MARKETWEFT_RESEARCH_SLOTS")?
+        .map(|value| value.parse::<usize>())
+        .transpose()?
+        .unwrap_or(DEFAULT_RESEARCH_SLOTS);
+    let audit_path = env::var_os("MARKETWEFT_RESEARCH_AUDIT_DB");
+    let endpoint =
+        configured_research_router(address, tokens, audit_path.as_deref().map(Path::new), slots)?;
     println!("http://{address}");
     axum::serve(listener, endpoint).await?;
     Ok(())
