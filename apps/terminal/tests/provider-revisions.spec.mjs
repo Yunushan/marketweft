@@ -5,7 +5,7 @@ import { catalogContents } from './catalog-fixtures.mjs'
 
 const fixture = new URL('../../../crates/core/tests/fixtures/synthetic-provider-revisions.csv', import.meta.url)
 
-test('a signed revision fixture is verified before replay and expires at midnight UTC', async ({ page, context }) => {
+test('a signed revision fixture exposes source evidence and gates CSV downloads by its grant', async ({ page, context }) => {
   const csv = await readFile(fixture, 'utf8')
   const signer = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
   function canonical(value) {
@@ -65,12 +65,59 @@ test('a signed revision fixture is verified before replay and expires at midnigh
   await expect(results.getByRole('status')).toContainText('checked-revisions.json')
   await expect(results.getByText('Verified provider grant Synthetic revision fixture agreement')).toBeVisible()
   await expect(results.getByRole('table').getByText('10.000001', { exact: true }).first()).toBeVisible()
+  const details = results.getByText('Verification details', { exact: true })
+  await details.click()
+  const fingerprint = createHash('sha256').update(signer.publicKey.export({ type: 'spki', format: 'der' })).digest('hex')
+  await expect(results.getByText(manifest.csvSha256, { exact: true })).toBeVisible()
+  await expect(results.getByText(fingerprint, { exact: true })).toBeVisible()
+  const downloads = []
+  page.on('download', file => downloads.push(file.suggestedFilename()))
+  const download = results.getByRole('button', { name: 'Download replay CSV' })
+  await download.click()
+  await expect(page.getByRole('alert')).toHaveText('Provider replay CSV export requires granted redistribution permission.')
+  expect(downloads).toEqual([])
+
+  await fixtureFile(packet({ ...manifest, permissions: { ...manifest.permissions, redistribution: 'granted' } }))
+  await load.click()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  const known = page.getByLabel('Revisions known through (UTC)')
+  await known.fill('2025-06-02T14:07:00Z')
+  const [file] = await Promise.all([page.waitForEvent('download'), download.click()])
+  expect(file.suggestedFilename()).toBe('DEMO-ALFA-effective-20250602T140200Z-known-20250602T140359Z.csv')
+  const exported = await readFile(await file.path(), 'utf8')
+  expect(exported).toBe(csv.split(/\r?\n/).slice(0, 3).concat('').join('\r\n'))
+
+  await known.fill('2025-06-02T14:03:59Z')
+  await page.getByRole('combobox', { name: 'Provider revision input' }).selectOption('csv')
+  await expect(results.getByText(fingerprint, { exact: true })).toBeVisible()
+  const raw = page.getByLabel('Provider revisions CSV')
+  await raw.setInputFiles({
+    name: 'snapshot.csv', mimeType: 'text/csv', buffer: Buffer.from(exported),
+  })
+  await load.click()
+  await expect(results.getByRole('status')).toContainText('snapshot.csv')
+  await expect(details).toHaveCount(0)
+  await expect(results.getByText(manifest.csvSha256, { exact: true })).toHaveCount(0)
+  await expect(results.getByText(fingerprint, { exact: true })).toHaveCount(0)
+  await expect(results.getByRole('table').locator('tbody tr')).toHaveCount(2)
+
+  await page.getByRole('combobox', { name: 'Provider revision input' }).selectOption('signed')
+  await fixtureFile(packet({ ...manifest, permissions: { ...manifest.permissions, redistribution: 'granted' } }))
+  await page.getByLabel('Provider revision verification key').setInputFiles({
+    name: 'provider.pub.pem', mimeType: 'application/x-pem-file',
+    buffer: Buffer.from(signer.publicKey.export({ type: 'spki', format: 'pem' })),
+  })
+  await load.click()
+  await expect(results.getByRole('status')).toContainText('checked-revisions.json')
+  await expect(details).toBeVisible()
   expect(await catalogContents(page)).toEqual(initial)
   await page.clock.setFixedTime(new Date('2099-05-19T00:00:00Z'))
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
   await expect(results).toHaveCount(0)
+  await expect(download).toHaveCount(0)
   await expect(page.getByRole('alert')).toHaveText('The provider revision fixture grant has expired.')
   await expect(page.getByRole('button', { name: 'Replay cutoffs' })).toBeDisabled()
+  expect(downloads).toHaveLength(1)
 })
 
 test('provider replay withdraws a bar at observation and restores it with a later replacement', async ({ page, context }) => {
@@ -107,6 +154,7 @@ test('provider replay withdraws a bar at observation and restores it with a late
   await replay.click()
   await expect(page.getByText('No bars meet these cutoffs.')).toBeVisible()
   await expect(chart).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Download replay CSV' })).toHaveCount(0)
   await expect(observations).toHaveCount(3)
   await expect(observation('14:06:00')).toContainText('Withdraw')
   await known.fill('2025-06-02T14:07:00Z')

@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.85.0 · Provider replay provenance and CSV
+
+| Check | Observed result |
+| --- | --- |
+| Source evidence | Offline Chromium matched the displayed CSV digest and signer fingerprint to independent SHA-256 calculations. Replacing the signed source with the replay CSV removed both values. |
+| Exact download and cutoff | A granted source exported the two eligible rows with exact observation times and OHLCV. Editing a cutoff without applying it had no effect on the downloaded data or filename. Reimport restored both rows. |
+| Permission and absence | A restricted grant blocked the download. At midnight UTC after the last grant day and when the replay had zero observed bars, the download control disappeared. |
+
+[Provider replay CSV](provider-revisions.md#verify-the-source-and-download-the-replay) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.84.0 · Signed provider revision fixtures
 
 | Check | Observed result |

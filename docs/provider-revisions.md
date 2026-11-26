@@ -55,3 +55,9 @@ Under **Provider revision input**, select **Signed provider revision fixture**. 
 The packet uses format `marketweft-provider-revisions` and version `1`. It includes `provider`, `venue`, `symbol`, `grant`, `permissions`, `csv`, `csvSha256`, and `signature`. The permissions include a granted `display` right and a UTC `expiresOn` date. Display stops at midnight UTC following that date.
 
 The embedded CSV uses the revision format above. Its SHA-256 covers the exact UTF-8 text, including all line endings. The P-256 signature uses SHA-256 over the canonical JSON manifest containing every packet field except `csv` and `signature`. Recursively sort object keys by UTF-16 code unit and omit formatting whitespace. Encode the 64-byte IEEE P1363 signature as unpadded base64url. The provider and instrument in the signed manifest must match the embedded CSV.
+
+## Verify the source and download the replay
+
+Open **Verification details** after loading a signed fixture to see the SHA-256 of the embedded source CSV and the fingerprint of the signer's DER-encoded public key. Both values belong to the currently loaded fixture. Loading an unsigned CSV removes them from the view.
+
+**Download replay CSV** exports every bar visible at the applied effective and knowledge cutoffs, including bars beyond the current table page. The filename records both cutoffs. Each row records the bar time, observation time and exact fixed-point OHLCV. A signed source requires a current redistribution grant. You can reopen the downloaded snapshot as a CSV. It contains only the observed versions at those cutoffs. Use the original revision file to replay earlier corrections, withdrawals or replacements.

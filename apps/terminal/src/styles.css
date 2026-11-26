@@ -344,6 +344,10 @@ main {
 .universe-table td {
   white-space: nowrap;
 }
+.provider-replay-verification dd {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
 .research-details {
   border-top: 1px solid var(--line);
   padding-top: 14px;

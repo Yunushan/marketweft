@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { parseSignedProviderRevisionFixture, sourcePermissionRestriction } from './catalog-schema'
 import type { SignedProviderRevisionFixture } from './catalog-schema'
 import { Chart } from './Chart'
+import { downloadFile } from './download'
 import { fixed } from './fixed-point'
 import { Mark } from './Icons'
 import { checkImportRows, type ImportPolicy } from './import-policy'
@@ -20,6 +21,7 @@ const DEFAULT_BAR = '2025-06-02T14:00:00Z'
 const PAGE_SIZE = 100
 const OHLCV = ['open', 'high', 'low', 'close', 'volume'] as const
 const EXPIRED_GRANT = 'The provider revision fixture grant has expired.'
+const REPLAY_CSV_HEADER = 'provider,venue,symbol,bar_at,observed_at,open,high,low,close,volume'
 
 export function ProviderRevisionResearch({ core, policy, close }: {
   core: MarketCore; policy: ImportPolicy; close: () => void
@@ -94,6 +96,29 @@ export function ProviderRevisionResearch({ core, policy, close }: {
     setView({ ...snapshot, effectiveAt, knownAt, barAt: view.barAt, observations })
     setPage(0)
     setObservationPage(0)
+    setProblem('')
+  }
+
+  function exportReplay() {
+    const restriction = sourcePermissionRestriction(source.fixture?.permissions, 'redistribution')
+    if (restriction === 'expired') {
+      setProblem(EXPIRED_GRANT)
+      return
+    }
+    if (restriction === 'permission') {
+      setProblem('Provider replay CSV export requires granted redistribution permission.')
+      return
+    }
+    const [venue, symbol] = view.instrument.split(':')
+    const rows = view.bars.map(bar => [
+      view.provider, venue, symbol, utc(bar.at), utc(bar.observedAt),
+      ...OHLCV.map(field => fixed(bar[field], 6)),
+    ].join(','))
+    const identity = (venue + '-' + symbol).replace(/[^A-Z0-9._-]/g, '_')
+    const effective = view.effectiveAt.replace(/[-:]/g, '')
+    const known = view.knownAt.replace(/[-:]/g, '')
+    downloadFile(`${identity}-effective-${effective}-known-${known}.csv`,
+      new Blob([[REPLAY_CSV_HEADER, ...rows, ''].join('\r\n')], { type: 'text/csv;charset=utf-8' }))
     setProblem('')
   }
 
@@ -193,7 +218,17 @@ export function ProviderRevisionResearch({ core, policy, close }: {
         <h2>{view.instrument}</h2>
         <p role="status">{view.provider} · {source.name} · {view.bars.length} observed {view.bars.length === 1 ? 'bar' : 'bars'}</p>
         {source.fixture && <p>Verified provider grant {source.fixture.grant} · Expires {source.fixture.permissions.expiresOn} UTC</p>}
+        {source.fixture && <details className="provider-replay-verification">
+          <summary>Verification details</summary>
+          <dl>
+            <dt>Source CSV SHA-256</dt><dd><code>{source.fixture.csvSha256}</code></dd>
+            <dt>Signer key SHA-256</dt><dd><code>{source.fixture.keySha256}</code></dd>
+          </dl>
+        </details>}
         <p>Effective through {view.effectiveAt} · Known through {view.knownAt}</p>
+        {view.bars.length > 0 && <div className="replay-controls">
+          <button className="outline" disabled={loading} onClick={exportReplay}>Download replay CSV</button>
+        </div>}
         {chart && <section aria-label="Provider replay chart">
           <Chart key={[view.instrument, view.effectiveAt, view.knownAt, view.bars.length].join('/')}
             asset={chart} sma={[]} ema={[]} observedAt={view.bars.map(bar => bar.observedAt)} />
