@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.19.0 adds dividend entitlements from dated position observations. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.20.0 adds point-in-time portfolio valuation with dated holdings, closes and delisting proceeds. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -22,6 +22,7 @@
 | Delivered · 0.17.0 | Delisting proceeds for a held listing (MW-017) | Reconstruct missing, receivable and settled value, preserve stable listing identity, and trace cash amount and currency revisions. [Delisting proceeds](docs/delisting-proceeds.md). |
 | Delivered · 0.18.0 | Split rescheduling and cancellation (MW-013, MW-017) | Verify that a later effective time withdraws the old adjustment, same-time IDs compound, and cancellation affects only its ID. Rewind to the original price and volume snapshots. [Stock splits](docs/corporate-actions.md). |
 | Delivered · 0.19.0 | Dividend entitlement from dated positions (MW-017) | Select holdings before each ex-date and preserve missing versus explicit zero. Reconcile cash corrections from late holdings reports and rescheduled ex-dates. [Cash dividends](docs/cash-dividends.md). |
+| Delivered · 0.20.0 | Point-in-time portfolio replay (MW-017, MW-025) | Reconcile known share values, delisting receivables and settled proceeds per currency. Verify unknown prices, dated quantities and reused listing symbols at exact cutoffs. [Portfolio replay](docs/portfolio-replay.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Apply delisting proceeds and dividend entries in portfolio execution replay. Extend the source and rights model to live providers. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Persist two chart panes with linked UTC crosshairs, one measured drawing in data coordinates, reusable indicator parameters and CSV export. Restore exact settings after a versioned migration. |
@@ -33,5 +34,5 @@
 
 ## Handoff for the next change
 
-The next portfolio milestone applies delisting proceeds to a portfolio of holdings identified by stable listing IDs. Verify missing proceeds, late cash and ticker reuse against the portfolio valuation at every cutoff.
+The next workspace milestone persists two independently selected chart panes with linked UTC crosshairs. Verify reload, backup and restore, and existing single-pane behavior across the workspace migration.
 

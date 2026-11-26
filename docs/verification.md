@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.20.0 · Point-in-time portfolio replay
+
+| Check | Observed result |
+| --- | --- |
+| Late and revised closes | At effective 14:10 UTC, BETA-001 is unvalued at the same knowledge time. The 14:12 observation increases known USD share value from 204 to 764. The 14:16 correction gives 709 for the same effective time. Rewind recovers the original partial result. |
+| Delisting claims | BETA-001 retains its pre-delisting quantity when proceeds are missing. At 14:45, its 70 USD receivable stays separate from 225 EUR of marked shares in BETA-002. The 14:50 USD subtotal is 284, including 70 in delisting cash. |
+| Position and currency revisions | A late pre-delisting position correction lowers known USD cash to 64 at 14:58. Revised terms give a 72 EUR receivable and later cash, and an explicit zero correction removes that value. The open holding and the delisted claim remain distinct despite the shared symbol. |
+| Regression suite | All 54 browser and six SDK tests passed on Windows x64, 61 native tests passed on Linux x64, 21 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Portfolio replay contract](portfolio-replay.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.19.0 · Dated dividend entitlements
 
 | Check | Observed result |
