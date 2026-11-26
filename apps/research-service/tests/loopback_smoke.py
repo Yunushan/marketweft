@@ -74,6 +74,7 @@ def main(executable):
     )
     settings.pop("MARKETWEFT_RESEARCH_AUDIT_DB", None)
     settings.pop("MARKETWEFT_RESEARCH_SLOTS", None)
+    settings.pop("MARKETWEFT_RESEARCH_CREDENTIALS_DB", None)
     with subprocess.Popen(
         [str(Path(executable).resolve())], env=settings, text=True, stdout=subprocess.PIPE,
     ) as process:

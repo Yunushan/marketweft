@@ -12,7 +12,7 @@ export MARKETWEFT_SCREEN_TOKEN="$(python3 -c 'import secrets; print(secrets.toke
 cargo run --locked --manifest-path apps/research-service/Cargo.toml
 ```
 
-The service prints the bound loopback address. The port defaults to 4174. Set `MARKETWEFT_RESEARCH_PORT` to change it, or use 0 for an automatically assigned port. Send `Authorization: Bearer <token>` and `Content-Type: application/json`. The request host must match the printed `127.0.0.1` authority. Same-origin requests can send that exact origin. The service reads tokens from its process environment.
+The service prints the bound loopback address. The port defaults to 4174. Set `MARKETWEFT_RESEARCH_PORT` to change it, or use 0 for an automatically assigned port. Send `Authorization: Bearer <token>` and `Content-Type: application/json`. The request host must match the printed `127.0.0.1` authority. Same-origin requests can send that exact origin. The service accepts static tokens from the environment and optional managed credentials.
 
 | Method and path | Required scope | Request |
 | --- | --- | --- |
@@ -76,3 +76,23 @@ Both commands report the verified receipt and unfinished counts. SQLite reads a 
 The service shares two active research slots across REST, WebSocket and gRPC by default. Set `MARKETWEFT_RESEARCH_SLOTS` from 1 to 8 to change the local limit. A slot covers request intake and computation or delivery, including any enabled audit receipt.
 
 When all slots are occupied, REST requests and WebSocket upgrades receive HTTP 429 with `Retry-After: 1`, and gRPC calls receive `ResourceExhausted`. Retry the same query after capacity returns. Preserve the original datasets, time cutoffs and last accepted `next_offset` when resuming a page.
+
+## Managed research credentials
+
+An operator can issue an individual `formula` or `screen` credential from the standalone executable. Supply a lifetime from one to 86,400 seconds.
+
+```sh
+./marketweft-research-service credential issue research-credentials.sqlite formula 3600
+export MARKETWEFT_RESEARCH_CREDENTIALS_DB="$PWD/research-credentials.sqlite"
+./marketweft-research-service
+```
+
+The issue command prints the bearer token once with its credential ID, scope and expiration as JSON. Transfer the token to the authorized client. The SQLite database stores its SHA-256 digest and lifecycle fields. The service opens the database read-only and can use managed credentials alone or alongside static tokens. Keep the credential store in a private local directory.
+
+Set `CREDENTIAL_ID` to the issued ID to revoke it while the service is running.
+
+```sh
+./marketweft-research-service credential revoke research-credentials.sqlite "$CREDENTIAL_ID"
+```
+
+Expiration and revocation take effect on the next REST or gRPC call or WebSocket upgrade. An admitted WebSocket stream has the normal query and delivery deadlines.

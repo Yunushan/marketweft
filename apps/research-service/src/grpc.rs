@@ -56,7 +56,7 @@ async fn guard(
         .uri()
         .authority()
         .map(|authority| authority.as_str());
-    if let Err(error) = state.authorize(request.headers(), authority, scope) {
+    if let Err(error) = state.authorize(request.headers(), authority, scope).await {
         return grpc_error(status(error));
     }
     let admission = match state.admit(scope, Transport::Grpc).await {

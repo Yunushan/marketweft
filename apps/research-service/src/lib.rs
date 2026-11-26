@@ -3,6 +3,7 @@
 mod analytics;
 mod audit;
 mod audit_recovery;
+mod credentials;
 mod grpc;
 mod websocket;
 
@@ -12,6 +13,7 @@ pub mod proto {
 }
 
 pub use audit_recovery::{copy_audit_database, AuditSummary};
+pub use credentials::{issue_research_credential, revoke_research_credential, IssuedCredential};
 
 use analytics::ResearchPage;
 use audit::{Outcome, Receipt, Trail, Transport};
@@ -21,6 +23,7 @@ use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use credentials::CredentialStore;
 use serde_json::json;
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -58,10 +61,29 @@ impl Token {
 pub struct Tokens {
     formula: Option<Token>,
     screen: Option<Token>,
+    managed: Option<CredentialStore>,
 }
 
 impl Tokens {
     pub fn new(formula: Option<&str>, screen: Option<&str>) -> Result<Self, &'static str> {
+        Self::configured(formula, screen, None)
+    }
+
+    /// Enable an issued-credential database and any configured static tokens.
+    pub fn with_managed(
+        formula: Option<&str>,
+        screen: Option<&str>,
+        path: &Path,
+    ) -> io::Result<Self> {
+        let managed = CredentialStore::open(path)?;
+        Self::configured(formula, screen, Some(managed)).map_err(io::Error::other)
+    }
+
+    fn configured(
+        formula: Option<&str>,
+        screen: Option<&str>,
+        managed: Option<CredentialStore>,
+    ) -> Result<Self, &'static str> {
         let parse = |token: Option<&str>| {
             token
                 .map(|text| {
@@ -73,17 +95,23 @@ impl Tokens {
         };
         let (formula, screen) = (parse(formula)?, parse(screen)?);
         match (&formula, &screen) {
-            (None, None) => return Err("Configure at least one research scope token."),
+            (None, None) if managed.is_none() => {
+                return Err("Configure at least one research scope token.")
+            }
             (Some(left), Some(right)) if left.matches(right) => {
                 return Err("Use separate tokens for formula and screen access.");
             }
             _ => {}
         }
-        Ok(Self { formula, screen })
+        Ok(Self {
+            formula,
+            screen,
+            managed,
+        })
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 enum Scope {
     Formula,
     Screen,
@@ -237,7 +265,7 @@ impl Server {
         })
     }
 
-    fn authorize(
+    async fn authorize(
         &self,
         headers: &HeaderMap,
         authority: Option<&str>,
@@ -275,16 +303,14 @@ impl Server {
             .screen
             .as_ref()
             .is_some_and(|known| token.matches(known));
-        if !formula && !screen {
-            return Err(ApiError::new(
-                StatusCode::UNAUTHORIZED,
-                "Invalid research bearer token.",
-            ));
+        let granted = match (formula, screen, &self.tokens.managed) {
+            (true, _, _) => Some(Scope::Formula),
+            (_, true, _) => Some(Scope::Screen),
+            (_, _, Some(store)) => store.lookup(&token.0).await?,
+            _ => None,
         }
-        if !match scope {
-            Scope::Formula => formula,
-            Scope::Screen => screen,
-        } {
+        .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Invalid research bearer token."))?;
+        if granted != scope {
             return Err(ApiError::new(
                 StatusCode::FORBIDDEN,
                 "The token does not grant this research scope.",
@@ -302,7 +328,7 @@ async fn execute(
     scope: Scope,
     operation: Operation,
 ) -> Result<Json<ResearchPage>, ApiError> {
-    state.authorize(request.headers(), None, scope)?;
+    state.authorize(request.headers(), None, scope).await?;
     let media_type = header_value(request.headers(), header::CONTENT_TYPE)
         .and_then(|value| value.split(';').next())
         .map(str::trim);

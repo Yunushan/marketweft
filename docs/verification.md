@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.57.0 · Managed research credentials
+
+| Check | Observed result |
+| --- | --- |
+| Issuance and scope | The standalone executable issued independent formula and screen credentials. A service started with the credential store alone returned the exact formula result for the formula token and rejected the screen token on the formula route. |
+| Expiration and revocation | The running service rejected the revoked token on the next gRPC call and WebSocket upgrade. Moving an unrevoked credential past its expiration denied the next gRPC call. |
+| Storage and command bounds | SQLite retained a 32-byte digest and the requested lifetime. The file contained none of the issued bearer strings. Invalid operator inputs preserved absent paths and unrelated database contents. |
+| Native regression suite | All 22 local integration tests passed on Linux x64. |
+
+[Managed research credentials](local-rest-research.md#managed-research-credentials) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.56.0 · Shared research admission and replay recovery
 
 | Check | Observed result |

@@ -6,7 +6,7 @@
     "component": {
       "type": "application",
       "name": "MarketWeft",
-      "version": "0.56.0"
+      "version": "0.57.0"
     }
   },
   "components": [
@@ -603,6 +603,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -1143,6 +1147,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -1315,6 +1323,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -1439,6 +1451,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -1779,6 +1795,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -3735,6 +3755,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -8435,6 +8459,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },

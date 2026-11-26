@@ -93,7 +93,7 @@ fn rejects_invalid_slot_limits_before_creating_an_audit_database() {
 
 #[tokio::test]
 async fn shared_limits_reject_a_burst_and_release_capacity_on_disconnect() {
-    let server = ResearchProcess::start(None, Some(3));
+    let server = ResearchProcess::start(None, Some(3), None);
     let first = websocket(&server).await.unwrap();
     let second = websocket(&server).await.unwrap();
     let third = websocket(&server).await.unwrap();

@@ -78,7 +78,7 @@ fn assert_http_error(result: Result<Client, Error>, expected: StatusCode) {
 
 #[tokio::test]
 async fn authenticates_the_upgrade_and_bounds_concurrent_streams() {
-    let server = ResearchProcess::start(None, None);
+    let server = ResearchProcess::start(None, None, None);
     let route = "/v1/formula/stream";
     assert_http_error(
         server.connect(route, None, None).await,
@@ -110,7 +110,7 @@ async fn authenticates_the_upgrade_and_bounds_concurrent_streams() {
 
 #[tokio::test]
 async fn reconnects_at_the_next_formula_offset_with_exact_nulls_and_ticks() {
-    let server = ResearchProcess::start(None, None);
+    let server = ResearchProcess::start(None, None, None);
     let route = "/v1/formula/stream";
     let mut query = json!({
         "formula": "ema(if(close == 11, close / 0, close), 2)",
@@ -144,7 +144,7 @@ async fn reconnects_at_the_next_formula_offset_with_exact_nulls_and_ticks() {
 
 #[tokio::test]
 async fn streams_ranked_universe_pages_at_independent_knowledge_cutoffs() {
-    let server = ResearchProcess::start(None, None);
+    let server = ResearchProcess::start(None, None, None);
     let route = "/v1/universe/screen/stream";
     for (known, first, second, unavailable) in [
         ("2025-06-02T14:10:00Z", "ALFA-001", "BETA-001", true),
@@ -181,7 +181,7 @@ async fn streams_ranked_universe_pages_at_independent_knowledge_cutoffs() {
 
 #[tokio::test]
 async fn invalid_query_returns_one_error_frame_and_closes() {
-    let server = ResearchProcess::start(None, None);
+    let server = ResearchProcess::start(None, None, None);
     let mut client = server
         .connect("/v1/formula/stream", Some(FORMULA_TOKEN), None)
         .await
