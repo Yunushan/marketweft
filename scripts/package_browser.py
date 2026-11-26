@@ -155,6 +155,9 @@ load backtest-trades.csv and advance knowledge to 14:11:10 UTC.
 Load formula-strategy.mwstrategy.json in Formula paper backtest to apply
 the sample's four-share target and 1,100.25 starting cash. Download the
 strategy package after replay to reproduce the validated settings elsewhere.
+Import formula-bars.csv in the workspace and open Time-series formulas.
+Load formula-library.mwformula.json under Custom formula functions and
+evaluate smooth(close) for exact values and an exportable library checksum.
 Expand Recorded trade execution and load backtest-trades.csv or use the
 sample execution trades. Set effective time to 2025-04-03T14:11:00Z.
 Compare knowledge at 14:05:29, 14:05:30 and 14:11:10 UTC, then export the
@@ -193,6 +196,7 @@ def main():
     files["tick-trades.csv"] = (fixture / "synthetic-tick-trades.csv").read_bytes()
     files["formula-bars.csv"] = (fixture / "synthetic-formula-bars.csv").read_bytes()
     files["formula-strategy.mwstrategy.json"] = (fixture / "synthetic-formula-strategy.mwstrategy.json").read_bytes()
+    files["formula-library.mwformula.json"] = (fixture / "synthetic-formula-library.mwformula.json").read_bytes()
     files["depth.csv"] = (fixture / "synthetic-depth.csv").read_bytes()
     files["footprint-trades.csv"] = (fixture / "synthetic-footprint.csv").read_bytes()
     for kind in ("actions", "ohlcv", "sessions"):

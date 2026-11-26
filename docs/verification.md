@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.45.0 · Custom formula functions
+
+| Check | Observed result |
+| --- | --- |
+| Function scope | Rust and Wasm verify that functions receive explicit inputs and resolve earlier declarations. The compiler rejects ambient bar fields, forward references, recursive calls and excessive expanded work. |
+| Exact values | The bundled library reproduces the inline formula, including unavailable rows, and finishes at 14.5 at 14:04 UTC and 16.833333 at 14:05 UTC. |
+| Offline evidence | Chromium verifies invalid library recovery, byte-identical CSV rewind, the exported library's SHA-256 and exact file bytes, and catalog preservation. |
+| Regression suite | All 86 browser, six SDK and four launcher tests passed on Windows x64. All 105 native tests passed on Linux x64, all 41 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Custom formula functions](formula-functions.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.44.0 · Formula walk-forward validation
 
 | Check | Observed result |

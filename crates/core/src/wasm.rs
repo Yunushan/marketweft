@@ -2579,13 +2579,65 @@ pub extern "C" fn mw_evaluate_formula(source_bytes: usize) -> u32 {
             .split_at_checked(source_bytes)
             .ok_or("Invalid formula source length.")?;
         let formula = crate::Formula::compile(utf8(source)?)?;
-        let bars = decode_bars(bars)?;
-        Ok(formula
-            .evaluate(&bars)?
-            .into_iter()
-            .flat_map(|value| value.unwrap_or(i64::MIN).to_le_bytes())
-            .collect())
+        encode_formula_values(&formula, bars)
     })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_evaluate_formula_library(source_bytes: usize, library_bytes: usize) -> u32 {
+    process(|input| {
+        let (source, rest) = input
+            .split_at_checked(source_bytes)
+            .ok_or("Invalid formula source length.")?;
+        let (functions, bars) = rest
+            .split_at_checked(library_bytes)
+            .filter(|(functions, _)| functions.len() <= 40 * 1024)
+            .ok_or("Invalid formula function library length.")?;
+        let mut remaining = utf8(functions)?;
+        let mut definitions = Vec::new();
+        while !remaining.is_empty() {
+            if definitions.len() == 16 {
+                return Err("Supply at most 16 custom formula functions.".into());
+            }
+            let (header, body) = remaining
+                .split_once('\n')
+                .ok_or("Supply formula function settings.")?;
+            let (name, signature) = header
+                .split_once('\t')
+                .ok_or("Supply a function name and signature.")?;
+            let (params, length) = signature
+                .split_once('\t')
+                .ok_or("Supply the parameters and function body length.")?;
+            let (body, rest) = length
+                .parse::<usize>()
+                .ok()
+                .and_then(|size| body.split_at_checked(size))
+                .ok_or("Invalid formula function body length.")?;
+            let parameters: Vec<_> = params.splitn(5, ',').collect();
+            definitions.push((name, parameters, body));
+            remaining = rest;
+        }
+        let definitions: Vec<_> = definitions
+            .iter()
+            .map(
+                |(name, parameters, body)| crate::FormulaFunctionDefinition {
+                    name,
+                    parameters,
+                    body,
+                },
+            )
+            .collect();
+        let formula = crate::FormulaLibrary::new(&definitions)?.compile(utf8(source)?)?;
+        encode_formula_values(&formula, bars)
+    })
+}
+
+fn encode_formula_values(formula: &crate::Formula, bars: &[u8]) -> Result<Vec<u8>, String> {
+    Ok(formula
+        .evaluate(&decode_bars(bars)?)?
+        .into_iter()
+        .flat_map(|value| value.unwrap_or(i64::MIN).to_le_bytes())
+        .collect())
 }
 
 #[no_mangle]

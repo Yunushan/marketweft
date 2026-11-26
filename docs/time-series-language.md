@@ -31,7 +31,7 @@ Identifiers are case-sensitive ASCII. ASCII whitespace separates tokens. Decimal
 - `abs(x)` returns the magnitude. `coalesce(x, fallback)` keeps an available value of x, including zero, or uses the fallback.
 - `if(condition, yes, no)` selects yes for nonzero and no for zero. An unavailable condition gives an unavailable result. Both branches are evaluated without side effects. Only the selected branch supplies the row's result.
 - `lag(x, n)` reads exactly n earlier observed rows. `sma(x, n)`, `lowest(x, n)` and `highest(x, n)` require n consecutive available values including the current row. `ema(x, n)` starts with the first such window's SMA, then uses weight 2/(n+1) for the current value and rounds at every step. An unavailable row resets the EMA. Windows count rows in the supplied history. Calendar gaps leave the sequence of supplied rows intact.
-- Periods are positive integer literals from 1 to 4,096. The language grammar exposes arithmetic, selection and backward-looking windows. Evaluation has no host I/O, mutable state, user-defined calls, or forward-index operator.
+- Periods are positive integer literals from 1 to 4,096. The built-in grammar above exposes only pure arithmetic, selection and backward-looking windows.
 
 Each formula permits up to 2,048 source bytes, 96 expression nodes and 32 parser nesting levels. An evaluation permits up to 100,000 bars and four million node-row pairs. Invalid syntax and resource limits return an error before changing the accepted view.
 
@@ -41,4 +41,4 @@ Select a chart, open **Time-series formulas**, and set the observed cutoff. The 
 
 With the packaged `formula-bars.csv`, evaluate `ema(if(close == 11, close / 0, close), 2)`. Its six values are unavailable, 11, unavailable, unavailable, 14.5 and 16.833333. At 14:04 UTC the result ends at 14.5. Rewinding to that cutoff reproduces its CSV byte for byte. The first result of `coalesce(lag(volume, 1), 0)` is zero, and the row after the 150.125 observation retains that exact fractional volume.
 
-The [formula paper backtest](formula-paper-backtest.md) uses the same grammar for entry and exit signals.
+The [formula paper backtest](formula-paper-backtest.md) uses the same grammar for entry and exit signals. In the research view, [custom formula functions](formula-functions.md) add an explicit library of pure expressions over named parameters.

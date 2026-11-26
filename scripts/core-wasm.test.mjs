@@ -10,6 +10,22 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('custom formula functions run across the Wasm boundary in the supplied scope only', async () => {
+  const fixture = await readFile(new URL('../crates/core/tests/fixtures/synthetic-formula-bars.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(fixture);
+  const functions = [
+    { name: 'gap', parameters: ['x'], body: 'if(x == 11, x / 0,\n x)' },
+    { name: 'smooth', parameters: ['x'], body: 'ema(gap(x), 2)' },
+  ];
+  const expected = core.evaluateFormula('ema(if(close == 11, close / 0, close), 2)', bars);
+  assert.deepEqual(core.evaluateFormula('smooth(close)', bars, functions), expected);
+  assert.deepEqual(core.evaluateFormula('smooth(close)', bars.slice(0, 5), functions).values, expected.values.slice(0, 5));
+  assert.throws(() => core.evaluateFormula('smooth(close)', bars), /Unknown formula field or function/);
+  assert.throws(() => core.evaluateFormula('smooth(close)', bars, functions.toReversed()), /Unknown formula field or function/);
+  assert.throws(() => core.evaluateFormula('f(close)', bars, [{ name: 'f', parameters: ['x'], body: 'x + high' }]), /explicit parameter/);
+  assert.deepEqual(core.evaluateFormula('smooth(close)', bars, functions), expected);
+});
+
 test('formula walk-forward freezes rankings, warms the winner and resets paper cash in Wasm', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');
   const [calendar, bars, trades] = await Promise.all([fixture('sessions'), fixture('bars'), fixture('trades')]);

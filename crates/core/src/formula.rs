@@ -1,5 +1,6 @@
 use crate::{indicator, screen::rounded_div, Average, Bar, MAX_BARS, MAX_TICKS, SCALE};
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 #[path = "formula_parse.rs"]
 mod parse;
@@ -10,10 +11,82 @@ const MAX_NODES: usize = 96;
 const MAX_DEPTH: usize = 32;
 const MAX_PERIOD: usize = 4_096;
 const MAX_EVALUATIONS: usize = 4_000_000;
+const MAX_FUNCTIONS: usize = 16;
+const MAX_PARAMETERS: usize = 4;
+const MAX_EXPANDED_NODES: usize = 512;
 type Value = Option<i64>;
 
 pub struct Formula {
     nodes: Vec<Node>,
+    functions: Arc<[CompiledFunction]>,
+    work: usize,
+}
+
+pub struct FormulaFunctionDefinition<'a> {
+    pub name: &'a str,
+    pub parameters: &'a [&'a str],
+    pub body: &'a str,
+}
+
+pub struct FormulaLibrary {
+    functions: Arc<[CompiledFunction]>,
+}
+
+struct CompiledFunction {
+    name: String,
+    arity: usize,
+    nodes: Vec<Node>,
+    work: usize,
+}
+
+impl FormulaLibrary {
+    /// Build a caller-owned library of pure functions. A body can call functions
+    /// earlier in this slice and receives data only through its declared arguments.
+    pub fn new(definitions: &[FormulaFunctionDefinition<'_>]) -> Result<Self, String> {
+        if definitions.is_empty() || definitions.len() > MAX_FUNCTIONS {
+            return Err("Supply 1–16 custom formula functions.".into());
+        }
+        let mut functions: Vec<CompiledFunction> = Vec::with_capacity(definitions.len());
+        for definition in definitions {
+            let name = definition.name;
+            if !parse::custom_identifier(name) {
+                return Err("Use an ASCII formula function name of up to 32 characters that is distinct from the built-ins.".into());
+            }
+            if functions.iter().any(|item| item.name == name) {
+                return Err(format!("Repeated formula function name {name}."));
+            }
+            let parameters = definition.parameters;
+            if !(1..=MAX_PARAMETERS).contains(&parameters.len())
+                || parameters.iter().enumerate().any(|(index, parameter)| {
+                    !parse::custom_identifier(parameter) || parameters[..index].contains(parameter)
+                })
+            {
+                return Err(format!(
+                    "Function {name} needs 1–4 distinct parameter names."
+                ));
+            }
+            let (nodes, work) = parse::compile(definition.body, Some(parameters), &functions)
+                .map_err(|cause| format!("Function {name}: {cause}"))?;
+            functions.push(CompiledFunction {
+                name: name.to_owned(),
+                arity: parameters.len(),
+                nodes,
+                work,
+            });
+        }
+        Ok(Self {
+            functions: functions.into(),
+        })
+    }
+
+    pub fn compile(&self, source: &str) -> Result<Formula, String> {
+        let (nodes, work) = parse::compile(source, None, &self.functions)?;
+        Ok(Formula {
+            nodes,
+            functions: Arc::clone(&self.functions),
+            work,
+        })
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -70,24 +143,31 @@ enum Window {
 enum Node {
     Literal(i64),
     Field(Field),
+    Parameter(usize),
     Unary(Unary, usize),
     Binary(Binary, usize, usize),
     Select(usize, usize, usize),
     Window(Window, usize, usize),
+    Custom(usize, [usize; MAX_PARAMETERS]),
 }
 
 impl Formula {
     pub fn compile(source: &str) -> Result<Self, String> {
-        parse::compile(source)
+        let (nodes, work) = parse::compile(source, None, &[])?;
+        Ok(Self {
+            nodes,
+            functions: Arc::from([]),
+            work,
+        })
     }
 
     pub(crate) fn node_count(&self) -> usize {
-        self.nodes.len()
+        self.work
     }
 
     /// Evaluate one value per observed bar. Missing values retain their positions.
     pub fn evaluate(&self, bars: &[Bar]) -> Result<Vec<Option<i64>>, String> {
-        if bars.len() > MAX_BARS || bars.len() > MAX_EVALUATIONS / self.nodes.len() {
+        if bars.len() > MAX_BARS || bars.len() > MAX_EVALUATIONS / self.work {
             return Err(
                 "Formula exceeds the four million expression-row limit or the 100,000 bar limit."
                     .into(),
@@ -103,54 +183,70 @@ impl Formula {
         {
             return Err("Use ordered bars with supported prices and nonnegative volume.".into());
         }
-
-        let mut results: Vec<Option<Vec<Value>>> = Vec::with_capacity(self.nodes.len());
-        for &node in &self.nodes {
-            let mut take = |index: usize| -> Vec<Value> {
-                results[index]
-                    .take()
-                    .expect("each formula operand has one parent")
-            };
-            let values = match node {
-                Node::Literal(value) => vec![Some(value); bars.len()],
-                Node::Field(field) => bars.iter().map(|bar| Some(field.value(bar))).collect(),
-                Node::Unary(operation, child) => {
-                    let mut values = take(child);
-                    for value in values.iter_mut().flatten() {
-                        *value = match operation {
-                            Unary::Negate => -*value,
-                            Unary::Absolute => value.abs(),
-                        };
-                    }
-                    values
-                }
-                Node::Binary(operation, left, right) => {
-                    let mut left = take(left);
-                    for (value, right) in left.iter_mut().zip(take(right)) {
-                        *value = binary(operation, *value, right);
-                    }
-                    left
-                }
-                Node::Select(condition, when_true, when_false) => {
-                    let mut values = take(condition);
-                    for ((condition, when_true), when_false) in
-                        values.iter_mut().zip(take(when_true)).zip(take(when_false))
-                    {
-                        *condition =
-                            condition
-                                .and_then(|value| if value == 0 { when_false } else { when_true });
-                    }
-                    values
-                }
-                Node::Window(window, child, period) => apply_window(window, take(child), period)?,
-            };
-            results.push(Some(values));
-        }
-        Ok(results
-            .pop()
-            .flatten()
-            .expect("a compiled formula has an output"))
+        evaluate(&self.nodes, bars, &[], &self.functions)
     }
+}
+
+fn evaluate(
+    nodes: &[Node],
+    bars: &[Bar],
+    parameters: &[Vec<Value>],
+    functions: &[CompiledFunction],
+) -> Result<Vec<Value>, String> {
+    let mut results: Vec<Option<Vec<Value>>> = Vec::with_capacity(nodes.len());
+    for &node in nodes {
+        let mut take = |index: usize| -> Vec<Value> {
+            results[index]
+                .take()
+                .expect("each formula operand has one parent")
+        };
+        let values = match node {
+            Node::Literal(value) => vec![Some(value); bars.len()],
+            Node::Field(field) => bars.iter().map(|bar| Some(field.value(bar))).collect(),
+            Node::Parameter(index) => parameters[index].clone(),
+            Node::Unary(operation, child) => {
+                let mut values = take(child);
+                for value in values.iter_mut().flatten() {
+                    *value = match operation {
+                        Unary::Negate => -*value,
+                        Unary::Absolute => value.abs(),
+                    };
+                }
+                values
+            }
+            Node::Binary(operation, left, right) => {
+                let mut left = take(left);
+                for (value, right) in left.iter_mut().zip(take(right)) {
+                    *value = binary(operation, *value, right);
+                }
+                left
+            }
+            Node::Select(condition, when_true, when_false) => {
+                let mut values = take(condition);
+                for ((condition, when_true), when_false) in
+                    values.iter_mut().zip(take(when_true)).zip(take(when_false))
+                {
+                    *condition =
+                        condition.and_then(|value| if value == 0 { when_false } else { when_true });
+                }
+                values
+            }
+            Node::Window(window, child, period) => apply_window(window, take(child), period)?,
+            Node::Custom(index, arguments) => {
+                let function = &functions[index];
+                let inputs: Vec<_> = arguments[..function.arity]
+                    .iter()
+                    .map(|&id| take(id))
+                    .collect();
+                evaluate(&function.nodes, bars, &inputs, &functions[..index])?
+            }
+        };
+        results.push(Some(values));
+    }
+    Ok(results
+        .pop()
+        .flatten()
+        .expect("a compiled formula has an output"))
 }
 
 fn binary(operation: Binary, left: Value, right: Value) -> Value {

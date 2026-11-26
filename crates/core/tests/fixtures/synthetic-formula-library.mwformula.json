@@ -1,0 +1,17 @@
+{
+  "format": "marketweft.formula-library",
+  "libraryVersion": 1,
+  "languageVersion": 1,
+  "functions": [
+    {
+      "name": "gap",
+      "parameters": ["value"],
+      "body": "if(value == 11, value / 0, value)"
+    },
+    {
+      "name": "smooth",
+      "parameters": ["value"],
+      "body": "ema(gap(value), 2)"
+    }
+  ]
+}

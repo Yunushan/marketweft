@@ -13,6 +13,12 @@ export interface FormulaResult {
   values: (bigint | null)[];
 }
 
+export interface FormulaFunction {
+  name: string;
+  parameters: readonly string[];
+  body: string;
+}
+
 export interface TimeframeBar {
   bar: Bar;
   observedBars: number;
@@ -720,7 +726,7 @@ export interface PortfolioSnapshot {
 }
 
 export interface MarketCore {
-  evaluateFormula(source: string, bars: readonly Bar[]): FormulaResult;
+  evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
   recordedTickBars(instrument: string, csv: string, targetTrades: number, knownAt?: string): TickBar[];
@@ -805,6 +811,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_indicator(kind: number, period: number): number;
   mw_formula_version(): number;
   mw_evaluate_formula(sourceBytes: number): number;
+  mw_evaluate_formula_library(sourceBytes: number, libraryBytes: number): number;
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
   mw_split_book(): number;
   mw_split_revision_book(): number;
@@ -1118,16 +1125,34 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
   }
 
   return {
-    evaluateFormula(source, bars) {
+    evaluateFormula(source, bars, functions = []) {
       const sourceBytes = encoder.encode(source);
       if (sourceBytes.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
       if (bars.length > 100_000) throw new Error('Formula histories support at most 100,000 bars.');
-      const dest = input(sourceBytes.length + bars.length * 48);
-      new Uint8Array(dest.buffer, dest.byteOffset, sourceBytes.length).set(sourceBytes);
-      for (const [index, bar] of bars.entries()) {
-        putBar(dest, sourceBytes.length + index * 48, bar, 'Formula evaluation');
+      if (functions.length > 16) throw new Error('Supply at most 16 custom formula functions.');
+      const identifier = /^[A-Za-z_][A-Za-z0-9_]{0,31}$/;
+      const library = functions.flatMap(({ name, parameters, body }) => {
+        if (parameters.length < 1 || parameters.length > 4 || ![name, ...parameters].every(value => identifier.test(value))) {
+          throw new Error('Use ASCII function names and one to four ASCII parameters.');
+        }
+        const expression = encoder.encode(body);
+        if (expression.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
+        return [encoder.encode(name + '\t' + parameters.join(',') + '\t' + expression.length + '\n'), expression];
+      });
+      const libraryBytes = library.reduce((length, part) => length + part.length, 0);
+      const historyOffset = sourceBytes.length + libraryBytes;
+      const dest = input(historyOffset + bars.length * 48);
+      const payload = new Uint8Array(dest.buffer, dest.byteOffset, historyOffset);
+      let offset = 0;
+      for (const part of [sourceBytes, ...library]) {
+        payload.set(part, offset);
+        offset += part.length;
       }
-      const values = output(api.mw_evaluate_formula(sourceBytes.length));
+      for (const [index, bar] of bars.entries()) {
+        putBar(dest, historyOffset + index * 48, bar, 'Formula evaluation');
+      }
+      const values = output(libraryBytes ? api.mw_evaluate_formula_library(sourceBytes.length, libraryBytes)
+        : api.mw_evaluate_formula(sourceBytes.length));
       return { version: api.mw_formula_version(), values: Array.from({ length: bars.length }, (_, index) => {
         const value = values.getBigInt64(index * 8, true);
         return value === -(1n << 63n) ? null : value;

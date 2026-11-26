@@ -1,9 +1,14 @@
 use super::{
-    Binary, Field, Formula, Node, Unary, Window, MAX_DEPTH, MAX_NODES, MAX_PERIOD, MAX_SOURCE_BYTES,
+    Binary, CompiledFunction, Field, Node, Unary, Window, MAX_DEPTH, MAX_EXPANDED_NODES, MAX_NODES,
+    MAX_PARAMETERS, MAX_PERIOD, MAX_SOURCE_BYTES,
 };
 use crate::{history::decimal, Average};
 
-pub(super) fn compile(source: &str) -> Result<Formula, String> {
+pub(super) fn compile(
+    source: &str,
+    parameters: Option<&[&str]>,
+    functions: &[CompiledFunction],
+) -> Result<(Vec<Node>, usize), String> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err("Formula exceeds 2,048 source bytes.".into());
     }
@@ -14,24 +19,56 @@ pub(super) fn compile(source: &str) -> Result<Formula, String> {
         source,
         next: 0,
         nodes: Vec::new(),
+        parameters,
+        functions,
+        work: 0,
     };
     parser.expression(0, 1)?;
     if parser.rest().is_empty() {
-        Ok(Formula {
-            nodes: parser.nodes,
-        })
+        Ok((parser.nodes, parser.work))
     } else {
         Err(parser.error("Unexpected input."))
     }
 }
 
-struct Parser<'a> {
+const FUNCTIONS: &[&str] = &[
+    "abs", "coalesce", "if", "lag", "sma", "ema", "lowest", "highest",
+];
+
+fn field(name: &str) -> Option<Field> {
+    match name {
+        "open" => Some(Field::Open),
+        "high" => Some(Field::High),
+        "low" => Some(Field::Low),
+        "close" => Some(Field::Close),
+        "volume" => Some(Field::Volume),
+        _ => None,
+    }
+}
+
+pub(super) fn custom_identifier(name: &str) -> bool {
+    let bytes = name.as_bytes();
+    bytes.len() <= 32
+        && bytes
+            .first()
+            .is_some_and(|byte| byte.is_ascii_alphabetic() || *byte == b'_')
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+        && field(name).is_none()
+        && !FUNCTIONS.contains(&name)
+}
+
+struct Parser<'a, 'scope> {
     source: &'a str,
     next: usize,
     nodes: Vec<Node>,
+    parameters: Option<&'scope [&'scope str]>,
+    functions: &'scope [CompiledFunction],
+    work: usize,
 }
 
-impl<'a> Parser<'a> {
+impl<'a> Parser<'a, '_> {
     fn error(&self, message: &str) -> String {
         format!("Formula byte {}: {message}", self.next + 1)
     }
@@ -93,17 +130,16 @@ impl<'a> Parser<'a> {
                     .take_while(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
                     .count();
                 let name = &rest[..length];
-                let field = match name {
-                    "open" => Some(Field::Open),
-                    "high" => Some(Field::High),
-                    "low" => Some(Field::Low),
-                    "close" => Some(Field::Close),
-                    "volume" => Some(Field::Volume),
-                    _ => None,
-                };
                 self.next += length;
-                if let Some(field) = field {
+                if let Some(field) = field(name) {
+                    if self.parameters.is_some() {
+                        return Err(self.error("Pass market fields through an explicit parameter."));
+                    }
                     self.add(Node::Field(field))
+                } else if let Some(index) = self.parameters.and_then(|parameters| {
+                    parameters.iter().position(|parameter| *parameter == name)
+                }) {
+                    self.add(Node::Parameter(index))
                 } else {
                     self.call(name, depth + 1)
                 }
@@ -120,7 +156,7 @@ impl<'a> Parser<'a> {
             "lowest" => Some(Window::Lowest),
             "highest" => Some(Window::Highest),
             "abs" | "coalesce" | "if" => None,
-            _ => return Err(self.error("Unknown formula field or function.")),
+            _ => return self.custom_call(name, depth),
         };
         self.expect("(")?;
         let first = self.expression(0, depth)?;
@@ -151,6 +187,25 @@ impl<'a> Parser<'a> {
         self.add(node)
     }
 
+    fn custom_call(&mut self, name: &str, depth: usize) -> Result<usize, String> {
+        let (index, function) = self
+            .functions
+            .iter()
+            .enumerate()
+            .find(|(_, function)| function.name == name)
+            .ok_or_else(|| self.error("Unknown formula field or function."))?;
+        let mut arguments = [0; MAX_PARAMETERS];
+        self.expect("(")?;
+        for (position, argument) in arguments[..function.arity].iter_mut().enumerate() {
+            if position > 0 {
+                self.expect(",")?;
+            }
+            *argument = self.expression(0, depth)?;
+        }
+        self.expect(")")?;
+        self.add(Node::Custom(index, arguments))
+    }
+
     fn expect(&mut self, token: &str) -> Result<(), String> {
         if self.rest().starts_with(token) {
             self.next += token.len();
@@ -163,6 +218,13 @@ impl<'a> Parser<'a> {
     fn add(&mut self, node: Node) -> Result<usize, String> {
         if self.nodes.len() == MAX_NODES {
             return Err(self.error("Use at most 96 expression nodes."));
+        }
+        self.work += 1;
+        if let Node::Custom(index, _) = node {
+            self.work += self.functions[index].work;
+        }
+        if self.work > MAX_EXPANDED_NODES {
+            return Err(self.error("Custom function calls exceed 512 total expression nodes."));
         }
         self.nodes.push(node);
         Ok(self.nodes.len() - 1)

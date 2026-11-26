@@ -6,9 +6,11 @@ import { Mark } from './Icons'
 import { fixed } from './fixed-point'
 import { quoteText } from './chart-export'
 import { downloadFile } from './download'
+import { MAX_FORMULA_LIBRARY_BYTES, parseFormulaLibrary } from './formula-library'
 import { utc } from './workspace'
 
-type Report = FormulaResult & { source: string; through: string; times: number[]; sourceLabel: string }
+type Library = { name: string; bytes: ArrayBuffer; digest: string; manifest: ReturnType<typeof parseFormulaLibrary> }
+type Report = FormulaResult & { source: string; through: string; times: number[]; sourceLabel: string; library: Library | null }
 const PAGE_SIZE = 60
 
 function FormulaPlot({ values }: { values: (bigint | null)[] }) {
@@ -66,6 +68,10 @@ export function FormulaResearch({ core, asset, sourceLabel, close }: {
   const [source, setSource] = useState('close - sma(close, 3)')
   const [through, setThrough] = useState(() => utc(asset.bars[asset.bars.length - 1].time))
   const [report, setReport] = useState<Report | null>(null)
+  const [library, setLibrary] = useState<Library | null>(null)
+  const [libraryFile, setLibraryFile] = useState<File | null>(null)
+  const libraryInput = useRef<HTMLInputElement>(null)
+  const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(0)
   const [error, setError] = useState('')
   useEffect(() => { title.current?.focus() }, [])
@@ -73,6 +79,27 @@ export function FormulaResearch({ core, asset, sourceLabel, close }: {
   const unavailable = report?.values.filter(value => value === null).length ?? 0
   const current = Math.min(page, endPage)
   const offset = current * PAGE_SIZE
+
+  async function loadLibrary() {
+    if (!libraryFile) return
+    setLoading(true)
+    try {
+      if (libraryFile.size > MAX_FORMULA_LIBRARY_BYTES) throw new Error('Formula function library exceeds 48 KiB.')
+      const bytes = await libraryFile.arrayBuffer()
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+      const manifest = parseFormulaLibrary(text, core)
+      const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
+      const digest = Array.from(hash, byte => byte.toString(16).padStart(2, '0')).join('')
+      setLibrary({ name: libraryFile.name, bytes, digest, manifest })
+      setLibraryFile(null)
+      if (libraryInput.current) libraryInput.current.value = ''
+      setError('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not load the formula function library.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   function run(event: FormEvent) {
     event.preventDefault()
@@ -84,9 +111,9 @@ export function FormulaResearch({ core, asset, sourceLabel, close }: {
       }
       const after = asset.bars.findIndex(bar => bar.time > second)
       const bars = after < 0 ? asset.bars : asset.bars.slice(0, after)
-      const output = core.evaluateFormula(source.trim(), bars)
+      const output = core.evaluateFormula(source.trim(), bars, library?.manifest.functions)
       setReport({ ...output, source: source.trim(), through: cutoff,
-        times: bars.map(bar => bar.time), sourceLabel })
+        times: bars.map(bar => bar.time), sourceLabel, library })
       setPage(Math.max(0, Math.ceil(output.values.length / PAGE_SIZE) - 1))
       setError('')
     } catch (cause) {
@@ -97,11 +124,18 @@ export function FormulaResearch({ core, asset, sourceLabel, close }: {
   function download() {
     if (!report) return
     const prefix = [asset.id, report.sourceLabel, report.through, report.source].map(quoteText)
+    const fields = report.library ? [quoteText(report.library.name), report.library.digest] : []
+    const header = 'instrument,source,known_through_utc,formula,language_version,bar_utc,value'
     const rows = report.values.map((value, index) => [...prefix, report.version, utc(report.times[index]),
-      value === null ? '' : fixed(value, 6)].join(','))
+      value === null ? '' : fixed(value, 6), ...fields].join(','))
     downloadFile('time-series-formula.csv', new Blob([
-      ['instrument,source,known_through_utc,formula,language_version,bar_utc,value', ...rows].join('\r\n') + '\r\n',
+      [header + (report.library ? ',function_library,function_library_sha256' : ''), ...rows].join('\r\n') + '\r\n',
     ], { type: 'text/csv;charset=utf-8' }))
+  }
+
+  function downloadLibrary() {
+    const accepted = report?.library
+    if (accepted) downloadFile(accepted.name, new Blob([accepted.bytes], { type: 'application/json;charset=utf-8' }))
   }
 
   return <>
@@ -113,6 +147,21 @@ export function FormulaResearch({ core, asset, sourceLabel, close }: {
       <div className="page-head"><h1 ref={title} tabIndex={-1}>Time-series formulas</h1></div>
       <section className="side-card replay-panel" aria-label="Formula inputs">
         <h2>{asset.id}</h2>
+        <details className="research-details">
+          <summary>Custom formula functions</summary>
+          <div className="universe-query">
+            <label>Formula function library
+              <input ref={libraryInput} type="file" accept=".json,application/json" disabled={loading}
+                onChange={event => setLibraryFile(event.target.files?.[0] ?? null)} />
+            </label>
+            <button type="button" className="outline" disabled={loading || !libraryFile}
+              onClick={loadLibrary}>Load function library</button>
+            {library && <button type="button" className="outline" disabled={loading}
+              onClick={() => { setLibrary(null); setError('') }}>Clear function library</button>}
+          </div>
+          {library && <p className="formula-source">{library.name} · {library.manifest.functions.map(item =>
+            item.name + '(' + item.parameters.join(', ') + ')').join(', ')}</p>}
+        </details>
         <form className="formula-form" onSubmit={run}>
           <label>Formula
             <textarea value={source} maxLength={2048} rows={4} required spellCheck={false}
@@ -123,7 +172,7 @@ export function FormulaResearch({ core, asset, sourceLabel, close }: {
             <label>Formula observed through (UTC)
               <input required value={through} onChange={event => setThrough(event.target.value)} />
             </label>
-            <button className="primary">Evaluate formula</button>
+            <button className="primary" disabled={loading}>Evaluate formula</button>
           </div>
         </form>
         {error && <p role="alert" className="warning">{error}</p>}
@@ -149,6 +198,7 @@ export function FormulaResearch({ core, asset, sourceLabel, close }: {
             <button className="outline" disabled={current >= endPage} onClick={() => setPage(current + 1)}>Next formula rows</button>
           </div>}
           <button className="outline" onClick={download}>Download formula values</button>
+          {report.library && <button className="outline" onClick={downloadLibrary}>Download evaluated function library</button>}
         </>}
       </section>}
     </main>
