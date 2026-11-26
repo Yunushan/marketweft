@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.4.0 · 0BSD**
+**0.5.0 · 0BSD**
 
 **文档语言**
 
@@ -15,14 +15,14 @@
 
 MarketWeft 是面向分析师、开发人员和运维人员的本地优先研究终端。它读取有权使用的 OHLCV 文件，绘制交互式蜡烛图与成交量，用定点数计算 SMA 和 EMA，并把自选列表、选中标的和指标保存在 IndexedDB。应用资源缓存后即可离线使用。内置价格与成交量均为合成数据，无需行情商账户。
 
-MarketWeft 0.4.0 在不可变历史的分时段回放中加入时点股票拆分。仓库还包括用于独立 trading-bot 服务的 TypeScript 只读客户端，以及实验性 Tauri 桌面壳。现金股息、分拆、联网行情、订单、多用户托管和签名安装包仍在路线图中。
+MarketWeft 0.5.0 在按时段回放中提供时点现金股息和股票拆分。仓库还包括用于独立 trading-bot 服务的 TypeScript 只读客户端和实验性 Tauri 桌面壳。公司分拆、联网行情、订单、多用户托管和签名安装包仍在路线图中。
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## 启动便携终端
 
-从 GitHub 成功的验证运行中下载 browser-terminal-attempt-N，解压其中的 MarketWeft-browser-0.4.0.zip。让 dist/ 与 serve-terminal.mjs 位于同一目录，在该目录运行下列命令。使用支持 WebAssembly、Canvas、BigInt 和 IndexedDB 的新版浏览器打开 http://127.0.0.1:4173/。启动器需要 Node.js 22.12 或更高版本，无需通过 npm 安装。断网前等待显示 Offline ready。
+从 GitHub 成功的验证运行中下载 browser-terminal-attempt-N，解压其中的 MarketWeft-browser-0.5.0.zip。让 dist/ 与 serve-terminal.mjs 位于同一目录，在该目录运行下列命令。使用支持 WebAssembly、Canvas、BigInt 和 IndexedDB 的新版浏览器打开 http://127.0.0.1:4173/。启动器需要 Node.js 22.12 或更高版本，无需通过 npm 安装。断网前等待显示 Offline ready。
 
 ```sh
 node serve-terminal.mjs
@@ -44,7 +44,14 @@ instrument,announced_at,effective_at,observed_at,new_shares,old_shares
 DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
+打开 Historical replay → Start dividend demo，查看每次分配按 100 股有权获息的情景。除息时确认 USD 25.00 应收股息。金额修订将其提高至 USD 30.00，支付日修订推迟入账。迟到的 EUR 报告在被观测时记入 EUR 10.00，支付后的更正让美元现金余额变为 USD 28.00。后退查看此前余额。使用自己的数据时，上传 Cash dividends CSV 并填写 Entitled shares per distribution。修订沿用同一分配 ID。各币种单独记账，旧分录和原始价格得以保留。
+
+```csv
+instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
+DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
 
 <!-- section:04 -->
 ## 导入并回放自己的数据

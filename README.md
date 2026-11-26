@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.4.0 · 0BSD**
+**0.5.0 · 0BSD**
 
 **Documentation languages**
 
@@ -15,14 +15,14 @@
 
 MarketWeft is a local-first research terminal for analysts, developers and operators who need inspectable historical market data. The browser opens authorized OHLCV files, renders interactive candles and volume, calculates fixed-point SMA and EMA, and saves the watchlist, selected instrument and overlays in IndexedDB. The application works offline after its assets are cached. Its bundled prices and volumes are synthetic and require no provider account.
 
-MarketWeft 0.4.0 adds point-in-time stock splits to session-aware replay over immutable history. The repository also offers a separate read-only TypeScript observer for a trading-bot service and an experimental Tauri wrapper. Cash dividends, spin-offs, provider feeds, order entry, multi-user hosting and signed native installers remain roadmap work.
+MarketWeft 0.5.0 adds point-in-time cash dividends alongside stock splits in session-aware replay. The repository also includes a read-only TypeScript observer for a separate trading-bot service and an experimental Tauri wrapper. Spin-offs, provider feeds, order entry, multi-user hosting and signed native installers remain roadmap work.
 
 [ROADMAP.md](ROADMAP.md) · [docs/coverage.md](docs/coverage.md)
 
 <!-- section:02 -->
 ## Start with the portable terminal
 
-Open a successful GitHub verification run and download its browser-terminal-attempt-N artifact. Extract the enclosed MarketWeft-browser-0.4.0.zip, keep dist/ beside serve-terminal.mjs and run the following command in that directory. Open http://127.0.0.1:4173/ in a current browser with WebAssembly, Canvas, BigInt and IndexedDB. Node.js 22.12 or later runs the launcher. The portable package needs no npm installation. Wait for Offline ready before disconnecting.
+Open a successful GitHub verification run and download its browser-terminal-attempt-N artifact. Extract the enclosed MarketWeft-browser-0.5.0.zip, keep dist/ beside serve-terminal.mjs and run the following command in that directory. Open http://127.0.0.1:4173/ in a current browser with WebAssembly, Canvas, BigInt and IndexedDB. Node.js 22.12 or later runs the launcher. The portable package needs no npm installation. Wait for Offline ready before disconnecting.
 
 ```sh
 node serve-terminal.mjs
@@ -44,7 +44,14 @@ instrument,announced_at,effective_at,observed_at,new_shares,old_shares
 DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
 ```
 
-[docs/historical-replay.md](docs/historical-replay.md) · [replay-sessions.csv](crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](docs/corporate-actions.md) · [split-actions.csv](crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
+Open Historical replay → Start dividend demo to follow 100 entitled shares. The ex-date creates a USD 25.00 receivable. A revised amount raises it to USD 30.00 and the revised pay date moves the credit. A late EUR report credits EUR 10.00 at observation, and a post-payment correction leaves USD 28.00. Rewind to inspect earlier balances. To use your data, upload Cash dividends CSV and enter Entitled shares per distribution. Keep the same distribution ID across revisions. The ledger keeps currencies separate, preserves earlier postings and leaves source prices intact.
+
+```csv
+instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
+DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
+```
+
+[docs/historical-replay.md](docs/historical-replay.md) · [replay-sessions.csv](crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](docs/corporate-actions.md) · [split-actions.csv](crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](docs/cash-dividends.md) · [cash-dividends.csv](crates/core/tests/fixtures/synthetic-cash-dividends.csv)
 
 <!-- section:04 -->
 ## Import and replay your own data

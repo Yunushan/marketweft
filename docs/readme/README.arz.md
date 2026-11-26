@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.4.0 · 0BSD**
+**0.5.0 · 0BSD**
 
 **لغات الدليل**
 
@@ -21,7 +21,7 @@ MarketWeft محطة بحث بتشتغل محلي للمحللين والمطور
 
 <div dir="rtl">
 
-MarketWeft 0.4.0 بيضيف تجزئة الأسهم حسب اللي كان معروف وقتها لإعادة تشغيل التاريخ الثابت حسب الجلسات. فيه كمان SDK TypeScript مستقل للقراية من trading-bot وغلاف Tauri تجريبي. توزيعات الكاش وفصل الشركات وتغذية البيانات والأوامر والاستضافة المشتركة والمثبتات الموقعة في الخطة.
+MarketWeft 0.5.0 بيضيف توزيعات الكاش حسب اللي كان معروف وقتها، جنب تجزئة الأسهم في الإعادة حسب الجلسات. فيه SDK TypeScript مستقل للقراية من trading-bot وغلاف Tauri تجريبي. فصل الشركات وتغذية البيانات والأوامر والاستضافة المشتركة والمثبتات الموقعة في الخطة.
 
 </div>
 
@@ -32,7 +32,7 @@ MarketWeft 0.4.0 بيضيف تجزئة الأسهم حسب اللي كان مع�
 
 <div dir="rtl">
 
-نزّل browser-terminal-attempt-N من تشغيل GitHub ناجح. فك MarketWeft-browser-0.4.0.zip وسيب dist/ جنب serve-terminal.mjs وشغّل الأمر جوه نفس المجلد. افتح http://127.0.0.1:4173/ في متصفح حديث فيه WebAssembly وCanvas وBigInt وIndexedDB. استخدم Node.js 22.12 أو أحدث. مش محتاج تثبت npm. استنى Offline ready قبل ما تفصل النت.
+نزّل browser-terminal-attempt-N من تشغيل GitHub ناجح. فك MarketWeft-browser-0.5.0.zip وسيب dist/ جنب serve-terminal.mjs وشغّل الأمر جوه نفس المجلد. افتح http://127.0.0.1:4173/ في متصفح حديث فيه WebAssembly وCanvas وBigInt وIndexedDB. استخدم Node.js 22.12 أو أحدث. مش محتاج تثبت npm. استنى Offline ready قبل ما تفصل النت.
 
 </div>
 
@@ -68,7 +68,18 @@ instrument,announced_at,effective_at,observed_at,new_shares,old_shares
 DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
+<div dir="rtl">
+
+افتح Historical replay → Start dividend demo لمتابعة 100 سهم مستحق لكل توزيع. في تاريخ التداول من غير الحق بيتسجل USD 25.00 مستحق. تعديل المبلغ يرفعه لـ USD 30.00 وتعديل يوم الدفع يأخر القيد. التقرير المتأخر بيضيف EUR 10.00 لما يتشاف، والتصحيح بعد الدفع بيسيب USD 28.00. ارجع عشان تشوف الأرصدة القديمة. لبياناتك ارفع Cash dividends CSV واكتب Entitled shares per distribution. حافظ على نفس ID للتوزيع في التصحيحات. السجل بيفصل العملات ويحافظ على القيود القديمة والأسعار الأصلية.
+
+</div>
+
+```csv
+instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
+DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
 
 <!-- section:04 -->
 ## استورد بياناتك وشغّلها
