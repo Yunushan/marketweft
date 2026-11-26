@@ -2,7 +2,9 @@
 
 The Rust research service runs on IPv4 loopback and exposes two read-only endpoints. It uses the same core that powers the native executable and WebAssembly terminal.
 
-Start the server from the repository root. Configure a separate random token for each scope you intend to use. At least one scope is required. Each token uses 32 random bytes encoded as 64 hexadecimal characters.
+For Ubuntu 24.04 on Linux x64, download the `research-service-linux-x64-attempt-N` artifact from a successful GitHub verification run and unpack its enclosed tar.gz archive. Extract the service with its notices. Start it with `./marketweft-research-service` after configuring its environment as shown below. To build from source, use the same settings from the repository root and run the Cargo command.
+
+Configure a separate random token for each scope you intend to use. At least one scope is required. Each token uses 32 random bytes encoded as 64 hexadecimal characters.
 
 ```sh
 export MARKETWEFT_FORMULA_TOKEN="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"

@@ -30,6 +30,10 @@ packages/python-research/build-requirements.txt and included in the inventory.
 The installed SDK uses the Python standard library.
 Upstream distribution: https://pypi.org/project/setuptools/84.2.1/
 
+The standalone Linux x64 research service includes the original notices from
+its Cargo dependencies and the compiler's standard-library copyright inventory.
+Keep the notices directory together with the executable.
+
 docs/dependencies.cdx.json lists exact package versions, integrity digests and
 declared licenses, including optional target packages. Rust package source
 archives are available at https://crates.io/api/v1/crates/NAME/VERSION/download.
@@ -39,7 +43,7 @@ all upstream notices. Before shipping a native installer, assemble the native
 dependency notices, system-library terms, corresponding source information and
 signing evidence for that target. This milestone ships a source wrapper.
 
-To check the inventory, install the locked npm tree, fetch both Cargo
+To check the inventory, install the locked npm tree, fetch all Cargo
 workspaces with cargo fetch --locked, and run python scripts/supply_chain.py
 --check from the repository root. Omit --check to regenerate after reviewing a
 lockfile change. License gates fail closed for unknown required terms.

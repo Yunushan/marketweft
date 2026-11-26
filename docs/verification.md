@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.51.0 · Local REST research service
+
+| Check | Observed result |
+| --- | --- |
+| Exact results over TCP | A standalone Linux x64 process bound an automatically assigned IPv4 loopback port. The formula returned exactly `10000001` ticks. ALFA ranked alone before BETA entered. BETA stayed unranked until its close arrived, then ranked first at +12%. The same effective cutoff removed ALFA as soon as its removal became known. |
+| Request and scope controls | Four REST integration tests passed. They cover the loopback authority and origin, bearer scopes, formula nulls and cutoffs, screen provenance, and byte and row limits. |
+| Regression suite | All 87 browser, nine Node SDK, four launcher and 42 Wasm tests passed. The native Rust workspace and all 21 README editions passed. |
+
+[Local REST research](local-rest-research.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.50.0 · Point-in-time screening for research clients
 
 | Check | Observed result |
