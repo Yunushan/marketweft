@@ -1,11 +1,11 @@
 # MarketWeft Python research SDK
 
-Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python client uses the standard library and starts a caller-selected engine executable for each request.
+Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python client uses the standard library and starts a caller-selected engine executable for each request. The same wheel provides a read-only MCP server. [Local MCP research](../../docs/local-mcp-research.md).
 
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.1.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.2.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
