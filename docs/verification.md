@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.42.0 · Formula paper backtest
+
+| Check | Observed result |
+| --- | --- |
+| Signal discipline | Missing conditions remain unavailable, and exit wins when both conditions are nonzero. Later input edits leave earlier evaluations and receipts intact. |
+| Paper fills | The 14:05 submission has no fill, the missing 14:06 interval has no volume, and the 14:07 partial fill leaves 969.8. Both execution modes end at 957.8. The recorded tape preserves the exact final capture ID. |
+| Offline audit | Chromium verifies both execution sources, syntax failure without losing accepted results, catalog preservation and byte-for-byte CSV rewind. |
+| Regression suite | All 83 browser, six SDK and four launcher tests passed on Windows x64. All 99 native tests passed on Linux x64, all 38 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Formula paper backtest](formula-paper-backtest.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.41.0 · Time-series formulas
 
 | Check | Observed result |

@@ -40,3 +40,5 @@ Each formula permits up to 2,048 source bytes, 96 expression nodes and 32 parser
 Select a chart, open **Time-series formulas**, and set the observed cutoff. The cutoff includes bars by their supplied source timestamps. Enter an expression and choose **Evaluate formula**. The plot shows the most recent 512 observed rows, with gaps for unavailable values. The table and CSV retain every row through the cutoff. **Download formula values** includes the instrument, source, cutoff, expression, language version and exact timestamps.
 
 With the packaged `formula-bars.csv`, evaluate `ema(if(close == 11, close / 0, close), 2)`. Its six values are unavailable, 11, unavailable, unavailable, 14.5 and 16.833333. At 14:04 UTC the result ends at 14.5. Rewinding to that cutoff reproduces its CSV byte for byte. The first result of `coalesce(lag(volume, 1), 0)` is zero, and the row after the 150.125 observation retains that exact fractional volume.
+
+The [formula paper backtest](formula-paper-backtest.md) uses the same grammar for entry and exit signals.
