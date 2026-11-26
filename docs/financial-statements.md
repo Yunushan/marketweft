@@ -50,3 +50,5 @@ At 14:04:59 UTC in the demo, three quarters are known. The late second quarter a
 In **Valuation results**, choose **Annual filing** or **Trailing twelve months**. Both bases use the same exact capitalization observation and applied UTC cutoffs. The annual basis uses fields from the selected annual filing. The trailing basis uses the four-quarter net income and revenue for P/E and P/S, and common equity from the latest eligible quarter for P/B. The latest quarterly filing ID appears beneath the multiples.
 
 Before the fourth required quarter arrives, trailing P/E and P/S show the coverage reason. Quarterly P/B can appear as soon as the latest quarter and matching capitalization are available. At 14:05 UTC in the demo, trailing P/E, P/S and P/B are 10×, 2× and 4×. At 14:22 UTC the revised quarter leaves P/E and P/B unavailable and changes P/S to 1.5×. Rewind to restore all three original values. [Architecture decision](adr/0009-financial-vintages.md).
+
+The native CLI and Python SDK expose the same snapshot using the same Rust calculations and exact integer units. [Native financial snapshots](../packages/python-research/README.md#financial-snapshots).

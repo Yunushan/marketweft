@@ -1,16 +1,52 @@
 //! Versioned native process interfaces for read-only research clients.
 
+use crate::financial_wire::financial_rows;
 use crate::formula::{decode_formula_library, MAX_FORMULA_LIBRARY_BYTES, MAX_SOURCE_BYTES};
+use crate::fundamentals::MAX_FINANCIAL_CSV_BYTES;
 use crate::history::exact_utc;
 use crate::screen::MAX_PRICE_BYTES;
 use crate::universe::MAX_MEMBERSHIP_BYTES;
-use crate::{parse_csv, parse_universe, Formula, PriceBook, FORMULA_VERSION, MAX_INPUT_BYTES};
+use crate::{
+    parse_csv, parse_universe, FinancialBook, Formula, PriceBook, FORMULA_VERSION, MAX_INPUT_BYTES,
+};
 use std::fmt::Write;
 
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const MAX_REQUEST_BYTES: usize =
     MAX_INPUT_BYTES + MAX_FORMULA_LIBRARY_BYTES + MAX_SOURCE_BYTES + 128;
 pub const MAX_SCREEN_REQUEST_BYTES: usize = MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 128;
+pub const MAX_FINANCIAL_REQUEST_BYTES: usize = 2 * MAX_FINANCIAL_CSV_BYTES + 128;
+
+/// Return annual and quarterly financial evidence for independently dated cutoffs.
+pub fn financial_snapshot_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_FINANCIAL_REQUEST_BYTES {
+        return Err("Financial snapshot request exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 financial request.")?;
+    let (header, payload) = request
+        .split_once('\n')
+        .ok_or("Missing financial request header.")?;
+    let fields = header.split('\t').collect::<Vec<_>>();
+    let ["marketweft-financial", "1", length, issuer, at, known] = fields.as_slice() else {
+        return Err("Invalid financial request or protocol version.".into());
+    };
+    let length = length
+        .parse::<usize>()
+        .ok()
+        .filter(|size| *size <= MAX_FINANCIAL_CSV_BYTES)
+        .ok_or("Invalid filing CSV length.")?;
+    let (Some(at), Some(known)) = (exact_utc(at), exact_utc(known)) else {
+        return Err("Use YYYY-MM-DDTHH:MM:SSZ UTC timestamps for valuation and knowledge.".into());
+    };
+    let (filings, caps) = payload
+        .split_at_checked(length)
+        .ok_or("Invalid filing CSV boundary.")?;
+    let book = FinancialBook::parse(filings, caps)?;
+    let rows = financial_rows(&book, issuer, at, known, true)?;
+    Ok(format!(
+        "marketweft-financial\t{PROTOCOL_VERSION}\t{issuer}\n{rows}"
+    ))
+}
 
 /// Evaluate one length-framed request and return UTC timestamps and integer ticks.
 pub fn evaluate_formula_request(bytes: &[u8]) -> Result<String, String> {

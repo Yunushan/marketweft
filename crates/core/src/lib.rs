@@ -9,6 +9,7 @@ mod delisting;
 mod depth;
 mod dividend;
 mod drawing;
+mod financial_wire;
 mod formula;
 mod formula_walk;
 mod fundamentals;

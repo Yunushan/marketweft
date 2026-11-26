@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.88.0 · Native financial snapshots
+
+| Check | Observed result |
+| --- | --- |
+| Native and browser parity | The CLI and Python SDK reproduced the three-quarter state at 14:04:59 UTC, the complete four-quarter state at 14:05 UTC and the fourth-quarter restatement at 14:22 UTC. The same fixtures also passed the existing Wasm checks. |
+| Exact values and statuses | Python preserved a trailing total above the signed 64-bit range, negative cash flow, missing report fields, gaps, currency mismatches and independent annual multiples. |
+| Protocol and regressions | Rust rejected invalid framing, UTF-8 boundaries, unsupported protocol versions and invalid UTC times. The Python 3.10 SDK suite passed against the actual offline Linux executable, including the existing formula and screening paths. |
+
+[Native financial snapshots](../packages/python-research/README.md#financial-snapshots) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.87.0 · Trailing valuation multiples
 
 | Check | Observed result |

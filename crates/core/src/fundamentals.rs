@@ -7,7 +7,7 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_ROWS: usize = 10_000;
-const MAX_BYTES: usize = 1024 * 1024;
+pub(crate) const MAX_FINANCIAL_CSV_BYTES: usize = 1024 * 1024;
 const NEXT_DAY: i64 = 86_400;
 const MAX_AMOUNT: i128 = 10_i128.pow(27);
 const ANNUAL_HEADER: &str =
@@ -432,7 +432,7 @@ fn csv_rows<'a>(
     headers: &[&str],
     name: &'a str,
 ) -> Result<(usize, impl Iterator<Item = CsvRow<'a>> + 'a), String> {
-    if csv.len() > MAX_BYTES {
+    if csv.len() > MAX_FINANCIAL_CSV_BYTES {
         return Err(format!("The {name} CSV exceeds 1 MiB."));
     }
     let mut rows = csv

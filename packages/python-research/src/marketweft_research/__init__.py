@@ -8,12 +8,15 @@ import subprocess
 from typing import Sequence
 
 __all__ = [
+    "FinancialFiling", "FinancialMarketCap", "FinancialMultiple", "FinancialMultiples",
+    "FinancialSnapshot", "FinancialTrailing",
     "FormulaFunction", "FormulaResult", "FormulaRow", "ResearchEngine", "ResearchError",
     "ScreenPrice", "ScreenResult", "ScreenRow",
 ]
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,31}\Z")
 _IDENTITY = re.compile(r"[A-Za-z0-9._-]{1,40}\Z")
+_CURRENCY = re.compile(r"[A-Z]{3}\Z")
 _UTC = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\Z")
 _WHOLE = re.compile(r"-?(?:0|[1-9][0-9]{0,18})\Z")
 _WIDE = re.compile(r"-?(?:0|[1-9][0-9]{0,38})\Z")
@@ -21,6 +24,8 @@ _MIN_I64 = -(1 << 63)
 _MAX_I64 = (1 << 63) - 1
 _MAX_SOURCE = 2048
 _MAX_CSV = 8 * 1024 * 1024
+_MAX_FINANCIAL_CSV = 1024 * 1024
+_CAPITALIZATION_HEADER = "issuer_id,source_id,valuation_at,observed_at,currency,market_cap"
 
 
 class ResearchError(Exception):
@@ -69,6 +74,62 @@ class ScreenRow:
 class ScreenResult:
     universe: str
     rows: tuple[ScreenRow, ...]
+
+
+@dataclass(frozen=True)
+class FinancialFiling:
+    source_id: str
+    fiscal_start: int
+    fiscal_end: int
+    published_at: int
+    observed_at: int
+    currency: str
+    revenue: int | None
+    common_net_income: int | None
+    common_equity: int | None
+    operating_cash_flow: int | None
+
+
+@dataclass(frozen=True)
+class FinancialMarketCap:
+    source_id: str
+    at: int
+    observed_at: int
+    currency: str
+    ticks: int
+
+
+@dataclass(frozen=True)
+class FinancialMultiple:
+    kind: str
+    units: int | None = None
+
+
+@dataclass(frozen=True)
+class FinancialMultiples:
+    price_earnings: FinancialMultiple | None
+    price_sales: FinancialMultiple | None
+    price_book: FinancialMultiple
+
+
+@dataclass(frozen=True)
+class FinancialTrailing:
+    kind: str
+    currency: str | None = None
+    revenue: int | None = None
+    common_net_income: int | None = None
+    operating_cash_flow: int | None = None
+
+
+@dataclass(frozen=True)
+class FinancialSnapshot:
+    issuer: str
+    filing: FinancialFiling | None
+    market_cap: FinancialMarketCap | None
+    annual_valuation: FinancialMultiples
+    quarters: tuple[FinancialFiling, ...]
+    trailing: FinancialTrailing
+    quarterly_valuation: FinancialMultiples
 
 
 def _definitions(functions: Sequence[FormulaFunction]) -> bytes:
@@ -163,6 +224,90 @@ def _screen_result(output: bytes) -> ScreenResult:
     return ScreenResult(universe, tuple(rows))
 
 
+def _financial_amount(text: str) -> int:
+    if not _WIDE.fullmatch(text):
+        raise ResearchError("Invalid fixed-point amount in financial response.")
+    value = int(text)
+    if not -(1 << 127) <= value < (1 << 127):
+        raise ResearchError("Invalid fixed-point amount in financial response.")
+    return value
+
+
+def _financial_filing(fields: list[str]) -> FinancialFiling:
+    if len(fields) != 10:
+        raise ResearchError("Invalid filing row in financial response.")
+    source, start, end, published, observed, currency, *amounts = fields
+    if not _IDENTITY.fullmatch(source) or not _CURRENCY.fullmatch(currency):
+        raise ResearchError("Invalid filing identity or currency in financial response.")
+    return FinancialFiling(source, _whole(start), _whole(end), _whole(published), _whole(observed),
+                           currency, *(_financial_amount(value) if value else None for value in amounts))
+
+
+def _financial_multiple(fields: list[str]) -> FinancialMultiple | None:
+    if len(fields) == 2 and fields[0] == "value":
+        return FinancialMultiple("value", _financial_amount(fields[1]))
+    if len(fields) == 1:
+        kind, = fields
+        if kind == "missing-quarters":
+            return None
+        if kind in {"missing-filing", "missing-cap", "currency",
+                    "missing-denominator", "nonpositive-denominator"}:
+            return FinancialMultiple(kind)
+    raise ResearchError("Invalid multiple row in financial response.")
+
+
+def _financial_trailing(fields: list[str]) -> FinancialTrailing:
+    if len(fields) == 1 and fields[0] in {"insufficient-quarters", "noncontiguous", "currency"}:
+        return FinancialTrailing(fields[0])
+    if len(fields) == 5 and fields[0] == "available" and _CURRENCY.fullmatch(fields[1]):
+        kind, currency, *amounts = fields
+        return FinancialTrailing(kind, currency,
+                                 *(_financial_amount(value) if value else None for value in amounts))
+    raise ResearchError("Invalid trailing coverage row in financial response.")
+
+
+def _financial_result(output: bytes, requested_issuer: str) -> FinancialSnapshot:
+    issuer, lines = _response(output, "marketweft-financial")
+    if issuer != requested_issuer or len(lines) > 13:
+        raise ResearchError("Unexpected issuer or row count in financial response.")
+    filing = market_cap = trailing = None
+    quarters: list[FinancialFiling] = []
+    annual_multiples: list[FinancialMultiple | None] = []
+    quarter_multiples: list[FinancialMultiple | None] = []
+    for line in lines:
+        tag, *fields = line.split("\t")
+        if tag == "F" and filing is None:
+            filing = _financial_filing(fields)
+        elif tag == "Q" and len(quarters) < 4:
+            quarter = _financial_filing(fields)
+            if quarters and quarter.fiscal_end <= quarters[-1].fiscal_end:
+                raise ResearchError("Quarter rows are not in fiscal order.")
+            quarters.append(quarter)
+        elif tag == "C" and len(fields) == 5 and market_cap is None:
+            source, at, observed, currency, amount = fields
+            ticks = _financial_amount(amount)
+            if not _IDENTITY.fullmatch(source) or not _CURRENCY.fullmatch(currency) or ticks <= 0:
+                raise ResearchError("Invalid capitalization row in financial response.")
+            market_cap = FinancialMarketCap(source, _whole(at), _whole(observed), currency, ticks)
+        elif tag == "T" and trailing is None:
+            trailing = _financial_trailing(fields)
+        elif tag == "R" and len(annual_multiples) < 3:
+            annual_multiples.append(_financial_multiple(fields))
+        elif tag == "U" and len(quarter_multiples) < 3:
+            quarter_multiples.append(_financial_multiple(fields))
+        else:
+            raise ResearchError("Unexpected or repeated row in financial response.")
+    if (trailing is None or len(annual_multiples) != 3 or any(item is None for item in annual_multiples)
+            or len(quarter_multiples) != 3 or quarter_multiples[2] is None):
+        raise ResearchError("Incomplete financial response.")
+    complete = trailing.kind == "available"
+    if ((len(quarters) < 4) != (trailing.kind == "insufficient-quarters")
+            or any((item is not None) != complete for item in quarter_multiples[:2])):
+        raise ResearchError("Inconsistent trailing coverage in financial response.")
+    return FinancialSnapshot(issuer, filing, market_cap, FinancialMultiples(*annual_multiples),
+                             tuple(quarters), trailing, FinancialMultiples(*quarter_multiples))
+
+
 class ResearchEngine:
     """Run read-only analytics using a caller-selected native executable."""
 
@@ -217,6 +362,28 @@ class ResearchEngine:
             raise ValueError("Membership and prices CSV exceed the screen input limits.")
         header = "\t".join(("marketweft-screen", "1", str(len(membership)), *times)).encode("ascii") + b"\n"
         return _screen_result(self._invoke(header + membership + prices, "screen"))
+
+    def financial_snapshot(
+        self,
+        filings_csv: str,
+        capitalization_csv: str | None = None,
+        *,
+        issuer: str,
+        valuation_at: str,
+        known_at: str,
+    ) -> FinancialSnapshot:
+        """Replay annual and quarterly vintages and trailing multiples at two UTC cutoffs."""
+        if not isinstance(issuer, str) or not _IDENTITY.fullmatch(issuer):
+            raise ValueError("Use a stable ASCII issuer ID.")
+        times = (valuation_at, known_at)
+        if any(not isinstance(timestamp, str) or not _UTC.fullmatch(timestamp) for timestamp in times):
+            raise ValueError("Use YYYY-MM-DDTHH:MM:SSZ UTC timestamps for valuation and knowledge.")
+        filings = filings_csv.encode("utf-8")
+        caps = (_CAPITALIZATION_HEADER if capitalization_csv is None else capitalization_csv).encode("utf-8")
+        if len(filings) > _MAX_FINANCIAL_CSV or len(caps) > _MAX_FINANCIAL_CSV:
+            raise ValueError("Each financial report CSV must fit within 1 MiB.")
+        header = "\t".join(("marketweft-financial", "1", str(len(filings)), issuer, *times)).encode("ascii") + b"\n"
+        return _financial_result(self._invoke(header + filings + caps, "financial"), issuer)
 
     def _invoke(self, request: bytes, *arguments: str) -> bytes:
         try:

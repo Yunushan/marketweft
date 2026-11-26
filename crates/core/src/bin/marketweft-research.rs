@@ -1,6 +1,6 @@
 use marketweft_core::research::{
-    evaluate_formula_request, screen_universe_request, MAX_REQUEST_BYTES, MAX_SCREEN_REQUEST_BYTES,
-    PROTOCOL_VERSION,
+    evaluate_formula_request, financial_snapshot_request, screen_universe_request,
+    MAX_FINANCIAL_REQUEST_BYTES, MAX_REQUEST_BYTES, MAX_SCREEN_REQUEST_BYTES, PROTOCOL_VERSION,
 };
 use std::io::{self, Read, Write};
 
@@ -12,11 +12,12 @@ fn run() -> Result<(), String> {
     let (evaluate, max_bytes): (ResearchOperation, usize) = match (command, args.next()) {
         (None, None) => (evaluate_formula_request, MAX_REQUEST_BYTES),
         (Some(command), None) if command == "screen" => (screen_universe_request, MAX_SCREEN_REQUEST_BYTES),
+        (Some(command), None) if command == "financial" => (financial_snapshot_request, MAX_FINANCIAL_REQUEST_BYTES),
         (Some(command), None) if command == "--version" => {
             println!("marketweft-research {PROTOCOL_VERSION}");
             return Ok(());
         }
-        _ => return Err("Supply a formula request on stdin, use screen for universe screening, or use --version.".into()),
+        _ => return Err("Use stdin for formula evaluation, screen for universe screening, financial for financial snapshots, or --version.".into()),
     };
     let mut bytes = Vec::new();
     io::stdin()
