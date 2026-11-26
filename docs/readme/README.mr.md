@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.6.0 · 0BSD**
+**0.7.0 · 0BSD**
 
 **दस्तऐवजाच्या भाषा**
 
@@ -15,14 +15,14 @@
 
 MarketWeft विश्लेषक, विकासक आणि संचालकांसाठी स्थानिक संशोधन टर्मिनल आहे. ते परवानगीचे OHLCV उघडते, कँडल व व्यवहाराचे प्रमाण दाखवते, स्थिर दशांश एककांत SMA व EMA मोजते आणि निरीक्षण यादी, निवड व निर्देशक IndexedDB मध्ये ठेवते. संसाधने कॅश झाल्यावर ऑफलाइन चालते. सोबतचे भाव व प्रमाण कृत्रिम आहेत आणि खाते लागत नाही.
 
-MarketWeft 0.6.0 सत्रांनुसार पुनर्चालनात शेअर विभाजन व रोख लाभांशासह त्या वेळी ज्ञात सदस्यत्व आणि सूचीमधून वगळणे दाखवते. स्वतंत्र trading-bot साठी वाचनाचा TypeScript SDK व प्रयोगात्मक Tauri होस्ट आहे. कंपनी विभक्तीकरण, फीड, ऑर्डर, बहुवापरकर्ता होस्टिंग व स्वाक्षरीत इंस्टॉलर आराखड्यात आहेत.
+MarketWeft 0.7.0 ठरावीक वेळी माहीत असलेल्या भावांवरून किंमत परताव्यानुसार युनिव्हर्सची क्रमवारी लावते. सत्रनिहाय रीप्लेमध्ये शेअर विभाजन, रोख लाभांश, सदस्यत्व आणि सूचीमधून वगळणे समाविष्ट आहे. स्वतंत्र trading-bot सेवेसाठी केवळ-वाचन TypeScript निरीक्षक आणि प्रायोगिक Tauri आवरणही आहे. डेटा फीड, ऑर्डर, स्वाक्षरी केलेले इन्स्टॉलर आणि बहुवापरकर्ता होस्टिंग पुढील योजनेत आहेत.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## वाहून नेता येणारे टर्मिनल सुरू करा
 
-यशस्वी GitHub पडताळणीतून browser-terminal-attempt-N घ्या आणि MarketWeft-browser-0.6.0.zip उघडा. dist/ आणि serve-terminal.mjs शेजारी ठेवून आदेश त्याच संचिकेत चालवा. WebAssembly, Canvas, BigInt व IndexedDB असलेल्या ब्राउझरमध्ये http://127.0.0.1:4173/ उघडा. Node.js 22.12 किंवा नवे आवश्यक आहे. npm स्थापना लागत नाही. जाळे बंद करण्याआधी Offline ready दिसू द्या.
+यशस्वी GitHub पडताळणीतून browser-terminal-attempt-N घ्या आणि MarketWeft-browser-0.7.0.zip उघडा. dist/ आणि serve-terminal.mjs शेजारी ठेवून आदेश त्याच संचिकेत चालवा. WebAssembly, Canvas, BigInt व IndexedDB असलेल्या ब्राउझरमध्ये http://127.0.0.1:4173/ उघडा. Node.js 22.12 किंवा नवे आवश्यक आहे. npm स्थापना लागत नाही. जाळे बंद करण्याआधी Offline ready दिसू द्या.
 
 ```sh
 node serve-terminal.mjs
@@ -58,7 +58,14 @@ universe,change_id,listing_id,instrument,effective_at,observed_at,action
 DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
+Universe screen मध्ये Load demo prices निवडा आणि आधार 14:00 UTC ठेवा. 14:05 ला ALFA 1% सह पुढे आहे. BETA 14:10 ला येतो, पण बंद भाव 14:12 ला कळेपर्यंत त्याला क्रमांक मिळत नाही. प्रभावी वेळ 14:10 ठेवून ज्ञात वेळ 14:12 आणि 14:16 तपासा. BETA चा 12% परतावा दुरुस्तीनंतर 1% होतो. ALFA चे 14:20 पासूनचे वगळणे 14:25 ला समजल्यावर तो यादीबाहेर जातो. स्वतःचे नेमक्या वेळचे बंद भाव वापरण्यासाठी सूचीकरण आयडीसह Universe prices CSV अपलोड करा. आधार किंवा लक्ष्य भाव नसेल तर सदस्याला क्रमांक मिळत नाही.
+
+```csv
+universe,listing_id,price_at,observed_at,close
+DEMO-BASKET,BETA-001,2025-06-02T14:10:00Z,2025-06-02T14:12:00Z,56
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv)
 
 <!-- section:04 -->
 ## स्वतःची माहिती आयात करा व चालवा

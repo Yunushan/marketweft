@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.6.0 · 0BSD**
+**0.7.0 · 0BSD**
 
 **دستاویز کی زبانیں**
 
@@ -21,7 +21,7 @@ MarketWeft تجزیہ کاروں، ڈویلپرز اور آپریٹرز کا م�
 
 <div dir="rtl">
 
-MarketWeft 0.6.0 سیشن وار ری پلے میں تقسیم اور نقد منافع کے ساتھ ہر لمحے معلوم رکنیت اور فہرست سے اخراج دکھاتا ہے۔ الگ trading-bot کے لیے صرف پڑھنے والا TypeScript SDK اور تجرباتی Tauri میزبان بھی ہیں۔ کمپنی کی علیحدگی، فیڈ، آرڈر، مشترکہ میزبانی اور دستخط شدہ انسٹالر آئندہ کام ہیں۔
+MarketWeft 0.7.0 کسی وقت پر دستیاب معلومات کے مطابق قیمت کی واپسی سے یونیورس کی درجہ بندی شامل کرتا ہے۔ سیشن پر مبنی ری پلے میں اسٹاک اسپلٹ، نقد منافع، رکنیت اور ڈی لسٹنگ شامل ہیں۔ مخزن میں الگ trading-bot سروس کے لیے صرف پڑھنے والا TypeScript آبزرور اور تجرباتی Tauri ریپر بھی ہے۔ ڈیٹا فیڈز، آرڈرز، دستخط شدہ انسٹالر اور کثیر صارف ہوسٹنگ روڈمیپ میں ہیں۔
 
 </div>
 
@@ -32,7 +32,7 @@ MarketWeft 0.6.0 سیشن وار ری پلے میں تقسیم اور نقد م�
 
 <div dir="rtl">
 
-کامیاب GitHub رن سے browser-terminal-attempt-N حاصل کریں۔ MarketWeft-browser-0.6.0.zip کھولیں، dist/ کو serve-terminal.mjs کے ساتھ رکھیں اور اسی فولڈر میں کمانڈ چلائیں۔ WebAssembly، Canvas، BigInt اور IndexedDB والے براؤزر میں http://127.0.0.1:4173/ کھولیں۔ Node.js 22.12 یا نیا چاہیے۔ npm کی تنصیب درکار نہیں۔ نیٹ بند کرنے سے پہلے Offline ready دیکھیں۔
+کامیاب GitHub رن سے browser-terminal-attempt-N حاصل کریں۔ MarketWeft-browser-0.7.0.zip کھولیں، dist/ کو serve-terminal.mjs کے ساتھ رکھیں اور اسی فولڈر میں کمانڈ چلائیں۔ WebAssembly، Canvas، BigInt اور IndexedDB والے براؤزر میں http://127.0.0.1:4173/ کھولیں۔ Node.js 22.12 یا نیا چاہیے۔ npm کی تنصیب درکار نہیں۔ نیٹ بند کرنے سے پہلے Offline ready دیکھیں۔
 
 </div>
 
@@ -90,7 +90,18 @@ universe,change_id,listing_id,instrument,effective_at,observed_at,action
 DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
+<div dir="rtl">
+
+Universe screen میں Load demo prices منتخب کریں اور 14:00 UTC کو بنیاد رکھیں۔ 14:05 پر ALFA ایک فیصد کے ساتھ اوّل ہے۔ BETA 14:10 پر شامل ہوتا ہے اور 14:12 پر اختتامی قیمت معلوم ہونے تک بے درجہ رہتا ہے۔ مؤثر وقت 14:10 کے لیے معلوم وقت 14:12 اور پھر 14:16 رکھیں۔ BETA کی 12% واپسی نظرثانی کے بعد 1% ہے۔ 14:20 سے مؤثر ALFA کی برطرفی 14:25 پر معلوم ہونے پر وہ نکل جاتا ہے۔ اپنی متعین اوقات کی قیمتیں استعمال کرنے کے لیے لسٹنگ شناخت کے ساتھ Universe prices CSV اپ لوڈ کریں۔ بنیادی یا آخری قیمت غائب ہو تو رکن بے درجہ رہتا ہے۔
+
+</div>
+
+```csv
+universe,listing_id,price_at,observed_at,close
+DEMO-BASKET,BETA-001,2025-06-02T14:10:00Z,2025-06-02T14:12:00Z,56
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv)
 
 <!-- section:04 -->
 ## اپنا ڈیٹا درآمد اور دوبارہ چلائیں

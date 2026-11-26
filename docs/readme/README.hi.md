@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.6.0 · 0BSD**
+**0.7.0 · 0BSD**
 
 **दस्तावेज़ की भाषाएँ**
 
@@ -15,14 +15,14 @@
 
 MarketWeft विश्लेषकों, डेवलपरों और संचालकों के लिए स्थानीय शोध टर्मिनल है। यह अधिकृत OHLCV फ़ाइलें खोलता है, कैंडल और मात्रा दिखाता है, स्थिर दशमलव में SMA और EMA निकालता है और निगरानी सूची, चयन तथा संकेतक IndexedDB में रखता है। संसाधनों की कैशिंग के बाद ऑफ़लाइन चलता है। शामिल भाव और मात्राएँ कृत्रिम हैं और खाता नहीं चाहिए।
 
-MarketWeft 0.6.0 सत्र-आधारित पुनर्चालन में समयानुसार ज्ञात सदस्यता और सूची से हटना, शेयर-विभाजन तथा नकद लाभांश दिखाता है। एक अलग trading-bot सेवा का केवल-पठन TypeScript SDK और प्रयोगात्मक Tauri होस्ट भी हैं। कंपनी-विभाजन, फ़ीड, ऑर्डर, बहु-उपयोगकर्ता होस्टिंग और हस्ताक्षरित इंस्टॉलर भावी कार्य हैं।
+MarketWeft 0.7.0 किसी समय पर उपलब्ध जानकारी से मूल्य प्रतिफल के अनुसार यूनिवर्स स्क्रीनिंग जोड़ता है। सत्र-आधारित रीप्ले में शेयर विभाजन, नकद लाभांश, सदस्यता और डीलिस्टिंग हैं। रिपॉज़िटरी में अलग trading-bot सेवा के लिए केवल-पठन TypeScript ऑब्ज़र्वर और प्रायोगिक Tauri रैपर भी हैं। प्रदाता फ़ीड, ऑर्डर, हस्ताक्षरित इंस्टॉलर और बहु-उपयोगकर्ता होस्टिंग रोडमैप में हैं।
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## पोर्टेबल टर्मिनल शुरू करें
 
-सफल GitHub सत्यापन से browser-terminal-attempt-N डाउनलोड करें। MarketWeft-browser-0.6.0.zip खोलें, dist/ को serve-terminal.mjs के साथ रखें और उसी फ़ोल्डर में आदेश चलाएँ। WebAssembly, Canvas, BigInt और IndexedDB वाले आधुनिक ब्राउज़र में http://127.0.0.1:4173/ खोलें। Node.js 22.12 या नया चाहिए। npm इंस्टॉल नहीं चाहिए। नेटवर्क बंद करने से पहले Offline ready देखें।
+सफल GitHub सत्यापन से browser-terminal-attempt-N डाउनलोड करें। MarketWeft-browser-0.7.0.zip खोलें, dist/ को serve-terminal.mjs के साथ रखें और उसी फ़ोल्डर में आदेश चलाएँ। WebAssembly, Canvas, BigInt और IndexedDB वाले आधुनिक ब्राउज़र में http://127.0.0.1:4173/ खोलें। Node.js 22.12 या नया चाहिए। npm इंस्टॉल नहीं चाहिए। नेटवर्क बंद करने से पहले Offline ready देखें।
 
 ```sh
 node serve-terminal.mjs
@@ -58,7 +58,14 @@ universe,change_id,listing_id,instrument,effective_at,observed_at,action
 DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
+Universe screen में Load demo prices चुनें और 14:00 UTC को आधार रखें। 14:05 पर ALFA 1% के साथ आगे है। 14:10 पर BETA जुड़ता है और 14:12 पर उसका बंद भाव ज्ञात होने तक बिना रैंक रहता है। प्रभावी समय 14:10 रखकर ज्ञात समय 14:12 और 14:16 की तुलना करें। BETA का 12% संशोधित होकर 1% हो जाता है। 14:20 से प्रभावी ALFA का निष्कासन 14:25 पर ज्ञात होने पर वह रैंकिंग से हटता है। अपने निश्चित समय के बंद भाव के लिए सूचीकरण आईडी वाला Universe prices CSV अपलोड करें। आधार या लक्ष्य भाव अनुपलब्ध होने पर सदस्य बिना रैंक दिखता है।
+
+```csv
+universe,listing_id,price_at,observed_at,close
+DEMO-BASKET,BETA-001,2025-06-02T14:10:00Z,2025-06-02T14:12:00Z,56
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv)
 
 <!-- section:04 -->
 ## अपना डेटा आयात और पुनर्चालित करें

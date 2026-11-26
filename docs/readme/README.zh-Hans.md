@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.6.0 · 0BSD**
+**0.7.0 · 0BSD**
 
 **文档语言**
 
@@ -15,14 +15,14 @@
 
 MarketWeft 是面向分析师、开发人员和运维人员的本地优先研究终端。它读取有权使用的 OHLCV 文件，绘制交互式蜡烛图与成交量，用定点数计算 SMA 和 EMA，并把自选列表、选中标的和指标保存在 IndexedDB。应用资源缓存后即可离线使用。内置价格与成交量均为合成数据，无需行情商账户。
 
-MarketWeft 0.6.0 在按时段回放中提供时点成分股、退市、股票拆分和现金股息。仓库还包括用于独立 trading-bot 服务的 TypeScript 只读客户端和实验性 Tauri 桌面壳。公司分拆、联网行情、订单、多用户托管和签名安装包仍在路线图中。
+MarketWeft 0.7.0 新增按价格收益率进行的时点股票池筛选。基于交易时段的回放支持拆股、现金股息、成分变动和退市。仓库还提供独立 trading-bot 服务的只读 TypeScript 观察器和实验性 Tauri 封装。数据源接入、下单、签名原生安装包及多用户托管仍在路线图上。
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## 启动便携终端
 
-从 GitHub 成功的验证运行中下载 browser-terminal-attempt-N，解压其中的 MarketWeft-browser-0.6.0.zip。让 dist/ 与 serve-terminal.mjs 位于同一目录，在该目录运行下列命令。使用支持 WebAssembly、Canvas、BigInt 和 IndexedDB 的新版浏览器打开 http://127.0.0.1:4173/。启动器需要 Node.js 22.12 或更高版本，无需通过 npm 安装。断网前等待显示 Offline ready。
+从 GitHub 成功的验证运行中下载 browser-terminal-attempt-N，解压其中的 MarketWeft-browser-0.7.0.zip。让 dist/ 与 serve-terminal.mjs 位于同一目录，在该目录运行下列命令。使用支持 WebAssembly、Canvas、BigInt 和 IndexedDB 的新版浏览器打开 http://127.0.0.1:4173/。启动器需要 Node.js 22.12 或更高版本，无需通过 npm 安装。断网前等待显示 Offline ready。
 
 ```sh
 node serve-terminal.mjs
@@ -58,7 +58,14 @@ universe,change_id,listing_id,instrument,effective_at,observed_at,action
 DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
+在 Universe screen 选择 Load demo prices，保留 14:00 UTC 为基准。14:05 时 ALFA 以 1% 领先。14:10 时 BETA 加入，直到 14:12 看到收盘价才参与排名。将生效时间设为 14:10，分别用 14:12 和 14:16 作为已知时间查询，可比较 BETA 的 12% 收益与修订后的 1%。生效时间为 14:20、移除消息于 14:25 可知时，ALFA 离开榜单。上传以挂牌标识为键的 Universe prices CSV，可用自有的精确时点收盘价复现。缺少基准价或目标价的成分仍可见，但不参与排名。
+
+```csv
+universe,listing_id,price_at,observed_at,close
+DEMO-BASKET,BETA-001,2025-06-02T14:10:00Z,2025-06-02T14:12:00Z,56
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv)
 
 <!-- section:04 -->
 ## 导入并回放自己的数据

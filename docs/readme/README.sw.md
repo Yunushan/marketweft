@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.6.0 · 0BSD**
+**0.7.0 · 0BSD**
 
 **Lugha za mwongozo**
 
@@ -15,14 +15,14 @@
 
 MarketWeft ni kituo cha utafiti cha ndani kwa wachambuzi, wasanidi na waendeshaji. Hufungua OHLCV iliyoidhinishwa, huchora vinara na kiasi, hukokotoa SMA na EMA kwa nukta isiyohama, na huhifadhi orodha, chombo kilichochaguliwa na viashiria katika IndexedDB. Hufanya kazi bila mtandao baada ya kuhifadhi rasilimali. Bei na kiasi vya mfano ni vya kutungwa na havihitaji akaunti.
 
-MarketWeft 0.6.0 inaongeza uanachama wa kundi la dhamana na kuondolewa kwenye orodha kwa habari zilizojulikana wakati husika, pamoja na mgawanyo na gawio la fedha. Kuna SDK ya TypeScript inayosoma trading-bot ya nje na ganda la majaribio la Tauri. Utenganishaji wa kampuni, milisho, maagizo, upangishaji wa wengi na visakinishi vilivyosainiwa yako kwenye mpango.
+MarketWeft 0.7.0 inaongeza uchujaji na upangaji wa wanachama kwa faida ya bei kwa kutumia taarifa zilizojulikana wakati wa hoja. Rejeo la vipindi vya soko linajumuisha mgawanyo wa hisa, gawio la fedha taslimu, uanachama na kufutwa kwa orodha. Hazina ina kifuatiliaji cha TypeScript cha kusoma tu kwa huduma tofauti ya trading-bot na kifurushi cha majaribio cha Tauri. Milisho ya data, maagizo, visakinishi vilivyosainiwa na upangishaji wa watumiaji wengi vipo kwenye ramani ya kazi.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Anzisha kituo kinachobebeka
 
-Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.6.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
+Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.7.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
 
 ```sh
 node serve-terminal.mjs
@@ -58,7 +58,14 @@ universe,change_id,listing_id,instrument,effective_at,observed_at,action
 DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
+Katika Universe screen chagua Load demo prices na weka 14:00 UTC kama msingi. Saa 14:05 ALFA inaongoza kwa 1%. BETA inaingia 14:10 na haina nafasi hadi bei yake ya kufunga ijulikane 14:12. Tumia muda wa kuanza kutumika 14:10 na linganisha taarifa zilizojulikana 14:12 na 14:16. Faida ya BETA inashuka kutoka 12% hadi 1% baada ya marekebisho. Kwa muda wa 14:20, ALFA huondoka taarifa ya kuondolewa inapojulikana 14:25. Pakia Universe prices CSV yenye vitambulisho vya orodha na bei za muda kamili. Mwanachama hukosa nafasi ikiwa bei ya msingi au mwisho haipo.
+
+```csv
+universe,listing_id,price_at,observed_at,close
+DEMO-BASKET,BETA-001,2025-06-02T14:10:00Z,2025-06-02T14:12:00Z,56
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv)
 
 <!-- section:04 -->
 ## Ingiza na cheza data yako
