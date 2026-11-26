@@ -6,6 +6,8 @@ mod fundamentals;
 mod history;
 mod indicator;
 mod macro_calendar;
+mod option_chain;
+mod option_price;
 mod replay;
 mod screen;
 mod sector;
@@ -21,6 +23,11 @@ pub use fundamentals::{Filing, FinancialBook, MarketCap, Multiple, Valuation};
 pub use history::{parse_csv, Bar};
 pub use indicator::{indicator, Average};
 pub use macro_calendar::{MacroCalendar, ReleaseRecord, ReleaseSnapshot, ReportKind};
+pub use option_chain::{
+    ChainSnapshot, Contract, OptionBook, OptionBookError, OptionQuote, OptionRow, QuoteStatus,
+    Underlying, UnderlyingQuote,
+};
+pub use option_price::{EuropeanOption, ModelError, OptionAnalytics, OptionSide};
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use screen::{PriceBook, PriceObservation, ScreenRow};
 pub use sector::{Classification, Heatmap, HeatmapListing, SectorGroup};

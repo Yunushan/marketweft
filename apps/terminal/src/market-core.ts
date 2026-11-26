@@ -156,6 +156,54 @@ export interface MacroRelease {
   actualHistory: MacroRecord[];
 }
 
+export interface OptionSource {
+  instrument: string;
+  currency: string;
+  firstObservedAt: number;
+}
+
+export interface OptionUnderlying {
+  at: number;
+  observedAt: number;
+  spot: bigint;
+  rate: bigint;
+  dividendYield: bigint;
+}
+
+export interface OptionAnalytics {
+  volatility: number;
+  price: number;
+  delta: number;
+  gamma: number;
+  vega: number;
+  theta: number;
+  rho: number;
+}
+
+const unavailableOptions = [
+  'expired', 'stale-option', 'missing-bid-ask', 'crossed', 'missing-underlying',
+  'stale-underlying', 'model-range', 'price-bounds', 'unresolved-vol',
+] as const;
+
+export type OptionUnavailable = typeof unavailableOptions[number];
+
+export interface OptionReport {
+  id: string;
+  expiration: number;
+  strike: bigint;
+  side: 'call' | 'put';
+  at: number;
+  observedAt: number;
+  bid: bigint | null;
+  ask: bigint | null;
+  result: OptionAnalytics | OptionUnavailable;
+}
+
+export interface OptionSnapshot {
+  underlying: OptionUnderlying | null;
+  options: OptionReport[];
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -174,6 +222,8 @@ export interface MarketCore {
   financialAsOf(filings: string, caps: string, issuer: string, at: string, known: string): Valuation;
   macroIndex(csv: string): number;
   macroAsOf(csv: string, published: string, known: string): MacroRelease[];
+  optionIndex(underlying: string, quotes: string): OptionSource;
+  optionSnapshot(underlying: string, quotes: string, effective: string, known: string, maxAge: number): OptionSnapshot;
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -197,6 +247,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_financial_as_of(filingBytes: number): number;
   mw_macro_index(): number;
   mw_macro_as_of(): number;
+  mw_option_index(underlyingBytes: number): number;
+  mw_option_snapshot(underlyingBytes: number, maxAge: number): number;
 }
 
 const SCALE = 1_000_000;
@@ -456,6 +508,50 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         }
       }
       return releases;
+    },
+    optionIndex(underlying, quotes) {
+      textInput(underlying + quotes);
+      const text = decoder.decode(output(api.mw_option_index(encoder.encode(underlying).length)));
+      const [instrument, currency, firstObservedAt] = text.split('\t');
+      return { instrument, currency, firstObservedAt: Number(firstObservedAt) };
+    },
+    optionSnapshot(underlying, quotes, effective, known, maxAge) {
+      if ([effective, known].some(value => value.length !== 20 || /[\n\r]/.test(value))) {
+        throw new Error('Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
+      }
+      if (!Number.isInteger(maxAge) || maxAge < 0 || maxAge > 0xffffffff) {
+        throw new Error('Maximum quote age must be a whole number from 0 to 4,294,967,295 seconds.');
+      }
+      textInput([effective, known, underlying + quotes].join('\n'));
+      const text = decoder.decode(output(api.mw_option_snapshot(encoder.encode(underlying).length, maxAge)));
+      const snapshot: OptionSnapshot = { underlying: null, options: [] };
+      if (!text) return snapshot;
+      for (const line of text.slice(0, -1).split('\n')) {
+        const [type, ...fields] = line.split('\t');
+        if (type === 'U') {
+          const [at, observedAt, spot, rate, dividendYield] = fields;
+          snapshot.underlying = { at: Number(at), observedAt: Number(observedAt), spot: BigInt(spot),
+            rate: BigInt(rate), dividendYield: BigInt(dividendYield) };
+        } else if (type === 'Q') {
+          const [id, expiration, strike, side, at, observedAt, bid, ask, status, ...values] = fields;
+          let result: OptionAnalytics | OptionUnavailable;
+          if (status === 'ok') {
+            const [volatility, price, delta, gamma, vega, theta, rho] = values.map(Number);
+            result = { volatility, price, delta, gamma, vega, theta, rho };
+          } else {
+            const issue = unavailableOptions.find(candidate => candidate === status);
+            if (!issue) throw new Error('Invalid option status from the calculation engine.');
+            result = issue;
+          }
+          if (side !== 'call' && side !== 'put') throw new Error('Invalid option side from the calculation engine.');
+          snapshot.options.push({ id, expiration: Number(expiration), strike: BigInt(strike), side,
+            at: Number(at), observedAt: Number(observedAt),
+            bid: bid === '' ? null : BigInt(bid), ask: ask === '' ? null : BigInt(ask), result });
+        } else {
+          throw new Error('Invalid option row from the calculation engine.');
+        }
+      }
+      return snapshot;
     },
     splitBook(instrument, csv) {
       textInput(instrument + '\n' + csv);

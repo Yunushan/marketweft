@@ -9,6 +9,30 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('option chain Wasm exposes correct IV, gated underlying and invalid spread reasons', async () => {
+  const read = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-option-' + name + '.csv', import.meta.url), 'utf8');
+  const [underlying, quotes] = await Promise.all([read('underlying'), read('quotes')]);
+  const iso = t => '2025-04-03T' + t + 'Z';
+  assert.deepEqual(core.optionIndex(underlying, quotes), {
+    instrument: 'DEMO:OPT', currency: 'USD', firstObservedAt: Date.parse(iso('13:59:00')) / 1000,
+  });
+  const snapshot = (effective, known, age = 300) => core.optionSnapshot(underlying, quotes, iso(effective), iso(known), age);
+  const current = snapshot('14:00:00', '14:00:00');
+  const row = id => current.options.find(item => item.id === id);
+  assert.equal(current.underlying.spot, 100000000n);
+  assert.ok(Math.abs(row('APR-C100').result.volatility - 0.2) < 2e-8);
+  assert.ok(Math.abs(row('APR-P100').result.delta + 0.416553855) < 2e-8);
+  assert.equal(row('APR-C100').bid, 8807321n);
+  assert.equal(row('APR-P110').result, 'crossed');
+  assert.equal(row('APR-C105').result, 'missing-bid-ask');
+  assert.equal(row('APR-C90'), undefined);
+  assert.ok(snapshot('14:00:00', '14:02:00').options.some(item => item.id === 'APR-C90'));
+  assert.equal(snapshot('14:00:00', '14:05:00').underlying.spot, 100500000n);
+  assert.equal(snapshot('14:01:00', '14:05:00').underlying.spot, 101000000n);
+  assert.equal(snapshot('14:00:00', '14:00:00', 0).options.find(item => item.id === 'APR-C100').result, 'stale-underlying');
+  assert.throws(() => snapshot('14:00:00', '14:00:00', -1), /Maximum quote age/);
+});
+
 test('macro calendar Wasm preserves public and observed times and revision lineage', async () => {
   const data = await readFile(new URL('../crates/core/tests/fixtures/synthetic-macro-calendar.csv', import.meta.url), 'utf8');
   const iso = t => '2025-04-03T' + t + 'Z';

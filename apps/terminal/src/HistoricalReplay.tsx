@@ -11,6 +11,7 @@ import { DividendLedger } from './DividendLedger'
 import { UniverseReplay } from './UniverseReplay'
 import { FundamentalReplay } from './FundamentalReplay'
 import { MacroReplay } from './MacroReplay'
+import { OptionReplay } from './OptionReplay'
 import type { Asset } from './workspace'
 import { Chart } from './Chart'
 import { Icon, Mark } from './Icons'
@@ -58,7 +59,7 @@ type ReplayRun = {
   dividends?: { events: DividendEvent[]; shares: number }
 }
 
-type ReplayView = 'universe' | 'fundamentals' | 'macro'
+type ReplayView = 'universe' | 'fundamentals' | 'macro' | 'options'
 
 export function HistoricalReplay({
   core,
@@ -76,6 +77,7 @@ export function HistoricalReplay({
   const universeButton = useRef<HTMLButtonElement>(null)
   const fundamentalsButton = useRef<HTMLButtonElement>(null)
   const macroButton = useRef<HTMLButtonElement>(null)
+  const optionsButton = useRef<HTMLButtonElement>(null)
   const returnFocus = useRef<ReplayView | null>(null)
   const [cursor, setCursor] = useState(-1)
   const [playing, setPlaying] = useState(false)
@@ -104,7 +106,7 @@ export function HistoricalReplay({
   }, [active])
   useEffect(() => {
     if (view === null && returnFocus.current) {
-      const buttons = { universe: universeButton, fundamentals: fundamentalsButton, macro: macroButton }
+      const buttons = { universe: universeButton, fundamentals: fundamentalsButton, macro: macroButton, options: optionsButton }
       const button = buttons[returnFocus.current]
       returnFocus.current = null
       button.current?.focus()
@@ -315,6 +317,8 @@ export function HistoricalReplay({
     return <FundamentalReplay core={core} close={() => setView(null)} />
   if (view === 'macro')
     return <MacroReplay core={core} close={() => setView(null)} />
+  if (view === 'options')
+    return <OptionReplay core={core} close={() => setView(null)} />
 
   return (
     <>
@@ -409,6 +413,17 @@ export function HistoricalReplay({
                     setView('macro')
                   }}>
                   Open economic calendar
+                </button>
+              </section>
+              <section className="side-card replay-panel">
+                <h2>Option chain</h2>
+                <p>Reconstruct European option quotes and estimate implied volatility and Greeks.</p>
+                <button ref={optionsButton} className="primary" disabled={busy}
+                  onClick={() => {
+                    returnFocus.current = 'options'
+                    setView('options')
+                  }}>
+                  Open option chain
                 </button>
               </section>
             </div>

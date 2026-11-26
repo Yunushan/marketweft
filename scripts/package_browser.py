@@ -67,6 +67,10 @@ Open Economic calendar under Historical replay, then Start calendar demo
 or import macro-calendar.csv. Check the forecast before release and review
 the first published actual and the two later revisions.
 
+Open Option chain under Historical replay and Start option demo, or load
+option-underlying.csv and option-quotes.csv. Inspect the late quotes,
+unavailable observations, Greeks and implied volatility surface.
+
 The chart supports panning, zooming, a crosshair and moving-average overlays.
 This build has no broker connection or order entry. Press Ctrl+C in the
 launcher's terminal to stop serving the application.
@@ -98,6 +102,8 @@ def main():
     files["financial-filings.csv"] = (fixture / "synthetic-financial-filings.csv").read_bytes()
     files["financial-market-caps.csv"] = (fixture / "synthetic-financial-market-caps.csv").read_bytes()
     files["macro-calendar.csv"] = (fixture / "synthetic-macro-calendar.csv").read_bytes()
+    for kind in ("underlying", "quotes"):
+        files[f"option-{kind}.csv"] = (fixture / f"synthetic-option-{kind}.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
     inventory["components"] = [item for item in inventory["components"]
                                if any(p["value"] == "web-runtime" for p in item["properties"])]

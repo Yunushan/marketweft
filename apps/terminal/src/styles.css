@@ -220,6 +220,25 @@ main {
 .macro-release h3 {
   margin: 0;
 }
+.option-surface {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.option-surface caption {
+  text-align: left;
+  font-weight: 600;
+}
+.option-surface-points span {
+  display: inline-block;
+  padding: 4px 7px;
+  margin-inline-end: 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, #235649 var(--option-heat), #222d32);
+}
+.option-surface-points small {
+  margin-inline-start: 4px;
+}
 .dividend-reports {
   display: grid;
   gap: 8px;

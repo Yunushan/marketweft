@@ -54,3 +54,7 @@ Use `FinancialBook::parse` with annual filings and capitalization CSVs. Query `a
 ## Economic release calendar
 
 Parse `MacroCalendar` from one local CSV and call `as_of(published_through, known_at)` with inclusive UTC Unix seconds. Each snapshot includes the selected schedule and forecast and the contiguous known chain of actual and revision records. Wasm returns values in six-place fixed-point units. [Economic calendar contract](../../docs/macro-calendar.md).
+
+## European option chains
+
+Parse `OptionBook` from matching underlying and option CSVs. Call `snapshot(effective_at, known_at, max_quote_age_seconds)` to obtain the latest eligible inputs and typed diagnostics. The standalone `EuropeanOption` model exposes price and Greeks for supplied volatility and can invert a valid midpoint. [Option-chain contract](../../docs/option-chain.md).

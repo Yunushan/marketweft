@@ -8,6 +8,7 @@ use crate::{
     indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
     Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
 };
+use crate::{ModelError, OptionBook, OptionSide, QuoteStatus};
 use std::cell::RefCell;
 
 thread_local! {
@@ -356,6 +357,108 @@ fn encode_bars(bars: Vec<Bar>) -> Vec<u8> {
         }
     }
     bytes
+}
+
+fn option_book(csvs: &str, underlying_bytes: usize) -> Result<OptionBook, String> {
+    let (underlying, quotes) = csvs
+        .split_at_checked(underlying_bytes)
+        .ok_or("Supply underlying and options CSV reports.")?;
+    OptionBook::parse(underlying, quotes).map_err(|error| error.to_string())
+}
+
+#[no_mangle]
+pub extern "C" fn mw_option_index(underlying_bytes: usize) -> u32 {
+    process(|input| {
+        let book = option_book(utf8(input)?, underlying_bytes)?;
+        let underlying = book.underlying();
+        Ok(format!(
+            "{}\t{}\t{}",
+            underlying.instrument,
+            underlying.currency,
+            book.first_observation()
+        )
+        .into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_option_snapshot(underlying_bytes: usize, max_age: u32) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(3, '\n');
+        let mut cutoff = || {
+            parts
+                .next()
+                .and_then(exact_utc)
+                .ok_or("Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+        };
+        let effective = cutoff()?;
+        let known = cutoff()?;
+        let book = option_book(
+            parts.next().ok_or("Supply option chain reports.")?,
+            underlying_bytes,
+        )?;
+        let view = book.snapshot(effective, known, max_age);
+        let mut text = String::new();
+        if let Some(underlying) = view.underlying {
+            writeln!(
+                &mut text,
+                "U\t{}\t{}\t{}\t{}\t{}",
+                underlying.at,
+                underlying.observed_at,
+                underlying.spot,
+                underlying.rate,
+                underlying.yield_rate
+            )
+            .unwrap();
+        }
+        for row in view.options {
+            let contract = row.contract;
+            let side = match contract.side {
+                OptionSide::Call => "call",
+                OptionSide::Put => "put",
+            };
+            let quote = row.quote;
+            write!(
+                &mut text,
+                "Q\t{}\t{}\t{}\t{side}\t{}\t{}\t{}\t{}\t{}",
+                contract.id,
+                contract.expiration,
+                contract.strike,
+                quote.at,
+                quote.observed_at,
+                optional_number(quote.bid),
+                optional_number(quote.ask),
+                option_status(&row.analytics)
+            )
+            .unwrap();
+            if let Ok(a) = row.analytics {
+                write!(
+                    &mut text,
+                    "\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    a.volatility, a.price, a.delta, a.gamma, a.vega, a.theta, a.rho
+                )
+                .unwrap();
+            }
+            text.push('\n');
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+fn option_status(analysis: &Result<crate::OptionAnalytics, QuoteStatus>) -> &'static str {
+    match analysis {
+        Ok(_) => "ok",
+        Err(QuoteStatus::Expired) => "expired",
+        Err(QuoteStatus::StaleQuote) => "stale-option",
+        Err(QuoteStatus::MissingBidAsk) => "missing-bid-ask",
+        Err(QuoteStatus::CrossedQuote) => "crossed",
+        Err(QuoteStatus::MissingUnderlying) => "missing-underlying",
+        Err(QuoteStatus::StaleUnderlying) => "stale-underlying",
+        Err(QuoteStatus::Model(ModelError::InputsOutOfRange)) => "model-range",
+        Err(QuoteStatus::Model(ModelError::PriceOutsideBounds)) => "price-bounds",
+        Err(QuoteStatus::Model(ModelError::VolatilityUnresolved)) => "unresolved-vol",
+    }
 }
 
 #[no_mangle]
