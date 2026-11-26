@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.89.0 · MCP financial snapshots
+
+| Check | Observed result |
+| --- | --- |
+| Official client | The official MCP TypeScript client 1.32.2 discovered all three read-only tools and validated the negotiated schema and structured output. Its parsed text result matched the structured response. |
+| Exact cutoff results | The client observed three quarters at 14:04:59 UTC, all four at 14:05 UTC, and separate annual and quarterly restatements by 14:22 UTC. The revised P/S was `1500000` millionths and cash flow was `-250000000000005` millionths. |
+| Precision and regression | The client retained a 27-digit trailing amount as a string and validated nulls and currency status. Python 3.10 passed 14 SDK and MCP tests, including the existing formula and screen tools and rejection of local file paths. |
+
+[MCP financial snapshots](local-mcp-research.md#financial-snapshots) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.88.0 · Native financial snapshots
 
 | Check | Observed result |

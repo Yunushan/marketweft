@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formula evaluation and point-in-time universe screening through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
+MarketWeft exposes historical formulas, point-in-time universe screening and financial snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
 
 ```json
 {
@@ -25,3 +25,9 @@ Results include formula language version, total observed rows and a page of time
 The read-only `screen_universe_as_of` tool accepts membership and price CSV contents and separate baseline, effective and known cutoffs. It returns the ordered members, selected close provenance and missing endpoints. [Universe screening through the research interfaces](research-universe-screen.md).
 
 The server negotiates protocol revision 2025-11-25 during initialization. A malformed RPC request returns a protocol error. A rejected tool query leaves the connection ready for another request. [MCP lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle).
+
+## Financial snapshots
+
+Use the read-only `financial_snapshot_as_of` tool. Supply `filings_csv`, the `issuer`, and independent `valuation_at` and `known_at` cutoffs in exact UTC. You can also supply `capitalization_csv`. Each CSV argument contains the file contents and is limited to 1 MiB of UTF-8 data.
+
+The response contains the applied cutoffs, annual filing, exact capitalization observation, up to four selected quarters, trailing coverage and both sets of valuation multiples. Money and multiples are exact decimal strings representing integer millionths. Missing amounts are `null`. When trailing coverage is incomplete, the earnings and sales multiples are `null` and `trailing.kind` gives the reason. The latest known quarterly book value can still support P/B. [Financial statements and example cutoffs](financial-statements.md).

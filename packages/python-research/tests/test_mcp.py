@@ -66,7 +66,8 @@ class McpTest(unittest.TestCase):
         self.assertEqual(replies[0]["error"]["code"], -32002)
         self.assertEqual(replies[1]["result"]["protocolVersion"], "2025-11-25")
         tools = replies[2]["result"]["tools"]
-        self.assertEqual([item["name"] for item in tools], [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME])
+        self.assertEqual([item["name"] for item in tools],
+                         [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -140,6 +141,44 @@ class McpTest(unittest.TestCase):
                          known_at="2025-06-02T14:25:00Z")["result"]["structuredContent"]
         self.assertEqual([row["listing_id"] for row in removed["rows"]], ["BETA-001"])
         self.assertEqual(screen(6, prices_file="local.csv")["error"]["code"], -32602)
+
+    def test_financial_tool_returns_exact_cutoff_evidence_and_rejects_file_paths(self):
+        server = mcp.ResearchServer(ResearchEngine(EXECUTABLE))
+        server.handle(rpc("initialize", 1, INITIALIZE))
+        server.handle(rpc("notifications/initialized"))
+        fixtures = ROOT / "crates/core/tests/fixtures"
+        arguments = {
+            "filings_csv": (fixtures / "synthetic-financial-periods.csv").read_text(encoding="utf-8"),
+            "capitalization_csv": (fixtures / "synthetic-financial-market-caps.csv").read_text(encoding="utf-8"),
+            "issuer": "DEMO-ALFA", "valuation_at": "2025-04-03T14:00:00Z",
+        }
+
+        def financial(time, **changes):
+            params = {"name": mcp.FINANCIAL_TOOL_NAME, "arguments": {
+                **arguments, "known_at": f"2025-04-03T{time}Z", **changes,
+            }}
+            return server.handle(rpc("tools/call", 2, params))
+
+        initial = financial("14:04:59")["result"]["structuredContent"]
+        self.assertEqual(len(initial["quarters"]), 3)
+        self.assertEqual(initial["trailing"]["kind"], "insufficient-quarters")
+        self.assertIsNone(initial["quarterly_valuation"]["price_earnings"])
+        self.assertEqual(initial["quarterly_valuation"]["price_book"], {"kind": "value", "units": "4000000"})
+        ready = financial("14:05:00")["result"]["structuredContent"]
+        self.assertEqual(ready["trailing"]["revenue"], "6000000000000010")
+        self.assertEqual(ready["market_cap"]["ticks"], "12000000000000000")
+        result = financial("14:22:00")["result"]
+        revised = result["structuredContent"]
+        self.assertEqual(json.loads(result["content"][0]["text"]), revised)
+        self.assertEqual(revised["filing"]["source_id"], "ALFA-FY24-A1")
+        self.assertEqual(revised["quarters"][-1]["source_id"], "ALFA-Q4-A1")
+        self.assertEqual(revised["trailing"]["operating_cash_flow"], "-250000000000005")
+        self.assertEqual(revised["quarterly_valuation"]["price_book"],
+                         {"kind": "missing-denominator", "units": None})
+        self.assertEqual(financial("14:05:00", filings_path="local.csv")["error"]["code"], -32602)
+        self.assertEqual(financial("14:05:00", capitalization_csv=None)["error"]["code"], -32602)
+        self.assertTrue(financial("14:61:00")["result"]["isError"])
+        self.assertEqual(financial("14:05:00")["result"]["structuredContent"], ready)
 
 
 if __name__ == "__main__":

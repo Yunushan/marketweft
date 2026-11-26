@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.4.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.5.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -52,6 +52,8 @@ print(snapshot.trailing.revenue, snapshot.quarterly_valuation.price_sales)
 ```
 
 Amounts and valuation multiples are integer millionths. Timestamps are whole UTC seconds. The snapshot carries the annual filing, exact capitalization, up to four known quarterly vintages, trailing flow values and both valuation bases. Each multiple reports a status when its denominator or capitalization is unavailable. Trailing flow multiples are `None` when the quarter set is incomplete, has a gap or overlaps, or mixes currencies. The coverage reason appears in `trailing.kind`. [Financial CSV formats and cutoffs](../../docs/financial-statements.md).
+
+MCP clients can call the same calculation through the local `financial_snapshot_as_of` tool. [MCP financial snapshots](../../docs/local-mcp-research.md#financial-snapshots).
 
 ## Native protocol
 

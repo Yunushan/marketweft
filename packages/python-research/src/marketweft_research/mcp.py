@@ -1,22 +1,25 @@
-"""Bounded local MCP access to MarketWeft formula evaluation."""
+"""Bounded local MCP access to MarketWeft research."""
 
 import argparse
+from dataclasses import asdict
 import json
 from pathlib import Path
 import sys
 from typing import BinaryIO
 
-from . import FormulaFunction, ResearchEngine, ResearchError, ScreenPrice
+from . import FinancialMultiples, FinancialSnapshot, FormulaFunction, ResearchEngine, ResearchError, ScreenPrice
+from . import _MAX_FINANCIAL_CSV
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.3.0"
+SERVER_VERSION = "0.5.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
 MIN_I64 = -(1 << 63)
 TOOL_NAME = "evaluate_historical_formula"
 SCREEN_TOOL_NAME = "screen_universe_as_of"
+FINANCIAL_TOOL_NAME = "financial_snapshot_as_of"
 _UTC_SCHEMA = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
 INPUT_SCHEMA = {
     "type": "object",
@@ -136,6 +139,86 @@ SCREEN_TOOL = {
     "outputSchema": SCREEN_OUTPUT_SCHEMA,
 }
 
+_FINANCIAL_CSV_SCHEMA = {"type": "string", "minLength": 1, "maxLength": _MAX_FINANCIAL_CSV}
+_ISSUER_SCHEMA = {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,40}$"}
+_CURRENCY_SCHEMA = {"type": "string", "pattern": "^[A-Z]{3}$"}
+_FINANCIAL_TIME_SCHEMA = {"type": "integer"}
+_TICKS_SCHEMA = {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]{0,38})$"}
+_OPTIONAL_TICKS_SCHEMA = {**_TICKS_SCHEMA, "type": ["string", "null"]}
+_FLOW_FIELDS = ("revenue", "common_net_income", "operating_cash_flow")
+_FILING_FIELDS = (*_FLOW_FIELDS, "common_equity")
+_MULTIPLE_STATUSES = ["missing-filing", "missing-cap", "currency", "missing-denominator", "nonpositive-denominator"]
+_TRAILING_STATUSES = ["insufficient-quarters", "noncontiguous", "currency"]
+
+
+def _object_schema(properties: dict, *, nullable: bool = False) -> dict:
+    return {
+        "type": ["object", "null"] if nullable else "object",
+        "properties": properties,
+        "required": list(properties),
+        "additionalProperties": False,
+    }
+
+
+FINANCIAL_INPUT_SCHEMA = {
+    **_object_schema({
+        "filings_csv": _FINANCIAL_CSV_SCHEMA,
+        "capitalization_csv": _FINANCIAL_CSV_SCHEMA,
+        "issuer": _ISSUER_SCHEMA,
+        "valuation_at": _UTC_SCHEMA,
+        "known_at": _UTC_SCHEMA,
+    }),
+    "required": ["filings_csv", "issuer", "valuation_at", "known_at"],
+}
+_FILING_PROPERTIES = {
+    "source_id": _ISSUER_SCHEMA,
+    "fiscal_start": _FINANCIAL_TIME_SCHEMA,
+    "fiscal_end": _FINANCIAL_TIME_SCHEMA,
+    "published_at": _FINANCIAL_TIME_SCHEMA,
+    "observed_at": _FINANCIAL_TIME_SCHEMA,
+    "currency": _CURRENCY_SCHEMA,
+    **{field: _OPTIONAL_TICKS_SCHEMA for field in _FILING_FIELDS},
+}
+_MULTIPLE_SCHEMAS = [
+    _object_schema({"kind": {"const": "value"}, "units": _TICKS_SCHEMA}),
+    _object_schema({"kind": {"enum": _MULTIPLE_STATUSES}, "units": {"type": "null"}}),
+]
+_MULTIPLE_SCHEMA = {"anyOf": _MULTIPLE_SCHEMAS}
+_OPTIONAL_MULTIPLE_SCHEMA = {"anyOf": [*_MULTIPLE_SCHEMAS, {"type": "null"}]}
+FINANCIAL_OUTPUT_SCHEMA = _object_schema({
+    "issuer": _ISSUER_SCHEMA,
+    "valuation_at": _UTC_SCHEMA,
+    "known_at": _UTC_SCHEMA,
+    "filing": _object_schema(_FILING_PROPERTIES, nullable=True),
+    "market_cap": _object_schema({
+        "source_id": _ISSUER_SCHEMA,
+        "at": _FINANCIAL_TIME_SCHEMA,
+        "observed_at": _FINANCIAL_TIME_SCHEMA,
+        "currency": _CURRENCY_SCHEMA,
+        "ticks": _TICKS_SCHEMA,
+    }, nullable=True),
+    "annual_valuation": _object_schema(dict.fromkeys(("price_earnings", "price_sales", "price_book"), _MULTIPLE_SCHEMA)),
+    "quarters": {"type": "array", "maxItems": 4, "items": _object_schema(_FILING_PROPERTIES)},
+    "trailing": {"anyOf": [
+        _object_schema({"kind": {"const": "available"}, "currency": _CURRENCY_SCHEMA,
+                        **{field: _OPTIONAL_TICKS_SCHEMA for field in _FLOW_FIELDS}}),
+        _object_schema({"kind": {"enum": _TRAILING_STATUSES}, "currency": {"type": "null"},
+                        **dict.fromkeys(_FLOW_FIELDS, {"type": "null"})}),
+    ]},
+    "quarterly_valuation": _object_schema({
+        "price_earnings": _OPTIONAL_MULTIPLE_SCHEMA,
+        "price_sales": _OPTIONAL_MULTIPLE_SCHEMA,
+        "price_book": _MULTIPLE_SCHEMA,
+    }),
+})
+FINANCIAL_TOOL = {
+    "name": FINANCIAL_TOOL_NAME,
+    "description": "Replay annual and quarterly filings and their valuations at independent UTC cutoffs. Accepts CSV contents and returns exact millionths as decimal strings.",
+    "annotations": TOOL["annotations"],
+    "inputSchema": FINANCIAL_INPUT_SCHEMA,
+    "outputSchema": FINANCIAL_OUTPUT_SCHEMA,
+}
+
 
 class RequestError(Exception):
     def __init__(self, code: int, message: str):
@@ -157,6 +240,38 @@ def _structured(data: dict) -> dict:
 
 def _price(price: ScreenPrice | None) -> dict | None:
     return None if price is None else {"ticks": str(price.ticks), "observed_at": price.observed_at}
+
+
+def _financial_values(record, *amounts) -> dict | None:
+    if record is None:
+        return None
+    payload = asdict(record)
+    for field in amounts:
+        value = payload[field]
+        payload[field] = None if value is None else str(value)
+    return payload
+
+
+def _financial_multiples(value: FinancialMultiples) -> dict:
+    return {
+        "price_earnings": _financial_values(value.price_earnings, "units"),
+        "price_sales": _financial_values(value.price_sales, "units"),
+        "price_book": _financial_values(value.price_book, "units"),
+    }
+
+
+def _financial_content(report: FinancialSnapshot, valuation_at: str, known_at: str) -> dict:
+    return {
+        "issuer": report.issuer,
+        "valuation_at": valuation_at,
+        "known_at": known_at,
+        "filing": _financial_values(report.filing, *_FILING_FIELDS),
+        "market_cap": _financial_values(report.market_cap, "ticks"),
+        "annual_valuation": _financial_multiples(report.annual_valuation),
+        "quarters": [_financial_values(quarter, *_FILING_FIELDS) for quarter in report.quarters],
+        "trailing": _financial_values(report.trailing, *_FLOW_FIELDS),
+        "quarterly_valuation": _financial_multiples(report.quarterly_valuation),
+    }
 
 
 def _invalid_number(value: str):
@@ -229,7 +344,7 @@ class ResearchServer:
         if method == "tools/list":
             if params.get("cursor") is not None:
                 raise RequestError(-32602, "The tool list fits on a single page.")
-            return {"tools": [TOOL, SCREEN_TOOL]}
+            return {"tools": [TOOL, SCREEN_TOOL, FINANCIAL_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -237,6 +352,8 @@ class ResearchServer:
                 return self._evaluate(arguments)
             if name == SCREEN_TOOL_NAME:
                 return self._screen(arguments)
+            if name == FINANCIAL_TOOL_NAME:
+                return self._financial(arguments)
             raise RequestError(-32602, "Unknown research tool.")
         raise RequestError(-32601, "Method not found.")
 
@@ -304,6 +421,20 @@ class ResearchServer:
             ],
         })
 
+    def _financial(self, arguments) -> dict:
+        properties = FINANCIAL_INPUT_SCHEMA["properties"]
+        if not isinstance(arguments, dict) or set(arguments) - properties.keys():
+            raise RequestError(-32602, "Supply only the documented financial snapshot arguments.")
+        required = FINANCIAL_INPUT_SCHEMA["required"]
+        fields = required + (["capitalization_csv"] if "capitalization_csv" in arguments else [])
+        if not all(isinstance(arguments.get(field), str) and arguments[field] for field in fields):
+            raise RequestError(-32602, "Supply filing CSV contents, an issuer and both UTC times.")
+        try:
+            report = self._engine.financial_snapshot(**arguments)
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+        return _structured(_financial_content(report, arguments["valuation_at"], arguments["known_at"]))
+
 
 def run(server: ResearchServer, read: BinaryIO, write: BinaryIO) -> None:
     while frame := read.readline(MAX_FRAME_BYTES + 1):
@@ -327,7 +458,7 @@ def run(server: ResearchServer, read: BinaryIO, write: BinaryIO) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Serve local MarketWeft research over MCP standard input and output.")
     parser.add_argument("--engine", required=True, type=Path, help="Path to the MarketWeft native research executable")
-    parser.add_argument("--timeout", type=float, default=15.0, help="Timeout in seconds for each formula evaluation")
+    parser.add_argument("--timeout", type=float, default=15.0, help="Timeout in seconds for each native query")
     arguments = parser.parse_args()
     try:
         engine = ResearchEngine(arguments.engine, timeout=arguments.timeout)
