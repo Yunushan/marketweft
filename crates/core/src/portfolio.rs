@@ -4,7 +4,14 @@ use crate::{
 };
 use std::{
     collections::BTreeMap,
-    ops::Bound::{Excluded, Included, Unbounded},
+    ops::Bound::{self, Excluded, Included, Unbounded},
+};
+
+#[path = "portfolio_income.rs"]
+mod income;
+use income::PortfolioIncomeReports;
+pub use income::{
+    PortfolioDividendRow, PortfolioDividendState, PortfolioIncomeCurrency, PortfolioIncomeSnapshot,
 };
 
 const MAX_HOLDING_REPORTS: usize = 10_000;
@@ -56,10 +63,23 @@ struct PositionSeries {
     quantities: BTreeMap<i64, BTreeMap<i64, u32>>,
 }
 
+impl PositionSeries {
+    fn position(&self, end: Bound<i64>, known_at: i64) -> Option<(i64, i64, u32)> {
+        self.quantities
+            .range((Unbounded, end))
+            .rev()
+            .find_map(|(&effective, vintages)| {
+                let (&observed, &shares) = vintages.range(..=known_at).next_back()?;
+                Some((effective, observed, shares))
+            })
+    }
+}
+
 pub struct PortfolioBook<'a> {
     prices: PriceBook<'a>,
     delistings: DelistingBook,
     positions: BTreeMap<String, PositionSeries>,
+    income: Option<PortfolioIncomeReports>,
 }
 
 impl<'a> PortfolioBook<'a> {
@@ -77,7 +97,22 @@ impl<'a> PortfolioBook<'a> {
                 parse_delistings(universe.clone(), delisting_terms)?
             },
             positions: parse_holdings(universe, holdings)?,
+            income: None,
         })
+    }
+
+    pub fn parse_with_income(
+        universe: &'a UniverseBook,
+        holdings: &str,
+        prices: &str,
+        delisting_terms: &str,
+        dividends: &str,
+    ) -> Result<Self, String> {
+        let mut book = Self::parse(universe, holdings, prices, delisting_terms)?;
+        if !dividends.is_empty() {
+            book.income = Some(PortfolioIncomeReports::parse(universe, dividends)?);
+        }
+        Ok(book)
     }
 
     pub fn as_of(&self, effective_at: i64, known_at: i64) -> PortfolioSnapshot<'_> {
@@ -100,14 +135,7 @@ impl<'a> PortfolioBook<'a> {
             let delisting = listing.filter(|row| row.action == UniverseAction::Delist);
             let position_end =
                 delisting.map_or(Included(effective_at), |row| Excluded(row.effective_at));
-            let position = positions
-                .quantities
-                .range((Unbounded, position_end))
-                .rev()
-                .find_map(|(&effective, vintages)| {
-                    let (&observed, &shares) = vintages.range(..=known_at).next_back()?;
-                    Some((effective, observed, shares))
-                });
+            let position = positions.position(position_end, known_at);
             let Some((position_effective_at, position_observed_at, shares)) = position else {
                 continue;
             };

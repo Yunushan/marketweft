@@ -323,6 +323,28 @@ test('Wasm universe queries gate each listing by knowledge and effective time', 
   assert.throws(() => core.universeAsOf(csv, '2025-06-31T14:00:00Z', iso('14:35:00')), /UTC timestamps/);
 });
 
+test('portfolio income keeps dividend and delisting subtotals separate across observation vintages', async () => {
+  const sources = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices',
+    'delisting-terms', 'portfolio-dividends'].map(name => readFile(
+    new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8'
+  )));
+  const [membership, holdings, prices, terms, dividends] = sources;
+  const utc = minute => '2025-06-02T14:' + minute + ':00Z';
+  const query = (effective, known) => core.portfolioAsOf(membership, holdings, prices, terms,
+    utc(effective), utc(known), dividends);
+  const open = query('37', '37');
+  assert.equal(open.totals.find(row => row.currency === 'USD').receivable, 70_000_000n);
+  assert.equal(open.income.totals.find(row => row.currency === 'USD').receivable, 7_500_000n);
+  const paid = query('55', '55');
+  assert.equal(paid.income.totals.find(row => row.currency === 'EUR').cash, 8_000_000n);
+  assert.equal(paid.income.totals.find(row => row.currency === 'USD').cash, 5_000_000n);
+  const corrected = query('55', '58');
+  assert.equal(corrected.income.totals.find(row => row.currency === 'USD').cash, 4_000_000n);
+  const repeated = paid.income.dividends.filter(row => row.id === 'BETA-PAYOUT');
+  assert.deepEqual(repeated.map(row => [row.listing, row.entitledShares]), [['BETA-001', 10], ['BETA-002', 3]]);
+  assert.deepEqual(query('55', '55'), paid);
+});
+
 test('portfolio Wasm keeps late closes and delisting cash separate by listing and currency', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
   const [universe, holdings, prices, terms] = await Promise.all(

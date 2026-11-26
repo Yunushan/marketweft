@@ -59,7 +59,9 @@ pub use paper::{
 };
 pub use paper_replay::{parse_paper_config, PaperReplay};
 pub use portfolio::{
-    PortfolioBook, PortfolioCurrency, PortfolioRow, PortfolioSnapshot, PortfolioState,
+    PortfolioBook, PortfolioCurrency, PortfolioDividendRow, PortfolioDividendState,
+    PortfolioIncomeCurrency, PortfolioIncomeSnapshot, PortfolioRow, PortfolioSnapshot,
+    PortfolioState,
 };
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};

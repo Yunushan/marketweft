@@ -1,5 +1,5 @@
 use crate::{
-    history::{decimal, exact_utc, timestamp},
+    history::{decimal, exact_utc},
     Instrument, MAX_TICKS,
 };
 use std::collections::BTreeMap;
@@ -112,6 +112,15 @@ impl DividendBook {
 
     pub fn for_instrument(instrument: Instrument, rows: Vec<Dividend>) -> Result<Self, String> {
         Self::validated(Some(instrument), rows)
+    }
+
+    pub(crate) fn known_reports(&self, known_at: i64) -> impl Iterator<Item = &Dividend> {
+        self.rows
+            .chunk_by(|left, right| left.id == right.id)
+            .filter_map(move |revisions| {
+                let count = revisions.partition_point(|report| report.observed_at <= known_at);
+                count.checked_sub(1).map(|index| &revisions[index])
+            })
     }
 
     fn validated(instrument: Option<Instrument>, mut rows: Vec<Dividend>) -> Result<Self, String> {
@@ -355,6 +364,42 @@ fn validate(row: &Dividend) -> Result<(), &'static str> {
     Ok(())
 }
 
+pub(crate) fn parse_report<'a>(
+    fields: &mut impl Iterator<Item = &'a str>,
+    extra_fields_error: &'static str,
+) -> Result<Dividend, &'static str> {
+    let id = fields.next().unwrap_or_default().to_owned();
+    let mut time = || {
+        fields
+            .next()
+            .and_then(exact_utc)
+            .ok_or("Use UTC timestamps in YYYY-MM-DDTHH:MM:SSZ format.")
+    };
+    let announced_at = time()?;
+    let ex_at = time()?;
+    let pay_at = time()?;
+    let observed_at = time()?;
+    let currency = fields.next().unwrap_or_default().to_owned();
+    let amount_per_share = fields
+        .next()
+        .and_then(decimal)
+        .ok_or("Use a decimal amount with up to six fractional places.")?;
+    if fields.next().is_some() {
+        return Err(extra_fields_error);
+    }
+    let row = Dividend {
+        id,
+        announced_at,
+        ex_at,
+        pay_at,
+        observed_at,
+        currency,
+        amount_per_share,
+    };
+    validate(&row)?;
+    Ok(row)
+}
+
 pub fn parse_dividends(csv: &str, instrument: &Instrument) -> Result<DividendBook, String> {
     if csv.len() > 1024 * 1024 {
         return Err("Cash dividends CSV exceeds 1 MiB.".into());
@@ -380,37 +425,7 @@ pub fn parse_dividends(csv: &str, instrument: &Instrument) -> Result<DividendBoo
         if fields.next() != Some(expected.as_str()) {
             return Err(error("Instrument must match the selected VENUE:SYMBOL."));
         }
-        let id = fields.next().unwrap_or_default().to_owned();
-        let mut time = || {
-            fields
-                .next()
-                .filter(|value| value.len() == 20 && value.ends_with('Z'))
-                .and_then(timestamp)
-                .ok_or_else(|| error("Use UTC timestamps in YYYY-MM-DDTHH:MM:SSZ format."))
-        };
-        let announced_at = time()?;
-        let ex_at = time()?;
-        let pay_at = time()?;
-        let observed_at = time()?;
-        let currency = fields.next().unwrap_or_default().to_owned();
-        let amount_per_share = fields
-            .next()
-            .and_then(decimal)
-            .ok_or_else(|| error("Use a decimal amount with up to six fractional places."))?;
-        if fields.next().is_some() {
-            return Err(error("Expected exactly eight fields."));
-        }
-        let row = Dividend {
-            id,
-            announced_at,
-            ex_at,
-            pay_at,
-            observed_at,
-            currency,
-            amount_per_share,
-        };
-        validate(&row).map_err(error)?;
-        rows.push(row);
+        rows.push(parse_report(&mut fields, "Expected exactly eight fields.").map_err(error)?);
     }
     DividendBook::for_instrument(instrument.clone(), rows)
 }

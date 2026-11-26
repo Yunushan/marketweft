@@ -1,11 +1,13 @@
 use marketweft_core::{
-    parse_universe, PortfolioBook, PortfolioCurrency, PortfolioSnapshot, PortfolioState,
+    parse_universe, PortfolioBook, PortfolioCurrency, PortfolioDividendState,
+    PortfolioIncomeSnapshot, PortfolioSnapshot, PortfolioState,
 };
 
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-universe.csv");
 const PRICES: &str = include_str!("fixtures/synthetic-universe-prices.csv");
 const DELISTING: &str = include_str!("fixtures/synthetic-delisting-terms.csv");
 const HOLDINGS: &str = include_str!("fixtures/synthetic-portfolio-holdings.csv");
+const DIVIDENDS: &str = include_str!("fixtures/synthetic-portfolio-dividends.csv");
 const BASE: i64 = 1_748_872_800;
 const MILLION: i128 = 1_000_000;
 fn t(minute: i64) -> i64 {
@@ -96,4 +98,92 @@ fn portfolio_rejects_unknown_listing_ids_and_conflicting_input_evidence() {
     ] {
         assert!(PortfolioBook::parse(&universe, &input, PRICES, DELISTING).is_err());
     }
+}
+
+fn income(snapshot: &PortfolioIncomeSnapshot<'_>, currency: &str) -> (i128, i128) {
+    let totals = snapshot.totals.get(currency).copied().unwrap_or_default();
+    (totals.receivable, totals.cash)
+}
+
+#[test]
+fn portfolio_dividends_respect_ex_date_late_reports_and_listing_identity() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let holdings =
+        format!("{HOLDINGS}\nDEMO-BASKET,ALFA-001,2025-06-02T14:10:00Z,2025-06-02T14:10:00Z,3,USD");
+    let book = PortfolioBook::parse_with_income(&universe, &holdings, PRICES, DELISTING, DIVIDENDS)
+        .unwrap();
+    assert!(book.as_of_with_income(t(10), t(2)).dividends.is_empty());
+    assert!(book.as_of_with_income(t(9), t(10)).dividends.is_empty());
+
+    let ex = book.as_of_with_income(t(10), t(10));
+    assert_eq!(ex.dividends[0].entitled_shares, Some(2));
+    assert_eq!(income(&ex, "USD"), (2_500_000, 0));
+    let before_delisting_report = book.as_of_with_income(t(34), t(34));
+    assert_eq!(income(&before_delisting_report, "USD"), (16_500_000, 0));
+    let known_delisting = book.as_of_with_income(t(34), t(35));
+    assert_eq!(income(&known_delisting, "USD"), (7_500_000, 0));
+    assert!(known_delisting
+        .dividends
+        .iter()
+        .any(|row| row.report.id == "BETA-POST-DELIST"
+            && row.state == PortfolioDividendState::NoPayment));
+    let open_claim = book.as_of_with_income(t(37), t(37));
+    assert_eq!(
+        funds(&open_claim.portfolio, "USD").delisting_receivable,
+        70 * MILLION
+    );
+    assert_eq!(income(&open_claim, "USD"), (7_500_000, 0));
+
+    let paid = book.as_of_with_income(t(55), t(55));
+    assert_eq!(income(&paid, "USD"), (0, 5 * MILLION));
+    assert_eq!(income(&paid, "EUR"), (0, 8 * MILLION));
+    assert_eq!(
+        paid.dividends
+            .iter()
+            .filter(|row| row.report.id == "BETA-PAYOUT")
+            .count(),
+        2
+    );
+    let hindsight = book.as_of_with_income(t(40), t(58));
+    assert_eq!(income(&hindsight, "USD"), (4 * MILLION, 0));
+    assert_eq!(income(&hindsight, "EUR"), (2 * MILLION, 0));
+    let corrected = book.as_of_with_income(t(55), t(58));
+    assert_eq!(income(&corrected, "USD"), (0, 4 * MILLION));
+    assert_eq!(income(&book.as_of_with_income(t(55), t(61)), "USD"), (0, 0));
+    assert_eq!(book.as_of_with_income(t(55), t(55)), paid);
+}
+
+#[test]
+fn portfolio_dividends_keep_unknown_holdings_distinct_and_validate_report_identity() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let holdings = HOLDINGS
+        .lines()
+        .filter(|row| !row.contains("ALFA-001"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let book = PortfolioBook::parse_with_income(&universe, &holdings, PRICES, DELISTING, DIVIDENDS)
+        .unwrap();
+    let ex = book.as_of_with_income(t(10), t(10));
+    assert_eq!(
+        ex.dividends[0].state,
+        PortfolioDividendState::UnknownPosition
+    );
+    assert_eq!(ex.dividends[0].amount, None);
+    assert_eq!(income(&ex, "USD"), (0, 0));
+    assert!(PortfolioBook::parse_with_income(
+        &universe,
+        HOLDINGS,
+        PRICES,
+        DELISTING,
+        &DIVIDENDS.replace("ALFA-001", "UNKNOWN")
+    )
+    .is_err());
+    assert!(PortfolioBook::parse_with_income(
+        &universe,
+        HOLDINGS,
+        PRICES,
+        DELISTING,
+        &DIVIDENDS.replace("14:52:00Z", "14:03:00Z")
+    )
+    .is_err());
 }

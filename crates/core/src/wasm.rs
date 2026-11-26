@@ -296,76 +296,146 @@ pub extern "C" fn mw_portfolio_as_of(
     holding_bytes: usize,
     price_bytes: usize,
 ) -> u32 {
-    use std::fmt::Write;
+    process(|input| portfolio_report(input, membership_bytes, holding_bytes, price_bytes, None))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_portfolio_income_as_of(
+    membership_bytes: usize,
+    holding_bytes: usize,
+    price_bytes: usize,
+    terms_bytes: usize,
+) -> u32 {
     process(|input| {
-        let mut parts = utf8(input)?.splitn(3, '\n');
-        let mut cutoff = || {
-            parts
-                .next()
-                .and_then(exact_utc)
-                .ok_or("Use YYYY-MM-DDTHH:MM:SSZ portfolio cutoffs.")
-        };
-        let effective = cutoff()?;
-        let known = cutoff()?;
-        let (membership, input) = parts
+        portfolio_report(
+            input,
+            membership_bytes,
+            holding_bytes,
+            price_bytes,
+            Some(terms_bytes),
+        )
+    })
+}
+
+fn portfolio_report(
+    input: &[u8],
+    membership_bytes: usize,
+    holding_bytes: usize,
+    price_bytes: usize,
+    terms_bytes: Option<usize>,
+) -> Result<Vec<u8>, String> {
+    use std::fmt::Write;
+    let mut parts = utf8(input)?.splitn(3, '\n');
+    let mut cutoff = || {
+        parts
             .next()
-            .and_then(|input| input.split_at_checked(membership_bytes))
-            .ok_or("Supply a universe membership report.")?;
-        let (holdings, input) = input
-            .split_at_checked(holding_bytes)
-            .ok_or("Supply a portfolio holdings report.")?;
-        let (prices, terms) = input
-            .split_at_checked(price_bytes)
-            .ok_or("Supply price and delisting reports.")?;
-        let universe = parse_universe(membership)?;
-        let book = crate::PortfolioBook::parse(&universe, holdings, prices, terms)?;
-        let snapshot = book.as_of(effective, known);
-        let mut text = String::new();
+            .and_then(exact_utc)
+            .ok_or("Use YYYY-MM-DDTHH:MM:SSZ portfolio cutoffs.")
+    };
+    let effective = cutoff()?;
+    let known = cutoff()?;
+    let (membership, input) = parts
+        .next()
+        .and_then(|input| input.split_at_checked(membership_bytes))
+        .ok_or("Supply a universe membership report.")?;
+    let (holdings, input) = input
+        .split_at_checked(holding_bytes)
+        .ok_or("Supply a portfolio holdings report.")?;
+    let (prices, additional) = input
+        .split_at_checked(price_bytes)
+        .ok_or("Supply price and delisting reports.")?;
+    let (terms, dividends) = match terms_bytes {
+        Some(length) => additional
+            .split_at_checked(length)
+            .ok_or("Supply delisting and dividend reports.")?,
+        None => (additional, ""),
+    };
+    let universe = parse_universe(membership)?;
+    let book =
+        crate::PortfolioBook::parse_with_income(&universe, holdings, prices, terms, dividends)?;
+    let income = book.as_of_with_income(effective, known);
+    let snapshot = income.portfolio;
+    let mut text = String::new();
+    writeln!(
+        text,
+        "P\t{}\t{}\t{}",
+        snapshot.effective_at, snapshot.known_at, snapshot.unvalued_positions
+    )
+    .unwrap();
+    for (currency, totals) in snapshot.totals {
         writeln!(
             text,
-            "P\t{}\t{}\t{}",
-            snapshot.effective_at, snapshot.known_at, snapshot.unvalued_positions
+            "C\t{currency}\t{}\t{}\t{}",
+            totals.shares_value, totals.delisting_receivable, totals.delisting_cash
         )
         .unwrap();
-        for (currency, totals) in snapshot.totals {
-            writeln!(
-                text,
-                "C\t{currency}\t{}\t{}\t{}",
-                totals.shares_value, totals.delisting_receivable, totals.delisting_cash
-            )
-            .unwrap();
-        }
-        let optional = |value: Option<i64>| value.map(|n| n.to_string()).unwrap_or_default();
-        for row in snapshot.rows {
-            let state = match row.state {
-                crate::PortfolioState::ListingUnobserved => "unobserved",
-                crate::PortfolioState::MissingClose => "missing-close",
-                crate::PortfolioState::MarkedShares => "shares",
-                crate::PortfolioState::MissingProceeds => "missing-proceeds",
-                crate::PortfolioState::Receivable => "receivable",
-                crate::PortfolioState::Cash => "cash",
-            };
-            writeln!(
-                text,
-                "H\t{}\t{}\t{}\t{}\t{}\t{state}\t{}\t{}\t{}\t{}\t{}\t{}",
-                row.listing_id,
-                row.instrument.map(ToString::to_string).unwrap_or_default(),
-                row.shares,
-                row.position_effective_at,
-                row.position_observed_at,
-                row.currency.unwrap_or_default(),
-                row.value.map(|value| value.to_string()).unwrap_or_default(),
-                optional(row.price.map(|price| price.ticks)),
-                optional(row.price.map(|price| price.observed_at)),
-                row.delisting
-                    .map(|action| action.change_id.as_str())
-                    .unwrap_or_default(),
-                optional(row.terms_observed_at)
-            )
-            .unwrap();
-        }
-        Ok(text.into_bytes())
-    })
+    }
+    let optional = |value: Option<i64>| value.map(|n| n.to_string()).unwrap_or_default();
+    for row in snapshot.rows {
+        let state = match row.state {
+            crate::PortfolioState::ListingUnobserved => "unobserved",
+            crate::PortfolioState::MissingClose => "missing-close",
+            crate::PortfolioState::MarkedShares => "shares",
+            crate::PortfolioState::MissingProceeds => "missing-proceeds",
+            crate::PortfolioState::Receivable => "receivable",
+            crate::PortfolioState::Cash => "cash",
+        };
+        writeln!(
+            text,
+            "H\t{}\t{}\t{}\t{}\t{}\t{state}\t{}\t{}\t{}\t{}\t{}\t{}",
+            row.listing_id,
+            row.instrument.map(ToString::to_string).unwrap_or_default(),
+            row.shares,
+            row.position_effective_at,
+            row.position_observed_at,
+            row.currency.unwrap_or_default(),
+            row.value.map(|value| value.to_string()).unwrap_or_default(),
+            optional(row.price.map(|price| price.ticks)),
+            optional(row.price.map(|price| price.observed_at)),
+            row.delisting
+                .map(|action| action.change_id.as_str())
+                .unwrap_or_default(),
+            optional(row.terms_observed_at)
+        )
+        .unwrap();
+    }
+    for (currency, totals) in income.totals {
+        writeln!(
+            text,
+            "I\t{currency}\t{}\t{}",
+            totals.receivable, totals.cash
+        )
+        .unwrap();
+    }
+    for row in income.dividends {
+        let state = match row.state {
+            crate::PortfolioDividendState::UnknownPosition => "unknown-position",
+            crate::PortfolioDividendState::NoPayment => "no-payment",
+            crate::PortfolioDividendState::Receivable => "receivable",
+            crate::PortfolioDividendState::Paid => "paid",
+        };
+        let report = row.report;
+        writeln!(
+            text,
+            "D\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{state}\t{}\t{}",
+            row.listing_id,
+            report.id,
+            report.announced_at,
+            report.ex_at,
+            report.pay_at,
+            report.observed_at,
+            report.currency,
+            report.amount_per_share,
+            row.entitled_shares
+                .map(|shares| shares.to_string())
+                .unwrap_or_default(),
+            row.amount
+                .map(|amount| amount.to_string())
+                .unwrap_or_default(),
+        )
+        .unwrap();
+    }
+    Ok(text.into_bytes())
 }
 
 #[no_mangle]

@@ -401,6 +401,15 @@ export interface PortfolioSnapshot {
   effectiveAt: number;
   knownAt: number;
   unvaluedPositions: number;
+  income?: {
+    totals: { currency: string; receivable: bigint; cash: bigint }[];
+    dividends: {
+      listing: string; id: string; announcedAt: number; exAt: number; payAt: number;
+      observedAt: number; currency: string; rate: bigint;
+      state: 'unknown-position' | 'no-payment' | 'receivable' | 'paid';
+      entitledShares: number | null; amount: bigint | null;
+    }[];
+  };
   totals: { currency: string; sharesValue: bigint; receivable: bigint; cash: bigint }[];
   holdings: {
     listing: string;
@@ -437,7 +446,7 @@ export interface MarketCore {
   delistingAsOf(membership: string, terms: string, listing: string, shares: number,
     effectiveAt: string, knownAt: string): DelistingValuation;
   portfolioAsOf(membership: string, holdings: string, prices: string, terms: string,
-    effectiveAt: string, knownAt: string): PortfolioSnapshot;
+    effectiveAt: string, knownAt: string, dividends?: string): PortfolioSnapshot;
   universeScreen(membership: string, prices: string, baselineAt: string,
     effectiveAt: string, knownAt: string): ScreenRow[];
   sectorHeatmap(membership: string, prices: string, sectors: string, baselineAt: string,
@@ -485,6 +494,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_universe_as_of(): number;
   mw_delisting_as_of(membershipBytes: number, shares: number): number;
   mw_portfolio_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number): number;
+  mw_portfolio_income_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number, termsBytes: number): number;
   mw_universe_screen(membershipBytes: number): number;
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
   mw_financial_index(filingBytes: number): number;
@@ -833,26 +843,40 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       }
       return value;
     },
-    portfolioAsOf(membership, holdings, prices, terms, effectiveAt, knownAt) {
+    portfolioAsOf(membership, holdings, prices, terms, effectiveAt, knownAt, dividends = '') {
       if ([effectiveAt, knownAt].some(time => time.length !== 20 || /[\n\r]/.test(time))) {
         throw new Error('Use YYYY-MM-DDTHH:MM:SSZ UTC portfolio cutoffs.');
       }
-      textInput([effectiveAt, knownAt, membership + holdings + prices + terms].join('\n'));
-      const text = decoder.decode(output(api.mw_portfolio_as_of(
-        encoder.encode(membership).length, encoder.encode(holdings).length, encoder.encode(prices).length,
-      )));
+      textInput([effectiveAt, knownAt, membership + holdings + prices + terms + dividends].join('\n'));
+      const widths = [encoder.encode(membership).length, encoder.encode(holdings).length,
+        encoder.encode(prices).length] as const;
+      const text = decoder.decode(output(dividends
+        ? api.mw_portfolio_income_as_of(...widths, encoder.encode(terms).length)
+        : api.mw_portfolio_as_of(...widths)));
       const [header, ...rows] = text.slice(0, -1).split('\n');
       const [, effective, known, unavailable] = header.split('\t');
       const report: PortfolioSnapshot = {
         effectiveAt: Number(effective), knownAt: Number(known), unvaluedPositions: Number(unavailable),
         holdings: [], totals: [],
       };
+      const income: NonNullable<PortfolioSnapshot['income']> | undefined = dividends
+        ? { totals: [], dividends: [] } : undefined;
+      if (income) report.income = income;
       for (const row of rows) {
         const [kind, ...fields] = row.split('\t');
         if (kind === 'C') {
           const [currency, sharesValue, receivable, cash] = fields;
           report.totals.push({ currency, sharesValue: BigInt(sharesValue), receivable: BigInt(receivable), cash: BigInt(cash) });
-        } else {
+        } else if (kind === 'I' && income) {
+          const [currency, receivable, cash] = fields;
+          income.totals.push({ currency, receivable: BigInt(receivable), cash: BigInt(cash) });
+        } else if (kind === 'D' && income) {
+          const [listing, id, announced, ex, pay, observed, currency, rate, state, shares, amount] = fields;
+          income.dividends.push({ listing, id, announcedAt: Number(announced), exAt: Number(ex),
+            payAt: Number(pay), observedAt: Number(observed), currency, rate: BigInt(rate),
+            state: state as typeof income.dividends[number]['state'],
+            entitledShares: shares === '' ? null : Number(shares), amount: amount === '' ? null : BigInt(amount) });
+        } else if (kind === 'H') {
           const [listing, instrument, shares, effective, observed, state, currency,
             value, price, priceAt, delisting, termsAt] = fields;
           report.holdings.push({
@@ -862,6 +886,8 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
             priceObservedAt: priceAt ? Number(priceAt) : null, delisting: delisting || null,
             termsObservedAt: termsAt ? Number(termsAt) : null,
           });
+        } else {
+          throw new Error('Invalid portfolio record from the calculation engine.');
         }
       }
       return report;
