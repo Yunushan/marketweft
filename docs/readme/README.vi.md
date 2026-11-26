@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.23.0 · 0BSD**
+**0.24.0 · 0BSD**
 
 **Ngôn ngữ tài liệu**
 
@@ -15,14 +15,14 @@
 
 MarketWeft là terminal nghiên cứu ưu tiên chạy cục bộ cho nhà phân tích, lập trình viên và người vận hành. Terminal mở OHLCV được cấp quyền, vẽ nến và khối lượng, tính SMA và EMA bằng số dấu phẩy cố định, lưu danh sách theo dõi, tài sản và chỉ báo vào IndexedDB. Sau khi lưu tài nguyên vào bộ đệm, ứng dụng chạy ngoại tuyến. Giá và khối lượng đi kèm là dữ liệu tổng hợp và không cần tài khoản.
 
-MarketWeft 0.23.0 lưu các chu kỳ SMA và EMA riêng cho biểu đồ chính và biểu đồ so sánh. MarketWeft 0.7.0 bổ sung sàng lọc tập mã theo tỷ suất thay đổi giá dựa trên dữ liệu đã biết tại thời điểm truy vấn. Phát lại theo phiên bao gồm chia tách cổ phiếu, cổ tức tiền mặt, thay đổi thành viên và hủy niêm yết. Kho mã còn có trình quan sát TypeScript chỉ đọc cho dịch vụ trading-bot riêng biệt và lớp bọc Tauri thử nghiệm. Luồng dữ liệu từ nhà cung cấp, đặt lệnh, trình cài đặt có chữ ký và lưu trữ đa người dùng vẫn nằm trong lộ trình.
+MarketWeft 0.24.0 xuất phạm vi đang hiển thị hoặc toàn bộ lịch sử của mỗi khung biểu đồ dưới dạng CSV. MarketWeft 0.7.0 bổ sung sàng lọc tập mã theo tỷ suất thay đổi giá dựa trên dữ liệu đã biết tại thời điểm truy vấn. Phát lại theo phiên bao gồm chia tách cổ phiếu, cổ tức tiền mặt, thay đổi thành viên và hủy niêm yết. Kho mã còn có trình quan sát TypeScript chỉ đọc cho dịch vụ trading-bot riêng biệt và lớp bọc Tauri thử nghiệm. Luồng dữ liệu từ nhà cung cấp, đặt lệnh, trình cài đặt có chữ ký và lưu trữ đa người dùng vẫn nằm trong lộ trình.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Khởi động terminal di động
 
-Tải browser-terminal-attempt-N từ lần kiểm chứng GitHub thành công. Giải nén MarketWeft-browser-0.23.0.zip, giữ dist/ cùng thư mục với serve-terminal.mjs và chạy lệnh tại đó. Mở http://127.0.0.1:4173/ trên trình duyệt hỗ trợ WebAssembly, Canvas, BigInt và IndexedDB. Dùng Node.js 22.12 trở lên. Không phải cài npm. Chờ Offline ready trước khi ngắt mạng.
+Tải browser-terminal-attempt-N từ lần kiểm chứng GitHub thành công. Giải nén MarketWeft-browser-0.24.0.zip, giữ dist/ cùng thư mục với serve-terminal.mjs và chạy lệnh tại đó. Mở http://127.0.0.1:4173/ trên trình duyệt hỗ trợ WebAssembly, Canvas, BigInt và IndexedDB. Dùng Node.js 22.12 trở lên. Không phải cài npm. Chờ Offline ready trước khi ngắt mạng.
 
 ```sh
 node serve-terminal.mjs
@@ -143,6 +143,8 @@ Chọn Compare charts rồi chọn mã để so sánh. Link by UTC đánh dấu 
 Chọn Draw measurement rồi chọn thanh UTC hiện có và giá cho từng đầu mút. Khi thu phóng hay dịch biểu đồ, đường đo được vẽ lại từ tọa độ đã lưu. Bản sao lưu giữ các tọa độ này. Ứng dụng hiển thị số giây và mức thay đổi giá tuyệt đối lẫn phần trăm.
 
 Mở Indicators và đặt chu kỳ SMA và EMA theo số thanh cho mỗi khung. Khi có đủ giá đóng cửa, biểu đồ hiển thị giá trị tại thanh UTC đã chọn. Chu kỳ được giữ khi đổi mã, tải lại hoặc khôi phục bản sao lưu.
+
+Mở Export CSV bên dưới biểu đồ. Tải các thanh OHLCV để nhập lại hoặc thêm nguồn gốc và đường trung bình động đang bật để phân tích. Ô trung bình để trống khi chưa đủ giá đóng cửa.
 
 [docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](../../docs/replay-alerts.md) · [alert-rules.csv](../../crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](../../crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](../../docs/paper-ledger.md) · [paper-events.csv](../../crates/core/tests/fixtures/synthetic-paper-events.csv) · [bar-backtest.md](../../docs/bar-backtest.md) · [backtest-sessions.csv](../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv) · [backtest-bars.csv](../../crates/core/tests/fixtures/synthetic-backtest-bars.csv) · [walk-forward.md](../../docs/walk-forward.md) · [seeded-scenarios.md](../../docs/seeded-scenarios.md) · [delisting-proceeds.md](../../docs/delisting-proceeds.md) · [split-revisions.csv](../../crates/core/tests/fixtures/synthetic-split-revisions.csv) · [dividend-positions.csv](../../crates/core/tests/fixtures/synthetic-dividend-positions.csv) · [portfolio-replay.md](../../docs/portfolio-replay.md) · [portfolio-holdings.csv](../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv) · [chart-workspace.md](../../docs/chart-workspace.md)
 

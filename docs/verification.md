@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.24.0 · Chart CSV export
+
+| Check | Observed result |
+| --- | --- |
+| Exact offline reimport | The comparison pane exports both source timestamps as UTC Unix seconds. Signed OHLC values and fractional volumes remain exact through six places. The terminal reimports the file offline. The original source record stays byte-identical. |
+| Visible and full ranges | After setting 30 bars and panning earlier in a 36-bar fixture, the visible research download contains the first 30 rows. The All bars variant contains all 36. |
+| Indicator alignment and provenance | The first 19 SMA cells remain empty. The twentieth row reports 10.5 and the thirtieth 20.5. The export preserves quoted text, comma-containing source labels, interval, usage grant and adjustment policy, with a leading apostrophe on a formula-like source. |
+| Regression suite | All 62 browser and six SDK tests passed on Windows x64, 63 native tests passed on Linux x64, 22 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Chart workspace](chart-workspace.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.23.0 · Independent moving-average periods
 
 | Check | Observed result |
