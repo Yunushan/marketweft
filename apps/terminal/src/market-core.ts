@@ -102,6 +102,19 @@ export interface ScreenPrice {
   observedAt: number;
 }
 
+export interface RelativeLegPoint {
+  membership: UniverseListing['status'] | null;
+  close: ScreenPrice | null;
+  returnUnits: bigint | null;
+}
+
+export interface RelativePoint {
+  effectiveAt: number;
+  left: RelativeLegPoint;
+  right: RelativeLegPoint;
+  spreadUnits: bigint | null;
+}
+
 export interface ScreenRow {
   listingId: string;
   instrument: string;
@@ -449,6 +462,8 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string, dividends?: string): PortfolioSnapshot;
   universeScreen(membership: string, prices: string, baselineAt: string,
     effectiveAt: string, knownAt: string): ScreenRow[];
+  relativeSeries(membership: string, prices: string, leftId: string, rightId: string,
+    baselineAt: string, effectiveAt: string, knownAt: string): RelativePoint[];
   sectorHeatmap(membership: string, prices: string, sectors: string, baselineAt: string,
     effectiveAt: string, knownAt: string): Heatmap;
   financialIndex(filings: string, caps: string): FinancialIssuer[];
@@ -496,6 +511,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number): number;
   mw_portfolio_income_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number, termsBytes: number): number;
   mw_universe_screen(membershipBytes: number): number;
+  mw_relative_series(membershipBytes: number): number;
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
   mw_financial_index(filingBytes: number): number;
   mw_financial_as_of(filingBytes: number): number;
@@ -622,6 +638,12 @@ function validateInterval(interval: number) {
   if (!Number.isInteger(interval) || interval < 1 || interval > 86400) {
     throw new Error('Replay interval must be 1–86,400 seconds.');
   }
+}
+
+function decodeScreenPrice(field: string): ScreenPrice | null {
+  if (field === '') return null;
+  const [ticks, observedAt] = field.split(',');
+  return { ticks: BigInt(ticks), observedAt: Number(observedAt) };
 }
 
 export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketCore> {
@@ -897,16 +919,28 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const membershipBytes = encoder.encode(membership).length;
       const text = decoder.decode(output(api.mw_universe_screen(membershipBytes)));
       if (!text) return [];
-      const price = (field: string): ScreenPrice | null => {
-        if (field === '') return null;
-        const [ticks, observedAt] = field.split(',');
-        return { ticks: BigInt(ticks), observedAt: Number(observedAt) };
-      };
       return text.slice(0, -1).split('\n').map(line => {
         const [listingId, instrument, rank, change, baseline, current] = line.split('\t');
         return { listingId, instrument, rank: rank === '' ? null : Number(rank),
-          returnUnits: change === '' ? null : BigInt(change), baseline: price(baseline),
-          current: price(current) };
+          returnUnits: change === '' ? null : BigInt(change), baseline: decodeScreenPrice(baseline),
+          current: decodeScreenPrice(current) };
+      });
+    },
+    relativeSeries(membership, prices, leftId, rightId, baselineAt, effectiveAt, knownAt) {
+      if ([leftId, rightId].some(id => id.length < 1 || id.length > 40 || /[^a-zA-Z0-9._-]/.test(id))) {
+        throw new Error('Use two valid listing IDs.');
+      }
+      screenInput([baselineAt, effectiveAt, knownAt], leftId, '\n', rightId, '\n', membership, prices);
+      const text = decoder.decode(output(api.mw_relative_series(encoder.encode(membership).length)));
+      const leg = (state: string, close: string, change: string): RelativeLegPoint => ({
+        membership: state === '' ? null : universeStatuses[Number(state)],
+        close: decodeScreenPrice(close),
+        returnUnits: change === '' ? null : BigInt(change),
+      });
+      return text.slice(0, -1).split('\n').map(line => {
+        const [at, leftState, leftClose, leftReturn, rightState, rightClose, rightReturn, spread] = line.split('\t');
+        return { effectiveAt: Number(at), left: leg(leftState, leftClose, leftReturn),
+          right: leg(rightState, rightClose, rightReturn), spreadUnits: spread === '' ? null : BigInt(spread) };
       });
     },
     sectorHeatmap(membership, prices, sectors, baselineAt, effectiveAt, knownAt) {

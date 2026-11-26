@@ -128,9 +128,7 @@ impl UniverseBook {
         checkpoints.into_iter().collect()
     }
 
-    /// Reconstruct the listing states effective by one cutoff from reports known by the other.
-    /// Add rows are members. Remove and Delist rows retain the state-changing evidence.
-    pub fn as_of(&self, effective_at: i64, known_at: i64) -> Vec<&UniverseChange> {
+    pub(crate) fn visible_changes(&self, effective_at: i64, known_at: i64) -> Vec<&UniverseChange> {
         let mut applicable: Vec<_> = self
             .rows
             .chunk_by(|a, b| a.change_id == b.change_id)
@@ -144,8 +142,14 @@ impl UniverseBook {
         applicable.sort_unstable_by(|a, b| {
             (a.effective_at, a.action, &a.change_id).cmp(&(b.effective_at, b.action, &b.change_id))
         });
+        applicable
+    }
+
+    /// Reconstruct the listing states effective by one cutoff from reports known by the other.
+    /// Add rows are members. Remove and Delist rows retain the state-changing evidence.
+    pub fn as_of(&self, effective_at: i64, known_at: i64) -> Vec<&UniverseChange> {
         let mut states = BTreeMap::<&str, &UniverseChange>::new();
-        for row in applicable {
+        for row in self.visible_changes(effective_at, known_at) {
             let state = states.entry(&row.listing_id).or_insert(row);
             if state.action != UniverseAction::Delist {
                 *state = row;

@@ -307,6 +307,41 @@ main {
 .universe-table td {
   white-space: nowrap;
 }
+.relative-returns {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  min-width: 0;
+}
+.relative-returns summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.relative-returns section {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  min-width: 0;
+}
+.relative-returns section > button {
+  justify-self: start;
+}
+.relative-returns p,
+.relative-plot {
+  margin: 0;
+}
+.relative-plot figcaption {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font: 13px var(--mono);
+}
+.relative-left { color: var(--mint); }
+.relative-right { color: #e8ba70; }
+.relative-plot canvas {
+  display: block;
+  width: 100%;
+  height: 140px;
+}
 .sector-heatmap {
   display: grid;
   gap: 14px;

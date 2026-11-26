@@ -4,6 +4,10 @@ use crate::{
 };
 use std::{cmp::Ordering, collections::BTreeMap};
 
+#[path = "relative.rs"]
+mod relative;
+pub use relative::{RelativeLegPoint, RelativePoint};
+
 const MAX_PRICE_ROWS: usize = 20_000;
 const MAX_PRICE_BYTES: usize = 2 * 1024 * 1024;
 

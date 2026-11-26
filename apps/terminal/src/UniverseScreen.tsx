@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { MarketCore, ScreenPrice } from './market-core'
+import type { MarketCore, ScreenPrice, UniverseListing } from './market-core'
 import { utc } from './workspace'
 import { fixed } from './fixed-point'
 import { SectorHeatmap } from './SectorHeatmap'
+import { RelativeReturns } from './RelativeReturns'
 import demoPrices from '../../../crates/core/tests/fixtures/synthetic-universe-prices.csv?raw'
 
 function PriceCell({ price }: { price: ScreenPrice | null }) {
@@ -17,10 +18,12 @@ function PriceCell({ price }: { price: ScreenPrice | null }) {
 }
 
 export function UniverseScreen({
-  core, membership, demo, firstCutoff, effective, known,
+  core, membership, membershipSource, listings, demo, firstCutoff, effective, known,
 }: {
   core: MarketCore
   membership: string
+  membershipSource: string
+  listings: UniverseListing[]
   demo: boolean
   firstCutoff: string
   effective: string
@@ -156,6 +159,9 @@ export function UniverseScreen({
       {(report?.error || error) && (
         <p className="warning" role="alert">{report?.error || error}</p>
       )}
+      {prices && <RelativeReturns core={core} membership={membership} membershipSource={membershipSource}
+        prices={prices.csv} priceSource={prices.source} listings={listings} firstCutoff={firstCutoff}
+        effective={effective} known={known} />}
       {prices && <SectorHeatmap core={core} membership={membership} prices={prices.csv}
         baseline={baseline} effective={effective} known={known} demo={demo} />}
     </section>

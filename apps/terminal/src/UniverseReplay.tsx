@@ -339,6 +339,8 @@ export function UniverseReplay({
             <UniverseScreen
               core={core}
               membership={dataset.csv}
+              membershipSource={dataset.source}
+              listings={result.listings}
               demo={dataset.demo}
               firstCutoff={utc(dataset.checkpoints[0])}
               effective={result.effective}

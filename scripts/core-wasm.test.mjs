@@ -302,6 +302,36 @@ test('screen Wasm bridge retains missing ends, revisions and precise rank units'
   assert.throws(() => core.universeScreen(membership, prices.replace('DEMO-BASKET', 'WRONG'), iso('14:00:00'), iso('14:10:00'), iso('14:16:00')), /IDs must match/);
 });
 
+test('relative series Wasm bridge preserves missing points, revisions and listing state', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-universe' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, quotes] = await Promise.all([fixture(''), fixture('-prices')]);
+  const prices = quotes +
+    'DEMO-BASKET,ALFA-001,2025-06-02T14:12:00Z,2025-06-02T14:12:00Z,105\n' +
+    'DEMO-BASKET,BETA-001,2025-06-02T14:12:00Z,2025-06-02T14:13:00Z,57\n';
+  const iso = t => '2025-06-02T' + t + 'Z';
+  const series = (end, known, rightId = 'BETA-001') => core.relativeSeries(
+    membership, prices, 'ALFA-001', rightId, iso('14:10:00'), iso(end), iso(known),
+  );
+  const missing = series('14:12:00', '14:12:00');
+  assert.equal(missing.length, 2);
+  assert.equal(missing[0].spreadUnits, 0n);
+  assert.deepEqual(missing[1].right, { membership: 'member', close: null, returnUnits: null });
+  assert.equal(missing[1].spreadUnits, null);
+  const observed = series('14:12:00', '14:13:00')[1];
+  assert.deepEqual(observed.right, {
+    membership: 'member', close: { ticks: 57000000n, observedAt: Date.parse(iso('14:13:00')) / 1000 },
+    returnUnits: 17857n,
+  });
+  assert.equal(observed.spreadUnits, 11555n);
+  assert.equal(series('14:12:00', '14:16:00')[1].spreadUnits, -99301n);
+  const removed = series('14:20:00', '14:25:00').at(-1);
+  assert.equal(removed.effectiveAt, Date.parse(iso('14:20:00')) / 1000);
+  assert.deepEqual(removed.left, { membership: 'removed', close: null, returnUnits: null });
+  assert.equal(removed.spreadUnits, null);
+  assert.throws(() => series('14:12:00', '14:16:00', 'ALFA-001'), /distinct listing IDs/);
+  assert.throws(() => series('14:12:00', '14:16:00', 'BETA-001\n'), /valid listing IDs/);
+});
+
 test('Wasm universe queries gate each listing by knowledge and effective time', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-universe.csv', import.meta.url), 'utf8');
   const iso = t => '2025-06-02T' + t + 'Z';

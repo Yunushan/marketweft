@@ -79,6 +79,10 @@ same file path and query independent effective and known times.
 In Universe screen choose Load demo prices, or pair universe-membership.csv
 with universe-prices.csv. Keep the initial 14:00 UTC baseline. At 14:10
 BETA is unranked until its close is observed at 14:12 UTC.
+Expand Relative returns to compare two listing IDs. Select ALFA-001 and
+BETA-001 at an effective and known time of 14:20 UTC. Use 14:10 UTC as
+the comparison baseline and advance knowledge to 14:25 UTC to see the
+gap caused by the removal. Download relative returns for the full window.
 Under Delisting proceeds, load the demo or import delisting-terms.csv.
 Set both universe cutoffs to 14:35 UTC to see missing proceeds, 14:37
 for the USD receivable, and 14:50 for the first cash posting.

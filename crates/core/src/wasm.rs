@@ -473,6 +473,39 @@ pub extern "C" fn mw_universe_screen(membership_bytes: usize) -> u32 {
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_relative_series(membership_bytes: usize) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let ([baseline_at, effective_at, known_at], rest) = screen_inputs(input)?;
+        let (left, rest) = rest.split_once('\n').ok_or("Supply a left listing ID.")?;
+        let (right, csvs) = rest.split_once('\n').ok_or("Supply a right listing ID.")?;
+        let (membership, closes) = csvs
+            .split_at_checked(membership_bytes)
+            .ok_or("Supply both membership and price reports.")?;
+        let universe = parse_universe(membership)?;
+        let prices = PriceBook::parse(&universe, closes)?;
+        let mut text = String::new();
+        for point in prices.relative_series(left, right, baseline_at, effective_at, known_at)? {
+            write!(&mut text, "{}", point.effective_at).unwrap();
+            for leg in [point.left, point.right] {
+                write!(
+                    &mut text,
+                    "\t{}\t",
+                    optional_number(leg.membership.map(|state| state as u8))
+                )
+                .unwrap();
+                if let Some(price) = leg.close {
+                    write!(&mut text, "{},{}", price.ticks, price.observed_at).unwrap();
+                }
+                write!(&mut text, "\t{}", optional_number(leg.return_units)).unwrap();
+            }
+            writeln!(&mut text, "\t{}", optional_number(point.spread_units)).unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
 fn screen_inputs(input: &[u8]) -> Result<([i64; 3], &str), String> {
     let mut parts = utf8(input)?.splitn(4, '\n');
     let mut times = [0; 3];
