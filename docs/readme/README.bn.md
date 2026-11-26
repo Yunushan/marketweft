@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.5.0 · 0BSD**
+**0.6.0 · 0BSD**
 
 **নথির ভাষা**
 
@@ -15,14 +15,14 @@
 
 MarketWeft বিশ্লেষক, ডেভেলপার ও অপারেটরের জন্য স্থানীয় গবেষণা টার্মিনাল। অনুমোদিত OHLCV খুলে ক্যান্ডেল ও ভলিউম দেখায়, নির্দিষ্ট দশমিক এককে SMA ও EMA গণনা করে এবং নজরদারি তালিকা, নির্বাচিত ইন্সট্রুমেন্ট ও সূচক IndexedDB-তে রাখে। সম্পদ ক্যাশ হলে অফলাইনে চলে। সঙ্গে দেওয়া দাম ও ভলিউম কৃত্রিম, অ্যাকাউন্ট লাগে না।
 
-MarketWeft 0.5.0 সেশনভিত্তিক পুনরাবৃত্তিতে শেয়ার বিভাজনের পাশাপাশি সেই সময়ে জানা নগদ লভ্যাংশ যোগ করে। আলাদা trading-bot পড়ার TypeScript SDK ও পরীক্ষামূলক Tauri হোস্ট আছে। কোম্পানির অংশ বিচ্ছেদ, ফিড, অর্ডার, বহু ব্যবহারকারীর হোস্টিং ও স্বাক্ষরিত ইনস্টলার ভবিষ্যতের কাজ।
+MarketWeft 0.6.0 সেশনভিত্তিক পুনরাবৃত্তিতে শেয়ার বিভাজন ও নগদ লভ্যাংশের সঙ্গে সেই সময়ে জানা সদস্যপদ ও তালিকাচ্যুতি যোগ করে। আলাদা trading-bot-এর TypeScript SDK ও পরীক্ষামূলক Tauri হোস্ট আছে। কোম্পানির অংশ বিচ্ছেদ, ফিড, অর্ডার, বহু ব্যবহারকারীর হোস্টিং ও স্বাক্ষরিত ইনস্টলার ভবিষ্যতের কাজ।
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## বহনযোগ্য টার্মিনাল চালান
 
-সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.5.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
+সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.6.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
 
 ```sh
 node serve-terminal.mjs
@@ -51,7 +51,14 @@ instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per
 DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
+Historical replay → Open universe replay → Start universe demo খুলুন। 14:05 UTC-তে শুধু ALFA সদস্য, 14:10-এ BETA যোগ দেয়। 14:20-এ কার্যকর ALFA-র অপসারণ 14:25-এ জানা যায়। 14:30-এ কার্যকর BETA-র তালিকাচ্যুতি 14:35-এ জানা যায়। আগের সদস্য দেখতে পিছিয়ে যান বা আলাদা Effective time ও Known time দিয়ে অনুসন্ধান করুন। নিজের Universe membership CSV দিন। সংশোধনে পরিবর্তন ID একই রাখুন এবং টিকার পুনর্ব্যবহারে আলাদা তালিকাভুক্তি ID দিন।
+
+```csv
+universe,change_id,listing_id,instrument,effective_at,observed_at,action
+DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
 
 <!-- section:04 -->
 ## নিজের তথ্য আমদানি ও পুনরায় চালান

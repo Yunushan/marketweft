@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.5.0 · 0BSD**
+**0.6.0 · 0BSD**
 
 **ドキュメントの言語**
 
@@ -15,14 +15,14 @@
 
 MarketWeft はアナリスト、開発者、運用者向けのローカル優先の調査端末です。利用権がある OHLCV を開き、ローソク足と出来高を表示し、固定小数点で SMA と EMA を計算します。ウォッチリスト、選択銘柄、指標を IndexedDB に保存します。資材のキャッシュ後はオフラインで使えます。同梱の価格と出来高は合成データです。プロバイダーの口座は不要です。
 
-MarketWeft 0.5.0 では、株式分割に加えて、各時点で入手できた現金配当情報をセッション再生に適用できます。別途稼働する trading-bot 用の読み取り専用 TypeScript SDK と実験段階の Tauri ホストも提供します。スピンオフ、フィード、注文、複数利用者向けホスティング、署名付きインストーラーは計画段階です。
+MarketWeft 0.6.0 では、株式分割や現金配当に加えて、各時点で判明していた投資ユニバースの構成と上場廃止を再生できます。trading-bot 用の読み取り専用 TypeScript SDK と実験段階の Tauri ホストもあります。スピンオフ、フィード、注文、複数利用者向けホスティング、署名付きインストーラーは計画段階です。
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## ポータブル端末を起動
 
-成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.5.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
+成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.6.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
 
 ```sh
 node serve-terminal.mjs
@@ -51,7 +51,14 @@ instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per
 DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
+Historical replay → Open universe replay → Start universe demo を開きます。14:05 UTC は ALFA のみで、14:10 に BETA が加わります。14:20 の ALFA の除外は 14:25、14:30 の BETA の上場廃止は 14:35 に判明します。巻き戻すか、Effective time と Known time を別々に設定して照会します。独自データには Universe membership CSV を使います。修正時は変更 ID を維持し、ティッカーが再利用されたときは別の上場 ID を指定します。
+
+```csv
+universe,change_id,listing_id,instrument,effective_at,observed_at,action
+DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
 
 <!-- section:04 -->
 ## 独自データを取り込み再生

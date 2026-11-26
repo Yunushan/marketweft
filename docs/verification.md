@@ -1,5 +1,18 @@
 # MarketWeft verification
 
+## 0.6.0 · Point-in-time universe membership and delistings
+
+| Check | Observed result |
+| --- | --- |
+| Additions and removals | At 14:05 UTC BETA is known but still outside the universe. At 14:10 it becomes a member. ALFA's 14:20 removal appears at 14:25 when the report arrives. |
+| Independent cutoffs | Holding the effective cutoff at 14:20 and advancing the knowledge cutoff from 14:24:59 to 14:25 changes ALFA from member to removed. Moving the effective cutoff back one second restores membership. |
+| Delisting and ticker reuse | BETA-001's 14:30 delisting appears at 14:35. It stays delisted when BETA-002, a separate listing of the same ticker, enters at 14:45. ALFA reenters under its existing listing ID at 14:50. |
+| Revisions and cancellation | The replay omits a superseded future effective time. A later cancellation removes its pending addition. Native tests also check same-time priority, row-order independence and malformed imports. |
+| Browser replay | Chromium checked all 11 demo cutoffs, backward replay, offline CSV import, independent queries and a 360-pixel viewport. The imported catalog stayed intact. |
+| Regression suite | 31 production Chromium tests and six SDK tests passed on Windows x64. Twenty native tests passed on Linux x64, and seven compiled Wasm tests passed. The README checker verified all 21 editions. |
+
+The synthetic fixture uses explicit UTC times and stable listing IDs. [Universe contract and cutoff table](universe-membership.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.5.0 · Point-in-time cash dividends
 
 | Check | Observed result |

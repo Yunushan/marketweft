@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.5.0 adds the point-in-time cash dividend ledger to session-aware historical replay. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.6.0 adds point-in-time universe membership, delisting and as-of queries. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -8,8 +8,9 @@
 | Delivered · 0.3.0 | Session-aware historical replay (MW-013, MW-017) | Rust and Wasm apply an explicit session calendar and observation clock. Browser replay exposes the revealed prefix. The verified example spans a DST change, an early close and a missing interval. [Replay contract](docs/historical-replay.md). |
 | Delivered · 0.4.0 | Point-in-time stock splits (MW-013, MW-017, MW-029) | Raw and split-adjusted snapshots use announced, effective and observed times. Forward and reverse split ratios preserve source rows. Tests cover a delayed report, a ratio correction, and rewinding across the split. [Action contract](docs/corporate-actions.md). |
 | Delivered · 0.5.0 | Point-in-time cash dividends (MW-013, MW-017, MW-029) | Stable IDs, ex and pay cutoffs, late reports and corrections drive gross receivables and signed cash postings by currency. Native and browser tests compare the ledger at successive cutoffs and verify raw and split-adjusted price views. [Dividend contract](docs/cash-dividends.md). |
+| Delivered · 0.6.0 | Point-in-time universe membership (MW-017, MW-018) | Reconstruct effective, known membership from revisions and stable listing IDs. Browser and Rust tests verify additions, late removals, delistings, cancellations and reused tickers. [Universe contract](docs/universe-membership.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
-| P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend stock split identities for effective-time revisions and cancellation. Add point-in-time membership and verify a licensed or synthetic delisting case. Model per-distribution entitlement for trading and portfolio simulation. |
+| P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend stock split identities for effective-time revisions and cancellation. Add delisting return data with explicit proceeds and missing-value treatment. Model per-distribution entitlement for trading and portfolio simulation. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Persist two chart panes with linked UTC crosshairs, one measured drawing in data coordinates, reusable indicator parameters and CSV export. Restore exact settings after a versioned migration. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Implement paper cash and fills with fees, reasoned rejections, idempotent event IDs and kill switch. Backtest against the same event contract. Check prefix invariance, delayed fills and out-of-sample splits. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Publish an independent time-series language spec, bounded interpreter and isolated Wasm execution. Test determinism, quotas and schema compatibility across SDKs. Start MCP with read-only research queries. |
@@ -19,5 +20,5 @@
 
 ## Handoff for the next change
 
-The next research milestone starts with point-in-time universe membership. Model when membership and delisting changes become known and effective. Replay a licensed or synthetic add and removal, then verify that an as-of query preserves earlier membership until the respective cutoff.
+The next research milestone starts with screening a point-in-time universe. Apply a fixed, inspectable rule to prices available at each observation cutoff. Verify that new listings, missing prices and delisted listings affect the screen only through the as-of queries and price observations.
 

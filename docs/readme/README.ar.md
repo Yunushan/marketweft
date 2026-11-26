@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.5.0 · 0BSD**
+**0.6.0 · 0BSD**
 
 **لغات التوثيق**
 
@@ -21,7 +21,7 @@ MarketWeft محطة بحث محلية للمحللين والمطورين وال
 
 <div dir="rtl">
 
-يضيف MarketWeft 0.5.0 توزيعات الأرباح النقدية وفق المعلومات المتاحة وقتيًا بجانب تجزئة الأسهم في الإعادة بحسب الجلسات. يوجد أيضًا عميل TypeScript مستقل للقراءة من trading-bot وغلاف Tauri تجريبي. الانفصالات والتغذيات والأوامر والاستضافة المشتركة والمثبتات الموقّعة ضمن الخطة.
+يضيف MarketWeft 0.6.0 عضوية مجموعات الأوراق المالية والشطب بحسب ما كان معروفًا في كل لحظة، إلى جانب التجزئة والتوزيعات النقدية في الإعادة حسب الجلسات. يوجد عميل TypeScript مستقل للقراءة من trading-bot وغلاف Tauri تجريبي. الانفصالات والتغذيات والأوامر والاستضافة المشتركة والمثبتات الموقّعة ضمن الخطة.
 
 </div>
 
@@ -32,7 +32,7 @@ MarketWeft محطة بحث محلية للمحللين والمطورين وال
 
 <div dir="rtl">
 
-نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.5.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
+نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.6.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
 
 </div>
 
@@ -79,7 +79,18 @@ instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per
 DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
+<div dir="rtl">
+
+افتح Historical replay → Open universe replay → Start universe demo. عند 14:05 UTC وحده ALFA عضو، وينضم BETA عند 14:10. تصبح إزالة ALFA الفعالة عند 14:20 معروفة عند 14:25. ويصبح شطب BETA عند 14:30 معروفًا عند 14:35. ارجع لاستعادة العضوية السابقة أو استعلم بحدين مستقلين Effective time وKnown time. حمّل Universe membership CSV لبياناتك. ثبّت معرّف التغيير عند المراجعة وافصل معرّفات الإدراج عند إعادة استخدام الرمز.
+
+</div>
+
+```csv
+universe,change_id,listing_id,instrument,effective_at,observed_at,action
+DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
 
 <!-- section:04 -->
 ## استيراد بياناتك وإعادة تشغيلها

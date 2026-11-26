@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.5.0 · 0BSD**
+**0.6.0 · 0BSD**
 
 **Idiomas de la documentación**
 
@@ -15,14 +15,14 @@
 
 MarketWeft es un terminal de investigación que prioriza el trabajo local para analistas, desarrolladores y operadores. Abre archivos OHLCV autorizados, dibuja velas y volumen, calcula SMA y EMA en punto fijo y guarda en IndexedDB la lista de seguimiento, el instrumento seleccionado y los indicadores. Funciona sin conexión tras almacenar los recursos. Los precios y volúmenes integrados son sintéticos y no requieren una cuenta.
 
-MarketWeft 0.5.0 añade dividendos en efectivo según la información disponible en cada momento, junto con el desdoblamiento en la reproducción por sesiones. También ofrece un observador TypeScript de solo lectura para un trading-bot independiente y un host Tauri experimental. Escisiones, fuentes conectadas, órdenes, alojamiento multiusuario e instaladores firmados siguen en la hoja de ruta.
+MarketWeft 0.6.0 incorpora la composición histórica del universo y las exclusiones de cotización según lo conocido en cada momento, junto con desdoblamientos y dividendos en efectivo. También ofrece un observador TypeScript de solo lectura para un trading-bot independiente y un host Tauri experimental. Escisiones, fuentes conectadas, órdenes, alojamiento multiusuario e instaladores firmados siguen en la hoja de ruta.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Iniciar el terminal portátil
 
-Descarga browser-terminal-attempt-N de una ejecución satisfactoria de GitHub. Extrae MarketWeft-browser-0.5.0.zip, deja dist/ junto a serve-terminal.mjs y ejecuta el comando en esa carpeta. Abre http://127.0.0.1:4173/ en un navegador actual con WebAssembly, Canvas, BigInt e IndexedDB. Usa Node.js 22.12 o posterior. No hace falta npm. Espera a Offline ready antes de desconectarte.
+Descarga browser-terminal-attempt-N de una ejecución satisfactoria de GitHub. Extrae MarketWeft-browser-0.6.0.zip, deja dist/ junto a serve-terminal.mjs y ejecuta el comando en esa carpeta. Abre http://127.0.0.1:4173/ en un navegador actual con WebAssembly, Canvas, BigInt e IndexedDB. Usa Node.js 22.12 o posterior. No hace falta npm. Espera a Offline ready antes de desconectarte.
 
 ```sh
 node serve-terminal.mjs
@@ -51,7 +51,14 @@ instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per
 DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
+Abre Historical replay → Open universe replay → Start universe demo. A las 14:05 UTC solo pertenece ALFA y a las 14:10 entra BETA. La salida de ALFA a las 14:20 se conoce a las 14:25. La exclusión de cotización de BETA a las 14:30 se conoce a las 14:35. Retrocede para recuperar la composición anterior o consulta con Effective time y Known time independientes. Carga un Universe membership CSV para tus datos. Conserva el ID de cambio en revisiones y usa ID de cotización distintos si se reutiliza el símbolo.
+
+```csv
+universe,change_id,listing_id,instrument,effective_at,observed_at,action
+DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
 
 <!-- section:04 -->
 ## Importar y reproducir datos propios

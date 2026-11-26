@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.5.0 · 0BSD**
+**0.6.0 · 0BSD**
 
 **Belge dilleri**
 
@@ -15,14 +15,14 @@
 
 MarketWeft analistler, geliştiriciler ve operatörler için yerel öncelikli bir araştırma terminalidir. İzinli OHLCV dosyalarını açar, etkileşimli mumları ve hacmi çizer, sabit noktalı SMA ve EMA hesaplar. İzleme listesi, seçili araç ve göstergeler IndexedDB'de tutulur. Kaynaklar önbelleğe alındıktan sonra çevrimdışı çalışır. Hazır fiyat ve hacimler sentetiktir ve sağlayıcı hesabı gerektirmez.
 
-MarketWeft 0.5.0, seans tabanlı oynatmaya hisse bölünmeleriyle birlikte o anda bilinen nakit temettüleri ekler. Depoda bağımsız trading-bot hizmeti için salt okunur TypeScript SDK ve deneysel Tauri kabuğu da vardır. Şirket ayrışması, veri akışı, emir, çok kullanıcılı barındırma ve imzalı kurulum paketleri yol haritasındadır.
+MarketWeft 0.6.0 seans tabanlı oynatmada hisse bölünmeleri ve nakit temettülerle birlikte o anda bilinen evren üyeliğini ve borsa kotundan çıkarmaları gösterir. Bağımsız trading-bot için salt okunur TypeScript SDK ve deneysel Tauri kabuğu da vardır. Şirket ayrışması, veri akışı, emir, çok kullanıcılı barındırma ve imzalı kurulum paketleri yol haritasındadır.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Taşınabilir terminali başlatın
 
-Başarılı GitHub doğrulamasından browser-terminal-attempt-N çıktısını indirin ve MarketWeft-browser-0.5.0.zip dosyasını çıkarın. dist/ ile serve-terminal.mjs aynı dizinde kalsın ve aşağıdaki komutu orada çalıştırın. WebAssembly, Canvas, BigInt ve IndexedDB destekleyen güncel tarayıcıda http://127.0.0.1:4173/ adresini açın. Node.js 22.12 veya sonrası gerekir. npm kurulumu gerekmez. Bağlantıyı kesmeden Offline ready yazısını bekleyin.
+Başarılı GitHub doğrulamasından browser-terminal-attempt-N çıktısını indirin ve MarketWeft-browser-0.6.0.zip dosyasını çıkarın. dist/ ile serve-terminal.mjs aynı dizinde kalsın ve aşağıdaki komutu orada çalıştırın. WebAssembly, Canvas, BigInt ve IndexedDB destekleyen güncel tarayıcıda http://127.0.0.1:4173/ adresini açın. Node.js 22.12 veya sonrası gerekir. npm kurulumu gerekmez. Bağlantıyı kesmeden Offline ready yazısını bekleyin.
 
 ```sh
 node serve-terminal.mjs
@@ -51,7 +51,14 @@ instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per
 DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
+Historical replay → Open universe replay → Start universe demo ekranını açın. 14:05 UTC’de yalnız ALFA üyedir, BETA 14:10’da katılır. ALFA’nın 14:20 çıkışı 14:25’te öğrenilir. BETA’nın 14:30 kot dışı kalması 14:35’te öğrenilir. Önceki üyeleri görmek için geri alın veya Effective time ve Known time alanlarını ayrı sorgulayın. Kendi veriniz için Universe membership CSV yükleyin. Düzeltmelerde değişiklik kimliğini koruyun. Sembol yeniden kullanılırsa ayrı kot kimliği verin.
+
+```csv
+universe,change_id,listing_id,instrument,effective_at,observed_at,action
+DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
 
 <!-- section:04 -->
 ## Kendi verinizi içe aktarın ve oynatın

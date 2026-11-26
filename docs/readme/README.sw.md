@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.5.0 · 0BSD**
+**0.6.0 · 0BSD**
 
 **Lugha za mwongozo**
 
@@ -15,14 +15,14 @@
 
 MarketWeft ni kituo cha utafiti cha ndani kwa wachambuzi, wasanidi na waendeshaji. Hufungua OHLCV iliyoidhinishwa, huchora vinara na kiasi, hukokotoa SMA na EMA kwa nukta isiyohama, na huhifadhi orodha, chombo kilichochaguliwa na viashiria katika IndexedDB. Hufanya kazi bila mtandao baada ya kuhifadhi rasilimali. Bei na kiasi vya mfano ni vya kutungwa na havihitaji akaunti.
 
-MarketWeft 0.5.0 inaongeza gawio la fedha taslimu kwa habari zilizojulikana wakati husika pamoja na mgawanyo wa hisa katika uchezaji wa vipindi. Kuna SDK ya TypeScript inayosoma trading-bot ya nje na ganda la majaribio la Tauri. Utenganishaji wa kampuni, milisho, maagizo, upangishaji wa wengi na visakinishi vilivyosainiwa yako kwenye mpango.
+MarketWeft 0.6.0 inaongeza uanachama wa kundi la dhamana na kuondolewa kwenye orodha kwa habari zilizojulikana wakati husika, pamoja na mgawanyo na gawio la fedha. Kuna SDK ya TypeScript inayosoma trading-bot ya nje na ganda la majaribio la Tauri. Utenganishaji wa kampuni, milisho, maagizo, upangishaji wa wengi na visakinishi vilivyosainiwa yako kwenye mpango.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Anzisha kituo kinachobebeka
 
-Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.5.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
+Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.6.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
 
 ```sh
 node serve-terminal.mjs
@@ -51,7 +51,14 @@ instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per
 DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
+Fungua Historical replay → Open universe replay → Start universe demo. Saa 14:05 UTC ALFA pekee ni mwanachama, na BETA hujiunga 14:10. Kuondolewa kwa ALFA kuanzia 14:20 kunajulikana 14:25. Kufutwa kwa orodha ya BETA kuanzia 14:30 kunajulikana 14:35. Rudi nyuma au uliza kwa Effective time na Known time tofauti. Pakia Universe membership CSV yako. Hifadhi kitambulisho cha badiliko unapokisahihisha na tumia kitambulisho kipya cha orodha alama ikitumika tena.
+
+```csv
+universe,change_id,listing_id,instrument,effective_at,observed_at,action
+DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
 
 <!-- section:04 -->
 ## Ingiza na cheza data yako

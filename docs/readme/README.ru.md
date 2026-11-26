@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.5.0 · 0BSD**
+**0.6.0 · 0BSD**
 
 **Языки документации**
 
@@ -15,14 +15,14 @@
 
 MarketWeft — локальный исследовательский терминал для аналитиков, разработчиков и операторов. Он открывает разрешённые файлы OHLCV, показывает свечи и объёмы, рассчитывает SMA и EMA с фиксированной точкой и сохраняет список наблюдения, инструмент и индикаторы в IndexedDB. После кэширования работает офлайн. Встроенные цены и объёмы синтетические, учётная запись поставщика не нужна.
 
-MarketWeft 0.5.0 добавляет денежные дивиденды с учётом информации на каждый момент, наряду с дроблениями акций в сессионном воспроизведении. Включены независимый TypeScript SDK для чтения trading-bot и экспериментальная оболочка Tauri. Выделения компаний, каналы данных, заявки, многопользовательский режим и подписанные установщики остаются в плане.
+MarketWeft 0.6.0 добавляет состав вселенной и делистинги по информации на каждый момент, наряду с дроблениями акций и денежными дивидендами. Включены независимый TypeScript SDK для чтения trading-bot и экспериментальная оболочка Tauri. Выделения компаний, каналы данных, заявки, многопользовательский режим и подписанные установщики остаются в плане.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Запуск переносимого терминала
 
-Откройте успешный запуск GitHub, скачайте browser-terminal-attempt-N и извлеките MarketWeft-browser-0.5.0.zip. Оставьте dist/ рядом с serve-terminal.mjs и выполните команду в этой папке. Откройте http://127.0.0.1:4173/ в актуальном браузере с WebAssembly, Canvas, BigInt и IndexedDB. Нужен Node.js 22.12 или новее. Установка npm не нужна. Перед отключением дождитесь Offline ready.
+Откройте успешный запуск GitHub, скачайте browser-terminal-attempt-N и извлеките MarketWeft-browser-0.6.0.zip. Оставьте dist/ рядом с serve-terminal.mjs и выполните команду в этой папке. Откройте http://127.0.0.1:4173/ в актуальном браузере с WebAssembly, Canvas, BigInt и IndexedDB. Нужен Node.js 22.12 или новее. Установка npm не нужна. Перед отключением дождитесь Offline ready.
 
 ```sh
 node serve-terminal.mjs
@@ -51,7 +51,14 @@ instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per
 DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
+Откройте Historical replay → Open universe replay → Start universe demo. В 14:05 UTC входит только ALFA, а в 14:10 добавляется BETA. Об исключении ALFA с 14:20 становится известно в 14:25. О делистинге BETA с 14:30 становится известно в 14:35. Вернитесь назад или задайте независимые Effective time и Known time. Загрузите свой Universe membership CSV. Для исправлений используйте прежний ID изменения, а при повторном использовании тикера задавайте разные идентификаторы листинга.
+
+```csv
+universe,change_id,listing_id,instrument,effective_at,observed_at,action
+DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
 
 <!-- section:04 -->
 ## Импорт и воспроизведение своих данных
