@@ -58,8 +58,8 @@ pub fn issue_research_credential(
     getrandom::fill(&mut random)
         .map_err(|_| io::Error::other("The OS random number source is unavailable."))?;
     let (secret, identity) = random.split_at(32);
-    let credential_id = hex(identity);
-    let token = hex(secret);
+    let credential_id = crate::hex(identity);
+    let token = crate::hex(secret);
     let digest: [u8; 32] = Sha256::digest(token.as_bytes()).into();
     let mut database = admin_connection(path, true).map_err(io::Error::other)?;
     let transaction = database.transaction().map_err(io::Error::other)?;
@@ -99,10 +99,6 @@ pub fn revoke_research_credential(path: &Path, credential_id: &str) -> io::Resul
         ));
     }
     Ok(())
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn open(path: &Path, flags: OpenFlags) -> StoreResult<Connection> {

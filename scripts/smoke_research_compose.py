@@ -1,5 +1,7 @@
 """Verify private Compose restart and recovery in existing and fresh volumes."""
 from contextlib import closing
+import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
@@ -74,11 +76,15 @@ def exercise(image, tls, peer, restore_from=None):
                              "credential", "issue", CREDENTIALS, scope, "300")
             (peer / f"{scope}.json").write_bytes(issued)
         if restore_from is not None:
-            restored = compose(
-                "run", "--rm", "--no-deps", "-T",
-                "--volume", f"{restore_from}:/transfer/snapshot.sqlite:ro", "audit-admin",
-                "audit", "restore", "/transfer/snapshot.sqlite", f"{AUDIT}/audit.sqlite",
-            )
+            source = "/transfer/snapshot.sqlite"
+            operator = ("run", "--rm", "--no-deps", "-T", "--volume", f"{restore_from}:{source}:ro", "audit-admin")
+            verification = json.loads(compose(*operator, "audit", "verify", source))
+            assert verification == {
+                "schema_version": 1, "receipts": 6, "unfinished": 0,
+                "bytes": restore_from.stat().st_size,
+                "sha256": hashlib.sha256(restore_from.read_bytes()).hexdigest(),
+            }
+            restored = compose(*operator, "audit", "restore", source, f"{AUDIT}/audit.sqlite")
             assert restored.strip() == b"Verified 6 audit receipts, 0 unfinished."
         start()
         container = compose("ps", "-q", "research").decode().strip()

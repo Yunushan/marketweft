@@ -1,5 +1,7 @@
 use marketweft_research_service::{research_router_with_audit, Tokens};
 use rusqlite::Connection;
+use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -17,17 +19,80 @@ fn open_service(path: &Path) -> axum::Router {
 }
 
 fn run(action: &str, source: &Path, target: &Path) -> Output {
+    run_audit(action, &[source, target])
+}
+
+fn run_audit(action: &str, paths: &[&Path]) -> Output {
     let executable = env::var_os("MARKETWEFT_TEST_BINARY")
         .unwrap_or_else(|| env!("CARGO_BIN_EXE_marketweft-research-service").into());
     Command::new(executable)
         .args(["audit", action])
-        .arg(source)
-        .arg(target)
+        .args(paths)
         .env_remove("MARKETWEFT_FORMULA_TOKEN")
         .env_remove("MARKETWEFT_SCREEN_TOKEN")
         .env_remove("MARKETWEFT_RESEARCH_AUDIT_DB")
         .output()
         .unwrap()
+}
+
+#[test]
+fn verifies_exact_snapshot_bytes_and_rejects_nonportable_inputs() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("audit.sqlite");
+    let snapshot = temp.path().join("snapshot.sqlite");
+    let detached_wal = temp.path().join("detached.sqlite");
+    let truncated = temp.path().join("truncated.sqlite");
+    let unrelated = temp.path().join("unrelated.sqlite");
+    drop(open_service(&source));
+    let writer = Connection::open(&source).unwrap();
+    writer
+        .execute_batch(
+            "PRAGMA journal_mode = WAL;
+         INSERT INTO research_receipts (transport, scope) VALUES ('websocket', 'screen');",
+        )
+        .unwrap();
+    successful(
+        run("backup", &source, &snapshot),
+        "Verified 1 audit receipts, 1 unfinished.",
+    );
+    let bytes = fs::read(&snapshot).unwrap();
+    let digest: String = Sha256::digest(&bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let result = run_audit("verify", &[&snapshot]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&result.stdout).unwrap(),
+        json!({
+            "schema_version": 1, "receipts": 1, "unfinished": 1, "bytes": bytes.len(),
+            "sha256": digest,
+        })
+    );
+    assert_eq!(fs::read(&snapshot).unwrap(), bytes);
+
+    fs::write(&truncated, &bytes[..bytes.len() / 2]).unwrap();
+    Connection::open(&unrelated)
+        .unwrap()
+        .execute_batch("CREATE TABLE anything(x);")
+        .unwrap();
+    fs::copy(&source, &detached_wal).unwrap();
+    for invalid in [&source, &detached_wal, &truncated, &unrelated] {
+        let result = run_audit("verify", &[invalid]);
+        assert!(
+            !result.status.success() && result.stdout.is_empty(),
+            "{invalid:?}"
+        );
+    }
+    let sidecar = temp.path().join("snapshot.sqlite-journal");
+    fs::write(&sidecar, b"unpublished changes").unwrap();
+    let result = run_audit("verify", &[&snapshot]);
+    assert!(!result.status.success() && result.stdout.is_empty());
+    assert_eq!(fs::read(&sidecar).unwrap(), b"unpublished changes");
 }
 
 fn successful(output: Output, expected: &str) {

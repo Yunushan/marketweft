@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.66.0 · Portable audit snapshot verification
+
+| Check | Observed result |
+| --- | --- |
+| Snapshot bytes | The verifier returned the expected schema, length, receipt counts and SHA-256 for an exact backup. The source remained byte-for-byte intact. |
+| File and schema errors | The CLI rejected a WAL database, a standalone copy of its main file, a truncated snapshot, unrelated SQLite data and a snapshot with a journal sidecar. |
+| Fresh deployment | The network-isolated Compose operator reported the same SHA-256 as the independent digest of the transferred snapshot before restoring it. The destination then continued the receipt sequence. |
+
+[Audit snapshot verification](local-rest-research.md#verify-a-portable-audit-snapshot) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.65.0 · Fresh-volume audit recovery
 
 | Check | Observed result |

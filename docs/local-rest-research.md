@@ -224,3 +224,19 @@ docker compose -p "$RECOVERY_PROJECT" -f "$layout" up -d --wait research
 ```
 
 The destination continues the receipt sequence from the snapshot.
+
+## Verify a portable audit snapshot
+
+Run `audit verify` on the single SQLite file produced by `audit backup`. The command checks the application ID, audit schema version and SQLite integrity. It prints the exact file length, SHA-256 digest, total receipt count and unfinished count as JSON.
+
+```sh
+./marketweft-research-service audit verify ./transfer.sqlite
+```
+
+Compare the digest with a trusted value recorded at the source. Verification reads the original file and uses a private temporary copy so the digest describes the bytes that passed the database checks. Provide temporary disk space for a copy of the snapshot. A live WAL database, a snapshot with SQLite sidecars and an invalid audit database fail verification.
+
+In the destination Compose project, run the same check on the read-only transfer mount before restoring.
+
+```sh
+docker compose -p "$RECOVERY_PROJECT" -f "$layout" run --rm --no-deps --volume "$PWD/transfer.sqlite:/transfer/snapshot.sqlite:ro" audit-admin audit verify /transfer/snapshot.sqlite
+```

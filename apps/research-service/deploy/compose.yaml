@@ -59,6 +59,8 @@ services:
     <<: *research-container
     profiles: [operators]
     network_mode: none
+    environment:
+      TMPDIR: /var/lib/marketweft/audit
     volumes:
       - type: volume
         source: audit

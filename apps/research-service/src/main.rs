@@ -2,8 +2,8 @@ use axum_server::tls_rustls::RustlsConfig;
 use axum_server::Handle;
 use marketweft_research_service::{
     configured_controlled_research_router, copy_audit_database, issue_research_credential,
-    revoke_research_credential, ResearchOperations, ResearchShutdown, Tokens,
-    DEFAULT_RESEARCH_SLOTS,
+    revoke_research_credential, verify_audit_snapshot, ResearchOperations, ResearchShutdown,
+    Tokens, DEFAULT_RESEARCH_SLOTS,
 };
 use std::env::{self, VarError};
 use std::future::{pending, Future};
@@ -27,6 +27,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = env::args_os().skip(1).collect();
     match args.as_slice() {
         [] => serve(),
+        [group, action, source] if group == "audit" && action == "verify" => {
+            let result = verify_audit_snapshot(Path::new(source))?;
+            println!("{}", serde_json::to_string(&result)?);
+            Ok(())
+        }
         [group, action, source, destination]
             if group == "audit" && (action == "backup" || action == "restore") =>
         {
@@ -51,7 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         }
         _ => Err(io::Error::other(
-            "Use audit <backup|restore> <source> <new-destination>, credential issue <database> <scope> <lifetime-seconds>, or credential revoke <database> <credential-id>.",
+            "Use audit <backup|restore> <source> <new-destination>, audit verify <snapshot>, credential issue <database> <scope> <lifetime-seconds>, or credential revoke <database> <credential-id>.",
         )
         .into()),
     }

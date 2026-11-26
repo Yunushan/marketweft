@@ -14,7 +14,9 @@ pub mod proto {
     tonic::include_proto!("marketweft.research.v1");
 }
 
-pub use audit_recovery::{copy_audit_database, AuditSummary};
+pub use audit_recovery::{
+    copy_audit_database, verify_audit_snapshot, AuditSummary, AuditVerification,
+};
 pub use credentials::{issue_research_credential, revoke_research_credential, IssuedCredential};
 pub use operations::ResearchOperations;
 pub use shutdown::ResearchShutdown;
@@ -427,6 +429,10 @@ fn route_authority(
         .route("/v1/universe/screen/stream", get(websocket::screen))
         .with_state(state)
         .merge(grpc_routes)
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn header_value(headers: &HeaderMap, name: HeaderName) -> Option<&str> {
