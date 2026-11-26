@@ -93,6 +93,12 @@ for one move with a 100-basis-point rebalance fee to reconcile net value.
 Open Cross-sectional paper replay and use the sample liquidity, or load
 cross-section-liquidity.csv with the listing risk membership and prices.
 Rewind knowledge from 14:06 to 14:01 UTC to compare reserved cash and fills.
+Start corporate cash demo to load the matching membership and prices. Add
+sample liquidity and sample corporate reports in Cross-sectional paper replay.
+Keep effective time at 2025-06-02T14:06:00Z, then advance knowledge from
+14:04 to 14:08 UTC to see the receivable, payment, terms revision and
+cancellation. The cross-section membership, dividend and delisting CSVs
+support the same workflow through file uploads.
 
 Select the NVDA chart and open Recorded market depth. Choose Load depth demo
 or open depth.csv. Inspect the sequence gap at 14:00:05 UTC and the recovered
@@ -180,6 +186,9 @@ def main():
     files["listing-risk-membership.csv"] = (fixture / "synthetic-listing-risk-membership.csv").read_bytes()
     files["listing-risk-prices.csv"] = (fixture / "synthetic-listing-risk-prices.csv").read_bytes()
     files["cross-section-liquidity.csv"] = (fixture / "synthetic-cross-section-liquidity.csv").read_bytes()
+    files["cross-section-membership.csv"] = (fixture / "synthetic-cross-section-membership.csv").read_bytes()
+    files["cross-section-dividends.csv"] = (fixture / "synthetic-cross-section-dividends.csv").read_bytes()
+    files["cross-section-delisting.csv"] = (fixture / "synthetic-cross-section-delisting.csv").read_bytes()
     files["universe-sectors.csv"] = (fixture / "synthetic-universe-sectors.csv").read_bytes()
     files["financial-filings.csv"] = (fixture / "synthetic-financial-filings.csv").read_bytes()
     files["financial-market-caps.csv"] = (fixture / "synthetic-financial-market-caps.csv").read_bytes()

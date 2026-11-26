@@ -435,6 +435,45 @@ export interface CrossSectionConfig {
   participation: string;
 }
 
+export interface CrossSectionActions {
+  accountCurrency: string;
+  dividends: string;
+  delistings: string;
+}
+
+export interface CrossSectionDividendPosting {
+  listingId: string;
+  dividendId: string;
+  postedAt: number;
+  observedAt: number;
+  exAt: number;
+  payAt: number;
+  shares: bigint;
+  currency: string;
+  cashDelta: bigint;
+  receiptId: string | null;
+}
+
+export interface CrossSectionDelistingClaim {
+  listingId: string;
+  changeId: string;
+  effectiveAt: number;
+  observedAt: number;
+  termsObservedAt: number | null;
+  payAt: number | null;
+  shares: bigint;
+  state: string;
+  currency: string | null;
+  amount: bigint | null;
+}
+
+export interface CrossSectionDelistingPosting {
+  claim: CrossSectionDelistingClaim;
+  postedAt: number;
+  cashDelta: bigint;
+  receiptId: string | null;
+}
+
 export interface CrossSectionReport {
   cash: bigint;
   reservedCash: bigint;
@@ -444,6 +483,9 @@ export interface CrossSectionReport {
   decisions: { at: number; eligible: number; missing: number; selected: string[] }[];
   positions: { listingId: string; shares: bigint; cost: bigint; mark: bigint | null }[];
   receipts: (PaperReceipt & { listingId: string; side: string })[];
+  dividendPostings: CrossSectionDividendPosting[];
+  delistingClaims: CrossSectionDelistingClaim[];
+  delistingPostings: CrossSectionDelistingPosting[];
 }
 
 export interface PaperOrder {
@@ -626,7 +668,7 @@ export interface MarketCore {
     baselineAt: string, effectiveAt: string, knownAt: string): RelativePoint[];
   listingRisk(membership: string, prices: string, leftId: string, rightId: string, query: ListingRiskQuery): ListingRiskPoint[];
   crossSectionReplay(membership: string, prices: string, liquidity: string, from: string,
-    through: string, known: string, config: CrossSectionConfig): CrossSectionReport;
+    through: string, known: string, config: CrossSectionConfig, actions?: CrossSectionActions): CrossSectionReport;
   portfolioScenarios(membership: string, prices: string, allocations: ScenarioAllocation[],
     query: JointScenarioQuery): JointScenarioReport;
   sectorHeatmap(membership: string, prices: string, sectors: string, baselineAt: string,
@@ -696,6 +738,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_paper_index(): number;
   mw_paper_replay(): number;
   mw_cross_section_replay(membershipBytes: number, priceBytes: number): number;
+  mw_cross_section_actions(membershipBytes: number, priceBytes: number, liquidityBytes: number, dividendBytes: number): number;
   mw_backtest_index(calendarBytes: number, interval: number): number;
   mw_backtest(calendarBytes: number, interval: number): number;
   mw_walk_forward(calendarBytes: number, interval: number): number;
@@ -1264,22 +1307,34 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         };
       });
     },
-    crossSectionReplay(membership, prices, liquidity, from, through, known, config) {
+    crossSectionReplay(membership, prices, liquidity, from, through, known, config, actions) {
       const settings = [config.decisionSeconds, config.lookbackSeconds, config.topListings,
         config.targetShares, config.limitBuffer, config.participation];
       if (settings.some(value => !/^\d+$/.test(value))) {
         throw new Error('Use whole numbers for ranking settings.');
       }
-      screenInput([from, through, known], settings.join(','), '\n', paperSettings(config.paper),
-        '\n', membership, prices, liquidity);
-      const text = decoder.decode(output(api.mw_cross_section_replay(encoder.encode(membership).length,
-        encoder.encode(prices).length)));
+      const membershipBytes = encoder.encode(membership).length;
+      const priceBytes = encoder.encode(prices).length;
+      let bytes: DataView;
+      if (actions) {
+        const { accountCurrency, dividends, delistings } = actions;
+        if (!/^[A-Z]{3}$/.test(accountCurrency)) throw new Error('Use a three-letter uppercase paper account currency.');
+        screenInput([from, through, known], settings.join(','), '\n', paperSettings(config.paper), '\n',
+          accountCurrency, '\n', membership, prices, liquidity, dividends, delistings);
+        bytes = output(api.mw_cross_section_actions(membershipBytes, priceBytes,
+          encoder.encode(liquidity).length, encoder.encode(dividends).length));
+      } else {
+        screenInput([from, through, known], settings.join(','), '\n', paperSettings(config.paper),
+          '\n', membership, prices, liquidity);
+        bytes = output(api.mw_cross_section_replay(membershipBytes, priceBytes));
+      }
+      const text = decoder.decode(bytes);
       const [header, ...rows] = text.slice(0, -1).split('\n');
       const [tag, cash, reserved, fees, turnover, equity] = header.split('\t');
       if (tag !== 'H') throw new Error('Invalid cross-sectional replay summary.');
       const report: CrossSectionReport = { cash: BigInt(cash), reservedCash: BigInt(reserved),
         fees: BigInt(fees), turnover: BigInt(turnover), equity: equity ? BigInt(equity) : null,
-        decisions: [], positions: [], receipts: [] };
+        decisions: [], positions: [], receipts: [], dividendPostings: [], delistingClaims: [], delistingPostings: [] };
       for (const row of rows) {
         const [type, a, b, c, d] = row.split('\t', 5);
         if (type === 'D') report.decisions.push({ at: Number(a), eligible: Number(b),
@@ -1288,6 +1343,21 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           cost: BigInt(c), mark: d ? BigInt(d) : null });
         else if (type === 'E') report.receipts.push({ listingId: a, side: b,
           ...decodePaperReceipt(row.split('\t').slice(3)) });
+        else if (type === 'V') {
+          const [, listingId, dividendId, posted, observed, ex, pay, shares, currency, cash, receipt] = row.split('\t');
+          report.dividendPostings.push({ listingId, dividendId, postedAt: Number(posted),
+            observedAt: Number(observed), exAt: Number(ex), payAt: Number(pay), shares: BigInt(shares),
+            currency, cashDelta: BigInt(cash), receiptId: receipt || null });
+        } else if (type === 'C' || type === 'S') {
+          const [, listingId, changeId, effective, observed, terms, pay, shares, state, currency,
+            amount, posted, cash, receipt] = row.split('\t');
+          const claim = { listingId, changeId, effectiveAt: Number(effective), observedAt: Number(observed),
+            termsObservedAt: terms ? Number(terms) : null, payAt: pay ? Number(pay) : null, shares: BigInt(shares),
+            state, currency: currency || null, amount: amount ? BigInt(amount) : null };
+          if (type === 'C') report.delistingClaims.push(claim);
+          else report.delistingPostings.push({ claim, postedAt: Number(posted), cashDelta: BigInt(cash),
+            receiptId: receipt || null });
+        }
         else throw new Error('Invalid cross-sectional replay row.');
       }
       return report;

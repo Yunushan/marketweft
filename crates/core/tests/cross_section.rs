@@ -1,11 +1,14 @@
 use marketweft_core::{
-    parse_universe, CrossSectionConfig, LiquidityTape, PaperAction, PaperConfig, PriceBook, SCALE,
+    parse_universe, CrossSectionConfig, DelistingState, LiquidityTape, PaperAction, PaperConfig,
+    PriceBook, SCALE,
 };
 
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-listing-risk-membership.csv");
 const PRICES: &str = include_str!("fixtures/synthetic-listing-risk-prices.csv");
 const LIQUIDITY: &str = include_str!("fixtures/synthetic-cross-section-liquidity.csv");
 const DIVIDENDS: &str = include_str!("fixtures/synthetic-cross-section-dividends.csv");
+const ACTION_MEMBERSHIP: &str = include_str!("fixtures/synthetic-cross-section-membership.csv");
+const DELISTING: &str = include_str!("fixtures/synthetic-cross-section-delisting.csv");
 
 fn settings(start: i64, known: i64) -> CrossSectionConfig {
     CrossSectionConfig {
@@ -26,6 +29,63 @@ fn settings(start: i64, known: i64) -> CrossSectionConfig {
             fee_per_order: SCALE / 2,
         },
     }
+}
+
+#[test]
+fn delisting_settlement_is_causal_and_cancellation_restores_exact_basis() {
+    let universe = parse_universe(ACTION_MEMBERSHIP).unwrap();
+    let book = PriceBook::parse(&universe, PRICES).unwrap();
+    let liquidity = LiquidityTape::parse(&universe, LIQUIDITY).unwrap();
+    let start = universe.checkpoints()[0];
+    let replay = |effective: i64, known: i64, terms: &str| {
+        let mut config = settings(start, known);
+        config.through_at = start + effective * 60;
+        book.cross_section_with_actions(&liquidity, config, DIVIDENDS, terms, "USD")
+            .unwrap()
+    };
+
+    let before = replay(6, 4, DELISTING);
+    assert_eq!(before.positions[0].shares, 4);
+    assert!(before.delisting_claims.is_empty());
+    let missing = replay(6, 5, "");
+    assert_eq!(
+        missing.delisting_claims[0].state,
+        DelistingState::MissingProceeds
+    );
+    assert_eq!(missing.equity, None);
+    let receivable = replay(6, 5, DELISTING);
+    assert!(receivable.positions.is_empty());
+    assert_eq!(
+        receivable.delisting_claims[0].state,
+        DelistingState::Receivable
+    );
+    assert_eq!(receivable.delisting_claims[0].amount, Some(500_000_000));
+    assert_eq!(receivable.cash, 540_600_000);
+    assert_eq!(receivable.equity, Some(1_040_600_000));
+    assert!(receivable.delisting_postings.is_empty());
+    assert!(replay(4, 7, DELISTING).delisting_postings.is_empty());
+
+    let paid = replay(6, 6, DELISTING);
+    assert_eq!(paid.delisting_claims[0].state, DelistingState::Paid);
+    assert_eq!(paid.delisting_postings[0].cash_delta, 500_000_000);
+    assert_eq!(paid.cash, 1_040_600_000);
+    let revised = replay(6, 7, DELISTING);
+    assert_eq!(revised.delisting_postings[1].cash_delta, 20_000_000);
+    assert_eq!(revised.cash, 1_056_600_000);
+    let restored = replay(6, 8, DELISTING);
+    assert!(restored.delisting_claims.is_empty());
+    assert_eq!(restored.delisting_postings[2].cash_delta, -520_000_000);
+    assert_eq!(restored.cash, 536_600_000);
+    assert_eq!(restored.positions[0].shares, before.positions[0].shares);
+    assert_eq!(restored.positions[0].cost, before.positions[0].cost);
+    assert_eq!(restored.equity, Some(1_069_000_000));
+    assert_eq!(restored.turnover, 462_000_000);
+    assert_eq!(restored.fees, 1_400_000);
+    assert_eq!(
+        restored.events.last().unwrap().receipt.cash_delta,
+        -520_000_000
+    );
+    assert_eq!(replay(6, 5, DELISTING), receivable);
 }
 
 #[test]

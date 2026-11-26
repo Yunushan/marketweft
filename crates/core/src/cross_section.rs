@@ -1,9 +1,15 @@
 use crate::{
-    history::valid_second, paper::MAX_SHARES, portfolio::PortfolioIncomeReports, LiquidityTape,
-    PaperAccount, PaperAction, PaperConfig, PaperEvent, PaperOrderStatus, PaperReceipt, PaperSide,
-    PriceBook, UniverseAction, MAX_TICKS,
+    delisting::valid_currency, history::valid_second, paper::MAX_SHARES, parse_delistings,
+    portfolio::PortfolioIncomeReports, DelistingBook, DelistingState, LiquidityTape, PaperAccount,
+    PaperAction, PaperConfig, PaperEvent, PaperOrderStatus, PaperReceipt, PaperSide, PriceBook,
+    UniverseAction, MAX_TICKS,
 };
 use std::collections::{BTreeMap, BTreeSet};
+
+#[path = "cross_section_delisting.rs"]
+mod delisting;
+use delisting::DelistingReplay;
+pub use delisting::{CrossSectionDelistingClaim, CrossSectionDelistingPosting};
 
 #[path = "cross_section_dividend.rs"]
 mod dividend;
@@ -63,6 +69,8 @@ pub struct CrossSectionReport {
     pub turnover: i128,
     pub equity: Option<i128>,
     pub dividend_postings: Vec<CrossSectionDividendPosting>,
+    pub delisting_claims: Vec<CrossSectionDelistingClaim>,
+    pub delisting_postings: Vec<CrossSectionDelistingPosting>,
 }
 
 struct Replay<'a> {
@@ -98,7 +106,9 @@ impl Replay<'_> {
             PaperAction::Fill { order_id, .. } | PaperAction::Cancel { order_id } => {
                 self.ledger.orders().get(order_id).map(|order| order.side)
             }
-            PaperAction::CorporateCash { .. } | PaperAction::Halt => None,
+            PaperAction::CorporateCash { .. }
+            | PaperAction::CorporatePosition { .. }
+            | PaperAction::Halt => None,
         };
         self.events.push(CrossSectionEvent {
             listing_id: listing_id.to_owned(),
@@ -156,6 +166,50 @@ impl Replay<'_> {
             .positions()
             .get(&self.aliases[listing].to_string())
             .map_or(0, |position| position.shares)
+    }
+
+    fn move_position(
+        &mut self,
+        listing: &str,
+        at: i64,
+        source: &str,
+        retired: bool,
+    ) -> Result<(), String> {
+        let instrument = self.aliases[listing].clone();
+        let receipt = self.record(
+            listing,
+            at,
+            PaperAction::CorporatePosition {
+                instrument,
+                source_id: source.to_owned(),
+                retired,
+            },
+        )?;
+        if receipt.rejection.is_some() {
+            return Err("The paper ledger rejected a delisting position change.".into());
+        }
+        Ok(())
+    }
+
+    fn post_cash(
+        &mut self,
+        listing: &str,
+        at: i64,
+        source: &str,
+        amount: i128,
+    ) -> Result<String, String> {
+        let receipt = self.record(
+            listing,
+            at,
+            PaperAction::CorporateCash {
+                source_id: source.to_owned(),
+                amount,
+            },
+        )?;
+        if receipt.rejection.is_some() {
+            return Err("The paper ledger rejected a corporate cash posting.".into());
+        }
+        Ok(self.events.last().unwrap().event.id.clone())
     }
 }
 
@@ -255,7 +309,7 @@ impl PriceBook<'_> {
         liquidity: &LiquidityTape,
         config: CrossSectionConfig,
     ) -> Result<CrossSectionReport, String> {
-        self.run_cross_section(liquidity, config, None)
+        self.run_cross_section(liquidity, config, None, None, "")
     }
 
     pub fn cross_section_with_dividends(
@@ -265,16 +319,40 @@ impl PriceBook<'_> {
         dividend_csv: &str,
         account_currency: &str,
     ) -> Result<CrossSectionReport, String> {
-        if account_currency.len() != 3
-            || !account_currency
-                .bytes()
-                .all(|letter| letter.is_ascii_uppercase())
-        {
+        self.cross_section_with_actions(liquidity, config, dividend_csv, "", account_currency)
+    }
+
+    pub fn cross_section_with_actions(
+        &self,
+        liquidity: &LiquidityTape,
+        config: CrossSectionConfig,
+        dividend_csv: &str,
+        delisting_csv: &str,
+        account_currency: &str,
+    ) -> Result<CrossSectionReport, String> {
+        if !valid_currency(account_currency) {
             return Err("Use a three-letter uppercase paper account currency.".into());
         }
-        let reports = PortfolioIncomeReports::parse(self.universe, dividend_csv)?;
-        let dividends = DividendReplay::new(&reports, account_currency);
-        self.run_cross_section(liquidity, config, Some(dividends))
+        let reports = (!dividend_csv.is_empty())
+            .then(|| PortfolioIncomeReports::parse(self.universe, dividend_csv))
+            .transpose()?;
+        let dividends = reports
+            .as_ref()
+            .map(|reports| DividendReplay::new(reports, account_currency));
+        let book = if delisting_csv.is_empty() {
+            DelistingBook::new(self.universe.clone(), Vec::new())?
+        } else {
+            parse_delistings(self.universe.clone(), delisting_csv)?
+        };
+        let delistings =
+            DelistingReplay::new(&book, account_currency, config.from_at, config.known_at)?;
+        self.run_cross_section(
+            liquidity,
+            config,
+            dividends,
+            Some(delistings),
+            account_currency,
+        )
     }
 
     fn run_cross_section(
@@ -282,6 +360,8 @@ impl PriceBook<'_> {
         liquidity: &LiquidityTape,
         config: CrossSectionConfig,
         mut dividends: Option<DividendReplay<'_>>,
+        mut delistings: Option<DelistingReplay<'_>>,
+        account_currency: &str,
     ) -> Result<CrossSectionReport, String> {
         if liquidity.universe_name() != self.universe.name() {
             return Err("Liquidity and price inputs must use the same universe.".into());
@@ -338,29 +418,37 @@ impl PriceBook<'_> {
             loop {
                 let quote_time = observed.peek().map(|row| row.observed_at);
                 let dividend_time = dividends.as_mut().and_then(DividendReplay::next_time);
-                let Some(at) = quote_time.into_iter().chain(dividend_time).min() else {
+                let delisting_time = delistings.as_mut().and_then(DelistingReplay::next_time);
+                let Some(at) = [quote_time, dividend_time, delisting_time]
+                    .into_iter()
+                    .flatten()
+                    .min()
+                else {
                     break;
                 };
                 if at > through {
                     break;
                 }
-                if dividend_time == Some(at) {
+                if delisting_time == Some(at) {
+                    let changes = delistings
+                        .as_mut()
+                        .unwrap()
+                        .advance(replay, config.through_at)?;
+                    if let Some(income) = dividends.as_mut() {
+                        for listing in changes {
+                            income.observe_position(&listing, at, replay.shares(&listing));
+                        }
+                    }
+                } else if dividend_time == Some(at) {
                     let income = dividends.as_mut().unwrap();
                     for mut posting in income.next_postings(config.through_at) {
                         if posting.currency == income.currency {
-                            let receipt = replay.record(
+                            posting.receipt_id = Some(replay.post_cash(
                                 &posting.listing_id,
                                 at,
-                                PaperAction::CorporateCash {
-                                    source_id: posting.dividend_id.clone(),
-                                    amount: posting.cash_delta,
-                                },
-                            )?;
-                            if receipt.rejection.is_some() {
-                                return Err("The paper ledger rejected a dividend posting.".into());
-                            }
-                            posting.receipt_id =
-                                replay.events.last().map(|row| row.event.id.clone());
+                                &posting.dividend_id,
+                                posting.cash_delta,
+                            )?);
                         }
                         income.postings.push(posting);
                     }
@@ -421,6 +509,24 @@ impl PriceBook<'_> {
         let equity = positions.iter().try_fold(cash, |total, position| {
             Some(total + i128::from(position.shares) * i128::from(position.mark?))
         });
+        let delisting_claims: Vec<_> = delistings
+            .iter()
+            .flat_map(DelistingReplay::claims)
+            .cloned()
+            .collect();
+        let equity = equity.and_then(|total| {
+            delisting_claims
+                .iter()
+                .try_fold(total, |total, claim| match claim.state {
+                    DelistingState::MissingProceeds => None,
+                    DelistingState::Receivable
+                        if claim.currency.as_deref() == Some(account_currency) =>
+                    {
+                        Some(total + claim.amount?)
+                    }
+                    _ => Some(total),
+                })
+        });
         let fees = replay.events.iter().map(|event| event.receipt.fee).sum();
         let turnover = replay
             .events
@@ -443,6 +549,8 @@ impl PriceBook<'_> {
             turnover,
             equity,
             dividend_postings: dividends.map_or_else(Vec::new, |income| income.postings),
+            delisting_claims,
+            delisting_postings: delistings.map_or_else(Vec::new, |book| book.postings),
         })
     }
 }

@@ -45,6 +45,11 @@ pub enum Action {
         source_id: String,
         amount: i128,
     },
+    CorporatePosition {
+        instrument: Instrument,
+        source_id: String,
+        retired: bool,
+    },
     Halt,
 }
 
@@ -71,6 +76,7 @@ pub enum Rejection {
     LimitPrice,
     RepeatedFillSource,
     InvalidCorporateCash,
+    InvalidCorporatePosition,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -167,6 +173,7 @@ pub struct PaperAccount {
     working: BTreeMap<(String, Side), u64>,
     orders: BTreeMap<String, Order>,
     positions: BTreeMap<String, Position>,
+    retired: BTreeMap<String, Position>,
     history: Vec<(PaperEvent, PaperReceipt)>,
     indices: BTreeMap<String, usize>,
 }
@@ -191,6 +198,7 @@ impl PaperAccount {
             working: BTreeMap::new(),
             orders: BTreeMap::new(),
             positions: BTreeMap::new(),
+            retired: BTreeMap::new(),
             history: Vec::new(),
             indices: BTreeMap::new(),
         })
@@ -210,6 +218,9 @@ impl PaperAccount {
     }
     pub fn positions(&self) -> &BTreeMap<String, Position> {
         &self.positions
+    }
+    pub(crate) fn retired_position(&self, instrument: &Instrument) -> Option<Position> {
+        self.retired.get(&instrument.to_string()).copied()
     }
     pub fn history(&self) -> &[(PaperEvent, PaperReceipt)] {
         &self.history
@@ -321,6 +332,11 @@ impl PaperAccount {
                     ..PaperReceipt::accepted()
                 })
             }
+            Action::CorporatePosition {
+                instrument,
+                source_id,
+                retired,
+            } => self.move_corporate_position(instrument, source_id, *retired),
             Action::Halt => {
                 self.halted = true;
                 self.reserved = 0;
@@ -351,6 +367,9 @@ impl PaperAccount {
             return Err(Rejection::ExistingOrder);
         }
         let key = (order.instrument.to_string(), order.side);
+        if self.retired.contains_key(&key.0) {
+            return Err(Rejection::InvalidCorporatePosition);
+        }
         let position = self.positions.get(&key.0).copied().unwrap_or_default();
         let working = self.working.get(&key).copied().unwrap_or_default();
         match order.side {
@@ -376,6 +395,38 @@ impl PaperAccount {
         *self.working.entry(key).or_default() += order.shares;
         self.orders.insert(id.into(), order);
         Ok(PaperReceipt::accepted())
+    }
+
+    fn move_corporate_position(
+        &mut self,
+        instrument: &Instrument,
+        source_id: &str,
+        retired: bool,
+    ) -> Result<PaperReceipt, Rejection> {
+        let key = instrument.to_string();
+        let reject = Rejection::InvalidCorporatePosition;
+        if !valid_id(source_id)
+            || self.working.contains_key(&(key.clone(), Side::Buy))
+            || self.working.contains_key(&(key.clone(), Side::Sell))
+        {
+            return Err(reject);
+        }
+        let realized_delta = if retired {
+            let position = self.positions.remove(&key).ok_or(reject)?;
+            self.retired.insert(key, position);
+            self.inventory_cost -= position.cost;
+            -position.cost
+        } else {
+            let position = self.retired.remove(&key).ok_or(reject)?;
+            self.positions.insert(key, position);
+            self.inventory_cost += position.cost;
+            position.cost
+        };
+        self.realized += realized_delta;
+        Ok(PaperReceipt {
+            realized_delta,
+            ..PaperReceipt::accepted()
+        })
     }
 
     fn fill(

@@ -1,0 +1,3 @@
+listing_id,change_id,observed_at,pay_at,currency,proceeds_per_share,reference_at,reference_close,reference_currency
+A,A-DELIST,2025-06-02T14:05:00Z,2025-06-02T14:06:00Z,USD,125,,,
+A,A-DELIST,2025-06-02T14:07:00Z,2025-06-02T14:06:00Z,USD,130,,,

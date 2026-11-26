@@ -105,6 +105,24 @@ impl UniverseBook {
             .collect()
     }
 
+    pub(crate) fn delisting_checkpoints(&self) -> BTreeSet<i64> {
+        let mut times = BTreeSet::new();
+        for revisions in self.rows.chunk_by(|a, b| a.change_id == b.change_id) {
+            if revisions
+                .iter()
+                .any(|row| row.action == UniverseAction::Delist)
+            {
+                for row in revisions {
+                    times.insert(row.observed_at);
+                    if row.action == UniverseAction::Delist {
+                        times.insert(row.effective_at.max(row.observed_at));
+                    }
+                }
+            }
+        }
+        times
+    }
+
     pub(crate) fn report_count(&self) -> usize {
         self.rows.len()
     }

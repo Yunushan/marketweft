@@ -9,6 +9,39 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('paper corporate cash preserves revised proceeds and exact dividend currency across cutoffs', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, prices, liquidity, dividends, delistings] = await Promise.all([
+    fixture('synthetic-cross-section-membership'), fixture('synthetic-listing-risk-prices'),
+    fixture('synthetic-cross-section-liquidity'), fixture('synthetic-cross-section-dividends'),
+    fixture('synthetic-cross-section-delisting'),
+  ]);
+  const utc = minute => '2025-06-02T14:0' + minute + ':00Z';
+  const run = (known, through = 6) => core.crossSectionReplay(membership, prices, liquidity, utc(1), utc(through), utc(known), {
+    paper: { startingCash: '1000', positionLimit: '10', exposureLimit: '1000', feePerShare: '0.1', feePerOrder: '0.5' },
+    decisionSeconds: '60', lookbackSeconds: '60', topListings: '1', targetShares: '4', limitBuffer: '1000', participation: '10000',
+  }, { accountCurrency: 'USD', dividends, delistings });
+  assert.deepEqual(run(7, 4).delistingPostings, []);
+  const receivable = run(5);
+  assert.equal(receivable.cash, 540600000n);
+  assert.equal(receivable.delistingClaims[0].state, 'receivable');
+  assert.equal(receivable.delistingClaims[0].amount, 500000000n);
+  assert.equal(receivable.dividendPostings[0].shares, 2n);
+  const revised = run(7);
+  assert.equal(revised.cash, 1056600000n);
+  assert.deepEqual(revised.delistingPostings.map(row => row.cashDelta), [500000000n, 20000000n]);
+  assert.deepEqual(revised.dividendPostings.map(row => [row.currency, row.cashDelta]), [
+    ['USD', 4000000n], ['USD', -4000000n], ['EUR', 6000000n],
+  ]);
+  assert.equal(revised.dividendPostings[2].receiptId, null);
+  assert.ok(revised.receipts.some(row => row.id === revised.delistingPostings[1].receiptId && row.cashDelta === 20000000n));
+  const restored = run(8);
+  assert.deepEqual(restored.delistingClaims, []);
+  assert.equal(restored.positions[0].cost, 463400000n);
+  assert.equal(restored.cash, 536600000n);
+  assert.deepEqual(run(5), receivable);
+});
+
 test('cross-sectional paper replay executes only later observed liquidity and reconciles turnover', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
   const [membership, prices, liquidity] = await Promise.all([

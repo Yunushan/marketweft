@@ -20,7 +20,7 @@ function PriceCell({ price }: { price: ScreenPrice | null }) {
 }
 
 export function UniverseScreen({
-  core, membership, membershipSource, listings, demo, firstCutoff, effective, known, initialPrices,
+  core, membership, membershipSource, listings, demo, firstCutoff, effective, known, initialPrices, corporateDemo,
 }: {
   core: MarketCore
   membership: string
@@ -31,6 +31,7 @@ export function UniverseScreen({
   effective: string
   known: string
   initialPrices?: { csv: string; source: string }
+  corporateDemo?: boolean
 }) {
   const [prices, setPrices] = useState<{ csv: string; source: string } | null>(initialPrices ?? null)
   const [file, setFile] = useState<File | null>(null)
@@ -170,7 +171,7 @@ export function UniverseScreen({
         effective={effective} known={known} />}
       {prices && <CrossSectionReplay core={core} membership={membership} membershipSource={membershipSource}
         prices={prices.csv} priceSource={prices.source} firstCutoff={firstCutoff}
-        effective={effective} known={known} demo={initialPrices !== undefined} />}
+        effective={effective} known={known} demo={initialPrices !== undefined} corporateDemo={corporateDemo} />}
       {prices && <SectorHeatmap core={core} membership={membership} prices={prices.csv}
         baseline={baseline} effective={effective} known={known} demo={demo} />}
     </section>

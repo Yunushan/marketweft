@@ -266,9 +266,26 @@ impl DelistingBook {
                 }),
         }
     }
+
+    pub(crate) fn paper_checkpoints(&self, from: i64, through: i64) -> Result<Vec<i64>, String> {
+        let mut times = self.membership.delisting_checkpoints();
+        for terms in self.by_change.values().flatten() {
+            times.insert(terms.observed_at);
+            if let Some(pay_at) = terms.offer.as_ref().and_then(|offer| offer.pay_at) {
+                times.insert(pay_at);
+            }
+        }
+        let times: Vec<_> = times.range(from..=through.max(from)).copied().collect();
+        if times.len() > MAX_LEDGER_EVALUATIONS / self.membership.report_count() {
+            return Err(
+                "Paper delisting replay exceeds two million membership evaluations.".into(),
+            );
+        }
+        Ok(times)
+    }
 }
 
-fn valid_currency(value: &str) -> bool {
+pub(crate) fn valid_currency(value: &str) -> bool {
     value.len() == 3 && value.bytes().all(|byte| byte.is_ascii_uppercase())
 }
 

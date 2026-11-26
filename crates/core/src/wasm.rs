@@ -227,13 +227,7 @@ pub extern "C" fn mw_delisting_as_of(membership_bytes: usize, shares: u32) -> u3
             .ok_or("Supply universe membership and delisting terms.")?;
         let book = crate::parse_delistings(parse_universe(membership)?, terms)?;
         let value = book.as_of(listing, shares, effective, known)?;
-        let status = match value.state {
-            crate::DelistingState::Unobserved => "unobserved",
-            crate::DelistingState::Shares => "shares",
-            crate::DelistingState::MissingProceeds => "missing-proceeds",
-            crate::DelistingState::Receivable => "receivable",
-            crate::DelistingState::Paid => "paid",
-        };
+        let status = delisting_state(value.state);
         let mut lines = String::new();
         writeln!(
             lines,
@@ -658,43 +652,85 @@ pub extern "C" fn mw_portfolio_scenarios(membership_bytes: usize) -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_cross_section_replay(membership_bytes: usize, price_bytes: usize) -> u32 {
+    process(|input| cross_section_input(input, membership_bytes, price_bytes, None))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_cross_section_actions(
+    membership_bytes: usize,
+    price_bytes: usize,
+    liquidity_bytes: usize,
+    dividend_bytes: usize,
+) -> u32 {
     process(|input| {
-        let ([from_at, through_at, known_at], rest) = screen_inputs(input)?;
-        let mut fields = rest.splitn(3, '\n');
-        let settings = fields.next().ok_or("Supply ranking settings.")?;
-        let paper = parse_paper_config(fields.next().ok_or("Supply paper settings.")?)?;
-        let csvs = fields
-            .next()
-            .ok_or("Supply membership, price and liquidity reports.")?;
-        let (membership, rest) = csvs
-            .split_at_checked(membership_bytes)
-            .ok_or("Invalid membership data.")?;
-        let (prices, liquidity) = rest
-            .split_at_checked(price_bytes)
-            .ok_or("Invalid price data.")?;
-        let [decision, lookback, top, target, buffer, participation] = settings
-            .split(',')
-            .collect::<Vec<_>>()
-            .try_into()
-            .map_err(|_| "Supply six ranking settings.")?;
-        let error = |_| "Use whole numbers for ranking settings.";
-        let query = crate::CrossSectionConfig {
-            from_at,
-            through_at,
-            known_at,
-            paper,
-            decision_seconds: decision.parse().map_err(error)?,
-            lookback_seconds: lookback.parse().map_err(error)?,
-            top_listings: top.parse().map_err(error)?,
-            target_shares: target.parse().map_err(error)?,
-            limit_buffer_bps: buffer.parse().map_err(error)?,
-            participation_bps: participation.parse().map_err(error)?,
-        };
-        let universe = parse_universe(membership)?;
-        let book = PriceBook::parse(&universe, prices)?;
-        let tape = crate::LiquidityTape::parse(&universe, liquidity)?;
-        Ok(encode_cross_section(book.cross_section_replay(&tape, query)?).into_bytes())
+        cross_section_input(
+            input,
+            membership_bytes,
+            price_bytes,
+            Some((liquidity_bytes, dividend_bytes)),
+        )
     })
+}
+
+fn cross_section_input(
+    input: &[u8],
+    membership_bytes: usize,
+    price_bytes: usize,
+    reports: Option<(usize, usize)>,
+) -> Result<Vec<u8>, String> {
+    let ([from_at, through_at, known_at], rest) = screen_inputs(input)?;
+    let mut fields = rest.splitn(3, '\n');
+    let settings = fields.next().ok_or("Supply ranking settings.")?;
+    let paper = parse_paper_config(fields.next().ok_or("Supply paper settings.")?)?;
+    let csvs = fields
+        .next()
+        .ok_or("Supply membership, price and liquidity reports.")?;
+    let (currency, csvs) = if reports.is_some() {
+        csvs.split_once('\n')
+            .ok_or("Supply the paper account currency.")?
+    } else {
+        ("", csvs)
+    };
+    let (membership, rest) = csvs
+        .split_at_checked(membership_bytes)
+        .ok_or("Invalid membership data.")?;
+    let (prices, rest) = rest
+        .split_at_checked(price_bytes)
+        .ok_or("Invalid price data.")?;
+    let [decision, lookback, top, target, buffer, participation] = settings
+        .split(',')
+        .collect::<Vec<_>>()
+        .try_into()
+        .map_err(|_| "Supply six ranking settings.")?;
+    let error = |_| "Use whole numbers for ranking settings.";
+    let query = crate::CrossSectionConfig {
+        from_at,
+        through_at,
+        known_at,
+        paper,
+        decision_seconds: decision.parse().map_err(error)?,
+        lookback_seconds: lookback.parse().map_err(error)?,
+        top_listings: top.parse().map_err(error)?,
+        target_shares: target.parse().map_err(error)?,
+        limit_buffer_bps: buffer.parse().map_err(error)?,
+        participation_bps: participation.parse().map_err(error)?,
+    };
+    let universe = parse_universe(membership)?;
+    let book = PriceBook::parse(&universe, prices)?;
+    let report = if let Some((liquidity_bytes, dividend_bytes)) = reports {
+        let (liquidity, rest) = rest
+            .split_at_checked(liquidity_bytes)
+            .ok_or("Invalid liquidity data.")?;
+        let (dividends, delistings) = rest
+            .split_at_checked(dividend_bytes)
+            .ok_or("Invalid dividend data.")?;
+        let tape = crate::LiquidityTape::parse(&universe, liquidity)?;
+        book.cross_section_with_actions(&tape, query, dividends, delistings, currency)?
+    } else {
+        let tape = crate::LiquidityTape::parse(&universe, rest)?;
+        book.cross_section_replay(&tape, query)?
+    };
+    Ok(encode_cross_section(report).into_bytes())
 }
 
 fn encode_cross_section(report: crate::CrossSectionReport) -> String {
@@ -742,7 +778,70 @@ fn encode_cross_section(report: crate::CrossSectionReport) -> String {
         write!(&mut text, "E\t{}\t{side}\t", row.listing_id).unwrap();
         write_paper_receipt(&mut text, &row.event, &row.receipt, fields);
     }
+    for row in report.dividend_postings {
+        writeln!(
+            &mut text,
+            "V\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            row.listing_id,
+            row.dividend_id,
+            row.posted_at,
+            row.observed_at,
+            row.ex_at,
+            row.pay_at,
+            row.entitled_shares,
+            row.currency,
+            row.cash_delta,
+            row.receipt_id.as_deref().unwrap_or("")
+        )
+        .unwrap();
+    }
+    for claim in &report.delisting_claims {
+        text.push_str("C\t");
+        write_delisting_claim(&mut text, claim);
+        text.push('\n');
+    }
+    for row in report.delisting_postings {
+        text.push_str("S\t");
+        write_delisting_claim(&mut text, &row.claim);
+        writeln!(
+            &mut text,
+            "\t{}\t{}\t{}",
+            row.posted_at,
+            row.cash_delta,
+            row.receipt_id.as_deref().unwrap_or("")
+        )
+        .unwrap();
+    }
     text
+}
+
+fn write_delisting_claim(text: &mut String, claim: &crate::CrossSectionDelistingClaim) {
+    use std::fmt::Write;
+    write!(
+        text,
+        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        claim.listing_id,
+        claim.change_id,
+        claim.effective_at,
+        claim.observed_at,
+        optional_number(claim.terms_observed_at),
+        optional_number(claim.pay_at),
+        claim.shares,
+        delisting_state(claim.state),
+        claim.currency.as_deref().unwrap_or(""),
+        optional_number(claim.amount)
+    )
+    .unwrap();
+}
+
+fn delisting_state(state: crate::DelistingState) -> &'static str {
+    match state {
+        crate::DelistingState::Unobserved => "unobserved",
+        crate::DelistingState::Shares => "shares",
+        crate::DelistingState::MissingProceeds => "missing-proceeds",
+        crate::DelistingState::Receivable => "receivable",
+        crate::DelistingState::Paid => "paid",
+    }
 }
 
 struct PairInputs<'a> {
@@ -1076,6 +1175,16 @@ fn paper_event_fields(action: &PaperAction) -> PaperEventFields<'_> {
         PaperAction::CorporateCash { source_id, .. } => {
             ("", "corporate-cash", source_id.as_str(), None, None, None)
         }
+        PaperAction::CorporatePosition {
+            source_id, retired, ..
+        } => {
+            let kind = if *retired {
+                "retire-position"
+            } else {
+                "restore-position"
+            };
+            ("", kind, source_id.as_str(), None, None, None)
+        }
         PaperAction::Halt => ("", "halt", "", None, None, None),
     }
 }
@@ -1119,6 +1228,7 @@ fn paper_rejection(reason: PaperRejection) -> &'static str {
         PaperRejection::LimitPrice => "limit-price",
         PaperRejection::RepeatedFillSource => "repeated-fill-source",
         PaperRejection::InvalidCorporateCash => "invalid-corporate-cash",
+        PaperRejection::InvalidCorporatePosition => "invalid-corporate-position",
     }
 }
 

@@ -9,6 +9,7 @@ import { utc } from './workspace'
 import demo from '../../../crates/core/tests/fixtures/synthetic-universe.csv?raw'
 import riskMembership from '../../../crates/core/tests/fixtures/synthetic-listing-risk-membership.csv?raw'
 import riskPrices from '../../../crates/core/tests/fixtures/synthetic-listing-risk-prices.csv?raw'
+import corporateMembership from '../../../crates/core/tests/fixtures/synthetic-cross-section-membership.csv?raw'
 
 const statuses = { member: 'Member', removed: 'Removed', delisted: 'Delisted' }
 type Cutoffs = { effective: string; known: string }
@@ -19,6 +20,7 @@ type Dataset = {
   source: string
   demo: boolean
   initialPrices?: { csv: string; source: string }
+  corporateDemo?: boolean
 }
 type Result = Cutoffs & {
   listings: UniverseListing[]
@@ -61,12 +63,12 @@ export function UniverseReplay({
     }
   }
 
-  function start(csv: string, source: string, demo = false, initialPrices?: Dataset['initialPrices']) {
+  function start(csv: string, source: string, demo = false, initialPrices?: Dataset['initialPrices'], corporateDemo = false) {
     const book = core.universeIndex(csv)
     const first = atCheckpoint(book.checkpoints[0])
     const initial = snapshot(csv, first, 0)
     if (initialPrices) core.universeScreen(csv, initialPrices.csv, first.effective, first.effective, first.known)
-    setDataset({ ...book, csv, source, demo, initialPrices })
+    setDataset({ ...book, csv, source, demo, initialPrices, corporateDemo })
     setResult(initial)
     setDraft(first)
     setCursor(0)
@@ -85,12 +87,14 @@ export function UniverseReplay({
     }
   }
 
-  function tryRiskDemo() {
+  function tryRiskDemo(withCorporateCash = false) {
     setError('')
     try {
-      start(riskMembership, 'Synthetic listing risk membership', false, { csv: riskPrices, source: 'Synthetic listing risk closes' })
+      const source = withCorporateCash ? 'Synthetic corporate cash membership' : 'Synthetic listing risk membership'
+      start(withCorporateCash ? corporateMembership : riskMembership, source, false,
+        { csv: riskPrices, source: 'Synthetic listing risk closes' }, withCorporateCash)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not open the listing risk demo.')
+      setError(cause instanceof Error ? cause.message : 'Could not open the replay demo.')
     }
   }
 
@@ -176,8 +180,11 @@ export function UniverseReplay({
               <button className="primary" onClick={tryDemo} disabled={busy}>
                 Start universe demo
               </button>
-              <button className="outline" onClick={tryRiskDemo} disabled={busy}>
+              <button className="outline" onClick={() => tryRiskDemo()} disabled={busy}>
                 Start listing risk demo
+              </button>
+              <button className="outline" onClick={() => tryRiskDemo(true)} disabled={busy}>
+                Start corporate cash demo
               </button>
             </section>
             <form className="side-card replay-panel" onSubmit={load}>
@@ -358,6 +365,7 @@ export function UniverseReplay({
               membershipSource={dataset.source}
               listings={result.listings}
               initialPrices={dataset.initialPrices}
+              corporateDemo={dataset.corporateDemo}
               demo={dataset.demo}
               firstCutoff={utc(dataset.checkpoints[0])}
               effective={result.effective}
