@@ -62,5 +62,6 @@ def scan(locks):
 
 
 if __name__ == "__main__":
-    sys.exit(scan([ROOT / "Cargo.lock", ROOT / "apps/desktop/Cargo.lock"]))
+    sys.exit(scan([ROOT / "Cargo.lock", ROOT / "apps/desktop/Cargo.lock",
+                   ROOT / "apps/research-service/Cargo.lock"]))
 

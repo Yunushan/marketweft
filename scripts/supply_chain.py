@@ -149,11 +149,16 @@ def python_build_component():
 def main():
     components = {}
     for item in [*cargo_components(ROOT, "core"), *cargo_components(ROOT / "apps/desktop", "desktop"),
+                 *cargo_components(ROOT / "apps/research-service", "research-service"),
                  *npm_components(), python_build_component()]:
         key = item["bom-ref"]
-        if key in components and item["hashes"] != components[key]["hashes"]:
-            raise ValueError(f"Inconsistent package integrity for {key}")
-        components[key] = item
+        if key not in components:
+            components[key] = item
+            continue
+        previous = components[key]
+        if item["hashes"] != previous["hashes"] or item["licenses"] != previous["licenses"]:
+            raise ValueError(f"Inconsistent package integrity or license for {key}")
+        previous["properties"].extend(prop for prop in item["properties"] if prop not in previous["properties"])
     report = {"bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
               "metadata": {"component": {"type": "application", "name": "MarketWeft",
                                          "version": json.loads((ROOT / "package.json").read_text())["version"]}},

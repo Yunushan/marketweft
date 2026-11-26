@@ -100,7 +100,8 @@ pub(crate) fn timestamp(text: &str) -> Option<i64> {
         .then_some(midnight + hour * 3600 + minute * 60 + second)
 }
 
-pub(crate) fn exact_utc(text: &str) -> Option<i64> {
+/// Parse a whole UTC timestamp in YYYY-MM-DDTHH:MM:SSZ form.
+pub fn exact_utc(text: &str) -> Option<i64> {
     (text.len() == 20 && text.ends_with('Z'))
         .then(|| timestamp(text))
         .flatten()
