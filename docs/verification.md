@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.31.0 · Aligned relative returns
+
+| Check | Observed result |
+| --- | --- |
+| Exact observations | At the 14:12 UTC cutoff, ALFA returns 2.9412% and BETA has no same-time close. Advancing knowledge one minute reveals BETA's 1.7857% return and a spread of 1.1555 percentage points. |
+| Revisions and membership | A later baseline revision changes that spread to −9.9301 percentage points. The 14:20 removal first appears at 14:25. Rewinding knowledge reproduces the earlier CSV byte for byte. A delisted ID stops contributing regardless of ticker reuse. |
+| Browser export | Offline Chromium verifies exact dates, listing IDs, quote observation times, spreadsheet-safe source labels, missing fields and full-window export beyond the first 50 rows. The catalog is unchanged. |
+| Regression suite | All 71 browser, six SDK and four launcher tests passed on Windows x64. All 72 native tests passed on Linux x64, all 27 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Relative returns](relative-returns.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.30.0 · Portfolio dividend income
 
 | Check | Observed result |

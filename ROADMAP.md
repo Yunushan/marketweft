@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.30.0 adds gross dividend receivables and cash to point-in-time portfolio replay. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.31.0 compares two listings' exact close histories at a shared observation cutoff. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -33,6 +33,7 @@
 | Delivered · 0.28.0 | Session-aware timeframes (MW-006, MW-013) | Anchor target bars to dated session opens, clip the last bucket at the listed session close, and retain exact OHLCV and missing-slot coverage across DST. [Chart workspace](docs/chart-workspace.md). |
 | Delivered · 0.29.0 | Recorded tick bars (MW-006, MW-013) | Aggregate exact OHLCV in capture order, mark a provisional final group, and export distinct equal-time sequence IDs at the observation cutoff. [Recorded tick bars](docs/recorded-tick-bars.md). |
 | Delivered · 0.30.0 | Multi-listing dividend income (MW-017, MW-025) | Compute gross entitlement from dated holdings before ex, settle at pay time, and reconcile later quantity, terms and currency revisions at independent cutoffs. [Portfolio replay](docs/portfolio-replay.md). |
+| Delivered · 0.31.0 | Aligned relative returns (MW-013, MW-018) | Compare two stable listing IDs on exact UTC closes. Reconstruct membership and quote revisions at the same cutoff and export the full window with observation timestamps. [Relative returns](docs/relative-returns.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Apply delisting proceeds and dividend entries in portfolio execution replay. Extend the source and rights model to live providers. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -44,5 +45,5 @@
 
 ## Handoff for the next change
 
-The next market-research milestone aligns multiple listing close histories at exact effective times and a shared knowledge cutoff. Verify missing observations, late revisions, and repeatable relative returns.
+The next milestone adds a local depth replay for supplied snapshots and updates. Verify sequence continuity, gap recovery, and exact bid and ask levels at each observation cutoff.
 
