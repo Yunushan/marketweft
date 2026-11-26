@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.81.0 · Provider replay chart
+
+| Check | Observed result |
+| --- | --- |
+| Corrections and rewind | Offline Chromium checked the candlestick readout at the original close of `10.000001` and the corrected close of `10.250001`. Rewinding from the replacement restored the earlier close. |
+| Withdrawal and replacement | The chart and table were empty at 14:06 UTC. At 14:07 both showed replacement close `10.400001` and volume `100.000003`. |
+| Compact layout | The loaded replay chart and table fit a 360-pixel viewport without document overflow. |
+
+[Provider replay chart](provider-revisions.md#provider-replay-chart) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.80.0 · Provider bar withdrawals
 
 | Check | Observed result |

@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.80.0 replays provider bar withdrawals and later replacements at their observation times. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.81.0 charts provider bars at the selected replay cutoffs. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -83,6 +83,7 @@
 | Delivered · 0.78.0 | Provider key validity windows (MW-013, MW-029) | Verify the same signed fixture just before activation, at activation and at key retirement. [Provider key validity windows](docs/provider-history-fixture.md#provider-key-validity-windows). |
 | Delivered · 0.79.0 | Provider OHLCV revision replay (MW-013, MW-017) | Keep all bar revisions and verify corrections and late reports at independent cutoffs in Rust and offline Chromium. [Provider revision replay](docs/provider-revisions.md). |
 | Delivered · 0.80.0 | Provider bar withdrawals (MW-013, MW-017) | Verify a bar's disappearance at the withdrawal observation and its return with exact replacement values. [Provider bar withdrawals](docs/provider-revisions.md#withdraw-and-replace-a-bar). |
+| Delivered · 0.81.0 | Provider replay chart (MW-012, MW-017) | Verify matching table and candlestick changes at the correction, withdrawal and replacement cutoffs. [Provider replay chart](docs/provider-revisions.md#provider-replay-chart). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -94,5 +95,5 @@
 
 ## Handoff for the next change
 
-Plot the provider replay's observed OHLCV on the shared candlestick chart. Verify that corrections and withdrawals update the chart at the same cutoffs as the table.
+Show the selected chart bar's provider observation time. Verify that inspecting a corrected candle shows the same observation timestamp as the table.
 

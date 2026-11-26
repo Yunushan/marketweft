@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { Chart } from './Chart'
 import { fixed } from './fixed-point'
 import { Mark } from './Icons'
 import { checkImportRows, type ImportPolicy } from './import-policy'
 import type { MarketCore } from './market-core'
-import { utc } from './workspace'
+import { utc, type Asset } from './workspace'
 import demo from '../../../crates/core/tests/fixtures/synthetic-provider-withdrawals.csv?raw'
 
 const DEMO = { csv: demo, name: 'Synthetic provider revisions' }
@@ -29,6 +30,21 @@ export function ProviderRevisionResearch({ core, policy, close }: {
   const [problem, setProblem] = useState('')
   const title = useRef<HTMLHeadingElement>(null)
   useEffect(() => { title.current?.focus() }, [])
+  const chart = useMemo<Asset | null>(() => {
+    if (view.bars.length === 0) return null
+    const [venue, symbol] = view.instrument.split(':')
+    return {
+      id: view.instrument, venue, symbol, name: view.instrument, source: 'import',
+      bars: view.bars.map(bar => ({
+        time: bar.at,
+        open: Number(bar.open) / 1e6,
+        high: Number(bar.high) / 1e6,
+        low: Number(bar.low) / 1e6,
+        close: Number(bar.close) / 1e6,
+        volume: Number(bar.volume) / 1e6,
+      })),
+    }
+  }, [view])
 
   function apply(history: typeof source) {
     const effectiveAt = effective.trim()
@@ -98,6 +114,10 @@ export function ProviderRevisionResearch({ core, policy, close }: {
         <h2>{view.instrument}</h2>
         <p role="status">{view.provider} · {source.name} · {view.bars.length} observed {view.bars.length === 1 ? 'bar' : 'bars'}</p>
         <p>Effective through {view.effectiveAt} · Known through {view.knownAt}</p>
+        {chart && <section aria-label="Provider replay chart">
+          <Chart key={[view.instrument, view.effectiveAt, view.knownAt, view.bars.length].join('/')}
+            asset={chart} sma={[]} ema={[]} />
+        </section>}
         {bars.length === 0 ? <p>No bars meet these cutoffs.</p> : (
           <div className="replay-table-scroll" tabIndex={0} role="region" aria-label="Scrollable provider history">
             <table className="universe-table" aria-label="Provider history bars">

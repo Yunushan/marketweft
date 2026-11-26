@@ -35,3 +35,9 @@ synthetic-sample,DEMO,ALFA,2025-06-02T14:00:00Z,2025-06-02T14:07:00Z,upsert,10.0
 ```
 
 An `upsert` after the withdrawal restores that same bar with its replacement values. At a cutoff before 14:06 the earlier close is 10.250001. The 14:06 observation removes it. The 14:07 replacement brings it back with a close of 10.400001 and volume of 100.000003. A header without `action` represents historical upserts.
+
+## Provider replay chart
+
+The candlestick and volume chart plots the same observed bars as the table. Move the crosshair over a candle to read its UTC time and OHLCV. Use the range controls or drag the chart to inspect earlier bars. The table gives the observation time and full fixed-point values for each bar.
+
+Set the demo's effective cutoff to 14:00 UTC. The chart and table show the original close of 10.000001 before the 14:04 correction and 10.250001 afterward. Both are empty at the 14:06 withdrawal. At 14:07 the chart and table show the replacement close of 10.400001 and volume of 100.000003.
