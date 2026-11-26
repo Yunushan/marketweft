@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.5.0 · 0BSD**
+**0.6.0 · 0BSD**
 
 **دستاویز کی زبانیں**
 
@@ -21,7 +21,7 @@ MarketWeft تجزیہ کاروں، ڈویلپرز اور آپریٹرز کا م�
 
 <div dir="rtl">
 
-MarketWeft 0.5.0 سیشن وار ری پلے میں حصص کی تقسیم کے ساتھ ہر لمحے معلوم نقد منافع شامل کرتا ہے۔ الگ trading-bot کے لیے صرف پڑھنے والا TypeScript SDK اور تجرباتی Tauri میزبان بھی ہیں۔ کمپنی کی علیحدگی، فیڈ، آرڈر، مشترکہ میزبانی اور دستخط شدہ انسٹالر آئندہ کام ہیں۔
+MarketWeft 0.6.0 سیشن وار ری پلے میں تقسیم اور نقد منافع کے ساتھ ہر لمحے معلوم رکنیت اور فہرست سے اخراج دکھاتا ہے۔ الگ trading-bot کے لیے صرف پڑھنے والا TypeScript SDK اور تجرباتی Tauri میزبان بھی ہیں۔ کمپنی کی علیحدگی، فیڈ، آرڈر، مشترکہ میزبانی اور دستخط شدہ انسٹالر آئندہ کام ہیں۔
 
 </div>
 
@@ -32,7 +32,7 @@ MarketWeft 0.5.0 سیشن وار ری پلے میں حصص کی تقسیم کے 
 
 <div dir="rtl">
 
-کامیاب GitHub رن سے browser-terminal-attempt-N حاصل کریں۔ MarketWeft-browser-0.5.0.zip کھولیں، dist/ کو serve-terminal.mjs کے ساتھ رکھیں اور اسی فولڈر میں کمانڈ چلائیں۔ WebAssembly، Canvas، BigInt اور IndexedDB والے براؤزر میں http://127.0.0.1:4173/ کھولیں۔ Node.js 22.12 یا نیا چاہیے۔ npm کی تنصیب درکار نہیں۔ نیٹ بند کرنے سے پہلے Offline ready دیکھیں۔
+کامیاب GitHub رن سے browser-terminal-attempt-N حاصل کریں۔ MarketWeft-browser-0.6.0.zip کھولیں، dist/ کو serve-terminal.mjs کے ساتھ رکھیں اور اسی فولڈر میں کمانڈ چلائیں۔ WebAssembly، Canvas، BigInt اور IndexedDB والے براؤزر میں http://127.0.0.1:4173/ کھولیں۔ Node.js 22.12 یا نیا چاہیے۔ npm کی تنصیب درکار نہیں۔ نیٹ بند کرنے سے پہلے Offline ready دیکھیں۔
 
 </div>
 
@@ -79,7 +79,18 @@ instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per
 DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
+<div dir="rtl">
+
+Historical replay → Open universe replay → Start universe demo کھولیں۔ 14:05 UTC پر صرف ALFA رکن ہے اور 14:10 پر BETA شامل ہوتا ہے۔ ALFA کا 14:20 کا اخراج 14:25 پر معلوم ہوتا ہے۔ BETA کی 14:30 والی ڈی لسٹنگ 14:35 پر معلوم ہوتی ہے۔ پچھلی رکنیت دیکھنے کے لیے پیچھے جائیں یا Effective time اور Known time الگ دے کر سوال چلائیں۔ اپنا Universe membership CSV اپ لوڈ کریں۔ اصلاحات میں تبدیلی کا ID وہی رکھیں اور ٹکر دوبارہ استعمال ہو تو لسٹنگ کا نیا ID دیں۔
+
+</div>
+
+```csv
+universe,change_id,listing_id,instrument,effective_at,observed_at,action
+DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
 
 <!-- section:04 -->
 ## اپنا ڈیٹا درآمد اور دوبارہ چلائیں

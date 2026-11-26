@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.5.0 · 0BSD**
+**0.6.0 · 0BSD**
 
 **Ngôn ngữ tài liệu**
 
@@ -15,14 +15,14 @@
 
 MarketWeft là terminal nghiên cứu ưu tiên chạy cục bộ cho nhà phân tích, lập trình viên và người vận hành. Terminal mở OHLCV được cấp quyền, vẽ nến và khối lượng, tính SMA và EMA bằng số dấu phẩy cố định, lưu danh sách theo dõi, tài sản và chỉ báo vào IndexedDB. Sau khi lưu tài nguyên vào bộ đệm, ứng dụng chạy ngoại tuyến. Giá và khối lượng đi kèm là dữ liệu tổng hợp và không cần tài khoản.
 
-MarketWeft 0.5.0 thêm cổ tức tiền mặt theo thông tin tại từng thời điểm cùng với tách cổ phiếu trong phát lại theo phiên. Kho mã có SDK TypeScript chỉ đọc cho trading-bot riêng và host Tauri thử nghiệm. Chia tách doanh nghiệp, nguồn cấp, lệnh, hosting nhiều người dùng và trình cài đặt có chữ ký nằm trong lộ trình.
+MarketWeft 0.6.0 thêm thành phần tập chứng khoán và hủy niêm yết theo thông tin tại từng thời điểm, cùng với tách cổ phiếu và cổ tức tiền mặt. Kho mã có SDK TypeScript chỉ đọc cho trading-bot riêng và host Tauri thử nghiệm. Chia tách doanh nghiệp, nguồn cấp, lệnh, hosting nhiều người dùng và trình cài đặt có chữ ký nằm trong lộ trình.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Khởi động terminal di động
 
-Tải browser-terminal-attempt-N từ lần kiểm chứng GitHub thành công. Giải nén MarketWeft-browser-0.5.0.zip, giữ dist/ cùng thư mục với serve-terminal.mjs và chạy lệnh tại đó. Mở http://127.0.0.1:4173/ trên trình duyệt hỗ trợ WebAssembly, Canvas, BigInt và IndexedDB. Dùng Node.js 22.12 trở lên. Không phải cài npm. Chờ Offline ready trước khi ngắt mạng.
+Tải browser-terminal-attempt-N từ lần kiểm chứng GitHub thành công. Giải nén MarketWeft-browser-0.6.0.zip, giữ dist/ cùng thư mục với serve-terminal.mjs và chạy lệnh tại đó. Mở http://127.0.0.1:4173/ trên trình duyệt hỗ trợ WebAssembly, Canvas, BigInt và IndexedDB. Dùng Node.js 22.12 trở lên. Không phải cài npm. Chờ Offline ready trước khi ngắt mạng.
 
 ```sh
 node serve-terminal.mjs
@@ -51,7 +51,14 @@ instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per
 DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
+Mở Historical replay → Open universe replay → Start universe demo. Lúc 14:05 UTC chỉ ALFA thuộc tập, BETA vào lúc 14:10. Việc loại ALFA có hiệu lực 14:20 và được biết lúc 14:25. BETA bị hủy niêm yết lúc 14:30 và được biết lúc 14:35. Lùi lại hoặc truy vấn Effective time và Known time độc lập. Tải Universe membership CSV cho dữ liệu riêng. Giữ ID thay đổi khi sửa và dùng ID niêm yết khác khi tái sử dụng mã.
+
+```csv
+universe,change_id,listing_id,instrument,effective_at,observed_at,action
+DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
 
 <!-- section:04 -->
 ## Nhập và phát dữ liệu của bạn
