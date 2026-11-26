@@ -16,7 +16,7 @@ pub struct PriceObservation {
 /// Close prices indexed by immutable listing identity, price time and observation time.
 #[derive(Clone, Debug)]
 pub struct PriceBook<'a> {
-    universe: &'a UniverseBook,
+    pub(crate) universe: &'a UniverseBook,
     prices: BTreeMap<String, BTreeMap<i64, BTreeMap<i64, i64>>>,
 }
 
@@ -146,7 +146,7 @@ impl<'a> PriceBook<'a> {
             }
             let scaled = (current - base) * 1_000_000;
             row.rank = Some(rank);
-            row.return_units = Some((scaled.abs() + base / 2) / base * scaled.signum());
+            row.return_units = Some(rounded_div(scaled, base));
             previous = Some((current, base));
         }
         Ok(rows)
@@ -154,9 +154,13 @@ impl<'a> PriceBook<'a> {
 }
 
 impl ScreenRow<'_> {
-    fn ratio(&self) -> Option<(i128, i128)> {
+    pub(crate) fn ratio(&self) -> Option<(i128, i128)> {
         Some((self.current?.ticks.into(), self.baseline?.ticks.into()))
     }
+}
+
+pub(crate) fn rounded_div(numerator: i128, denominator: i128) -> i128 {
+    (numerator.abs() + denominator / 2) / denominator * numerator.signum()
 }
 
 fn compare((a, b): (i128, i128), (c, d): (i128, i128)) -> Ordering {
