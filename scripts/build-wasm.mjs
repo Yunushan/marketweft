@@ -7,7 +7,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const options = { cwd: root, encoding: 'utf8' };
 const metadata = JSON.parse(execFileSync('cargo', ['metadata', '--format-version', '1', '--no-deps', '--locked'], options));
 const target = 'wasm32-unknown-unknown';
-execFileSync('cargo', ['build', '--locked', '--release', '-p', 'marketweft-core', '--target', target], {
+execFileSync('cargo', ['build', '--locked', '--release', '--lib', '-p', 'marketweft-core', '--target', target], {
   ...options, stdio: 'inherit',
 });
 const filename = 'marketweft_core.wasm';

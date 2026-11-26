@@ -129,10 +129,27 @@ def npm_components():
                         [{"alg": hash_type, "content": base64.b64decode(digest, validate=True).hex()}])
 
 
+def python_build_component():
+    folder = ROOT / "packages/python-research"
+    locked = (folder / "build-requirements.txt").read_text(encoding="utf-8")
+    entries = [line for line in locked.splitlines() if line.strip() and not line.lstrip().startswith("#")]
+    if len(entries) != 1:
+        raise ValueError("Review Python build dependencies before changing the lock.")
+    requirement = re.fullmatch(r"setuptools==([0-9.]+) --hash=sha256:([0-9a-f]{64})", entries[0])
+    if not requirement:
+        raise ValueError("Supply the reviewed setuptools version and wheel digest.")
+    version, digest = requirement.groups()
+    manifest = tomllib.loads((folder / "pyproject.toml").read_text(encoding="utf-8"))
+    if manifest["build-system"]["requires"] != [f"setuptools=={version}"] or manifest["project"].get("dependencies"):
+        raise ValueError("Review any Python build version mismatch or runtime dependency.")
+    return component("pypi", "setuptools", version, "MIT", "python-build",
+                     [{"alg": "SHA-256", "content": digest}])
+
+
 def main():
     components = {}
     for item in [*cargo_components(ROOT, "core"), *cargo_components(ROOT / "apps/desktop", "desktop"),
-                 *npm_components()]:
+                 *npm_components(), python_build_component()]:
         key = item["bom-ref"]
         if key in components and item["hashes"] != components[key]["hashes"]:
             raise ValueError(f"Inconsistent package integrity for {key}")

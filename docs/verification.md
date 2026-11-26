@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.48.0 · Python research SDK
+
+| Check | Observed result |
+| --- | --- |
+| Exact cutoff parity | The Python client and optimized native engine reproduce every prefix of the Rust and Wasm fixture. The full result retains its three unavailable values and ends at 16.833333. |
+| Formula scopes | The client reproduces exact missing-value behavior for an ordered function library, rejects ambient fields and negative lags, and leaves no function names available to later requests. |
+| Offline installation | A fresh Python environment installed the dependency-free wheel without network access and passed all three tests against the standalone Linux engine. The framing check verifies that an unsupported protocol returns an error without data on standard output. |
+| Regression suite | All 87 browser, eight Node SDK and four launcher tests passed on Windows x64. All 105 native and three Python tests passed on Linux x64, all 42 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Python research SDK](../packages/python-research/README.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.47.0 · TypeScript research SDK
 
 | Check | Observed result |

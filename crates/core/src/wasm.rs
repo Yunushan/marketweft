@@ -1,5 +1,6 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
+use crate::formula::{decode_formula_library, MAX_FORMULA_LIBRARY_BYTES};
 use crate::{
     aggregate_session_timeframe, aggregate_timeframe, measure_drawing, AlertBook, AlertDirection,
     Comparator, DrawingEndpoint, TimeframeBar,
@@ -19,8 +20,6 @@ use crate::{
 use crate::{parse_split_revisions, ShareRatio, SplitRevision, SplitRevisionBook};
 use crate::{ModelError, OptionBook, OptionSide, QuoteStatus};
 use std::cell::RefCell;
-
-const MAX_FORMULA_LIBRARY_BYTES: usize = 40 * 1024;
 
 thread_local! {
     static INPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
@@ -2655,46 +2654,6 @@ fn split_formula_library(
         .then(|| decode_formula_library(library))
         .transpose()?;
     Ok((library, rest))
-}
-
-fn decode_formula_library(mut remaining: &str) -> Result<crate::FormulaLibrary, String> {
-    if remaining.len() > MAX_FORMULA_LIBRARY_BYTES {
-        return Err("Invalid formula function library length.".into());
-    }
-    let mut definitions = Vec::new();
-    while !remaining.is_empty() {
-        if definitions.len() == 16 {
-            return Err("Supply at most 16 custom formula functions.".into());
-        }
-        let (header, body) = remaining
-            .split_once('\n')
-            .ok_or("Supply formula function settings.")?;
-        let (name, signature) = header
-            .split_once('\t')
-            .ok_or("Supply a function name and signature.")?;
-        let (params, length) = signature
-            .split_once('\t')
-            .ok_or("Supply the parameters and function body length.")?;
-        let (body, rest) = length
-            .parse::<usize>()
-            .ok()
-            .and_then(|size| body.split_at_checked(size))
-            .ok_or("Invalid formula function body length.")?;
-        let parameters: Vec<_> = params.splitn(5, ',').collect();
-        definitions.push((name, parameters, body));
-        remaining = rest;
-    }
-    let definitions: Vec<_> = definitions
-        .iter()
-        .map(
-            |(name, parameters, body)| crate::FormulaFunctionDefinition {
-                name,
-                parameters,
-                body,
-            },
-        )
-        .collect();
-    crate::FormulaLibrary::new(&definitions)
 }
 
 fn encode_formula_values(formula: &crate::Formula, bars: &[u8]) -> Result<Vec<u8>, String> {

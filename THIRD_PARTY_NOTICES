@@ -24,6 +24,12 @@ The policy also accepts the permissive Zlib and Unicode-3.0 terms and the
 Apache-2.0 license with the LLVM exception. For dual-licensed packages select
 an approved permissive branch. Preserve the terms of each required license.
 
+The Python research wheel uses the MIT-licensed setuptools build backend.
+Its version and PyPI wheel digest are pinned in
+packages/python-research/build-requirements.txt and included in the inventory.
+The installed SDK uses the Python standard library.
+Upstream distribution: https://pypi.org/project/setuptools/84.2.1/
+
 docs/dependencies.cdx.json lists exact package versions, integrity digests and
 declared licenses, including optional target packages. Rust package source
 archives are available at https://crates.io/api/v1/crates/NAME/VERSION/download.

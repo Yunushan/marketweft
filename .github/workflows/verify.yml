@@ -64,6 +64,25 @@ jobs:
           name: research-sdk-attempt-${{ github.run_attempt }}
           path: reports/marketweft-research-*.tgz
           if-no-files-found: error
+      - name: Verify the installed Python research SDK
+        run: |
+          cargo build --locked --release -p marketweft-core --bin marketweft-research
+          builder="$RUNNER_TEMP/marketweft-py-builder"
+          consumer="$RUNNER_TEMP/marketweft-py-consumer"
+          python3 -m venv "$builder"
+          "$builder/bin/python" -m pip install --disable-pip-version-check --require-hashes \
+            --only-binary=:all: -r packages/python-research/build-requirements.txt
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" \
+            "$builder/bin/python" -m pip wheel --disable-pip-version-check --no-deps --no-build-isolation \
+            --wheel-dir reports packages/python-research
+          python3 -m venv "$consumer"
+          "$consumer/bin/python" -m pip install --no-index --no-deps reports/marketweft_research-*.whl
+          "$consumer/bin/python" -B -m unittest discover -v -s packages/python-research/tests
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: python-research-sdk-attempt-${{ github.run_attempt }}
+          path: reports/marketweft_research-*.whl
+          if-no-files-found: error
       - name: Match a release tag to the package version
         if: startsWith(github.ref, 'refs/tags/v')
         run: test "$GITHUB_REF_NAME" = "v$(node -p "require('./package.json').version")"
@@ -132,6 +151,16 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth dbus-x11 xdotool python3-pyatspi at-spi2-core
       - run: npm ci
       - run: npm run build
+      - run: cargo build --locked --release -p marketweft-core --bin marketweft-research
+      - name: Run the Python research fixture against the native executable
+        env:
+          PYTHONPATH: packages/python-research/src
+        run: python -B -m unittest discover -v -s packages/python-research/tests
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: python-research-engine-${{ matrix.os }}-${{ runner.arch }}-attempt-${{ github.run_attempt }}
+          path: target/release/marketweft-research${{ runner.os == 'Windows' && '.exe' || '' }}
+          if-no-files-found: error
       - run: cargo build --locked --manifest-path apps/desktop/Cargo.toml
       - if: runner.os == 'Linux'
         run: cargo test --locked --manifest-path apps/desktop/Cargo.toml --test glib_variant_iter

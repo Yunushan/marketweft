@@ -21,6 +21,7 @@ mod paper;
 mod paper_replay;
 mod portfolio;
 mod replay;
+pub mod research;
 mod scenarios;
 mod screen;
 mod sector;

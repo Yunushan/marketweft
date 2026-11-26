@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.47.0 publishes a TypeScript research SDK that uses the same deterministic formula engine as the terminal. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.48.0 ships a Python research SDK and a versioned native executable for the shared Rust formula engine. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -50,6 +50,7 @@
 | Delivered · 0.45.0 | Scoped formula function libraries (MW-015, MW-016) | Load versioned pure function definitions over explicit inputs. Verify dependency scope, bounded evaluation, exact exports and offline reproduction. [Custom formula functions](docs/formula-functions.md). |
 | Delivered · 0.46.0 | Portable strategy function scopes (MW-015, MW-016, MW-020) | Validate imported functions with the strategy, reproduce accepted receipts and score candidates with separate function libraries. [Formula strategy packages](docs/formula-strategy-packages.md). |
 | Delivered · 0.47.0 | TypeScript research SDK (MW-015, MW-016) | Independently install the SDK and its bundled Wasm offline. Verify exact formula outputs, observed prefixes and scoped function definitions. [SDK guide](packages/research/README.md). |
+| Delivered · 0.48.0 | Python research SDK (MW-015, MW-016) | Install the wheel offline, pass an observed cutoff and verify exact parity and isolated custom functions against the Rust and TypeScript fixtures. [Python SDK guide](packages/python-research/README.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -61,5 +62,5 @@
 
 ## Handoff for the next change
 
-Expose the same read-only formula calculations through a Python research SDK and verify exact agreement against the Rust and TypeScript fixtures.
+Expose bounded, read-only historical formula evaluation through a local MCP interface with a versioned tool schema.
 

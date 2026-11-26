@@ -6,7 +6,8 @@ use std::sync::Arc;
 mod parse;
 
 pub const FORMULA_VERSION: u32 = 1;
-const MAX_SOURCE_BYTES: usize = 2_048;
+pub(crate) const MAX_SOURCE_BYTES: usize = 2_048;
+pub(crate) const MAX_FORMULA_LIBRARY_BYTES: usize = 40 * 1024;
 const MAX_NODES: usize = 96;
 const MAX_DEPTH: usize = 32;
 const MAX_PERIOD: usize = 4_096;
@@ -87,6 +88,44 @@ impl FormulaLibrary {
             work,
         })
     }
+}
+
+pub(crate) fn decode_formula_library(mut remaining: &str) -> Result<FormulaLibrary, String> {
+    if remaining.len() > MAX_FORMULA_LIBRARY_BYTES {
+        return Err("Invalid formula function library length.".into());
+    }
+    let mut definitions = Vec::new();
+    while !remaining.is_empty() {
+        if definitions.len() == MAX_FUNCTIONS {
+            return Err("Supply at most 16 custom formula functions.".into());
+        }
+        let (header, body) = remaining
+            .split_once('\n')
+            .ok_or("Supply formula function settings.")?;
+        let (name, signature) = header
+            .split_once('\t')
+            .ok_or("Supply a function name and signature.")?;
+        let (parameters, length) = signature
+            .split_once('\t')
+            .ok_or("Supply the parameters and function body length.")?;
+        let (body, rest) = length
+            .parse::<usize>()
+            .ok()
+            .and_then(|size| body.split_at_checked(size))
+            .ok_or("Invalid formula function body length.")?;
+        let parameters: Vec<_> = parameters.splitn(MAX_PARAMETERS + 1, ',').collect();
+        definitions.push((name, parameters, body));
+        remaining = rest;
+    }
+    let definitions: Vec<_> = definitions
+        .iter()
+        .map(|(name, parameters, body)| FormulaFunctionDefinition {
+            name,
+            parameters,
+            body,
+        })
+        .collect();
+    FormulaLibrary::new(&definitions)
 }
 
 #[derive(Clone, Copy)]

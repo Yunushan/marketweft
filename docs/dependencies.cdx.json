@@ -6,7 +6,7 @@
     "component": {
       "type": "application",
       "name": "MarketWeft",
-      "version": "0.47.0"
+      "version": "0.48.0"
     }
   },
   "components": [
@@ -12235,6 +12235,30 @@
         {
           "name": "marketweft:dependency-group",
           "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "setuptools",
+      "version": "84.2.1",
+      "bom-ref": "pkg:pypi/setuptools@84.2.1",
+      "purl": "pkg:pypi/setuptools@84.2.1",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "python-build"
         }
       ]
     }
