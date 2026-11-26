@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.14.0 · Session-aware bar backtest
+
+| Check | Observed result |
+| --- | --- |
+| Delayed fills | The 14:05 crossover submits a buy and leaves holdings at zero. The missing 14:06 interval leaves the ledger unchanged. The 14:07 close supplies a two-share partial fill and the 14:08 close fills the remainder. |
+| Liquidity and fees | The 10% participation cap determines whole-share fill sizes. The default run ends at 957.8 cash with realized loss of 42.2. A 100-basis-point adverse shift prices the first fill at 14.14 and makes the last sale violate its limit. |
+| Prefix and import | Tests compare every cutoff's signals, equity marks and paper receipts against a longer run. Changing later quotes leaves the earlier prefix intact. Browser tests cover the offline chart, local import, rewind and unchanged workspace. |
+| Regression suite | All 48 browser and six SDK tests passed on Windows x64, 46 native tests passed on Linux x64, 15 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Backtest contract and fixture](bar-backtest.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.13.0 · Paper cash and fill ledger
 
 | Check | Observed result |

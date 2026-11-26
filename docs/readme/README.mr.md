@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.13.0 · 0BSD**
+**0.14.0 · 0BSD**
 
 **दस्तऐवजाच्या भाषा**
 
@@ -15,14 +15,14 @@
 
 MarketWeft विश्लेषक, विकासक आणि संचालकांसाठी स्थानिक संशोधन टर्मिनल आहे. ते परवानगीचे OHLCV उघडते, कँडल व व्यवहाराचे प्रमाण दाखवते, स्थिर दशांश एककांत SMA व EMA मोजते आणि निरीक्षण यादी, निवड व निर्देशक IndexedDB मध्ये ठेवते. संसाधने कॅश झाल्यावर ऑफलाइन चालते. सोबतचे भाव व प्रमाण कृत्रिम आहेत आणि खाते लागत नाही.
 
-MarketWeft 0.13.0 मध्ये सराव व्यापारासाठी अचूक रोख आणि पूर्तता खाते जोडले आहे. MarketWeft 0.7.0 ठरावीक वेळी माहीत असलेल्या भावांवरून किंमत परताव्यानुसार युनिव्हर्सची क्रमवारी लावते. सत्रनिहाय रीप्लेमध्ये शेअर विभाजन, रोख लाभांश, सदस्यत्व आणि सूचीमधून वगळणे समाविष्ट आहे. स्वतंत्र trading-bot सेवेसाठी केवळ-वाचन TypeScript निरीक्षक आणि प्रायोगिक Tauri आवरणही आहे. डेटा फीड, ऑर्डर, स्वाक्षरी केलेले इन्स्टॉलर आणि बहुवापरकर्ता होस्टिंग पुढील योजनेत आहेत.
+MarketWeft 0.14.0 मध्ये सत्राधारित SMA बॅकटेस्ट आणि निरीक्षित पूर्तता जोडली आहे. MarketWeft 0.7.0 ठरावीक वेळी माहीत असलेल्या भावांवरून किंमत परताव्यानुसार युनिव्हर्सची क्रमवारी लावते. सत्रनिहाय रीप्लेमध्ये शेअर विभाजन, रोख लाभांश, सदस्यत्व आणि सूचीमधून वगळणे समाविष्ट आहे. स्वतंत्र trading-bot सेवेसाठी केवळ-वाचन TypeScript निरीक्षक आणि प्रायोगिक Tauri आवरणही आहे. डेटा फीड, ऑर्डर, स्वाक्षरी केलेले इन्स्टॉलर आणि बहुवापरकर्ता होस्टिंग पुढील योजनेत आहेत.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## वाहून नेता येणारे टर्मिनल सुरू करा
 
-यशस्वी GitHub पडताळणीतून browser-terminal-attempt-N घ्या आणि MarketWeft-browser-0.13.0.zip उघडा. dist/ आणि serve-terminal.mjs शेजारी ठेवून आदेश त्याच संचिकेत चालवा. WebAssembly, Canvas, BigInt व IndexedDB असलेल्या ब्राउझरमध्ये http://127.0.0.1:4173/ उघडा. Node.js 22.12 किंवा नवे आवश्यक आहे. npm स्थापना लागत नाही. जाळे बंद करण्याआधी Offline ready दिसू द्या.
+यशस्वी GitHub पडताळणीतून browser-terminal-attempt-N घ्या आणि MarketWeft-browser-0.14.0.zip उघडा. dist/ आणि serve-terminal.mjs शेजारी ठेवून आदेश त्याच संचिकेत चालवा. WebAssembly, Canvas, BigInt व IndexedDB असलेल्या ब्राउझरमध्ये http://127.0.0.1:4173/ उघडा. Node.js 22.12 किंवा नवे आवश्यक आहे. npm स्थापना लागत नाही. जाळे बंद करण्याआधी Offline ready दिसू द्या.
 
 ```sh
 node serve-terminal.mjs
@@ -124,7 +124,9 @@ OPEN,2025-04-03T14:00:00Z,submit,BUY,DEMO:AAA,buy,10,50,,
 FILL1,2025-04-03T14:02:00Z,fill,BUY,,,4,49,Q1,2025-04-03T14:01:00Z
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](../../docs/replay-alerts.md) · [alert-rules.csv](../../crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](../../crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](../../docs/paper-ledger.md) · [paper-events.csv](../../crates/core/tests/fixtures/synthetic-paper-events.csv)
+Historical replay → Open bar backtest → Start backtest demo उघडा. 14:05 UTC च्या संकेताने खरेदीचा आदेश नोंदतो. 14:06 चा कालखंड नसल्याने पूर्तता होत नाही. 14:07 च्या बंद भावावर दोन शेअर्स भरतात. Final backtest मध्ये इक्विटी 957.8 आहे. स्थानिक डेटासाठी सत्र आणि बार CSV लोड करा.
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](../../docs/replay-alerts.md) · [alert-rules.csv](../../crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](../../crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](../../docs/paper-ledger.md) · [paper-events.csv](../../crates/core/tests/fixtures/synthetic-paper-events.csv) · [bar-backtest.md](../../docs/bar-backtest.md) · [backtest-sessions.csv](../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv) · [backtest-bars.csv](../../crates/core/tests/fixtures/synthetic-backtest-bars.csv)
 
 <!-- section:04 -->
 ## स्वतःची माहिती आयात करा व चालवा

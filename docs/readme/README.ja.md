@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.13.0 · 0BSD**
+**0.14.0 · 0BSD**
 
 **ドキュメントの言語**
 
@@ -15,14 +15,14 @@
 
 MarketWeft はアナリスト、開発者、運用者向けのローカル優先の調査端末です。利用権がある OHLCV を開き、ローソク足と出来高を表示し、固定小数点で SMA と EMA を計算します。ウォッチリスト、選択銘柄、指標を IndexedDB に保存します。資材のキャッシュ後はオフラインで使えます。同梱の価格と出来高は合成データです。プロバイダーの口座は不要です。
 
-MarketWeft 0.13.0 は、正確なペーパートレードの現金・約定台帳を追加します。 MarketWeft 0.7.0 は、照会時点で利用可能な情報に基づき、価格リターンでユニバースを順位付けします。取引セッション単位のリプレイは、株式分割、現金配当、構成銘柄の変更、上場廃止に対応します。独立した trading-bot サービスの読み取り専用 TypeScript オブザーバーと、実験的な Tauri ラッパーも含まれます。データ配信、注文、署名済みインストーラー、マルチユーザー運用はロードマップに残っています。
+MarketWeft 0.14.0 は、観測済みの約定とセッションを使う SMA バックテストを追加します。 MarketWeft 0.7.0 は、照会時点で利用可能な情報に基づき、価格リターンでユニバースを順位付けします。取引セッション単位のリプレイは、株式分割、現金配当、構成銘柄の変更、上場廃止に対応します。独立した trading-bot サービスの読み取り専用 TypeScript オブザーバーと、実験的な Tauri ラッパーも含まれます。データ配信、注文、署名済みインストーラー、マルチユーザー運用はロードマップに残っています。
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## ポータブル端末を起動
 
-成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.13.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
+成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.14.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
 
 ```sh
 node serve-terminal.mjs
@@ -124,7 +124,9 @@ OPEN,2025-04-03T14:00:00Z,submit,BUY,DEMO:AAA,buy,10,50,,
 FILL1,2025-04-03T14:02:00Z,fill,BUY,,,4,49,Q1,2025-04-03T14:01:00Z
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](../../docs/replay-alerts.md) · [alert-rules.csv](../../crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](../../crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](../../docs/paper-ledger.md) · [paper-events.csv](../../crates/core/tests/fixtures/synthetic-paper-events.csv)
+Historical replay → Open bar backtest → Start backtest demo を開きます。14:05 UTC のシグナルで買い注文を出します。14:06 は欠損のため約定できず、14:07 の終値で2株が約定します。Final backtest の純資産は957.8です。独自履歴にはセッションとバーの CSV を読み込みます。
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](../../docs/replay-alerts.md) · [alert-rules.csv](../../crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](../../crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](../../docs/paper-ledger.md) · [paper-events.csv](../../crates/core/tests/fixtures/synthetic-paper-events.csv) · [bar-backtest.md](../../docs/bar-backtest.md) · [backtest-sessions.csv](../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv) · [backtest-bars.csv](../../crates/core/tests/fixtures/synthetic-backtest-bars.csv)
 
 <!-- section:04 -->
 ## 独自データを取り込み再生
