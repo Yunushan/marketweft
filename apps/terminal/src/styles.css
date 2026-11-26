@@ -127,6 +127,8 @@ body:has(dialog[open]) {
   margin-bottom: 12px;
 }
 .series-details { margin-bottom: 12px; }
+.import-format { display: block; margin-bottom: 12px; }
+.import-format select { display: block; width: 100%; margin-top: 5px; }
 .metadata-fields,
 .backup-summary,
 .series-provenance {

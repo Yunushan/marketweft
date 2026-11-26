@@ -30,7 +30,7 @@ import type {
   Preferences,
   SeriesMetadata,
 } from './catalog'
-import { SOURCE_RIGHTS } from './catalog-schema'
+import { parseProviderHistoryFixture, SOURCE_RIGHTS } from './catalog-schema'
 import type {
   ChartPane, ChartType, OverlayPeriods, SourceRight, SourceRights, SourceRightStatus,
 } from './catalog-schema'
@@ -140,26 +140,33 @@ function ImportForm({
     redistribution: 'unconfirmed', automatedUse: 'unconfirmed',
   })
   const [expiresOn, setExpiresOn] = useState('')
+  const [providerFixture, setProviderFixture] = useState(false)
   async function submit(e: FormEvent) {
     e.preventDefault()
     setError('')
     if (!file) {
-      setError('Choose a CSV file.')
+      setError(providerFixture ? 'Choose a provider history fixture.' : 'Choose a CSV file.')
       return
     }
     if (file.size > importPolicy.maxBytes) {
       setError(
-        `Choose a CSV of at most ${importPolicy.maxBytes.toLocaleString('en-US')} bytes.`,
+        `Choose a ${providerFixture ? 'provider fixture' : 'CSV'} of at most ${importPolicy.maxBytes.toLocaleString('en-US')} bytes.`,
       )
       return
     }
     setBusy(true)
     try {
-      const csv = await file.text()
-      checkImportRows(csv, importPolicy)
+      const text = await file.text()
+      if (providerFixture) {
+        const { item, metadata } = parseProviderHistoryFixture(text, file.name)
+        checkImportRows(item.csv, importPolicy)
+        await save(item, metadata)
+        return
+      }
+      checkImportRows(text, importPolicy)
       const declared = Boolean(expiresOn || SOURCE_RIGHTS.some((key) => rights[key] !== 'unconfirmed'))
       await save(
-        { venue, symbol, filename: file.name, csv },
+        { venue, symbol, filename: file.name, csv: text },
         {
           barInterval: barInterval.trim() || 'unspecified',
           source: source.trim() || file.name,
@@ -180,7 +187,18 @@ function ImportForm({
         Import OHLCV history you have permission to store. Your file stays on
         this device.
       </p>
-      <div className="fields">
+      <label className="import-format">
+        Input format
+        <select value={providerFixture ? 'provider' : 'csv'} onChange={(event) => {
+          setProviderFixture(event.target.value === 'provider')
+          setFile(null)
+          setError('')
+        }}>
+          <option value="csv">CSV file</option>
+          <option value="provider">Provider history fixture</option>
+        </select>
+      </label>
+      {!providerFixture && <div className="fields">
         <label>
           Venue
           <input
@@ -200,18 +218,19 @@ function ImportForm({
             onChange={(e) => setSymbol(e.target.value)}
           />
         </label>
-      </div>
+      </div>}
       <label className="file-field">
         <Icon name="file" size={22} />
-        <strong>Historical CSV</strong>
+        <strong>{providerFixture ? 'Provider history JSON' : 'Historical CSV'}</strong>
         <input
+          key={String(providerFixture)}
           type="file"
           required
-          accept=".csv,text/csv"
+          accept={providerFixture ? '.json,application/json' : '.csv,text/csv'}
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
       </label>
-      <details className="series-details">
+      {!providerFixture && <><details className="series-details">
         <summary>Series details</summary>
         <div className="metadata-fields">
           <label>
@@ -274,7 +293,7 @@ function ImportForm({
         <pre>
           time,open,high,low,close,volume{'\n'}2025-01-02,10,12,9,11,500
         </pre>
-      </details>
+      </details></>}
       {error && (
         <p role="alert" className="error">
           {error}

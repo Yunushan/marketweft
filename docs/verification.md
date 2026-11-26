@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.73.0 · Provider history fixture preflight
+
+| Check | Observed result |
+| --- | --- |
+| Preflight | Chromium rejected an invalid provider identifier, an empty grant, unconfirmed storage and a missing or expired UTC date before committing a history. |
+| Exact cutoff | A packet imported at the last millisecond of its authorized UTC day. At the next midnight, an import with the same grant left the catalog intact. |
+| Persistence | The version 7 workspace backup retained the exact provider identifier, grant and permissions. The catalog retained two source bars and their original CSV. |
+
+[Provider history fixtures](provider-history-fixture.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.72.0 · Formula CSV redistribution permission
 
 | Check | Observed result |

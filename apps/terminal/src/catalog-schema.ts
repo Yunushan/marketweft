@@ -202,6 +202,49 @@ function sourceRights(value: unknown): SourceRights {
   return result
 }
 
+export function parseProviderHistoryFixture(text: string, filename: string): {
+  item: SavedImport; metadata: SeriesMetadata
+} {
+  let payload: unknown
+  try {
+    payload = JSON.parse(text)
+  } catch {
+    throw Error('Choose a valid JSON provider history fixture.')
+  }
+  fields(payload, [
+    'format', 'version', 'provider', 'venue', 'symbol',
+    'barInterval', 'grant', 'adjustmentPolicy', 'permissions', 'csv',
+  ], 'provider history fixture')
+  if (payload.format !== 'marketweft-provider-history' || payload.version !== 1)
+    throw Error('This provider history fixture format or version is unsupported.')
+  const provider = payload.provider
+  if (typeof provider !== 'string' || provider.length > 64 ||
+      !/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(provider))
+    throw Error('Supply a lowercase provider identifier.')
+  const permissions = sourceRights(payload.permissions)
+  if (!permissions.expiresOn)
+    throw Error('A provider history fixture requires a UTC grant expiration date.')
+  if (permissions.display !== 'granted' || permissions.storage !== 'granted')
+    throw Error('A provider history fixture requires granted display and storage permissions.')
+  if (sourcePermissionRestriction(permissions, 'display') === 'expired')
+    throw Error('The provider history fixture grant has expired.')
+  return {
+    item: {
+      venue: requiredText(payload.venue, 'venue'),
+      symbol: requiredText(payload.symbol, 'symbol'),
+      filename,
+      csv: requiredText(payload.csv, 'OHLCV CSV'),
+    },
+    metadata: {
+      source: provider,
+      usageGrant: requiredText(payload.grant, 'provider grant'),
+      barInterval: requiredText(payload.barInterval, 'bar interval'),
+      adjustmentPolicy: requiredText(payload.adjustmentPolicy, 'adjustment policy'),
+      sourceRights: permissions,
+    },
+  }
+}
+
 function descriptor(value: unknown, core: MarketCore): SeriesDescriptor {
   const hasRights = Boolean(value && typeof value === 'object' && Object.hasOwn(value, 'sourceRights'))
   fields(

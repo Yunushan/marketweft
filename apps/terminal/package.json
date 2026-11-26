@@ -1,6 +1,6 @@
 {
   "name": "@marketweft/terminal",
-  "version": "0.72.0",
+  "version": "0.73.0",
   "private": true,
   "type": "module",
   "license": "0BSD",
