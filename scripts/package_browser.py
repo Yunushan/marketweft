@@ -143,6 +143,10 @@ paper-events.csv. Step through reserves, partial fills, fees and the halt.
 Open Bar backtest under Historical replay and Start backtest demo, or load
 backtest-sessions.csv and backtest-bars.csv with a 60-second bar interval.
 Check how a missing interval delays the first partial fill.
+Expand Recorded trade execution and load backtest-trades.csv or use the
+sample execution trades. Set effective time to 2025-04-03T14:11:00Z.
+Compare knowledge at 14:05:29, 14:05:30 and 14:11:10 UTC, then export the
+receipt history with exact capture sequences and execution times.
 Walk-forward validation ranks candidates on training bars and shows the
 results of each completed test fold. Seeded scenarios repeats the same
 strategy on sampled price moves and volumes. The default 256 paths give
@@ -198,7 +202,7 @@ def main():
     for kind in ("rules", "observations"):
         files[f"alert-{kind}.csv"] = (fixture / f"synthetic-alert-{kind}.csv").read_bytes()
     files["paper-events.csv"] = (fixture / "synthetic-paper-events.csv").read_bytes()
-    for kind in ("sessions", "bars"):
+    for kind in ("sessions", "bars", "trades"):
         files[f"backtest-{kind}.csv"] = (fixture / f"synthetic-backtest-{kind}.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
     inventory["components"] = [item for item in inventory["components"]

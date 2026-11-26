@@ -104,7 +104,16 @@ pub extern "C" fn mw_version() -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_input(len: usize) -> *mut u8 {
-    if len > MAX_INPUT_BYTES {
+    allocate_input(len, MAX_INPUT_BYTES)
+}
+
+#[no_mangle]
+pub extern "C" fn mw_recorded_backtest_input(len: usize) -> *mut u8 {
+    allocate_input(len, 2 * MAX_INPUT_BYTES + 1024 * 1024 + 1024)
+}
+
+fn allocate_input(len: usize, limit: usize) -> *mut u8 {
+    if len > limit {
         return std::ptr::null_mut();
     }
     INPUT.with_borrow_mut(|v| {
@@ -1332,6 +1341,46 @@ pub extern "C" fn mw_backtest(calendar_bytes: usize, interval: u32) -> u32 {
         let (instrument, through, config, history) = backtest_request(utf8(input)?)?;
         let (sessions, bars) = backtest_inputs(history, calendar_bytes)?;
         let report = crate::backtest(&instrument, &sessions, &bars, interval, through, config)?;
+        let mut text = String::new();
+        encode_backtest(&mut text, report);
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_recorded_backtest(
+    calendar_bytes: usize,
+    bar_bytes: usize,
+    interval: u32,
+) -> u32 {
+    process(|input| {
+        let (instrument, known_at, config, remainder) = backtest_request(utf8(input)?)?;
+        let (effective, csvs) = remainder
+            .split_once('\n')
+            .ok_or("Supply the effective UTC cutoff.")?;
+        let effective_at = exact_utc(effective).ok_or("Use an exact effective UTC cutoff.")?;
+        let (calendar, rest) = csvs
+            .split_at_checked(calendar_bytes)
+            .ok_or("Invalid session data.")?;
+        let (bars, trades) = rest
+            .split_at_checked(bar_bytes)
+            .ok_or("Invalid bar data.")?;
+        let sessions = parse_sessions(calendar)?;
+        let bars = parse_csv(bars)?;
+        let trades = crate::TradeTape::parse_execution(trades, &instrument)?;
+        let cutoffs = crate::RecordedBacktestCutoffs {
+            effective_at,
+            known_at,
+        };
+        let report = crate::backtest_with_trades(
+            &instrument,
+            &sessions,
+            &bars,
+            interval,
+            cutoffs,
+            config,
+            &trades,
+        )?;
         let mut text = String::new();
         encode_backtest(&mut text, report);
         Ok(text.into_bytes())

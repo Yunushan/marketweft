@@ -1,6 +1,7 @@
 use crate::{
-    replay, Bar, Instrument, PaperAccount, PaperAction, PaperApply, PaperConfig, PaperEvent,
-    PaperOrderStatus, PaperSide, Session, MAX_TICKS, SCALE,
+    history::valid_second, replay, tick_bars::Trade, Bar, Instrument, PaperAccount, PaperAction,
+    PaperApply, PaperConfig, PaperEvent, PaperOrderStatus, PaperSide, Session, TradeTape,
+    MAX_TICKS, SCALE,
 };
 use std::cmp::Ordering;
 
@@ -44,6 +45,12 @@ pub struct BacktestReport {
     pub largest_drawdown: i128,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RecordedBacktestCutoffs {
+    pub effective_at: i64,
+    pub known_at: i64,
+}
+
 struct Pending {
     order: String,
     started: usize,
@@ -68,6 +75,32 @@ pub fn backtest(
     let mut observations = prepare_observations(instrument, sessions, bars, interval)?;
     observations.truncate(observations.partition_point(|row| row.at <= through));
     evaluate(instrument, &observations, 0, config)
+}
+
+pub fn backtest_with_trades(
+    instrument: &Instrument,
+    sessions: &[Session],
+    bars: &[Bar],
+    interval: u32,
+    cutoffs: RecordedBacktestCutoffs,
+    config: BacktestConfig,
+    trades: &TradeTape,
+) -> Result<BacktestReport, String> {
+    if !valid_second(cutoffs.effective_at) || !valid_second(cutoffs.known_at) {
+        return Err("Use supported effective and known UTC cutoffs.".into());
+    }
+    if trades.instrument() != instrument {
+        return Err("Recorded trades must match the backtest instrument.".into());
+    }
+    let mut observations = prepare_observations(instrument, sessions, bars, interval)?;
+    let visible_bar = cutoffs.effective_at.min(cutoffs.known_at);
+    observations.truncate(observations.partition_point(|row| row.at <= visible_bar));
+    let playback = TradePlayback {
+        trades: trades.observed_prefix(Some(cutoffs.known_at)),
+        sessions,
+        effective_at: cutoffs.effective_at,
+    };
+    run_backtest(instrument, &observations, 0, config, Some(playback))
 }
 
 pub(crate) fn prepare_observations<'a>(
@@ -106,6 +139,16 @@ pub(crate) fn evaluate(
     trade_from: usize,
     config: BacktestConfig,
 ) -> Result<BacktestReport, String> {
+    run_backtest(instrument, observations, trade_from, config, None)
+}
+
+fn run_backtest(
+    instrument: &Instrument,
+    observations: &[ObservedBar<'_>],
+    trade_from: usize,
+    config: BacktestConfig,
+    mut playback: Option<TradePlayback<'_>>,
+) -> Result<BacktestReport, String> {
     if config.fast_window == 0
         || config.slow_window <= config.fast_window
         || config.slow_window > MAX_WINDOW
@@ -124,48 +167,43 @@ pub(crate) fn evaluate(
     let mut sums = vec![0_i128];
     let mut previous_relation = None;
     let mut signals = Vec::new();
-    let mut marks = Vec::new();
     let instrument_key = instrument.to_string();
-    let mut peak = config.paper.starting_cash;
-    let mut largest_drawdown = 0;
+    let mut equity = EquityTimeline::new(&instrument_key, config.paper.starting_cash);
+    let mut observed_bar = 0;
     for (cursor, &ObservedBar { index, at, bar }) in observations.iter().enumerate() {
         let trading = cursor >= trade_from;
-        let observed_bar = marks.len();
-        if let Some(order) = &pending {
-            if observed_bar - order.started > config.max_wait_bars {
-                apply(
-                    &mut ledger,
-                    format!("EXPIRE-{index}"),
-                    at,
-                    PaperAction::Cancel {
-                        order_id: order.order.clone(),
-                    },
-                )?;
-                pending = None;
-            } else {
-                let remaining = ledger.orders()[&order.order].remaining;
-                let liquidity = i128::from(bar.volume) * i128::from(config.participation_bps)
-                    / (i128::from(SCALE) * BASIS);
-                let shares = remaining.min(liquidity as u64);
-                if shares > 0 {
-                    let price = adjust(bar.close, config.slippage_bps, order.side, true);
-                    apply(
-                        &mut ledger,
-                        format!("FILL-{index}"),
-                        at,
-                        PaperAction::Fill {
-                            order_id: order.order.clone(),
-                            source_id: format!("BAR-{index}"),
-                            price_at: at,
-                            shares,
-                            price,
-                        },
-                    )?;
-                    if ledger.orders()[&order.order].status == PaperOrderStatus::Filled {
-                        pending = None;
-                    }
-                }
-            }
+        if let Some(stream) = &mut playback {
+            stream.advance(at - 1, &mut ledger, &mut pending, config, Some(&mut equity))?;
+        }
+        if pending
+            .as_ref()
+            .is_some_and(|order: &Pending| observed_bar - order.started > config.max_wait_bars)
+        {
+            let order = pending.take().unwrap();
+            apply(
+                &mut ledger,
+                format!("EXPIRE-{index}"),
+                at,
+                PaperAction::Cancel {
+                    order_id: order.order,
+                },
+            )?;
+        }
+        if let Some(stream) = &mut playback {
+            stream.advance(at, &mut ledger, &mut pending, config, None)?;
+        } else if pending.is_some() {
+            attempt_fill(
+                &mut ledger,
+                &mut pending,
+                config,
+                FillOpportunity {
+                    quote_at: at,
+                    observed_at: at,
+                    price: bar.close,
+                    volume: bar.volume,
+                    capture: Capture::Bar(index),
+                },
+            )?;
         }
 
         sums.push(*sums.last().unwrap() + i128::from(bar.close));
@@ -235,27 +273,176 @@ pub(crate) fn evaluate(
         if !trading {
             continue;
         }
-        let shares = ledger
-            .positions()
-            .get(&instrument_key)
-            .map_or(0, |position| position.shares);
-        let equity = ledger.cash() + i128::from(shares) * i128::from(bar.close);
-        peak = peak.max(equity);
-        largest_drawdown = largest_drawdown.max(peak - equity);
-        marks.push(BacktestMark {
-            at,
-            close: bar.close,
-            cash: ledger.cash(),
-            shares,
-            equity,
-        });
+        equity.add(&ledger, at, bar.close);
+        observed_bar += 1;
+    }
+    if let Some(stream) = &mut playback {
+        stream.advance(
+            i64::MAX,
+            &mut ledger,
+            &mut pending,
+            config,
+            Some(&mut equity),
+        )?;
     }
     Ok(BacktestReport {
         ledger,
         signals,
-        marks,
-        largest_drawdown,
+        marks: equity.marks,
+        largest_drawdown: equity.largest_drawdown,
     })
+}
+
+struct EquityTimeline<'a> {
+    instrument: &'a str,
+    marks: Vec<BacktestMark>,
+    peak: i128,
+    largest_drawdown: i128,
+}
+
+impl<'a> EquityTimeline<'a> {
+    fn new(instrument: &'a str, starting_cash: i128) -> Self {
+        Self {
+            instrument,
+            marks: Vec::new(),
+            peak: starting_cash,
+            largest_drawdown: 0,
+        }
+    }
+
+    fn add(&mut self, ledger: &PaperAccount, at: i64, close: i64) {
+        let shares = ledger
+            .positions()
+            .get(self.instrument)
+            .map_or(0, |position| position.shares);
+        let cash = ledger.cash();
+        let equity = cash + i128::from(shares) * i128::from(close);
+        self.peak = self.peak.max(equity);
+        self.largest_drawdown = self.largest_drawdown.max(self.peak - equity);
+        self.marks.push(BacktestMark {
+            at,
+            close,
+            cash,
+            shares,
+            equity,
+        });
+    }
+}
+
+enum Capture {
+    Bar(usize),
+    Trade(u64),
+}
+
+struct FillOpportunity {
+    quote_at: i64,
+    observed_at: i64,
+    price: i64,
+    volume: i64,
+    capture: Capture,
+}
+
+fn attempt_fill(
+    ledger: &mut PaperAccount,
+    pending: &mut Option<Pending>,
+    config: BacktestConfig,
+    quote: FillOpportunity,
+) -> Result<bool, String> {
+    let Some(order) = pending.as_ref() else {
+        return Ok(false);
+    };
+    let working = &ledger.orders()[&order.order];
+    if quote.quote_at <= working.submitted_at {
+        return Ok(false);
+    }
+    let capacity = i128::from(quote.volume) * i128::from(config.participation_bps)
+        / (i128::from(SCALE) * BASIS);
+    let shares = working.remaining.min(capacity as u64);
+    if shares == 0 {
+        return Ok(false);
+    }
+    let (event_id, source_id) = match quote.capture {
+        Capture::Bar(index) => (format!("FILL-{index}"), format!("BAR-{index}")),
+        Capture::Trade(sequence) => (
+            format!("TRADE-FILL-{sequence}"),
+            format!("TRADE-{sequence}"),
+        ),
+    };
+    let price = adjust(quote.price, config.slippage_bps, order.side, true);
+    let accepted = apply(
+        ledger,
+        event_id,
+        quote.observed_at,
+        PaperAction::Fill {
+            order_id: order.order.clone(),
+            source_id,
+            price_at: quote.quote_at,
+            shares,
+            price,
+        },
+    )?;
+    if ledger.orders()[&order.order].status == PaperOrderStatus::Filled {
+        *pending = None;
+    }
+    Ok(accepted)
+}
+
+struct TradePlayback<'a> {
+    trades: &'a [Trade],
+    sessions: &'a [Session],
+    effective_at: i64,
+}
+
+impl TradePlayback<'_> {
+    fn advance(
+        &mut self,
+        through: i64,
+        ledger: &mut PaperAccount,
+        pending: &mut Option<Pending>,
+        config: BacktestConfig,
+        mut equity: Option<&mut EquityTimeline<'_>>,
+    ) -> Result<(), String> {
+        let count = self
+            .trades
+            .partition_point(|trade| trade.observed_at <= through);
+        let (prefix, remaining) = self.trades.split_at(count);
+        self.trades = remaining;
+        for group in prefix.chunk_by(|left, right| left.observed_at == right.observed_at) {
+            let mut changed = false;
+            for trade in group {
+                let session = self
+                    .sessions
+                    .partition_point(|session| session.close <= trade.executed_at);
+                if trade.executed_at > self.effective_at
+                    || trade.price <= 0
+                    || !self
+                        .sessions
+                        .get(session)
+                        .is_some_and(|row| row.open <= trade.executed_at)
+                {
+                    continue;
+                }
+                changed |= attempt_fill(
+                    ledger,
+                    pending,
+                    config,
+                    FillOpportunity {
+                        quote_at: trade.executed_at,
+                        observed_at: trade.observed_at,
+                        price: trade.price,
+                        volume: trade.size,
+                        capture: Capture::Trade(trade.sequence),
+                    },
+                )?;
+            }
+            if let Some(timeline) = equity.as_deref_mut().filter(|_| changed) {
+                if let Some(close) = timeline.marks.last().map(|mark| mark.close) {
+                    timeline.add(ledger, group[0].observed_at, close);
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 fn adjust(price: i64, basis_points: u16, side: PaperSide, fill: bool) -> i64 {

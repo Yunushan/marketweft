@@ -9,6 +9,40 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('recorded execution keeps exact trade sequence and late cutoff fills in Wasm', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');
+  const [calendar, bars, trades] = await Promise.all([fixture('sessions'), fixture('bars'), fixture('trades')]);
+  const utc = clock => '2025-04-03T' + clock + 'Z';
+  const config = {
+    paper: { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' },
+    fastWindow: '2', slowWindow: '3', targetShares: '6', participation: '1000',
+    slippage: '0', limitBuffer: '2000', maxWait: '3',
+  };
+  const run = (known, effective = '14:11:00', tape = trades) => core.recordedBacktest('DEMO:SMA', calendar, bars, tape, 60, {
+    effective: utc(effective), known: utc(known), config,
+  });
+  assert.equal(run('14:05:29').ledger.cash, 1000000000n);
+  assert.equal(run('14:05:30', '14:05:19').ledger.cash, 1000000000n);
+  const partial = run('14:05:30');
+  assert.equal(partial.marks.at(-1).shares, 2n);
+  assert.equal(partial.marks.at(-1).equity, 995800000n);
+  assert.equal(run('14:07:10').ledger.cash, 924500000n);
+  const end = run('14:11:10');
+  assert.equal(end.ledger.cash, 957800000n);
+  const executed = end.ledger.receipts.filter(row => row.kind === 'fill');
+  assert.deepEqual(executed.map(row => [row.sourceId, row.shares]), [
+    ['TRADE-9007199254740995', 2n], ['TRADE-9007199254740996', 3n], ['TRADE-9007199254740997', 1n],
+    ['TRADE-9007199254740998', 3n], ['TRADE-9007199254741000', 3n],
+  ]);
+  const sideTagged = trades.trimEnd().split('\n').map((row, i) => row + (i ? ',unknown' : ',aggressor')).join('\n');
+  assert.deepEqual(run('14:11:10', '14:11:00', sideTagged), end);
+  assert.deepEqual(run('14:05:30'), partial);
+  assert.throws(() => run('14:05:30', '14:11:00', trades.replaceAll('DEMO:SMA', 'DEMO:BAD')), /must match/);
+  const fullSize = trades.padEnd(8 * 1024 * 1024, ' ');
+  assert.deepEqual(run('14:05:30', '14:11:00', fullSize), partial);
+  assert.throws(() => run('14:05:30', '14:11:00', fullSize + ' '), /Trade CSV exceeds 8 MiB/);
+});
+
 test('paper corporate cash preserves revised proceeds and exact dividend currency across cutoffs', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
   const [membership, prices, liquidity, dividends, delistings] = await Promise.all([

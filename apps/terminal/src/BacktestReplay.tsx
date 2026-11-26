@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import type { BacktestConfig, BacktestResult, MarketCore, PaperConfig, WalkForwardConfig, WalkForwardFold } from './market-core'
 import { Mark } from './Icons'
 import { ScenarioReplay } from './ScenarioReplay'
+import { RecordedTradeReplay } from './RecordedTradeReplay'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoCalendar from '../../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv?raw'
@@ -23,7 +24,7 @@ const paperFields: [keyof PaperConfig, string][] = [
   ['exposureLimit', 'Committed cost limit'], ['feePerShare', 'Fee per share'], ['feePerOrder', 'Fee per order'],
 ]
 
-type Book = { title: string; bars: string; calendar: string; interval: number; instrument: string; times: number[] }
+type Book = { title: string; bars: string; calendar: string; interval: number; instrument: string; times: number[]; demo: boolean }
 type Query = { at: string; config: BacktestConfig }
 const money = (amount: bigint) => fixed(amount, 6)
 
@@ -183,16 +184,16 @@ export function BacktestReplay({ core, close }: { core: MarketCore; close: () =>
     setError('')
   }
 
-  function start(calendar: string, bars: string, seconds: number, symbol: string, title: string) {
+  function start(calendar: string, bars: string, seconds: number, symbol: string, title: string, demo = false) {
     const times = core.backtestIndex(calendar, bars, seconds)
-    const source = { title, calendar, bars, interval: seconds, instrument: symbol, times }
+    const source = { title, calendar, bars, interval: seconds, instrument: symbol, times, demo }
     evaluate(source, { at: utc(times[0]), config: defaults })
     setBook(source)
   }
 
   function demo() {
     try {
-      start(demoCalendar, demoBars, 60, 'DEMO:SMA', 'Synthetic SMA crossover')
+      start(demoCalendar, demoBars, 60, 'DEMO:SMA', 'Synthetic SMA crossover', true)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the backtest demo.')
     }
@@ -350,6 +351,7 @@ export function BacktestReplay({ core, close }: { core: MarketCore; close: () =>
                 </table>
               </div>
             </section>
+            <RecordedTradeReplay book={book} config={view.query.config} core={core} />
             <WalkForward book={book} execution={view.query.config} core={core} />
             <ScenarioReplay source={book} execution={view.query.config} core={core} />
           </>

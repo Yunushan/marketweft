@@ -15,17 +15,18 @@ const HEADER: &str = "instrument,executed_at,observed_at,sequence,price,size";
 const AGGRESSOR_HEADER: &str = "instrument,executed_at,observed_at,sequence,price,size,aggressor";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Trade {
-    executed_at: i64,
-    observed_at: i64,
-    sequence: u64,
-    price: i64,
-    size: i64,
+pub(crate) struct Trade {
+    pub(crate) executed_at: i64,
+    pub(crate) observed_at: i64,
+    pub(crate) sequence: u64,
+    pub(crate) price: i64,
+    pub(crate) size: i64,
     side: AggressorSide,
 }
 
 /// One instrument's recorded capture sequence, ordered by observation.
 pub struct TradeTape {
+    instrument: Instrument,
     trades: Vec<Trade>,
 }
 
@@ -46,6 +47,15 @@ impl TradeTape {
 
     pub fn parse_aggressors(csv: &str, instrument: &Instrument) -> Result<Self, String> {
         Self::parse_format(csv, instrument, true)
+    }
+
+    pub fn parse_execution(csv: &str, instrument: &Instrument) -> Result<Self, String> {
+        let header = csv
+            .trim_start_matches('\u{feff}')
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty());
+        Self::parse_format(csv, instrument, header == Some(AGGRESSOR_HEADER))
     }
 
     fn parse_format(
@@ -141,10 +151,17 @@ impl TradeTape {
         if trades.is_empty() {
             return Err("Trade CSV contains no recorded trades.".into());
         }
-        Ok(Self { trades })
+        Ok(Self {
+            instrument: instrument.clone(),
+            trades,
+        })
     }
 
-    fn observed_prefix(&self, known_at: Option<i64>) -> &[Trade] {
+    pub(crate) fn instrument(&self) -> &Instrument {
+        &self.instrument
+    }
+
+    pub(crate) fn observed_prefix(&self, known_at: Option<i64>) -> &[Trade] {
         let end = known_at.map_or(self.trades.len(), |time| {
             self.trades
                 .partition_point(|trade| trade.observed_at <= time)

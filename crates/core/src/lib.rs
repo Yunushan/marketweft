@@ -36,7 +36,10 @@ pub use actions::{
 pub use alerts::{
     AlertBook, AlertDirection, AlertNotification, AlertRule, Comparator, Observation,
 };
-pub use backtest::{backtest, BacktestConfig, BacktestMark, BacktestReport, BacktestSignal};
+pub use backtest::{
+    backtest, backtest_with_trades, BacktestConfig, BacktestMark, BacktestReport, BacktestSignal,
+    RecordedBacktestCutoffs,
+};
 pub use cross_section::{
     CrossSectionConfig, CrossSectionDelistingClaim, CrossSectionDelistingPosting,
     CrossSectionDividendPosting, CrossSectionEvent, CrossSectionPosition, CrossSectionReport,

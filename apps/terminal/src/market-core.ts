@@ -544,6 +544,12 @@ export interface BacktestResult {
   marks: { at: number; close: bigint; cash: bigint; shares: bigint; equity: bigint }[];
 }
 
+export interface RecordedBacktestQuery {
+  effective: string;
+  known: string;
+  config: BacktestConfig;
+}
+
 export interface WalkForwardConfig {
   trainingBars: string;
   testBars: string;
@@ -686,6 +692,8 @@ export interface MarketCore {
   backtestIndex(calendar: string, bars: string, interval: number): number[];
   backtest(instrument: string, calendar: string, bars: string, interval: number,
     cutoff: string, config: BacktestConfig): BacktestResult;
+  recordedBacktest(instrument: string, calendar: string, bars: string, trades: string,
+    interval: number, query: RecordedBacktestQuery): BacktestResult;
   walkForward(instrument: string, calendar: string, bars: string, interval: number,
     cutoff: string, execution: BacktestConfig, config: WalkForwardConfig): WalkForwardFold[];
   scenarios(instrument: string, calendar: string, bars: string, interval: number,
@@ -741,6 +749,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_cross_section_actions(membershipBytes: number, priceBytes: number, liquidityBytes: number, dividendBytes: number): number;
   mw_backtest_index(calendarBytes: number, interval: number): number;
   mw_backtest(calendarBytes: number, interval: number): number;
+  mw_recorded_backtest(calendarBytes: number, barBytes: number, interval: number): number;
+  mw_recorded_backtest_input(bytes: number): number;
   mw_walk_forward(calendarBytes: number, interval: number): number;
   mw_run_scenarios(calendarBytes: number, interval: number): number;
 }
@@ -1608,6 +1618,30 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       textInput([...backtestHeader(instrument, cutoff, config), calendar + bars].join('\n'));
       const text = decoder.decode(output(api.mw_backtest(encoder.encode(calendar).length, interval)));
       return decodeBacktest(text.slice(0, -1).split('\n'));
+    },
+    recordedBacktest(instrument, calendar, bars, trades, interval, { effective, known, config }) {
+      validateInterval(interval);
+      if (effective.length !== 20 || /[\r\n]/.test(effective)) {
+        throw new Error('Use a YYYY-MM-DDTHH:MM:SSZ effective cutoff.');
+      }
+      const header = encoder.encode([...backtestHeader(instrument, known, config), effective, ''].join('\n'));
+      const sessionBytes = encoder.encode(calendar);
+      const barBytes = encoder.encode(bars);
+      const tradeBytes = encoder.encode(trades);
+      if (sessionBytes.length > 1024 * 1024) throw new Error('Session calendar exceeds 1 MiB.');
+      if (barBytes.length > LIMIT) throw new Error('Bar history exceeds 8 MiB.');
+      if (tradeBytes.length > LIMIT) throw new Error('Trade CSV exceeds 8 MiB.');
+      const size = header.length + sessionBytes.length + barBytes.length + tradeBytes.length;
+      const ptr = api.mw_recorded_backtest_input(size);
+      if (!ptr) throw new Error('The calculation engine could not allocate recorded backtest input.');
+      const dest = new Uint8Array(api.memory.buffer, ptr, size);
+      let offset = 0;
+      for (const chunk of [header, sessionBytes, barBytes, tradeBytes]) {
+        dest.set(chunk, offset);
+        offset += chunk.length;
+      }
+      const bytes = output(api.mw_recorded_backtest(sessionBytes.length, barBytes.length, interval));
+      return decodeBacktest(decoder.decode(bytes).slice(0, -1).split('\n'));
     },
     walkForward(instrument, calendar, bars, interval, cutoff, execution, config) {
       validateInterval(interval);
