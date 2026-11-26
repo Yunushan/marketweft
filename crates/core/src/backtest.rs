@@ -23,7 +23,7 @@ pub struct BacktestConfig {
 }
 
 impl BacktestConfig {
-    fn account(self, check_windows: bool) -> Result<PaperAccount, String> {
+    pub(crate) fn account(self, check_windows: bool) -> Result<PaperAccount, String> {
         if (check_windows
             && (self.fast_window == 0
                 || self.slow_window <= self.fast_window
@@ -72,7 +72,7 @@ pub struct RecordedBacktestCutoffs {
 }
 
 impl RecordedBacktestCutoffs {
-    fn visible_bar(self) -> Result<i64, String> {
+    pub(crate) fn visible_bar(self) -> Result<i64, String> {
         if !valid_second(self.effective_at) || !valid_second(self.known_at) {
             return Err("Use supported effective and known UTC cutoffs.".into());
         }
@@ -179,11 +179,30 @@ pub fn backtest_with_formulas(
     trades: Option<&TradeTape>,
 ) -> Result<FormulaBacktestReport, String> {
     let visible_bar = config.cutoffs.visible_bar()?;
-    let playback = trades
-        .map(|tape| TradePlayback::new(instrument, sessions, config.cutoffs, tape))
-        .transpose()?;
     let mut observations = prepare_observations(instrument, sessions, bars, interval)?;
     observations.truncate(observations.partition_point(|row| row.at <= visible_bar));
+    evaluate_formula_window(instrument, sessions, &observations, 0, config, trades)
+}
+
+pub(crate) fn evaluate_formula_window(
+    instrument: &Instrument,
+    sessions: &[Session],
+    observations: &[ObservedBar<'_>],
+    trade_from: usize,
+    config: FormulaBacktestConfig<'_>,
+    trades: Option<&TradeTape>,
+) -> Result<FormulaBacktestReport, String> {
+    let start = observations.get(trade_from).map_or(i64::MAX, |row| row.at);
+    let playback = trades
+        .map(|tape| {
+            TradePlayback::new(instrument, sessions, config.cutoffs, tape).map(|mut playback| {
+                playback.trades = &playback.trades[playback
+                    .trades
+                    .partition_point(|row| row.observed_at < start)..];
+                playback
+            })
+        })
+        .transpose()?;
     let visible: Vec<_> = observations.iter().map(|row| *row.bar).collect();
     let entry = config
         .entry
@@ -216,15 +235,15 @@ pub fn backtest_with_formulas(
         .collect();
     let backtest = run_backtest(
         instrument,
-        &observations,
-        0,
+        observations,
+        trade_from,
         config.execution,
         playback,
         Some(&evaluations),
     )?;
     Ok(FormulaBacktestReport {
         backtest,
-        evaluations,
+        evaluations: evaluations.into_iter().skip(trade_from).collect(),
     })
 }
 

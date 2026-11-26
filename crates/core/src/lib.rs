@@ -10,6 +10,7 @@ mod depth;
 mod dividend;
 mod drawing;
 mod formula;
+mod formula_walk;
 mod fundamentals;
 mod history;
 mod indicator;
@@ -60,6 +61,10 @@ pub use dividend::{
 };
 pub use drawing::{measure_drawing, DrawingEndpoint, DrawingMeasurement};
 pub use formula::{Formula, FORMULA_VERSION};
+pub use formula_walk::{
+    walk_forward_formulas, FormulaWalkCandidate, FormulaWalkConfig, FormulaWalkFold,
+    FormulaWalkScore,
+};
 pub use fundamentals::{Filing, FinancialBook, MarketCap, Multiple, Valuation};
 pub use history::{parse_csv, Bar};
 pub use indicator::{indicator, Average};

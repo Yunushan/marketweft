@@ -600,6 +600,32 @@ export interface FormulaBacktestResult {
   }[];
 }
 
+export interface FormulaWalkQuery extends RecordedBacktestQuery {
+  trainingBars: number;
+  testBars: number;
+  candidates: { id: string; entry: string; exit: string }[];
+}
+
+export interface FormulaWalkScore {
+  id: string;
+  equity: bigint;
+  drawdown: bigint;
+  turnover: bigint;
+  fees: bigint;
+  fills: number;
+  unavailableConditions: number;
+}
+
+export interface FormulaWalkFold {
+  trainingStart: number;
+  trainingEnd: number;
+  testStart: number;
+  testEnd: number;
+  scores: FormulaWalkScore[];
+  testScore: FormulaWalkScore;
+  report: FormulaBacktestResult;
+}
+
 export interface WalkForwardConfig {
   trainingBars: string;
   testBars: string;
@@ -750,6 +776,8 @@ export interface MarketCore {
     interval: number, query: RecordedBacktestQuery): BacktestResult;
   formulaBacktest(instrument: string, calendar: string, bars: string, trades: string,
     interval: number, query: FormulaBacktestQuery): FormulaBacktestResult;
+  formulaWalk(instrument: string, calendar: string, bars: string, trades: string,
+    interval: number, query: FormulaWalkQuery): FormulaWalkFold[];
   validateFormulaStrategy(languageVersion: number, entry: string, exit: string, config: BacktestConfig): void;
   walkForward(instrument: string, calendar: string, bars: string, interval: number,
     cutoff: string, execution: BacktestConfig, config: WalkForwardConfig): WalkForwardFold[];
@@ -812,6 +840,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_recorded_backtest(calendarBytes: number, barBytes: number, interval: number): number;
   mw_recorded_backtest_input(bytes: number): number;
   mw_formula_backtest(calendarBytes: number, barBytes: number, entryBytes: number, exitBytes: number, interval: number): number;
+  mw_formula_walk(calendarBytes: number, barBytes: number, candidateBytes: number, interval: number): number;
   mw_validate_formula_strategy(languageVersion: number, entryBytes: number): number;
   mw_walk_forward(calendarBytes: number, interval: number): number;
   mw_run_scenarios(calendarBytes: number, interval: number): number;
@@ -887,6 +916,19 @@ function decodeBacktest(lines: string[]): BacktestResult {
     }
   }
   return { ledger: decodePaper(paper.join('\n') + '\n'), drawdown, signals, marks };
+}
+
+function decodeFormulaBacktest(lines: string[], version: number): FormulaBacktestResult {
+  const evaluations: FormulaBacktestResult['evaluations'] = [];
+  const backtest = decodeBacktest(lines.filter(line => {
+    if (!line.startsWith('C\t')) return true;
+    const [, at, bar, entryValue, exitValue, side] = line.split('\t');
+    if (side !== '' && side !== 'buy' && side !== 'sell') throw new Error('Invalid formula signal.');
+    evaluations.push({ at: Number(at), barIndex: Number(bar), entry: entryValue ? BigInt(entryValue) : null,
+      exit: exitValue ? BigInt(exitValue) : null, decision: side || null });
+    return false;
+  }));
+  return { version, backtest, evaluations };
 }
 
 function decodePaper(text: string): PaperSnapshot {
@@ -1782,16 +1824,51 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const header = timedBacktestHeader(instrument, query);
       const files = putBacktestInput(calendar, bars, trades, [header, entry, exit]);
       const bytes = output(api.mw_formula_backtest(files.calendarBytes, files.barBytes, entry.length, exit.length, interval));
-      const evaluations: FormulaBacktestResult['evaluations'] = [];
-      const backtest = decodeBacktest(decoder.decode(bytes).slice(0, -1).split('\n').filter(line => {
-        if (!line.startsWith('C\t')) return true;
-        const [, at, bar, entryValue, exitValue, side] = line.split('\t');
-        if (side !== '' && side !== 'buy' && side !== 'sell') throw new Error('Invalid formula signal.');
-        evaluations.push({ at: Number(at), barIndex: Number(bar), entry: entryValue ? BigInt(entryValue) : null,
-          exit: exitValue ? BigInt(exitValue) : null, decision: side || null });
-        return false;
-      }));
-      return { version: api.mw_formula_version(), backtest, evaluations };
+      return decodeFormulaBacktest(decoder.decode(bytes).slice(0, -1).split('\n'), api.mw_formula_version());
+    },
+    formulaWalk(instrument, calendar, bars, trades, interval, query) {
+      validateInterval(interval);
+      const { candidates, trainingBars, testBars } = query;
+      if (![trainingBars, testBars].every(count => Number.isSafeInteger(count) && count >= 2 && count <= 5000)) {
+        throw new Error('Formula training and test windows need 2–5,000 observed bars.');
+      }
+      if (candidates.length < 2 || candidates.length > 16 ||
+          candidates.some(row => !/^[A-Za-z0-9._-]{1,40}$/.test(row.id))) {
+        throw new Error('Supply 2–16 candidates with unique ASCII strategy IDs.');
+      }
+      const formulas: Uint8Array[] = [];
+      for (const { id, entry, exit } of candidates) {
+        if (entry.length > 2048 || exit.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
+        const enter = encoder.encode(entry);
+        const leave = encoder.encode(exit);
+        if (enter.length > 2048 || leave.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
+        formulas.push(encoder.encode([id, enter.length, leave.length].join('\t') + '\n'), enter, leave);
+      }
+      const header = timedBacktestHeader(instrument, query);
+      const settings = encoder.encode(trainingBars + ',' + testBars + '\n');
+      const candidateBytes = formulas.reduce((sum, bytes) => sum + bytes.length, 0);
+      const files = putBacktestInput(calendar, bars, trades, [header, settings, ...formulas]);
+      const bytes = output(api.mw_formula_walk(files.calendarBytes, files.barBytes, candidateBytes, interval));
+      const text = decoder.decode(bytes);
+      if (!text) return [];
+      const version = api.mw_formula_version();
+      return text.slice(2, -1).split('\nF\t').map(block => {
+        const [dates, ...lines] = block.split('\n');
+        const [trainingStart, trainingEnd, testStart, testEnd] = dates.split('\t').map(Number);
+        const scores: FormulaWalkScore[] = [];
+        let testScore: FormulaWalkScore | null = null;
+        let body = 0;
+        while (lines[body]?.startsWith('T\t') || lines[body]?.startsWith('O\t')) {
+          const [tag, id, equity, drawdown, turnover, fees, fills, unavailable] = lines[body++].split('\t');
+          const score = { id, equity: BigInt(equity), drawdown: BigInt(drawdown), turnover: BigInt(turnover),
+            fees: BigInt(fees), fills: Number(fills), unavailableConditions: Number(unavailable) };
+          if (tag === 'T') scores.push(score);
+          else testScore = score;
+        }
+        if (!testScore) throw new Error('Missing formula walk-forward test score.');
+        return { trainingStart, trainingEnd, testStart, testEnd, scores, testScore,
+          report: decodeFormulaBacktest(lines.slice(body), version) };
+      });
     },
     validateFormulaStrategy(languageVersion, entry, exit, config) {
       if (!Number.isInteger(languageVersion) || languageVersion < 1 || languageVersion > 0xffffffff) {

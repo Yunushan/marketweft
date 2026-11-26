@@ -81,6 +81,10 @@ impl Formula {
         parse::compile(source)
     }
 
+    pub(crate) fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+
     /// Evaluate one value per observed bar. Missing values retain their positions.
     pub fn evaluate(&self, bars: &[Bar]) -> Result<Vec<Option<i64>>, String> {
         if bars.len() > MAX_BARS || bars.len() > MAX_EVALUATIONS / self.nodes.len() {

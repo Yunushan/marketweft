@@ -10,6 +10,40 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('formula walk-forward freezes rankings, warms the winner and resets paper cash in Wasm', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');
+  const [calendar, bars, trades] = await Promise.all([fixture('sessions'), fixture('bars'), fixture('trades')]);
+  const config = {
+    paper: { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' },
+    fastWindow: '2', slowWindow: '3', targetShares: '6', participation: '1000',
+    slippage: '0', limitBuffer: '2000', maxWait: '3',
+  };
+  const candidates = [
+    { id: 'Late', entry: 'close >= 13', exit: 'close <= 10' },
+    { id: 'Rising', entry: 'close >\n lag(close, 1)', exit: 'close <= 10' },
+  ];
+  const query = { config, trainingBars: 6, testBars: 2, candidates,
+    effective: '2025-04-03T14:11:00Z', known: '2025-04-03T14:11:00Z' };
+  const run = (overrides, source = bars, tape = '') => core.formulaWalk('DEMO:SMA', calendar, source, tape, 60, { ...query, ...overrides });
+  assert.deepEqual(run({ known: '2025-04-03T14:08:00Z' }), []);
+  const first = run({ known: '2025-04-03T14:09:00Z' });
+  const all = run({});
+  assert.equal(all.length, 2);
+  assert.deepEqual(first, all.slice(0, 1));
+  const fold = first[0];
+  assert.deepEqual(fold.scores.map(row => [row.id, row.equity]), [['Rising', 1003400000n], ['Late', 997800000n]]);
+  assert.equal(fold.report.evaluations[0].entry, 1000000n);
+  assert.equal(fold.report.backtest.marks[0].cash, 1000000000n);
+  assert.equal(fold.testScore.equity, 997400000n);
+  assert.equal(fold.testScore.turnover, 60000000n);
+  const differentBars = bars.replace('T14:07:00Z,15,15,15,15,40', 'T14:07:00Z,13,13,13,13,40');
+  const revised = run({}, differentBars)[0];
+  assert.deepEqual(revised.scores, fold.scores);
+  assert.equal(revised.testScore.equity, 1000000000n);
+  assert.equal(run({}, bars, trades)[0].testScore.fills, 0);
+  assert.throws(() => run({ candidates: [candidates[0], candidates[0]] }), /unique ASCII strategy IDs/);
+});
+
 test('formula strategy packages round-trip versioned rules and exact settings through Rust validation', async () => {
   const sample = await readFile(new URL('../crates/core/tests/fixtures/synthetic-formula-strategy.mwstrategy.json', import.meta.url), 'utf8');
   assert.equal(serializeFormulaStrategy(parseFormulaStrategy(sample, core)), sample);
