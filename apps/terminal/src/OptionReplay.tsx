@@ -43,15 +43,22 @@ function AmericanPricing({ core, dataset, query, contracts }: {
   } | null>(null)
   const [error, setError] = useState('')
 
-  function calculate(mode: 'price' | 'implied' | 'cash') {
+  function calculate(mode: 'price' | 'implied' | 'cash' | 'cash-implied') {
     setEstimate(null)
     setError('')
     try {
-      if (mode === 'cash' && dataset.cash !== null) {
-        const result = core.americanOptionCashPrice(dataset.underlying, dataset.quotes, dataset.cash,
-          contract, query.effective, query.known, Number(query.age), Number(annualVolatility) / 100, Number(steps))
-        if (typeof result === 'string') setError(statusText[result])
-        else setEstimate({ contract, price: result.price, cash: result.dividends })
+      if ((mode === 'cash' || mode === 'cash-implied') && dataset.cash !== null) {
+        const inputs = [dataset.underlying, dataset.quotes, dataset.cash, contract,
+          query.effective, query.known, Number(query.age)] as const
+        if (mode === 'cash') {
+          const value = core.americanOptionCashPrice(...inputs, Number(annualVolatility) / 100, Number(steps))
+          if (typeof value === 'string') setError(statusText[value])
+          else setEstimate({ contract, price: value.price, cash: value.dividends })
+        } else {
+          const value = core.americanOptionCashImplied(...inputs, Number(steps))
+          if (typeof value === 'string') setError(statusText[value])
+          else setEstimate({ contract, price: value.price, iv: value.volatility, cash: value.dividends })
+        }
         return
       }
       const inputs = [dataset.underlying, dataset.quotes, contract, query.effective, query.known, Number(query.age)] as const
@@ -92,8 +99,12 @@ function AmericanPricing({ core, dataset, query, contracts }: {
       </label>
       <button className="primary">Price American option</button>
       <button type="button" className="outline" onClick={() => calculate('implied')}>Solve midpoint IV</button>
-      {dataset.cash !== null && <button type="submit" value="cash"
-        className="outline">Price with cash dividends</button>}
+      {dataset.cash !== null && <>
+        <button type="submit" value="cash" className="outline">Price with cash dividends</button>
+        <button type="button" className="outline" onClick={() => calculate('cash-implied')}>
+          Solve IV with cash dividends
+        </button>
+      </>}
     </form>
     {estimate && <p role="status">{estimate.contract}{estimate.iv !== undefined && (
       <> implied volatility {volatility(estimate.iv)} ·</>

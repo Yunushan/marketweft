@@ -79,9 +79,9 @@ pub use indicator::{indicator, Average};
 pub use macro_calendar::{MacroCalendar, ReleaseRecord, ReleaseSnapshot, ReportKind};
 pub use option_cash::CashOptionDividend;
 pub use option_chain::{
-    AmericanCashRequest, AmericanCashValuation, CashOptionError, ChainSnapshot, Contract,
-    ExerciseStyle, OptionBook, OptionBookError, OptionQuote, OptionRow, QuoteStatus, Underlying,
-    UnderlyingQuote,
+    AmericanCashImpliedRequest, AmericanCashImpliedValuation, AmericanCashRequest,
+    AmericanCashValuation, CashOptionError, ChainSnapshot, Contract, ExerciseStyle, OptionBook,
+    OptionBookError, OptionQuote, OptionRow, QuoteStatus, Underlying, UnderlyingQuote,
 };
 pub use option_price::{
     AmericanImplied, EuropeanOption, ModelError, OptionAnalytics, OptionSide, OptionTerms,

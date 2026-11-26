@@ -705,6 +705,37 @@ test('American cash-dividend Wasm replay selects exact revision amounts and keep
   assert.throws(() => price(iso('14:04:00'), cash.replaceAll(',USD,', ',EUR,')), /dividend currency/);
 });
 
+test('American cash-dividend implied volatility reprices the observed midpoint after revisions', async () => {
+  const read = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-option-' + name + '.csv', import.meta.url), 'utf8');
+  const [underlying, quotes, cash] = await Promise.all([read('underlying'), read('exercise-quotes'), read('cash-dividends')]);
+  const iso = time => '2025-04-03T' + time + 'Z';
+  const solve = (known, data = quotes) => core.americanOptionCashImplied(
+    underlying, data, cash, 'APR-AM-C90', iso('14:00:00'), iso(known), 300, 128,
+  );
+  assert.equal(solve('14:01:59'), 'missing-contract');
+  const before = solve('14:03:59');
+  assert.deepEqual(before.dividends, []);
+  assert.equal(before.volatility, core.americanOptionImplied(
+    underlying, quotes, 'APR-AM-C90', iso('14:00:00'), iso('14:03:59'), 300, 128,
+  ).volatility);
+  const initial = solve('14:04:00');
+  const revised = solve('14:06:00');
+  const cancelled = solve('14:07:00');
+  assert.deepEqual(revised.dividends.map(row => [row.id, row.amountPerShare]), [['EXTRA', 1000000n], ['MAIN', 9000000n]]);
+  assert.deepEqual(cancelled.dividends.map(row => row.id), ['MAIN']);
+  assert.ok(before.volatility < initial.volatility && initial.volatility < cancelled.volatility && cancelled.volatility < revised.volatility);
+  for (const [time, value] of [['14:04:00', initial], ['14:06:00', revised], ['14:07:00', cancelled]]) {
+    assert.ok(Math.abs(value.price - 16.234568) < 1e-10);
+    assert.equal(core.americanOptionCashPrice(
+      underlying, quotes, cash, 'APR-AM-C90', iso('14:00:00'), iso(time), 300, value.volatility, 128,
+    ).price, value.price);
+  }
+  assert.deepEqual(solve('14:04:00'), initial);
+  const withSpread = spread => quotes.replace(/^(APR-AM-C90,[^\r\n]*),16\.214568,16\.254568$/m, '$1,' + spread);
+  assert.equal(solve('14:04:00', withSpread('17,16')), 'crossed');
+  assert.equal(solve('14:04:00', withSpread(',16')), 'missing-bid-ask');
+});
+
 test('macro calendar Wasm preserves public and observed times and revision lineage', async () => {
   const data = await readFile(new URL('../crates/core/tests/fixtures/synthetic-macro-calendar.csv', import.meta.url), 'utf8');
   const iso = t => '2025-04-03T' + t + 'Z';

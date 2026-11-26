@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.93.0 · American implied volatility with discrete cash dividends
+
+| Check | Evidence |
+| --- | --- |
+| Solver round trips | Native Rust inverted call and put prices at three volatilities with two off-grid dividends. The tests cover an empty schedule, the exercise boundary and prices below the boundary. |
+| Observation cutoffs | Rust and Wasm reproduced one USD 16.234568 midpoint across the first report, revision, cancellation and rewind. Wasm also checked crossed and one-sided quotes. |
+| Offline Chromium | The same midpoint displayed 23.82% before the first report, 31.18% with the first report and 32.53% after the revision when both reports were active. Rewinding restored the first report and its IV. |
+
+[Cash-dividend implied volatility](option-chain.md#cash-dividend-implied-volatility) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.92.0 · Discrete cash dividends for American pricing
 
 | Check | Evidence |

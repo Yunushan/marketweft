@@ -88,6 +88,28 @@ pub struct AmericanCashRequest<'a> {
     pub steps: u16,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct AmericanCashImpliedRequest<'a> {
+    pub contract_id: &'a str,
+    pub effective_at: i64,
+    pub known_at: i64,
+    pub max_age: u32,
+    pub steps: u16,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct AmericanCashImpliedValuation<'a> {
+    pub model: AmericanImplied,
+    pub dividends: Vec<&'a Dividend>,
+}
+
+struct AmericanCashInputs<'a, 'b> {
+    terms: OptionTerms,
+    quote: &'a OptionQuote,
+    reports: Vec<&'b Dividend>,
+    schedule: Vec<CashOptionDividend>,
+}
+
 #[derive(Debug, PartialEq)]
 pub struct AmericanCashValuation<'a> {
     pub price: f64,
@@ -344,28 +366,72 @@ impl OptionBook {
         dividends: &'a DividendBook,
         request: AmericanCashRequest<'_>,
     ) -> Result<AmericanCashValuation<'a>, CashOptionError> {
-        let (contract, _) = self
-            .american_contract(
-                request.contract_id,
-                request.effective_at,
-                request.known_at,
-                request.max_age,
-            )
+        let inputs = self.american_cash_inputs(
+            dividends,
+            request.contract_id,
+            request.effective_at,
+            request.known_at,
+            request.max_age,
+        )?;
+        let price = inputs
+            .terms
+            .american_cash_price(request.volatility, request.steps, &inputs.schedule)
+            .map_err(|error| CashOptionError::Quote(QuoteStatus::Model(error)))?;
+        Ok(AmericanCashValuation {
+            price,
+            dividends: inputs.reports,
+        })
+    }
+
+    /// Solve the observed American midpoint using the known cash schedule.
+    pub fn american_cash_implied_valuation<'a>(
+        &self,
+        dividends: &'a DividendBook,
+        request: AmericanCashImpliedRequest<'_>,
+    ) -> Result<AmericanCashImpliedValuation<'a>, CashOptionError> {
+        let inputs = self.american_cash_inputs(
+            dividends,
+            request.contract_id,
+            request.effective_at,
+            request.known_at,
+            request.max_age,
+        )?;
+        let midpoint = quote_midpoint(inputs.quote).map_err(CashOptionError::Quote)?;
+        let model = inputs
+            .terms
+            .american_cash_implied(midpoint, request.steps, &inputs.schedule)
+            .map_err(|error| CashOptionError::Quote(QuoteStatus::Model(error)))?;
+        Ok(AmericanCashImpliedValuation {
+            model,
+            dividends: inputs.reports,
+        })
+    }
+
+    fn american_cash_inputs<'a, 'b>(
+        &'a self,
+        dividends: &'b DividendBook,
+        contract_id: &str,
+        effective_at: i64,
+        known_at: i64,
+        max_age: u32,
+    ) -> Result<AmericanCashInputs<'a, 'b>, CashOptionError> {
+        let (contract, quote) = self
+            .american_contract(contract_id, effective_at, known_at, max_age)
             .map_err(CashOptionError::Quote)?;
         let market = fresh_market(
-            self.underlying_as_of(request.effective_at, request.known_at),
-            request.effective_at,
-            request.max_age,
+            self.underlying_as_of(effective_at, known_at),
+            effective_at,
+            max_age,
         )
         .map_err(CashOptionError::Quote)?;
         if dividends.instrument() != Some(&self.underlying.instrument) {
             return Err(CashOptionError::InstrumentMismatch);
         }
         let mut reports: Vec<_> = dividends
-            .known_reports(request.known_at)
+            .known_reports(known_at)
             .filter(|report| {
                 report.amount_per_share > 0
-                    && request.effective_at < report.ex_at
+                    && effective_at < report.ex_at
                     && report.ex_at <= contract.expiration
             })
             .collect();
@@ -385,17 +451,16 @@ impl OptionBook {
                     .map(|report| i128::from(report.amount_per_share))
                     .sum();
                 CashOptionDividend {
-                    years: (group[0].ex_at - request.effective_at) as f64 / YEAR_SECONDS,
+                    years: (group[0].ex_at - effective_at) as f64 / YEAR_SECONDS,
                     amount: total as f64 / SCALE as f64,
                 }
             })
             .collect();
-        let price = priced_terms(contract, market, request.effective_at)
-            .american_cash_price(request.volatility, request.steps, &schedule)
-            .map_err(|error| CashOptionError::Quote(QuoteStatus::Model(error)))?;
-        Ok(AmericanCashValuation {
-            price,
-            dividends: reports,
+        Ok(AmericanCashInputs {
+            terms: priced_terms(contract, market, effective_at),
+            quote,
+            schedule,
+            reports,
         })
     }
 

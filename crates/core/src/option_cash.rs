@@ -1,6 +1,6 @@
 use crate::{
     option_price::{lattice_weights, MAX_VOLATILITY},
-    ModelError, OptionTerms, MAX_AMERICAN_STEPS,
+    AmericanImplied, ModelError, OptionTerms, MAX_AMERICAN_STEPS,
 };
 
 const MAX_DIVIDEND_DATES: usize = 256;
@@ -24,9 +24,39 @@ impl OptionTerms {
         if dividends.is_empty() {
             return self.american_price(volatility, steps);
         }
+        let timeline = self.cash_time_grid(steps, dividends)?;
+        self.price_cash_grid(volatility, steps, &timeline)
+    }
+
+    /// Solve the selected cash-dividend model against an observed price.
+    pub fn american_cash_implied(
+        self,
+        midpoint: f64,
+        steps: u16,
+        dividends: &[CashOptionDividend],
+    ) -> Result<AmericanImplied, ModelError> {
+        if dividends.is_empty() {
+            return self.american_implied(midpoint, steps);
+        }
+        let timeline = self.cash_time_grid(steps, dividends)?;
+        let price_at = |volatility| self.price_cash_grid(volatility, steps, &timeline);
+        let lower = price_at(0.0)?;
+        let max_dt = timeline
+            .windows(2)
+            .map(|pair| pair[1].years - pair[0].years)
+            .fold(0.0, f64::max);
+        let floor = ((self.rate - self.dividend_yield).abs() * max_dt.sqrt())
+            .max(16.0 * f64::EPSILON / (self.years / f64::from(steps)).sqrt());
+        self.solve_american(midpoint, lower, floor, price_at)
+    }
+
+    fn cash_time_grid(
+        self,
+        steps: u16,
+        dividends: &[CashOptionDividend],
+    ) -> Result<Vec<CashOptionDividend>, ModelError> {
         self.validate()?;
-        if !(0.0..=MAX_VOLATILITY).contains(&volatility)
-            || !(1..=MAX_AMERICAN_STEPS).contains(&steps)
+        if !(1..=MAX_AMERICAN_STEPS).contains(&steps)
             || dividends.len() > MAX_DIVIDEND_DATES
             || dividends.iter().any(|dividend| {
                 !(dividend.years > 0.0
@@ -40,7 +70,18 @@ impl OptionTerms {
         {
             return Err(ModelError::InputsOutOfRange);
         }
-        let timeline = cash_timeline(self.years, steps, dividends);
+        Ok(cash_timeline(self.years, steps, dividends))
+    }
+
+    fn price_cash_grid(
+        self,
+        volatility: f64,
+        steps: u16,
+        timeline: &[CashOptionDividend],
+    ) -> Result<f64, ModelError> {
+        if !(0.0..=MAX_VOLATILITY).contains(&volatility) {
+            return Err(ModelError::InputsOutOfRange);
+        }
         let drift = self.rate - self.dividend_yield;
         let sign = self.side.sign();
         let exercise = |spot: f64| (sign * (spot - self.strike)).max(0.0);

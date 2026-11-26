@@ -69,3 +69,22 @@ In the demo, choose the April American 90-strike call, set effective time to Apr
 | 14:05:00 | USD 7 and USD 1 | 14.334147 |
 | 14:06:00 | USD 9 revision and USD 1 | 14.171952 |
 | 14:07:00 | USD 9 after the USD 1 cancellation | 14.246106 |
+
+
+## Cash-dividend implied volatility
+
+Use **Solve IV with cash dividends** to solve the observed bid–ask midpoint on the same ex-date grid used by **Price with cash dividends**. The solver uses the chosen number of pricing steps and both replay cutoffs. Annual volatility is the result of the solve. The result includes the specific cash reports applied. When the cutoffs produce an empty schedule, the solve matches **Solve midpoint IV**.
+
+A fresh two-sided option quote and a fresh underlying quote are required. If the midpoint lies on the flat exercise boundary or the grid cannot reproduce it within numerical tolerance, the result reports that implied volatility is unresolved.
+
+With 128 steps, the April American 90-strike call retains the same USD 16.234568 midpoint at each of the earlier demo cutoffs.
+
+| Known UTC | Implied volatility |
+| --- | ---: |
+| 14:03:59 | 23.82% |
+| 14:04:00 | 31.18% |
+| 14:05:00 | 31.67% |
+| 14:06:00 | 32.53% |
+| 14:07:00 | 32.13% |
+
+The original USD 7 report and 31.18% return when you rewind the known cutoff to 14:04 UTC. Enter the result's volatility in **Price with cash dividends** to repeat the valuation. The terminal displays volatility rounded to two decimal places, so entering that display value can produce a small difference in price.

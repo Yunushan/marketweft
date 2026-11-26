@@ -1,6 +1,7 @@
 use marketweft_core::{
-    parse_dividends, parse_exact_utc, AmericanCashRequest, CashOptionDividend, CashOptionError,
-    Instrument, ModelError, OptionBook, OptionSide, OptionTerms,
+    parse_dividends, parse_exact_utc, AmericanCashImpliedRequest, AmericanCashRequest,
+    CashOptionDividend, CashOptionError, Instrument, ModelError, OptionBook, OptionSide,
+    OptionTerms, QuoteStatus,
 };
 
 const QUOTES: &str = include_str!("fixtures/synthetic-option-exercise-quotes.csv");
@@ -173,4 +174,80 @@ fn option_cash_plan_selects_revisions_before_the_ex_date() {
         chain.american_cash_valuation(&foreign, request("2025-04-03T14:04:00Z")),
         Err(CashOptionError::CurrencyMismatch)
     );
+}
+
+#[test]
+fn cash_implied_inverts_call_and_put_on_the_same_time_grid() {
+    let dividends = [
+        CashOptionDividend {
+            years: 0.2,
+            amount: 2.0,
+        },
+        CashOptionDividend {
+            years: 0.63,
+            amount: 4.0,
+        },
+    ];
+    for side in [OptionSide::Call, OptionSide::Put] {
+        let option = example(side);
+        for volatility in [0.08, 0.31, 0.9] {
+            let price = option
+                .american_cash_price(volatility, 96, &dividends)
+                .unwrap();
+            let solved = option.american_cash_implied(price, 96, &dividends).unwrap();
+            assert!(
+                (solved.volatility - volatility).abs() < 1e-10,
+                "{side:?}: {solved:?}"
+            );
+            assert!((solved.price - price).abs() < 1e-10);
+        }
+        let boundary = option.american_cash_price(0.0, 96, &dividends).unwrap();
+        assert_eq!(
+            option.american_cash_implied(boundary, 96, &dividends),
+            Err(ModelError::VolatilityUnresolved)
+        );
+        assert_eq!(
+            option.american_cash_implied(boundary - 0.001, 96, &dividends),
+            Err(ModelError::PriceOutsideBounds)
+        );
+        let price = option.american_price(0.31, 96).unwrap();
+        assert_eq!(
+            option.american_cash_implied(price, 96, &[]),
+            option.american_implied(price, 96)
+        );
+    }
+}
+
+#[test]
+fn cash_implied_replays_the_observed_midpoint_and_no_future_reports() {
+    let cash = include_str!("fixtures/synthetic-option-cash-dividends.csv");
+    let chain = OptionBook::parse(UNDERLYING, QUOTES).unwrap();
+    let dividends = parse_dividends(cash, &Instrument::new("DEMO", "OPT").unwrap()).unwrap();
+    let make = |known_at| AmericanCashImpliedRequest {
+        contract_id: "APR-AM-C90",
+        effective_at: utc("2025-04-03T14:00:00Z"),
+        known_at: utc(known_at),
+        max_age: 300,
+        steps: 128,
+    };
+    let solve = |known| chain.american_cash_implied_valuation(&dividends, make(known));
+    assert_eq!(
+        solve("2025-04-03T14:01:59Z"),
+        Err(CashOptionError::Quote(QuoteStatus::MissingContract))
+    );
+    let before = solve("2025-04-03T14:03:59Z").unwrap();
+    let first = solve("2025-04-03T14:04:00Z").unwrap();
+    let revised = solve("2025-04-03T14:06:00Z").unwrap();
+    let cancelled = solve("2025-04-03T14:07:00Z").unwrap();
+    for result in [&before, &first, &revised, &cancelled] {
+        assert!((result.model.price - 16.234568).abs() < 1e-10);
+    }
+    assert!(before.dividends.is_empty());
+    assert_eq!(first.dividends[0].amount_per_share, 7_000_000);
+    assert_eq!(revised.dividends[1].amount_per_share, 9_000_000);
+    assert_eq!(cancelled.dividends.len(), 1);
+    assert!(before.model.volatility < first.model.volatility);
+    assert!(first.model.volatility < cancelled.model.volatility);
+    assert!(cancelled.model.volatility < revised.model.volatility);
+    assert_eq!(solve("2025-04-03T14:04:00Z").unwrap(), first);
 }

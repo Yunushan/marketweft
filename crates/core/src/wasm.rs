@@ -18,8 +18,8 @@ use crate::{
 };
 use crate::{parse_split_revisions, ShareRatio, SplitRevision, SplitRevisionBook};
 use crate::{
-    AmericanCashRequest, CashOptionError, ExerciseStyle, ModelError, OptionBook, OptionSide,
-    QuoteStatus,
+    AmericanCashImpliedRequest, AmericanCashRequest, CashOptionError, ExerciseStyle, ModelError,
+    OptionBook, OptionSide, QuoteStatus,
 };
 use std::cell::RefCell;
 
@@ -2168,6 +2168,32 @@ pub extern "C" fn mw_american_option_cash_price(
     volatility: f64,
     steps: u32,
 ) -> u32 {
+    american_option_cash(
+        underlying_bytes,
+        quote_bytes,
+        max_age,
+        steps,
+        Some(volatility),
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn mw_american_option_cash_implied(
+    underlying_bytes: usize,
+    quote_bytes: usize,
+    max_age: u32,
+    steps: u32,
+) -> u32 {
+    american_option_cash(underlying_bytes, quote_bytes, max_age, steps, None)
+}
+
+fn american_option_cash(
+    underlying_bytes: usize,
+    quote_bytes: usize,
+    max_age: u32,
+    steps: u32,
+    volatility: Option<f64>,
+) -> u32 {
     use std::fmt::Write;
     process(|input| {
         let (contract_id, effective_at, known_at, reports) = american_option_fields(input)?;
@@ -2177,15 +2203,40 @@ pub extern "C" fn mw_american_option_cash_price(
             .ok_or("Supply underlying, option and cash dividend reports.")?;
         let book = option_book(chain, underlying_bytes)?;
         let dividends = parse_dividends(cash, &book.underlying().instrument)?;
-        let request = AmericanCashRequest {
-            contract_id,
-            effective_at,
-            known_at,
-            max_age,
-            volatility,
-            steps: u16::try_from(steps).unwrap_or(0),
+        let steps = u16::try_from(steps).unwrap_or(0);
+        let result = match volatility {
+            Some(volatility) => book
+                .american_cash_valuation(
+                    &dividends,
+                    AmericanCashRequest {
+                        contract_id,
+                        effective_at,
+                        known_at,
+                        max_age,
+                        steps,
+                        volatility,
+                    },
+                )
+                .map(|value| (format!("value\t{}\n", value.price), value.dividends)),
+            None => book
+                .american_cash_implied_valuation(
+                    &dividends,
+                    AmericanCashImpliedRequest {
+                        contract_id,
+                        effective_at,
+                        known_at,
+                        max_age,
+                        steps,
+                    },
+                )
+                .map(|value| {
+                    (
+                        format!("value\t{}\t{}\n", value.model.price, value.model.volatility),
+                        value.dividends,
+                    )
+                }),
         };
-        let result = match book.american_cash_valuation(&dividends, request) {
+        let (mut text, reports) = match result {
             Ok(model) => model,
             Err(CashOptionError::Quote(status)) => {
                 return Ok(option_status(status).as_bytes().to_vec())
@@ -2197,8 +2248,7 @@ pub extern "C" fn mw_american_option_cash_price(
                 return Err("Cash dividend currency must match the option chain.".into())
             }
         };
-        let mut text = format!("value\t{}\n", result.price);
-        for report in result.dividends {
+        for report in reports {
             writeln!(
                 text,
                 "D\t{}\t{}\t{}\t{}\t{}\t{}\t{}",

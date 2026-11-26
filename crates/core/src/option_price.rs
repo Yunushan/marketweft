@@ -117,6 +117,21 @@ impl OptionTerms {
         steps: u16,
     ) -> Result<AmericanImplied, ModelError> {
         let lower = self.american_price(0.0, steps)?;
+        // At the feasibility floor the risk-neutral move is deterministic.
+        let floor =
+            (self.rate - self.dividend_yield).abs() * (self.years / f64::from(steps)).sqrt();
+        self.solve_american(midpoint, lower, floor, |volatility| {
+            self.american_price(volatility, steps)
+        })
+    }
+
+    pub(crate) fn solve_american(
+        self,
+        midpoint: f64,
+        lower: f64,
+        mut low: f64,
+        price_at: impl Fn(f64) -> Result<f64, ModelError>,
+    ) -> Result<AmericanImplied, ModelError> {
         let upper = match self.side {
             OptionSide::Call => self.spot,
             OptionSide::Put => self.strike * (-self.rate * self.years).max(0.0).exp(),
@@ -127,21 +142,16 @@ impl OptionTerms {
             return Err(ModelError::PriceOutsideBounds);
         }
         let mut high = MAX_VOLATILITY;
-        let high_price = self.american_price(high, steps)?;
+        let high_price = price_at(high)?;
         if midpoint <= lower + tolerance
             || midpoint >= upper - tolerance
             || midpoint > high_price + tolerance
         {
             return Err(ModelError::VolatilityUnresolved);
         }
-        // At the feasibility floor the risk-neutral move is deterministic.
-        let mut low =
-            (self.rate - self.dividend_yield).abs() * (self.years / f64::from(steps)).sqrt();
         for _ in 0..52 {
             let trial = (low + high) / 2.0;
-            let price = self
-                .american_price(trial, steps)
-                .map_err(|_| ModelError::VolatilityUnresolved)?;
+            let price = price_at(trial).map_err(|_| ModelError::VolatilityUnresolved)?;
             if price < midpoint {
                 low = trial;
             } else {
@@ -149,9 +159,7 @@ impl OptionTerms {
             }
         }
         let volatility = (low + high) / 2.0;
-        let price = self
-            .american_price(volatility, steps)
-            .map_err(|_| ModelError::VolatilityUnresolved)?;
+        let price = price_at(volatility).map_err(|_| ModelError::VolatilityUnresolved)?;
         if (price - midpoint).abs() > tolerance {
             return Err(ModelError::VolatilityUnresolved);
         }
