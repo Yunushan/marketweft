@@ -145,3 +145,36 @@ docker compose -f apps/research-service/deploy/compose.yaml exec research market
 export MARKETWEFT_RESEARCH_AUDIT_FILE=recovered.sqlite
 docker compose -f apps/research-service/deploy/compose.yaml up -d --wait research
 ```
+
+## Private Kubernetes deployment
+
+Render `apps/research-service/deploy/kubernetes` with `kubectl kustomize`. The base uses one Linux x64 research replica, a ClusterIP service, separate credential and audit claims, and a policy that admits only authorized client pods in the same namespace. Use a CNI that enforces Kubernetes NetworkPolicy.
+
+Set `KUBE_CONTEXT` to your private cluster context. The manifest imports no image over the network. Load the matching OCI image on each eligible Linux x64 worker, or use a Kustomize overlay that supplies a private registry image and pull policy. Use a storage class suitable for SQLite with ReadWriteOnce volumes.
+
+Create the namespace, storage claims and TLS secret before starting the deployment.
+
+```sh
+layout=apps/research-service/deploy/kubernetes
+kubectl --context "$KUBE_CONTEXT" apply -f "$layout/namespace.yaml"
+kubectl --context "$KUBE_CONTEXT" -n marketweft-research apply -f "$layout/storage.yaml"
+kubectl --context "$KUBE_CONTEXT" -n marketweft-research create secret tls research-tls --cert=tls.crt --key=tls.key
+```
+
+Use a certificate valid for `marketweft-research.marketweft-research.svc.cluster.local`. For a cluster with a custom DNS suffix, patch the advertised authority and certificate together. Mount the `research-credentials` claim in a short-lived operator pod and run `marketweft-research-service credential issue` to create `credentials.sqlite` at the root of that volume. Mount the claim read-write for the operator and run the operator process as UID and GID 65532. Delete the operator pod when credentials are provisioned. The research pod reads this claim and writes its audit ledger to a separate claim.
+
+```sh
+kubectl --context "$KUBE_CONTEXT" apply -k "$layout"
+kubectl --context "$KUBE_CONTEXT" -n marketweft-research rollout status deployment/marketweft-research
+```
+
+Connect from a same-namespace client pod labeled `marketweft-research-access=authorized`. Use the service DNS authority, trust the certificate issuer and send a managed formula or screen token. Restrict who can create or relabel pods in this namespace.
+
+Run the audit backup and restore commands in the research pod using fresh destination paths on the audit volume. Then change the Deployment to use the recovered file and wait for the rollout. Persist the environment change in your overlay before applying it again.
+
+```sh
+kubectl --context "$KUBE_CONTEXT" -n marketweft-research exec deployment/marketweft-research -- marketweft-research-service audit backup /var/lib/marketweft/audit/audit.sqlite /var/lib/marketweft/audit/snapshot.sqlite
+kubectl --context "$KUBE_CONTEXT" -n marketweft-research exec deployment/marketweft-research -- marketweft-research-service audit restore /var/lib/marketweft/audit/snapshot.sqlite /var/lib/marketweft/audit/recovered.sqlite
+kubectl --context "$KUBE_CONTEXT" -n marketweft-research set env deployment/marketweft-research MARKETWEFT_RESEARCH_AUDIT_DB=/var/lib/marketweft/audit/recovered.sqlite
+kubectl --context "$KUBE_CONTEXT" -n marketweft-research rollout status deployment/marketweft-research
+```

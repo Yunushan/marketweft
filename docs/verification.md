@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.62.0 · Private Kubernetes deployment
+
+| Check | Observed result |
+| --- | --- |
+| Private service | In a disposable Kubernetes cluster, the research container ran as UID 65532 behind a ClusterIP. A separate client pod verified the certificate, token scopes, exact formula and point-in-time universe ranks. |
+| Persistent audit | A replacement pod retained the managed credentials and audit volume. The service backed up and restored six completed receipts, then reopened the restored ledger and added three receipts. All nine were complete. |
+| Network policy | The manifests include a same-namespace ingress policy for labeled clients. Policy enforcement depends on the cluster's CNI. |
+
+[Private Kubernetes deployment](local-rest-research.md#private-kubernetes-deployment) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.61.0 · Private Docker Compose deployment
 
 | Check | Observed result |

@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marketweft-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: marketweft-research
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: marketweft-research
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/arch: amd64
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: research
+          image: marketweft-research:0.62.0
+          imagePullPolicy: Never
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: research-tls
+              containerPort: 4174
+              protocol: TCP
+          env:
+            - name: MARKETWEFT_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: MARKETWEFT_RESEARCH_BIND_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: MARKETWEFT_RESEARCH_PORT
+              value: "4174"
+            - name: MARKETWEFT_RESEARCH_AUTHORITY
+              value: marketweft-research.$(MARKETWEFT_NAMESPACE).svc.cluster.local:4174
+            - name: MARKETWEFT_RESEARCH_TLS_CERT
+              value: /run/marketweft/tls/tls.crt
+            - name: MARKETWEFT_RESEARCH_TLS_KEY
+              value: /run/marketweft/tls/tls.key
+            - name: MARKETWEFT_RESEARCH_CREDENTIALS_DB
+              value: /var/lib/marketweft/credentials/credentials.sqlite
+            - name: MARKETWEFT_RESEARCH_AUDIT_DB
+              value: /var/lib/marketweft/audit/audit.sqlite
+          readinessProbe:
+            tcpSocket:
+              port: research-tls
+            periodSeconds: 5
+          volumeMounts:
+            - name: tls
+              mountPath: /run/marketweft/tls
+              readOnly: true
+            - name: credentials
+              mountPath: /var/lib/marketweft/credentials
+              readOnly: true
+            - name: audit
+              mountPath: /var/lib/marketweft/audit
+      volumes:
+        - name: tls
+          secret:
+            secretName: research-tls
+            defaultMode: 0440
+        - name: credentials
+          persistentVolumeClaim:
+            claimName: research-credentials
+        - name: audit
+          persistentVolumeClaim:
+            claimName: research-audit
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketweft-research
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: marketweft-research
+  ports:
+    - name: research-tls
+      port: 4174
+      targetPort: research-tls
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: marketweft-research
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: marketweft-research
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              marketweft-research-access: authorized
+      ports:
+        - port: 4174
+          protocol: TCP
+  egress: []
