@@ -84,6 +84,31 @@ impl UniverseBook {
             .collect()
     }
 
+    pub(crate) fn for_listing(&self, listing_id: &str) -> Option<Self> {
+        let rows: Vec<_> = self
+            .rows
+            .iter()
+            .filter(|row| row.listing_id == listing_id)
+            .cloned()
+            .collect();
+        (!rows.is_empty()).then(|| Self {
+            name: self.name.clone(),
+            rows,
+        })
+    }
+
+    pub(crate) fn delisting_ids(&self) -> BTreeSet<(&str, &str)> {
+        self.rows
+            .iter()
+            .filter(|row| row.action == UniverseAction::Delist)
+            .map(|row| (row.listing_id.as_str(), row.change_id.as_str()))
+            .collect()
+    }
+
+    pub(crate) fn report_count(&self) -> usize {
+        self.rows.len()
+    }
+
     /// Distinct points where a report becomes known or its known schedule becomes effective.
     pub fn checkpoints(&self) -> Vec<i64> {
         let mut checkpoints = BTreeSet::new();

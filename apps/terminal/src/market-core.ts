@@ -346,6 +346,18 @@ export interface ScenarioReport {
   paths: ScenarioStats[];
 }
 
+export interface DelistingValuation {
+  state: 'unobserved' | 'shares' | 'missing-proceeds' | 'receivable' | 'paid';
+  ordinaryShares: number;
+  entitledShares: number;
+  change?: { id: string; instrument: string; effectiveAt: number; observedAt: number };
+  termsAt?: number;
+  offer?: { currency: string; rate: bigint; total: bigint; payAt: number | null };
+  reference?: { at: number; currency: string; price: bigint };
+  returnPctMicros?: bigint;
+  ledger: { at: number; currency: string; delta: bigint; balance: bigint }[];
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -356,6 +368,8 @@ export interface MarketCore {
   dividendLedger(instrument: string, csv: string, entitledShares: number): DividendEvent[];
   universeIndex(csv: string): { name: string; checkpoints: number[] };
   universeAsOf(csv: string, effectiveAt: string, knownAt: string): UniverseListing[];
+  delistingAsOf(membership: string, terms: string, listing: string, shares: number,
+    effectiveAt: string, knownAt: string): DelistingValuation;
   universeScreen(membership: string, prices: string, baselineAt: string,
     effectiveAt: string, knownAt: string): ScreenRow[];
   sectorHeatmap(membership: string, prices: string, sectors: string, baselineAt: string,
@@ -394,6 +408,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_dividend_ledger(shares: number): number;
   mw_universe_index(): number;
   mw_universe_as_of(): number;
+  mw_delisting_as_of(membershipBytes: number, shares: number): number;
   mw_universe_screen(membershipBytes: number): number;
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
   mw_financial_index(filingBytes: number): number;
@@ -615,6 +630,28 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         return { listingId, instrument, status: universeStatuses[Number(status)], changeId,
           effectiveAt: Number(effectiveAt), observedAt: Number(observedAt) };
       });
+    },
+    delistingAsOf(membership, terms, listing, shares, effectiveAt, knownAt) {
+      if (!/^[A-Za-z0-9._-]{1,40}$/.test(listing) || !Number.isInteger(shares) || shares < 0 || shares > 1_000_000
+        || [effectiveAt, knownAt].some(time => time.length !== 20 || /[\n\r]/.test(time))) {
+        throw new Error('Use a listing ID, up to 1,000,000 whole entitled shares and UTC cutoffs.');
+      }
+      textInput([listing, effectiveAt, knownAt, membership + terms].join('\n'));
+      const text = decoder.decode(output(api.mw_delisting_as_of(encoder.encode(membership).length, shares)));
+      const [heading, ...lines] = text.slice(0, -1).split('\n');
+      const [state, ordinary, entitled] = heading.split('\t');
+      const value: DelistingValuation = { state: state as DelistingValuation['state'],
+        ordinaryShares: Number(ordinary), entitledShares: Number(entitled), ledger: [] };
+      for (const line of lines) {
+        const [tag, a, b, c, d] = line.split('\t');
+        if (tag === 'D') value.change = { id: a, instrument: b, effectiveAt: Number(c), observedAt: Number(d) };
+        if (tag === 'T') value.termsAt = Number(a);
+        if (tag === 'O') value.offer = { currency: a, rate: BigInt(b), total: BigInt(c), payAt: d ? Number(d) : null };
+        if (tag === 'R') value.reference = { at: Number(a), currency: b, price: BigInt(c) };
+        if (tag === 'P') value.returnPctMicros = BigInt(a);
+        if (tag === 'L') value.ledger.push({ at: Number(a), currency: b, delta: BigInt(c), balance: BigInt(d) });
+      }
+      return value;
     },
     universeScreen(membership, prices, baselineAt, effectiveAt, knownAt) {
       screenInput([baselineAt, effectiveAt, knownAt], membership, prices);

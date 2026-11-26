@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import type { MarketCore, UniverseListing } from './market-core'
 import { Mark } from './Icons'
 import { UniverseScreen } from './UniverseScreen'
+import { DelistingReplay } from './DelistingReplay'
 import { utc } from './workspace'
 import demo from '../../../crates/core/tests/fixtures/synthetic-universe.csv?raw'
 
@@ -339,6 +340,13 @@ export function UniverseReplay({
               membership={dataset.csv}
               demo={dataset.demo}
               firstCutoff={utc(dataset.checkpoints[0])}
+              effective={result.effective}
+              known={result.known}
+            />
+            <DelistingReplay
+              core={core}
+              membership={dataset.csv}
+              demo={dataset.demo}
               effective={result.effective}
               known={result.known}
             />

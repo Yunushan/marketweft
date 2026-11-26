@@ -254,6 +254,27 @@ test('Wasm universe queries gate each listing by knowledge and effective time', 
   assert.throws(() => core.universeAsOf(csv, '2025-06-31T14:00:00Z', iso('14:35:00')), /UTC timestamps/);
 });
 
+test('delisting Wasm separates the two cutoffs and preserves exact cash reversals', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, reports] = await Promise.all([fixture('universe'), fixture('delisting-terms')]);
+  const time = hhmm => '2025-06-02T' + hhmm + ':00Z';
+  const value = (effective, known = effective, listing = 'BETA-001') =>
+    core.delistingAsOf(membership, reports, listing, 10, time(effective), time(known));
+  assert.equal(value('14:37', '14:34').ordinaryShares, 10);
+  assert.equal(value('14:35').state, 'missing-proceeds');
+  assert.equal(value('14:35').offer, undefined);
+  assert.equal(value('14:37').offer.total, 70000000n);
+  assert.equal(value('14:37').returnPctMicros, -30000000n);
+  assert.equal(value('14:50').ledger.length, 1);
+  assert.deepEqual(value('15:04').ledger.map(row => [row.currency, row.delta, row.balance]), [
+    ['USD', 70000000n, 70000000n], ['USD', 10000000n, 80000000n], ['USD', -80000000n, 0n], ['EUR', 90000000n, 90000000n],
+  ]);
+  assert.equal(value('15:04').returnPctMicros, undefined);
+  assert.equal(value('15:05').offer.total, 0n);
+  assert.equal(value('15:05').returnPctMicros, -100000000n);
+  assert.equal(value('15:05', '15:05', 'BETA-002').state, 'shares');
+});
+
 test('Wasm dividend events and cash balances survive the bridge without losing precision', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-cash-dividends.csv', import.meta.url), 'utf8');
   const events = core.dividendLedger('DEMO:DIVIDEND', csv, 100);

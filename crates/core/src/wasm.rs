@@ -153,6 +153,89 @@ pub extern "C" fn mw_universe_as_of() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_delisting_as_of(membership_bytes: usize, shares: u32) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(4, '\n');
+        let listing = parts.next().ok_or("Supply a delisted listing ID.")?;
+        let mut cutoff = || {
+            parts
+                .next()
+                .and_then(exact_utc)
+                .ok_or("Use YYYY-MM-DDTHH:MM:SSZ delisting cutoffs.")
+        };
+        let effective = cutoff()?;
+        let known = cutoff()?;
+        let (membership, terms) = parts
+            .next()
+            .and_then(|input| input.split_at_checked(membership_bytes))
+            .ok_or("Supply universe membership and delisting terms.")?;
+        let book = crate::parse_delistings(parse_universe(membership)?, terms)?;
+        let value = book.as_of(listing, shares, effective, known)?;
+        let status = match value.state {
+            crate::DelistingState::Unobserved => "unobserved",
+            crate::DelistingState::Shares => "shares",
+            crate::DelistingState::MissingProceeds => "missing-proceeds",
+            crate::DelistingState::Receivable => "receivable",
+            crate::DelistingState::Paid => "paid",
+        };
+        let mut lines = String::new();
+        writeln!(
+            lines,
+            "{status}\t{}\t{}",
+            value.ordinary_shares, value.entitled_shares
+        )
+        .unwrap();
+        if let Some(change) = value.delisting {
+            writeln!(
+                lines,
+                "D\t{}\t{}\t{}\t{}",
+                change.change_id, change.instrument, change.effective_at, change.observed_at
+            )
+            .unwrap();
+        }
+        if let Some(terms) = value.terms {
+            writeln!(lines, "T\t{}", terms.observed_at).unwrap();
+            if let Some(offer) = &terms.offer {
+                let due = offer
+                    .pay_at
+                    .map(|time| time.to_string())
+                    .unwrap_or_default();
+                writeln!(
+                    lines,
+                    "O\t{}\t{}\t{}\t{}",
+                    offer.currency,
+                    offer.proceeds_per_share,
+                    value.cash_value.unwrap(),
+                    due
+                )
+                .unwrap();
+            }
+        }
+        if let Some(reference) = value.reference {
+            writeln!(
+                lines,
+                "R\t{}\t{}\t{}",
+                reference.at, reference.currency, reference.price
+            )
+            .unwrap();
+        }
+        if let Some(return_pct) = value.return_pct_micros {
+            writeln!(lines, "P\t{return_pct}").unwrap();
+        }
+        for posting in book.ledger(listing, shares, effective.min(known))? {
+            writeln!(
+                lines,
+                "L\t{}\t{}\t{}\t{}",
+                posting.at, posting.currency, posting.delta, posting.balance
+            )
+            .unwrap();
+        }
+        Ok(lines.into_bytes())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_universe_screen(membership_bytes: usize) -> u32 {
     use std::fmt::Write;
     process(|input| {

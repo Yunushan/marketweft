@@ -55,6 +55,9 @@ same file path and query independent effective and known times.
 In Universe screen choose Load demo prices, or pair universe-membership.csv
 with universe-prices.csv. Keep the initial 14:00 UTC baseline. At 14:10
 BETA is unranked until its close is observed at 14:12 UTC.
+Under Delisting proceeds, load the demo or import delisting-terms.csv.
+Set both universe cutoffs to 14:35 UTC to see missing proceeds, 14:37
+for the USD receivable, and 14:50 for the first cash posting.
 Below the rankings, choose Load demo sectors or upload universe-sectors.csv
 with the matching membership and price reports. The Sector heatmap shows
 each listing's sector, weight, price return and observed contribution.
@@ -112,6 +115,7 @@ def main():
         files[f"split-{kind}.csv"] = (fixture / f"synthetic-split-{kind}.csv").read_bytes()
     files["cash-dividends.csv"] = (fixture / "synthetic-cash-dividends.csv").read_bytes()
     files["universe-membership.csv"] = (fixture / "synthetic-universe.csv").read_bytes()
+    files["delisting-terms.csv"] = (fixture / "synthetic-delisting-terms.csv").read_bytes()
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()
     files["universe-sectors.csv"] = (fixture / "synthetic-universe-sectors.csv").read_bytes()
     files["financial-filings.csv"] = (fixture / "synthetic-financial-filings.csv").read_bytes()
