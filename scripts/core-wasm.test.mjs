@@ -9,6 +9,31 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('Wasm split snapshots gate all fields and revisions by replay observation time', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-split-' + name + '.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(await fixture('ohlcv'));
+  const saved = structuredClone(bars);
+  const actionText = await fixture('actions');
+  const splits = core.splitBook('DEMO:SPLIT', actionText);
+  const [split] = splits;
+  const asOf = split.effectiveAt;
+  assert.throws(() => core.splitBook('LOCAL:SPLIT', actionText), /selected VENUE:SYMBOL/);
+  assert.deepEqual(core.adjustSplits(bars.slice(0, 12), splits, asOf - 1), bars.slice(0, 12));
+  const adjusted = core.adjustSplits(bars.slice(0, 13), splits, asOf + 600);
+  assert.deepEqual(adjusted[11], {
+    time: bars[11].time, open: 52.75, high: 53.75, low: 52.25,
+    close: 53.25, volume: 1620.000002,
+  });
+  assert.deepEqual(adjusted[12], bars[12]);
+  const delayed = { ...split, observedAt: asOf + 610 };
+  const revision = { ...delayed, observedAt: asOf + 620, newShares: 3 };
+  assert.deepEqual(core.adjustSplits(bars.slice(0, 13), [delayed, revision], asOf + 609), bars.slice(0, 13));
+  assert.equal(core.adjustSplits(bars.slice(0, 13), [delayed, revision], asOf + 610)[11].close, 53.25);
+  assert.equal(core.adjustSplits(bars.slice(0, 13), [delayed, revision], asOf + 620)[11].close, 35.5);
+  assert.deepEqual(core.adjustSplits(bars.slice(0, 13), [delayed, revision], asOf + 609), bars.slice(0, 13));
+  assert.deepEqual(bars, saved);
+});
+
 test('Wasm replay schedules the expected UTC cutoffs and every indicator prefix', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const bars = core.parseCsv(await fixture('nyse-2025-replay-ohlcv.csv'));

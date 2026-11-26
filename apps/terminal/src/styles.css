@@ -205,6 +205,10 @@ main {
   gap: 16px;
   align-items: start;
 }
+.replay-examples {
+  display: grid;
+  gap: 16px;
+}
 .replay-panel {
   display: grid;
   align-content: start;
@@ -222,6 +226,10 @@ main {
 .replay-panel form, .replay-panel label {
   display: grid;
   gap: 6px;
+}
+.replay-panel .replay-confirm-raw {
+  display: flex;
+  align-items: center;
 }
 .replay-panel select, .replay-panel input {
   max-width: 100%;

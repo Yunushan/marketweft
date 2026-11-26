@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { MarketCore, ReplayEvent } from './market-core'
+import type { MarketCore, Split } from './market-core'
+import { splitTimeline, type TimelineEvent } from './split-events'
 import type { Asset } from './workspace'
 import { Chart } from './Chart'
 import { Icon, Mark } from './Icons'
 import { price } from './workspace'
 import demoCalendar from '../../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv?raw'
 import demoBars from '../../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv?raw'
+import splitCalendar from '../../../crates/core/tests/fixtures/synthetic-split-sessions.csv?raw'
+import splitBars from '../../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv?raw'
+import splitActions from '../../../crates/core/tests/fixtures/synthetic-split-actions.csv?raw'
 
 const eventNames = {
   open: 'Session opened',
   bar: 'Bar observed',
   missing: 'Missing interval',
   close: 'Session closed',
+  'split-notice': 'Split report observed',
+  'split-effective': 'Split effective',
 }
 const utc = (time: number) =>
   new Date(time * 1000).toISOString().replace('.000Z', 'Z')
@@ -31,8 +37,9 @@ const openingOffset = (minutes: number) => {
 type ReplayRun = {
   asset: Asset
   calendarName: string
-  events: ReplayEvent[]
+  events: TimelineEvent[]
   counts: Uint32Array
+  splits: Split[]
 }
 
 export function HistoricalReplay({
@@ -59,6 +66,9 @@ export function HistoricalReplay({
   )
   const [interval, setInterval] = useState('1800')
   const [calendarFile, setCalendarFile] = useState<File | null>(null)
+  const [actionsFile, setActionsFile] = useState<File | null>(null)
+  const [rawConfirmed, setRawConfirmed] = useState(false)
+  const [basis, setBasis] = useState<'raw' | 'adjusted'>('raw')
   const terminal = useRef<HTMLHeadingElement>(null)
   const chart = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
@@ -73,15 +83,48 @@ export function HistoricalReplay({
     calendar: string,
     seconds: number,
     calendarName: string,
+    actions?: string,
   ) {
-    const events = core.replay(calendar, seconds, asset.bars)
+    const splits =
+      actions === undefined ? [] : core.splitBook(asset.id, actions)
+    const events = splitTimeline(
+      core.replay(calendar, seconds, asset.bars),
+      splits,
+    )
     const counts = new Uint32Array(events.length + 1)
     events.forEach((event, i) => {
       counts[i + 1] = counts[i] + Number(event.kind === 'bar')
     })
     setCursor(-1)
     setPlaying(false)
-    setActive({ asset, calendarName, events, counts })
+    setBasis('raw')
+    setActive({ asset, calendarName, events, counts, splits })
+  }
+
+  function splitDemo() {
+    setError('')
+    try {
+      start(
+        {
+          id: 'DEMO:SPLIT',
+          venue: 'DEMO',
+          symbol: 'SPLIT',
+          name: 'Synthetic raw OHLCV',
+          source: 'sample',
+          bars: core.parseCsv(splitBars),
+        },
+        splitCalendar,
+        600,
+        'Synthetic market · Jun 2–3, 2025',
+        splitActions,
+      )
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Could not start the split demo.',
+      )
+    }
   }
 
   function demo() {
@@ -116,10 +159,16 @@ export function HistoricalReplay({
     try {
       if (calendarFile.size > 1024 * 1024)
         throw Error('Session calendar exceeds 1 MiB.')
-      const calendar = new TextDecoder('utf-8', { fatal: true }).decode(
-        await calendarFile.arrayBuffer(),
-      )
-      start(asset, calendar, Number(interval), calendarFile.name)
+      if (actionsFile && (!rawConfirmed || actionsFile.size > 1024 * 1024))
+        throw Error(
+          'Confirm a raw OHLCV source and choose a corporate actions CSV of at most 1 MiB.',
+        )
+      const decoder = new TextDecoder('utf-8', { fatal: true })
+      const calendar = decoder.decode(await calendarFile.arrayBuffer())
+      const actions = actionsFile
+        ? decoder.decode(await actionsFile.arrayBuffer())
+        : undefined
+      start(asset, calendar, Number(interval), calendarFile.name, actions)
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'Could not start the replay.',
@@ -141,10 +190,35 @@ export function HistoricalReplay({
 
   const event = active?.events[cursor]
   const count = active?.counts[cursor + 1] ?? 0
-  const bars = useMemo(
+  const rawBars = useMemo(
     () => active?.asset.bars.slice(0, count) ?? [],
     [active, count],
   )
+  const clock = event?.observedAt
+  const { bars, adjustmentError } = useMemo(() => {
+    if (
+      basis === 'raw' ||
+      !active ||
+      active.splits.length === 0 ||
+      clock === undefined ||
+      rawBars.length === 0
+    )
+      return { bars: rawBars, adjustmentError: '' }
+    try {
+      return {
+        bars: core.adjustSplits(rawBars, active.splits, clock),
+        adjustmentError: '',
+      }
+    } catch (cause) {
+      return {
+        bars: [],
+        adjustmentError:
+          cause instanceof Error
+            ? cause.message
+            : 'Could not adjust the visible prefix.',
+      }
+    }
+  }, [active, basis, clock, core, rawBars])
   const sma = useMemo(() => core.indicator('sma', 20, bars), [bars, core])
   const ema = useMemo(() => core.indicator('ema', 9, bars), [bars, core])
 
@@ -167,17 +241,29 @@ export function HistoricalReplay({
         </div>
         {!active ? (
           <div className="replay-setup">
-            <section className="side-card replay-panel">
-              <h2>Session replay demo</h2>
-              <p>
-                Replay synthetic 30-minute bars in the NYSE core session
-                calendar. Inspect the November clock change, an omitted bar and
-                the Thanksgiving early close.
-              </p>
-              <button className="primary" onClick={demo} disabled={busy}>
-                Start demo
-              </button>
-            </section>
+            <div className="replay-examples">
+              <section className="side-card replay-panel">
+                <h2>Session replay demo</h2>
+                <p>
+                  Replay synthetic 30-minute bars in the NYSE core session
+                  calendar. Inspect the November clock change, an omitted bar
+                  and the Thanksgiving early close.
+                </p>
+                <button className="primary" onClick={demo} disabled={busy}>
+                  Start demo
+                </button>
+              </section>
+              <section className="side-card replay-panel">
+                <h2>Stock split demo</h2>
+                <p>
+                  Compare raw and adjusted candles before and after a synthetic
+                  2-for-1 split. Rewind to inspect what was known at each point.
+                </p>
+                <button className="primary" onClick={splitDemo} disabled={busy}>
+                  Start split demo
+                </button>
+              </section>
+            </div>
             <form className="side-card replay-panel" onSubmit={submit}>
               <h2>Replay imported history</h2>
               <label>
@@ -233,6 +319,44 @@ export function HistoricalReplay({
                 <pre>
                   date,open_utc,close_utc,utc_offset_minutes,kind{'\n'}
                   2025-11-28,2025-11-28T14:30:00Z,2025-11-28T18:00:00Z,-300,early
+                </pre>
+              </details>
+              <label>
+                Corporate actions CSV (optional)
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  disabled={busy}
+                  onChange={(event) => {
+                    setActionsFile(event.target.files?.[0] ?? null)
+                    setRawConfirmed(false)
+                  }}
+                />
+              </label>
+              {actionsFile && (
+                <label className="replay-confirm-raw">
+                  <input
+                    type="checkbox"
+                    required
+                    checked={rawConfirmed}
+                    disabled={busy}
+                    onChange={(event) => setRawConfirmed(event.target.checked)}
+                  />
+                  My OHLCV contains raw prices and volume.
+                </label>
+              )}
+              <details>
+                <summary>Corporate actions format</summary>
+                <p>
+                  Use the selected instrument ID, exact UTC times and the
+                  new-to-old share ratio. The latest report known at each replay
+                  step is applied once effective. Keep the file with its source
+                  and usage terms.
+                </p>
+                <pre>
+                  instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+                  {'\n'}
+                  DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
                 </pre>
               </details>
               <button className="primary" disabled={busy || !seriesId}>
@@ -318,6 +442,24 @@ export function HistoricalReplay({
                     <option value={100}>10 events/sec</option>
                   </select>
                 </label>
+                {active.splits.length > 0 && (
+                  <label>
+                    Price basis
+                    <select
+                      value={basis}
+                      onChange={(event) =>
+                        setBasis(
+                          event.target.value === 'adjusted'
+                            ? 'adjusted'
+                            : 'raw',
+                        )
+                      }
+                    >
+                      <option value="raw">Raw</option>
+                      <option value="adjusted">Split-adjusted</option>
+                    </select>
+                  </label>
+                )}
               </div>
               <div
                 className="replay-state"
@@ -339,14 +481,23 @@ export function HistoricalReplay({
                 </div>
                 {event && (
                   <dl className="replay-times">
-                    <div>
-                      <dt>Session</dt>
-                      <dd>
-                        {event.sessionIndex + 1} ·{' '}
-                        {event.earlyClose ? 'Early close' : 'Regular'} ·{' '}
-                        {openingOffset(event.utcOffsetMinutes)} at open
-                      </dd>
-                    </div>
+                    {'split' in event ? (
+                      <div>
+                        <dt>Share ratio</dt>
+                        <dd>
+                          {event.split.newShares} for {event.split.oldShares}
+                        </dd>
+                      </div>
+                    ) : (
+                      <div>
+                        <dt>Session</dt>
+                        <dd>
+                          {event.sessionIndex + 1} ·{' '}
+                          {event.earlyClose ? 'Early close' : 'Regular'} ·{' '}
+                          {openingOffset(event.utcOffsetMinutes)} at open
+                        </dd>
+                      </div>
+                    )}
                     <div>
                       <dt>Event time</dt>
                       <dd>
@@ -355,6 +506,16 @@ export function HistoricalReplay({
                         </time>
                       </dd>
                     </div>
+                    {'split' in event && (
+                      <div>
+                        <dt>Effective at</dt>
+                        <dd>
+                          <time dateTime={utc(event.split.effectiveAt)}>
+                            {utc(event.split.effectiveAt)}
+                          </time>
+                        </dd>
+                      </div>
+                    )}
                     <div>
                       <dt>Observed at</dt>
                       <dd>
@@ -367,12 +528,20 @@ export function HistoricalReplay({
                 )}
               </div>
             </section>
-            {bars.length > 0 ? (
+            {adjustmentError ? (
+              <p role="alert" className="warning replay-empty">
+                {adjustmentError} Select Raw to inspect the original prefix.
+              </p>
+            ) : bars.length > 0 ? (
               <article className="chart-card replay-chart">
                 <div className="plot-toolbar">
                   <div className="chart-kind">
                     <Icon name="chart" />
-                    <b>Observed candles</b>
+                    <b>
+                      {basis === 'adjusted'
+                        ? 'Split-adjusted candles'
+                        : 'Observed candles'}
+                    </b>
                   </div>
                   <strong data-testid="replay-last-close">
                     {price(bars.at(-1)!.close)}

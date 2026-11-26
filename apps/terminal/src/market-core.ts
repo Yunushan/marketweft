@@ -19,11 +19,21 @@ export interface ReplayEvent {
   earlyClose: boolean;
 }
 
+export interface Split {
+  announcedAt: number;
+  effectiveAt: number;
+  observedAt: number;
+  newShares: number;
+  oldShares: number;
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
   indicator(kind: 'sma' | 'ema', period: number, bars: readonly Bar[]): (number | null)[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
+  splitBook(instrument: string, csv: string): Split[];
+  adjustSplits(bars: readonly Bar[], splits: readonly Split[], asOf: number): Bar[];
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -36,6 +46,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_parse(): number;
   mw_indicator(kind: number, period: number): number;
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
+  mw_split_book(): number;
+  mw_adjust_splits(records: number): number;
 }
 
 const SCALE = 1_000_000;
@@ -69,6 +81,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     return view;
   }
 
+  function decodeBars(out: DataView): Bar[] {
+    const fixed = (offset: number) => Number(out.getBigInt64(offset, true)) / SCALE;
+    const bars: Bar[] = [];
+    for (let i = 0; i < out.byteLength; i += 48) {
+      bars.push({ time: Number(out.getBigInt64(i, true)), open: fixed(i + 8), high: fixed(i + 16),
+        low: fixed(i + 24), close: fixed(i + 32), volume: fixed(i + 40) });
+    }
+    return bars;
+  }
+
   return {
     instrument(venue, symbol) {
       textInput(venue + '\n' + symbol);
@@ -76,14 +98,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     },
     parseCsv(csv) {
       textInput(csv);
-      const out = output(api.mw_parse());
-      const fixed = (offset: number) => Number(out.getBigInt64(offset, true)) / SCALE;
-      const bars: Bar[] = [];
-      for (let i = 0; i < out.byteLength; i += 48) {
-        bars.push({ time: Number(out.getBigInt64(i, true)), open: fixed(i + 8), high: fixed(i + 16),
-          low: fixed(i + 24), close: fixed(i + 32), volume: fixed(i + 40) });
-      }
-      return bars;
+      return decodeBars(output(api.mw_parse()));
     },
     indicator(kind, period, bars) {
       if (kind !== 'sma' && kind !== 'ema') throw new Error('Unknown indicator.');
@@ -136,6 +151,57 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         });
       }
       return events;
+    },
+    splitBook(instrument, csv) {
+      textInput(instrument + '\n' + csv);
+      const out = output(api.mw_split_book());
+      const records: Split[] = [];
+      for (let i = 0; i < out.byteLength; i += 32) {
+        records.push({
+          announcedAt: Number(out.getBigInt64(i, true)),
+          effectiveAt: Number(out.getBigInt64(i + 8, true)),
+          observedAt: Number(out.getBigInt64(i + 16, true)),
+          newShares: out.getUint32(i + 24, true),
+          oldShares: out.getUint32(i + 28, true),
+        });
+      }
+      return records;
+    },
+    adjustSplits(bars, splits, asOf) {
+      if (bars.length > 100_000 || splits.length > 1_000) throw new Error('Split-adjustment input is too large.');
+      const dest = input(8 + splits.length * 32 + bars.length * 48);
+      const timestamp = (offset: number, value: number) => {
+        if (!Number.isSafeInteger(value)) throw new Error('Split adjustment requires integer UTC seconds.');
+        dest.setBigInt64(offset, BigInt(value), true);
+      };
+      timestamp(0, asOf);
+      let offset = 8;
+      for (const row of splits) {
+        timestamp(offset, row.announcedAt);
+        timestamp(offset + 8, row.effectiveAt);
+        timestamp(offset + 16, row.observedAt);
+        for (const [index, value] of [row.newShares, row.oldShares].entries()) {
+          if (!Number.isInteger(value) || value < 1 || value > 1_000_000) {
+            throw new Error('Share counts must be whole numbers between 1 and 1,000,000.');
+          }
+          dest.setUint32(offset + 24 + index * 4, value, true);
+        }
+        offset += 32;
+      }
+      for (const bar of bars) {
+        timestamp(offset, bar.time);
+        const fields = [bar.open, bar.high, bar.low, bar.close, bar.volume];
+        for (const [index, value] of fields.entries()) {
+          const ticks = Math.round(value * SCALE);
+          if (!Number.isSafeInteger(ticks) || Math.abs(value) > 2_000_000_000 ||
+              value !== ticks / SCALE || (index === 4 && value < 0)) {
+            throw new Error('Split adjustment requires valid six-place OHLCV values.');
+          }
+          dest.setBigInt64(offset + 8 + index * 8, BigInt(ticks), true);
+        }
+        offset += 48;
+      }
+      return decodeBars(output(api.mw_adjust_splits(splits.length)));
     },
   };
 }

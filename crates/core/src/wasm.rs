@@ -1,7 +1,8 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
 use crate::{
-    indicator, parse_csv, parse_sessions, replay, Average, Instrument, MAX_BARS, MAX_INPUT_BYTES,
+    indicator, parse_csv, parse_sessions, parse_splits, replay, Average, Bar, Instrument, Split,
+    SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
 };
 use std::cell::RefCell;
 
@@ -50,18 +51,19 @@ fn utf8(bytes: &[u8]) -> Result<&str, String> {
     std::str::from_utf8(bytes).map_err(|_| "Input must be UTF-8.".into())
 }
 
+fn encode_bars(bars: Vec<Bar>) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(48 * bars.len());
+    for bar in bars {
+        for value in [bar.time, bar.open, bar.high, bar.low, bar.close, bar.volume] {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+    }
+    bytes
+}
+
 #[no_mangle]
 pub extern "C" fn mw_parse() -> u32 {
-    process(|input| {
-        let bars = parse_csv(utf8(input)?)?;
-        let mut bytes = Vec::with_capacity(48 * bars.len());
-        for bar in bars {
-            for v in [bar.time, bar.open, bar.high, bar.low, bar.close, bar.volume] {
-                bytes.extend_from_slice(&v.to_le_bytes());
-            }
-        }
-        Ok(bytes)
-    })
+    process(|input| Ok(encode_bars(parse_csv(utf8(input)?)?)))
 }
 
 #[no_mangle]
@@ -71,6 +73,79 @@ pub extern "C" fn mw_instrument() -> u32 {
             .split_once('\n')
             .ok_or("Missing venue or symbol.")?;
         Ok(Instrument::new(venue, symbol)?.to_string().into_bytes())
+    })
+}
+
+// Split records occupy 32 bytes. All numbers in the bridge are little-endian.
+#[no_mangle]
+pub extern "C" fn mw_split_book() -> u32 {
+    process(|input| {
+        let (identity, csv) = utf8(input)?
+            .split_once('\n')
+            .ok_or("Missing corporate actions data.")?;
+        let (venue, symbol) = identity
+            .split_once(':')
+            .ok_or("Missing replay instrument.")?;
+        let book = parse_splits(csv, &Instrument::new(venue, symbol)?)?;
+        let mut bytes = Vec::with_capacity(book.records().len() * 32);
+        for split in book.records() {
+            for value in [split.announced_at, split.effective_at, split.observed_at] {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+            bytes.extend_from_slice(&split.new_shares.to_le_bytes());
+            bytes.extend_from_slice(&split.old_shares.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_adjust_splits(records: usize) -> u32 {
+    process(|input| {
+        if records > MAX_SPLIT_ROWS {
+            return Err("Too many split records.".into());
+        }
+        let (clock, input) = input
+            .split_first_chunk::<8>()
+            .ok_or("Missing observation time.")?;
+        let (splits, bars) = input
+            .split_at_checked(records * 32)
+            .ok_or("Invalid split record count.")?;
+        let (bar_rows, trailing) = bars.as_chunks::<48>();
+        if !trailing.is_empty() || bar_rows.len() > MAX_BARS {
+            return Err("Invalid series length.".into());
+        }
+        let read_i64 = |bytes: &[u8], offset: usize| {
+            i64::from_le_bytes(bytes[offset..offset + 8].try_into().unwrap())
+        };
+        let read_u32 = |bytes: &[u8], offset: usize| {
+            u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
+        };
+        let (split_rows, _) = splits.as_chunks::<32>();
+        let book = SplitBook::new(
+            split_rows
+                .iter()
+                .map(|row| Split {
+                    announced_at: read_i64(row, 0),
+                    effective_at: read_i64(row, 8),
+                    observed_at: read_i64(row, 16),
+                    new_shares: read_u32(row, 24),
+                    old_shares: read_u32(row, 28),
+                })
+                .collect(),
+        )?;
+        let bars: Vec<_> = bar_rows
+            .iter()
+            .map(|row| Bar {
+                time: read_i64(row, 0),
+                open: read_i64(row, 8),
+                high: read_i64(row, 16),
+                low: read_i64(row, 24),
+                close: read_i64(row, 32),
+                volume: read_i64(row, 40),
+            })
+            .collect();
+        Ok(encode_bars(book.adjust(&bars, i64::from_le_bytes(*clock))?))
     })
 }
 
