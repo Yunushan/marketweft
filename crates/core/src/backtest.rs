@@ -54,7 +54,7 @@ struct Pending {
 pub(crate) struct ObservedBar<'a> {
     pub index: usize,
     pub at: i64,
-    bar: &'a Bar,
+    pub bar: &'a Bar,
 }
 
 pub fn backtest(

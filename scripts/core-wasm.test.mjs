@@ -56,6 +56,40 @@ test('walk-forward Wasm decodes complete chronological folds and training-only s
   assert.throws(() => run('14:11:00', { ...config, candidates: '1:2, 1:2' }), /unique SMA pairs/);
 });
 
+test('seeded scenario Wasm preserves path order, cutoff and unsigned 64-bit seeds', async () => {
+  const read = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');
+  const [calendar, bars] = await Promise.all([read('sessions'), read('bars')]);
+  const paper = { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' };
+  const execution = { paper, fastWindow: '1', slowWindow: '2', targetShares: '6', participation: '1000',
+    slippage: '10', limitBuffer: '2000', maxWait: '3' };
+  const cutoff = '2025-04-03T14:10:00Z';
+  const seed = '18446744073709551615';
+  const run = (history, value = seed, at = cutoff) => core.scenarios('DEMO:SMA', calendar, history, 60, at,
+    execution, { seed: value, paths: '64', horizon: '5' });
+  const result = run(bars);
+  assert.equal(result.seed, BigInt(seed));
+  assert.equal(result.eligibleMoves, 8);
+  assert.equal(result.anchor, Date.parse('2025-04-03T14:04:00Z') / 1000);
+  assert.equal(result.lastObserved, Date.parse(cutoff) / 1000);
+  assert.equal(result.paths.length, 64);
+  assert.deepEqual(result.baseline, { endingEquity: 1000000000n, maxDrawdown: 0n, maxExposure: 0n });
+  assert.deepEqual(result.endingEquity, { p05: 976234700n, p50: 1000000000n, p95: 1019746068n });
+  assert.deepEqual(result.maxDrawdown, { p05: 0n, p50: 2637560n, p95: 23765300n });
+  assert.deepEqual(result.maxExposure, { p05: 0n, p50: 40444434n, p95: 105300000n });
+  assert.deepEqual(result.paths[0], { endingEquity: 997353920n, maxDrawdown: 2646080n, maxExposure: 46080000n });
+  const rows = bars.trimEnd().split('\n');
+  const later = rows[rows.length - 1].split(',');
+  later[later.length - 1] = '0';
+  rows[rows.length - 1] = later.join(',');
+  assert.deepEqual(run(rows.join('\n')), result);
+  const different = run(bars, '0');
+  assert.deepEqual(different.baseline, result.baseline);
+  assert.notDeepEqual(different.paths, result.paths);
+  assert.equal(result.lossPaths, result.paths.filter(path => path.endingEquity < result.startingCash).length);
+  assert.throws(() => run(bars, (BigInt(seed) + 1n).toString()), /unsigned 64-bit/);
+  assert.throws(() => run(bars, seed, '2025-04-03T14:02:00Z'), /anchor and every horizon bar/);
+});
+
 test('paper replay Wasm reconciles cash, fees and observed unique fills', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-paper-events.csv', import.meta.url), 'utf8');
   const config = { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' };

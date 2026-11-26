@@ -81,6 +81,10 @@ paper-events.csv. Step through reserves, partial fills, fees and the halt.
 Open Bar backtest under Historical replay and Start backtest demo, or load
 backtest-sessions.csv and backtest-bars.csv with a 60-second bar interval.
 Check how a missing interval delays the first partial fill.
+Walk-forward validation ranks candidates on training bars and shows the
+results of each completed test fold. Seeded scenarios repeats the same
+strategy on sampled price moves and volumes. The default 256 paths give
+a median ending equity of 997.6 against observed baseline equity of 957.8.
 
 The chart supports panning, zooming, a crosshair and moving-average overlays.
 This build has no broker connection or order entry. Press Ctrl+C in the

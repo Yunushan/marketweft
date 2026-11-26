@@ -690,6 +690,80 @@ pub extern "C" fn mw_walk_forward(calendar_bytes: usize, interval: u32) -> u32 {
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_run_scenarios(calendar_bytes: usize, interval: u32) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let (instrument, through, execution, remainder) = backtest_request(utf8(input)?)?;
+        let (request, history) = remainder
+            .split_once('\n')
+            .ok_or("Supply scenario settings.")?;
+        let mut fields = request.split(',');
+        let [Some(seed), Some(paths), Some(horizon), None] =
+            [fields.next(), fields.next(), fields.next(), fields.next()]
+        else {
+            return Err("Supply the seed, path count and horizon.".into());
+        };
+        let config = crate::ScenarioConfig {
+            seed: seed.parse().map_err(|_| "Use an unsigned 64-bit seed.")?,
+            paths: paths
+                .parse()
+                .map_err(|_| "Use a whole-number path count.")?,
+            horizon: horizon.parse().map_err(|_| "Use a whole-number horizon.")?,
+        };
+        let (sessions, bars) = backtest_inputs(history, calendar_bytes)?;
+        let result = crate::run_scenarios(
+            &instrument,
+            &sessions,
+            &bars,
+            interval,
+            through,
+            execution,
+            config,
+        )?;
+        let mut text = String::new();
+        writeln!(
+            text,
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            result.through,
+            config.seed,
+            config.paths,
+            config.horizon,
+            result.first_observed,
+            result.last_observed,
+            result.eligible_moves,
+            result.anchor_observed,
+            result.starting_cash,
+            result.loss_paths
+        )
+        .unwrap();
+        writeln!(
+            text,
+            "{}\t{}\t{}",
+            result.baseline.ending_equity,
+            result.baseline.max_drawdown,
+            result.baseline.max_exposure
+        )
+        .unwrap();
+        for quantile in [
+            result.ending_equity,
+            result.max_drawdown,
+            result.max_exposure,
+        ] {
+            writeln!(text, "{}\t{}\t{}", quantile.p05, quantile.p50, quantile.p95).unwrap();
+        }
+        for path in result.paths {
+            writeln!(
+                text,
+                "{}\t{}\t{}",
+                path.ending_equity, path.max_drawdown, path.max_exposure
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
 fn alert_book(csvs: &str, rule_bytes: usize) -> Result<AlertBook, String> {
     let (rules, observations) = csvs
         .split_at_checked(rule_bytes)

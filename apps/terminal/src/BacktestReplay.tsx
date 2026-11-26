@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { BacktestConfig, BacktestResult, MarketCore, PaperConfig, WalkForwardConfig, WalkForwardFold } from './market-core'
 import { Mark } from './Icons'
+import { ScenarioReplay } from './ScenarioReplay'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoCalendar from '../../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv?raw'
@@ -350,6 +351,7 @@ export function BacktestReplay({ core, close }: { core: MarketCore; close: () =>
               </div>
             </section>
             <WalkForward book={book} execution={view.query.config} core={core} />
+            <ScenarioReplay source={book} execution={view.query.config} core={core} />
           </>
         )}
         {error && <p role="alert" className="warning replay-error">{error}</p>}

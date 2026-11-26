@@ -311,6 +311,41 @@ export interface WalkForwardFold {
   test: BacktestResult;
 }
 
+export interface ScenarioConfig {
+  seed: string;
+  paths: string;
+  horizon: string;
+}
+
+export interface ScenarioStats {
+  endingEquity: bigint;
+  maxDrawdown: bigint;
+  maxExposure: bigint;
+}
+
+export interface ThreeQuantiles {
+  p05: bigint;
+  p50: bigint;
+  p95: bigint;
+}
+
+export interface ScenarioReport {
+  cutoff: number;
+  seed: bigint;
+  horizon: number;
+  firstObserved: number;
+  lastObserved: number;
+  anchor: number;
+  eligibleMoves: number;
+  startingCash: bigint;
+  baseline: ScenarioStats;
+  endingEquity: ThreeQuantiles;
+  maxDrawdown: ThreeQuantiles;
+  maxExposure: ThreeQuantiles;
+  lossPaths: number;
+  paths: ScenarioStats[];
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -340,6 +375,8 @@ export interface MarketCore {
     cutoff: string, config: BacktestConfig): BacktestResult;
   walkForward(instrument: string, calendar: string, bars: string, interval: number,
     cutoff: string, execution: BacktestConfig, config: WalkForwardConfig): WalkForwardFold[];
+  scenarios(instrument: string, calendar: string, bars: string, interval: number,
+    cutoff: string, execution: BacktestConfig, config: ScenarioConfig): ScenarioReport;
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -372,6 +409,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_backtest_index(calendarBytes: number, interval: number): number;
   mw_backtest(calendarBytes: number, interval: number): number;
   mw_walk_forward(calendarBytes: number, interval: number): number;
+  mw_run_scenarios(calendarBytes: number, interval: number): number;
 }
 
 const SCALE = 1_000_000;
@@ -830,6 +868,34 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         return { trainingStart, trainingEnd, testStart, testEnd, selected: { fast, slow }, scores,
           test: decodeBacktest(lines.slice(result)) };
       });
+    },
+    scenarios(instrument, calendar, bars, interval, cutoff, execution, config) {
+      validateInterval(interval);
+      const settings = [config.seed, config.paths, config.horizon].map(value => value.trim());
+      if (settings.some(value => !/^\d+$/.test(value))) {
+        throw new Error('Use a non-negative whole-number seed, path count and horizon.');
+      }
+      const header = backtestHeader(instrument, cutoff, execution);
+      textInput([...header, settings.join(','), calendar + bars].join('\n'));
+      const text = decoder.decode(output(api.mw_run_scenarios(encoder.encode(calendar).length, interval)));
+      const [heading, baseline, equity, drawdown, exposure, ...rows] = text.slice(0, -1).split('\n');
+      const [through, seed, count, horizon, firstObserved, lastObserved, eligibleMoves, anchor, startingCash, lossPaths] = heading.split('\t');
+      if (rows.length !== Number(count)) throw new Error('Scenario path count does not match the report.');
+      const stats = (line: string): ScenarioStats => {
+        const [endingEquity, maxDrawdown, maxExposure] = line.split('\t').map(BigInt);
+        return { endingEquity, maxDrawdown, maxExposure };
+      };
+      const quantiles = (line: string): ThreeQuantiles => {
+        const [p05, p50, p95] = line.split('\t').map(BigInt);
+        return { p05, p50, p95 };
+      };
+      return {
+        cutoff: Number(through), seed: BigInt(seed), horizon: Number(horizon), firstObserved: Number(firstObserved),
+        lastObserved: Number(lastObserved), anchor: Number(anchor), eligibleMoves: Number(eligibleMoves),
+        startingCash: BigInt(startingCash), lossPaths: Number(lossPaths), baseline: stats(baseline),
+        endingEquity: quantiles(equity), maxDrawdown: quantiles(drawdown), maxExposure: quantiles(exposure),
+        paths: rows.map(stats),
+      };
     },
     splitBook(instrument, csv) {
       textInput(instrument + '\n' + csv);
