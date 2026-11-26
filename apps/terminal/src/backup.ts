@@ -1,6 +1,5 @@
 import { validateCatalogData } from './catalog'
 import type { CatalogData, History } from './catalog'
-import type { Preferences } from './catalog-schema'
 import type { MarketCore } from './market-core'
 import type { Asset } from './workspace'
 
@@ -11,9 +10,11 @@ const DRAWING_BACKUP_VERSION = 3
 const INDICATOR_PERIODS_BACKUP_VERSION = 4
 const CHART_TYPES_BACKUP_VERSION = 5
 const OHLC_BARS_BACKUP_VERSION = 6
+const STRUCTURED_GRANT_BACKUP_VERSION = 7
 const SAMPLE_VERSION = 1
 
-function backupVersion(preferences: Preferences) {
+function backupVersion({ preferences, series }: CatalogData) {
+  if (series.some(({ descriptor }) => descriptor.version === 2)) return STRUCTURED_GRANT_BACKUP_VERSION
   if (Object.values(preferences.chartTypes ?? {}).includes('ohlc')) return OHLC_BARS_BACKUP_VERSION
   if (preferences.chartTypes) return CHART_TYPES_BACKUP_VERSION
   if (preferences.overlayPeriods) return INDICATOR_PERIODS_BACKUP_VERSION
@@ -109,7 +110,7 @@ export async function exportWorkspace(
     JSON.stringify(
       {
         format: FORMAT,
-        version: backupVersion(data.preferences),
+        version: backupVersion(data),
         manifest,
         sha256: await digest(manifest),
       },
@@ -136,6 +137,7 @@ export async function verifyWorkspaceBackup(
   if (typeof file.version !== 'number' || ![
     SINGLE_PANE_BACKUP_VERSION, COMPARISON_BACKUP_VERSION, DRAWING_BACKUP_VERSION,
     INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
+    STRUCTURED_GRANT_BACKUP_VERSION,
   ].includes(file.version))
     throw Error('This workspace backup version is unsupported.')
   const manifest = fields(file.manifest, [
@@ -177,8 +179,8 @@ export async function verifyWorkspaceBackup(
     { preferences: manifest.preferences, series },
     samples,
   )
-  if (backupVersion(data.preferences) !== file.version) {
-    throw Error('The backup version does not match its chart settings.')
+  if (backupVersion(data) !== file.version) {
+    throw Error('The backup version does not match its contents.')
   }
   if (
     data.series.reduce(

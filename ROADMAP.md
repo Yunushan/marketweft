@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.68.0 reports research readiness independently of process liveness. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.69.0 records structured source permissions on imported histories and preserves them in workspace backups. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -71,6 +71,7 @@
 | Delivered · 0.66.0 | Portable audit snapshot verification (MW-030) | Verify a snapshot's digest, schema and receipt counts before moving it into a new deployment. Reject WAL databases and invalid SQLite snapshots. [Audit snapshot verification](docs/local-rest-research.md#verify-a-portable-audit-snapshot). |
 | Delivered · 0.67.0 | Restore with an expected digest (MW-030) | Require the trusted SHA-256 before publishing the restored ledger. Verify that a valid SQLite database with changed bytes leaves the fresh destination untouched. [Restore with a SHA-256 digest](docs/local-rest-research.md#restore-with-a-trusted-sha-256-digest). |
 | Delivered · 0.68.0 | Research readiness (MW-030) | Verify admission capacity, locked SQLite audit storage and graceful drain independently of process liveness. [Research readiness](docs/local-rest-research.md#research-readiness). |
+| Delivered · 0.69.0 | Structured source permissions (MW-029) | Record display, storage, redistribution and automated-use permissions and a UTC expiry on imported data. Verify versioned workspace recovery and preserve earlier history files. [Source permissions](docs/source-permissions.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -82,5 +83,5 @@
 
 ## Handoff for the next change
 
-Represent source-specific display, storage, redistribution and automated-use grants as structured metadata for authorized imports. Preserve existing histories and verify workspace backup and restore with explicit grants.
+Apply declared redistribution permissions and expirations to chart data exports. Verify the exact UTC cutoff and leave private workspace backup and recovery available.
 

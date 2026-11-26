@@ -24,8 +24,12 @@ export type ComparisonPreferences = {
   linked: boolean
 }
 
-export type SeriesDescriptor = {
-  version: 1
+export const SOURCE_RIGHTS = ['display', 'storage', 'redistribution', 'automatedUse'] as const
+export type SourceRight = (typeof SOURCE_RIGHTS)[number]
+export type SourceRightStatus = 'unconfirmed' | 'granted' | 'restricted'
+export type SourceRights = Record<SourceRight, SourceRightStatus> & { expiresOn?: string }
+
+type SeriesProvenance = {
   venue: string
   symbol: string
   barInterval: string
@@ -33,6 +37,10 @@ export type SeriesDescriptor = {
   usageGrant: string
   adjustmentPolicy: string
 }
+
+export type SeriesDescriptor = SeriesProvenance & (
+  { version: 1; sourceRights?: never } | { version: 2; sourceRights: SourceRights }
+)
 
 export type History = {
   id: string
@@ -47,9 +55,9 @@ export type CatalogSnapshot = CatalogData & {
   warning?: string
 }
 export type SeriesMetadata = Pick<
-  SeriesDescriptor,
+  SeriesProvenance,
   'barInterval' | 'source' | 'usageGrant' | 'adjustmentPolicy'
->
+> & { sourceRights?: SourceRights }
 
 function fields(
   value: unknown,
@@ -157,7 +165,36 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   return result
 }
 
+function sourceRights(value: unknown): SourceRights {
+  const keys: string[] = [...SOURCE_RIGHTS]
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'expiresOn')) keys.push('expiresOn')
+  fields(value, keys, 'structured usage grant')
+  const status = (key: SourceRight): SourceRightStatus => {
+    const entry = value[key]
+    if (entry !== 'unconfirmed' && entry !== 'granted' && entry !== 'restricted')
+      throw Error('Choose a recognized status for each source right.')
+    return entry
+  }
+  const result: SourceRights = {
+    display: status('display'),
+    storage: status('storage'),
+    redistribution: status('redistribution'),
+    automatedUse: status('automatedUse'),
+  }
+  if (keys.includes('expiresOn')) {
+    const expiry = value.expiresOn
+    if (typeof expiry !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(expiry))
+      throw Error('Use a valid UTC calendar date for the source grant expiry.')
+    const date = new Date(expiry + 'T00:00:00Z')
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== expiry)
+      throw Error('Use a valid UTC calendar date for the source grant expiry.')
+    result.expiresOn = expiry
+  }
+  return result
+}
+
 function descriptor(value: unknown, core: MarketCore): SeriesDescriptor {
+  const hasRights = Boolean(value && typeof value === 'object' && Object.hasOwn(value, 'sourceRights'))
   fields(
     value,
     [
@@ -168,19 +205,19 @@ function descriptor(value: unknown, core: MarketCore): SeriesDescriptor {
       'source',
       'usageGrant',
       'adjustmentPolicy',
+      ...(hasRights ? ['sourceRights'] : []),
     ],
     'series descriptor',
   )
   const venue = requiredText(value.venue, 'venue')
   const symbol = requiredText(value.symbol, 'symbol')
   if (
-    value.version !== 1 ||
+    value.version !== (hasRights ? 2 : 1) ||
     core.instrument(venue, symbol) !== venue + ':' + symbol
   ) {
     throw Error('Invalid series descriptor version or instrument identity.')
   }
-  return {
-    version: 1,
+  const provenance: SeriesProvenance = {
     venue,
     symbol,
     barInterval: requiredText(value.barInterval, 'bar interval'),
@@ -188,6 +225,11 @@ function descriptor(value: unknown, core: MarketCore): SeriesDescriptor {
     usageGrant: requiredText(value.usageGrant, 'usage grant'),
     adjustmentPolicy: requiredText(value.adjustmentPolicy, 'adjustment policy'),
   }
+  if (!hasRights) return { version: 1, ...provenance }
+  const rights = sourceRights(value.sourceRights)
+  if (rights.storage === 'restricted' || rights.display === 'restricted')
+    throw Error('Local chart import requires permission to store and display this history.')
+  return { version: 2, ...provenance, sourceRights: rights }
 }
 
 export function createHistory(
@@ -197,16 +239,18 @@ export function createHistory(
 ): History {
   const id = core.instrument(item.venue, item.symbol)
   const [venue, symbol] = id.split(':')
+  const { sourceRights, ...details } = metadata
   const desc = descriptor(
     {
-      version: 1,
+      version: sourceRights ? 2 : 1,
       venue,
       symbol,
       source: item.filename.trim() ? item.filename : 'unspecified',
       barInterval: 'unspecified',
       usageGrant: 'unspecified',
       adjustmentPolicy: 'unspecified',
-      ...metadata,
+      ...details,
+      ...(sourceRights ? { sourceRights } : {}),
     },
     core,
   )

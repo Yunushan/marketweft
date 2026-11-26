@@ -140,6 +140,14 @@ body:has(dialog[open]) {
   font-size: 12px;
 }
 .metadata-fields input { margin-top: 5px; }
+.source-rights {
+  min-width: 0;
+  margin: 10px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.source-rights legend { padding-right: 8px; }
+.source-rights select { display: block; width: 100%; margin-top: 5px; }
 .backup-panel > .outline { margin-top: 12px; }
 .backup-panel h3 {
   margin: 18px 0 0;

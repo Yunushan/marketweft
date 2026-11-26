@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.69.0 · Structured source permissions
+
+| Check | Observed result |
+| --- | --- |
+| Import and provenance | Chromium recorded four source permission statuses and a UTC expiry for an imported series. Attempts with explicit display or storage restrictions left the catalog intact. The provenance panel showed the saved declaration. |
+| Portable data | A version 7 backup restored the exact source permissions and history in a clean profile. An independently rehashed file with an impossible date failed before data could be replaced. Re-export reproduced the source workspace backup. |
+| Existing workspace formats | The catalog regression suite also opened older histories and restored prior workspace backups. |
+
+[Source permissions](source-permissions.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.68.0 · Research readiness
 
 | Check | Observed result |

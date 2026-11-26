@@ -57,6 +57,72 @@ async function openBackup(page) {
     .click()
 }
 
+test('records declared source permissions and restores the exact grant into a clean catalog', async ({
+  page, browser, baseURL,
+}) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'NVDA', exact: true })).toBeVisible()
+  const before = await catalogContents(page)
+  await openImport(page, 'LICENSED', microCSV, 'synthetic-licensed.csv')
+  const dialog = page.getByRole('dialog')
+  await dialog.getByText('Series details', { exact: true }).click()
+  await dialog.getByLabel('Usage grant', { exact: true }).fill('Local chart use under the fixture agreement')
+  await dialog.getByRole('combobox', { name: 'Display', exact: true }).selectOption('restricted')
+  await dialog.getByRole('button', { name: 'Import to watchlist' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText('Local chart import requires permission to store and display this history.')
+  expect(await catalogContents(page)).toEqual(before)
+  await dialog.getByRole('combobox', { name: 'Display', exact: true }).selectOption('granted')
+  await dialog.getByRole('combobox', { name: 'Storage', exact: true }).selectOption('restricted')
+  await dialog.getByRole('button', { name: 'Import to watchlist' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText('Local chart import requires permission to store and display this history.')
+  expect(await catalogContents(page)).toEqual(before)
+  await dialog.getByRole('combobox', { name: 'Storage', exact: true }).selectOption('granted')
+  await dialog.getByRole('combobox', { name: 'Redistribution', exact: true }).selectOption('restricted')
+  await dialog.getByLabel('Grant expiration in UTC').fill('2099-12-31')
+  await submitImport(page, 'LICENSED')
+  const rights = {
+    display: 'granted', storage: 'granted', redistribution: 'restricted',
+    automatedUse: 'unconfirmed', expiresOn: '2099-12-31',
+  }
+  const provenance = page.locator('.series-provenance')
+  await expect(provenance.getByText('Restricted', { exact: true })).toBeVisible()
+  await expect(provenance.getByText(rights.expiresOn, { exact: true })).toBeVisible()
+  const bundle = await downloadWorkspace(page)
+  expect(bundle.version).toBe(7)
+  expect(bundle.sha256).toBe(digest(bundle.manifest))
+  const entry = bundle.manifest.series[0]
+  expect(entry.descriptor).toMatchObject({ version: 2, sourceRights: rights })
+  expect(entry.csv).toBe(microCSV)
+
+  const isolated = await browser.newContext({ baseURL })
+  try {
+    const clean = await isolated.newPage()
+    await clean.goto('/')
+    await expect(clean.getByRole('heading', { name: 'NVDA', exact: true })).toBeVisible()
+    const initial = await catalogContents(clean)
+    await openBackup(clean)
+    const invalid = structuredClone(bundle)
+    const invalidEntry = invalid.manifest.series[0]
+    invalidEntry.descriptor.sourceRights.expiresOn = '2099-02-30'
+    const { sha256, ...history } = invalidEntry
+    invalidEntry.sha256 = digest(history)
+    invalid.sha256 = digest(invalid.manifest)
+    await selectBackup(clean, invalid)
+    await expect(clean.getByRole('alert')).toHaveText('Use a valid UTC calendar date for the source grant expiry.')
+    expect(await catalogContents(clean)).toEqual(initial)
+
+    await selectBackup(clean, bundle)
+    const restore = clean.getByRole('button', { name: 'Restore workspace', exact: true })
+    await expect(restore).toBeEnabled()
+    await restore.click()
+    await expect(clean.getByRole('heading', { name: 'LICENSED', exact: true })).toBeVisible()
+    expect((await catalogContents(clean)).series[0].descriptor.sourceRights).toEqual(rights)
+    expect(await downloadWorkspace(clean)).toEqual(bundle)
+  } finally {
+    await isolated.close()
+  }
+})
+
 test('migrates once and restores every source, tick, identity and preference in a clean profile', async ({
   page,
   browser,

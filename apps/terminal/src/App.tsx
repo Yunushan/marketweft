@@ -28,9 +28,12 @@ import type {
   CatalogSnapshot,
   ComparisonPreferences,
   Preferences,
-  SeriesDescriptor,
+  SeriesMetadata,
 } from './catalog'
-import type { ChartPane, ChartType, OverlayPeriods } from './catalog-schema'
+import { SOURCE_RIGHTS } from './catalog-schema'
+import type {
+  ChartPane, ChartType, OverlayPeriods, SourceRight, SourceRights, SourceRightStatus,
+} from './catalog-schema'
 import { WorkspaceBackup } from './WorkspaceBackup'
 import { HistoricalReplay } from './HistoricalReplay'
 import { checkImportRows, type ImportPolicy } from './import-policy'
@@ -106,15 +109,22 @@ function Dialog({
   )
 }
 
-type ImportMetadata = Pick<
-  SeriesDescriptor,
-  'barInterval' | 'source' | 'usageGrant' | 'adjustmentPolicy'
->
+const rightLabels: Record<SourceRight, string> = {
+  display: 'Display',
+  storage: 'Storage',
+  redistribution: 'Redistribution',
+  automatedUse: 'Automated use',
+}
+const rightStatusLabels: Record<SourceRightStatus, string> = {
+  unconfirmed: 'Unconfirmed',
+  granted: 'Granted',
+  restricted: 'Restricted',
+}
 
 function ImportForm({
   save,
 }: {
-  save: (item: SavedImport, metadata: ImportMetadata) => Promise<void>
+  save: (item: SavedImport, metadata: SeriesMetadata) => Promise<void>
 }) {
   const [venue, setVenue] = useState('LOCAL'),
     [symbol, setSymbol] = useState(''),
@@ -125,6 +135,11 @@ function ImportForm({
   const [source, setSource] = useState('')
   const [grant, setGrant] = useState('Local storage and analysis')
   const [adjustment, setAdjustment] = useState('')
+  const [rights, setRights] = useState<SourceRights>({
+    display: 'unconfirmed', storage: 'unconfirmed',
+    redistribution: 'unconfirmed', automatedUse: 'unconfirmed',
+  })
+  const [expiresOn, setExpiresOn] = useState('')
   async function submit(e: FormEvent) {
     e.preventDefault()
     setError('')
@@ -142,6 +157,7 @@ function ImportForm({
     try {
       const csv = await file.text()
       checkImportRows(csv, importPolicy)
+      const declared = Boolean(expiresOn || SOURCE_RIGHTS.some((key) => rights[key] !== 'unconfirmed'))
       await save(
         { venue, symbol, filename: file.name, csv },
         {
@@ -149,6 +165,7 @@ function ImportForm({
           source: source.trim() || file.name,
           usageGrant: grant.trim() || 'unspecified',
           adjustmentPolicy: adjustment.trim() || 'unspecified',
+          ...(declared ? { sourceRights: { ...rights, ...(expiresOn ? { expiresOn } : {}) } } : {}),
         },
       )
     } catch (err) {
@@ -226,6 +243,25 @@ function ImportForm({
             />
           </label>
         </div>
+        <fieldset className="metadata-fields source-rights">
+          <legend>Source permissions</legend>
+          {SOURCE_RIGHTS.map((key) => (
+            <label key={key}>
+              {rightLabels[key]}
+              <select value={rights[key]} onChange={(event) =>
+                setRights({ ...rights, [key]: event.target.value as SourceRightStatus })
+              }>
+                {Object.entries(rightStatusLabels).map(([status, label]) => (
+                  <option key={status} value={status}>{label}</option>
+                ))}
+              </select>
+            </label>
+          ))}
+          <label>
+            Grant expiration in UTC
+            <input type="date" value={expiresOn} onChange={(event) => setExpiresOn(event.target.value)} />
+          </label>
+        </fieldset>
       </details>
       <details>
         <summary>CSV format</summary>
@@ -391,6 +427,7 @@ export function App({
   const descriptor = saved.series.find(
     (item) => item.id === asset.id,
   )?.descriptor
+  const sourceRights = descriptor?.sourceRights
   const comparisonDescriptor = other && saved.series.find((item) => item.id === other.id)?.descriptor
   function accept(next: CatalogSnapshot) {
     setSaved((previous) =>
@@ -524,7 +561,7 @@ export function App({
       },
     }
   }
-  async function addImport(item: SavedImport, metadata: ImportMetadata) {
+  async function addImport(item: SavedImport, metadata: SeriesMetadata) {
     const history = createHistory(core, item, metadata)
     await commit(() => catalog.addSeries(saved.revision, history))
     setDialog(null)
@@ -888,6 +925,18 @@ export function App({
               <dt>Adjustment policy</dt>
               <dd>{descriptor.adjustmentPolicy}</dd>
             </div>
+            {sourceRights && SOURCE_RIGHTS.map((key) => (
+              <div key={key}>
+                <dt>{rightLabels[key]}</dt>
+                <dd>{rightStatusLabels[sourceRights[key]]}</dd>
+              </div>
+            ))}
+            {sourceRights?.expiresOn && (
+              <div>
+                <dt>Grant expiration in UTC</dt>
+                <dd><time dateTime={sourceRights.expiresOn}>{sourceRights.expiresOn}</time></dd>
+              </div>
+            )}
           </dl>
         )}
         <footer>
