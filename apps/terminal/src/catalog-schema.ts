@@ -31,6 +31,13 @@ export type SourceRight = (typeof SOURCE_RIGHTS)[number]
 export type SourceRightStatus = 'unconfirmed' | 'granted' | 'restricted'
 export type SourceRights = Record<SourceRight, SourceRightStatus> & { expiresOn?: string }
 export type ProviderVerification = { keySha256: string; csvSha256: string }
+export type SignedProviderRevisionFixture = ProviderVerification & {
+  provider: string
+  instrument: string
+  grant: string
+  permissions: SourceRights & { expiresOn: string }
+  csv: string
+}
 
 export function sourcePermissionRestriction(
   rights: SourceRights | undefined, action: SourceRight,
@@ -274,6 +281,50 @@ export async function parseProviderHistoryFixture(text: string, filename: string
       ...(providerVerification ? { providerVerification } : {}),
     },
   }
+}
+
+export async function parseSignedProviderRevisionFixture(
+  text: string, verificationKey: string, core: MarketCore,
+): Promise<SignedProviderRevisionFixture> {
+  let payload: unknown
+  try {
+    payload = JSON.parse(text)
+  } catch {
+    throw Error('Choose a valid JSON provider revision fixture.')
+  }
+  fields(payload, [
+    'format', 'version', 'provider', 'venue', 'symbol',
+    'grant', 'permissions', 'csvSha256', 'csv', 'signature',
+  ], 'provider revision fixture')
+  if (payload.format !== 'marketweft-provider-revisions' || payload.version !== 1)
+    throw Error('This provider revision fixture format or version is unsupported.')
+  const { provider, csvSha256 } = payload
+  if (!validProvider(provider))
+    throw Error('Supply a lowercase provider identifier.')
+  const venue = requiredText(payload.venue, 'venue')
+  const symbol = requiredText(payload.symbol, 'symbol')
+  const instrument = core.instrument(venue, symbol)
+  if (instrument !== venue + ':' + symbol)
+    throw Error('Use a canonical venue and symbol for the provider revision fixture.')
+  const grant = requiredText(payload.grant, 'provider grant')
+  const permissions = sourceRights(payload.permissions)
+  if (!permissions.expiresOn)
+    throw Error('A provider revision fixture requires a UTC grant expiration date.')
+  if (permissions.display !== 'granted')
+    throw Error('A provider revision fixture requires granted display permission.')
+  const csv = requiredText(payload.csv, 'provider revisions CSV')
+  if (!isSha256(csvSha256))
+    throw Error('Supply the provider CSV SHA-256 as 64 lowercase hexadecimal characters.')
+  if (!globalThis.crypto?.subtle)
+    throw Error('Provider CSV verification needs HTTPS or localhost.')
+  if (await sha256Text(csv) !== csvSha256)
+    throw Error('The provider CSV SHA-256 does not match the fixture.')
+  const manifest = Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'csv' && key !== 'signature'))
+  const keySha256 = await verifyProviderSignature(verificationKey, provider, payload.signature, manifest)
+  if (sourcePermissionRestriction(permissions, 'display') === 'expired')
+    throw Error('The provider revision fixture grant has expired.')
+  return { provider, instrument, grant, permissions: { ...permissions, expiresOn: permissions.expiresOn },
+    csv, csvSha256, keySha256 }
 }
 
 function descriptor(value: unknown, core: MarketCore): SeriesDescriptor {

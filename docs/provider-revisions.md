@@ -47,3 +47,11 @@ Set the demo's effective cutoff to 14:00 UTC. The chart and table show the origi
 Under **Bar observation history**, enter the bar's effective UTC timestamp and select **Inspect bar**. The history uses the cutoffs already applied to the replay. It lists observations in chronological order with their action and fixed-point values. A withdrawn bar stays inspectable by its effective timestamp. Withdrawal rows leave the price and volume cells empty.
 
 For the demo bar at 14:00 UTC, the history contains the original report at 14:00 and the correction at 14:04. The withdrawal joins the list at 14:06 and the replacement joins at 14:07. Moving the knowledge cutoff back hides observations that had yet to arrive.
+
+## Load a signed provider revision fixture
+
+Under **Provider revision input**, select **Signed provider revision fixture**. Supply its JSON file and the provider's P-256 public key in PEM form or a [provider key registry](provider-history-fixture.md#provider-key-registry). The verified fixture supplies the current replay session. The workspace catalog and backups contain none of its data.
+
+The packet uses format `marketweft-provider-revisions` and version `1`. It includes `provider`, `venue`, `symbol`, `grant`, `permissions`, `csv`, `csvSha256`, and `signature`. The permissions include a granted `display` right and a UTC `expiresOn` date. Display stops at midnight UTC following that date.
+
+The embedded CSV uses the revision format above. Its SHA-256 covers the exact UTF-8 text, including all line endings. The P-256 signature uses SHA-256 over the canonical JSON manifest containing every packet field except `csv` and `signature`. Recursively sort object keys by UTF-16 code unit and omit formatting whitespace. Encode the 64-byte IEEE P1363 signature as unpadded base64url. The provider and instrument in the signed manifest must match the embedded CSV.

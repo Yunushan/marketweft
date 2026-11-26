@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.83.0 lists each known correction, withdrawal and replacement for one selected provider bar. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.84.0 verifies signed provider revision fixtures before replay. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -86,6 +86,7 @@
 | Delivered · 0.81.0 | Provider replay chart (MW-012, MW-017) | Verify matching table and candlestick changes at the correction, withdrawal and replacement cutoffs. [Provider replay chart](docs/provider-revisions.md#provider-replay-chart). |
 | Delivered · 0.82.0 | Provider chart observation time (MW-012, MW-017) | Verify that inspecting the corrected candle shows its observation timestamp, matching the replay table. [Provider replay chart](docs/provider-revisions.md#provider-replay-chart). |
 | Delivered · 0.83.0 | Bar observation history (MW-013, MW-017) | Verify dated corrections, withdrawals and replacements for a selected bar through the current cutoffs. [Bar observation history](docs/provider-revisions.md#inspect-a-bars-observation-history). |
+| Delivered · 0.84.0 | Signed provider revision fixture (MW-013, MW-029) | Verify signature, exact CSV bytes, identity and display permissions before replay. Check expiry during the session. [Signed provider revisions](docs/provider-revisions.md#load-a-signed-provider-revision-fixture). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -97,5 +98,5 @@
 
 ## Handoff for the next change
 
-Define a signed provider revision fixture that can supply the replay view. Verify its source rights and exact CSV bytes before accepting the observations.
+Show the verified revision fixture's CSV digest and signer fingerprint in the replay, then check that switching sources clears both values.
 

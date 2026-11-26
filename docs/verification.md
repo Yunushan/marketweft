@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.84.0 · Signed provider revision fixtures
+
+| Check | Observed result |
+| --- | --- |
+| Signature and exact bytes | Offline Chromium accepted the signed fixture after verifying the provider key and exact CSV digest. A changed price and altered grant reference each failed before changing the replay. |
+| Identity and rights | A valid signature over a mismatched symbol failed. A fixture with restricted display also failed. A fixture granting display and restricting storage replayed without a catalog write. |
+| Grant expiry | The fixture replayed at 23:59:59.999 UTC on the final day and the visible data disappeared at midnight UTC. |
+
+[Signed provider revisions](provider-revisions.md#load-a-signed-provider-revision-fixture) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.83.0 · Bar observation history
 
 | Check | Observed result |

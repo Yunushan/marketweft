@@ -1,19 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { parseSignedProviderRevisionFixture, sourcePermissionRestriction } from './catalog-schema'
+import type { SignedProviderRevisionFixture } from './catalog-schema'
 import { Chart } from './Chart'
 import { fixed } from './fixed-point'
 import { Mark } from './Icons'
 import { checkImportRows, type ImportPolicy } from './import-policy'
 import type { MarketCore } from './market-core'
+import { MAX_PROVIDER_VERIFICATION_BYTES } from './provider-signature'
 import { utc, type Asset } from './workspace'
 import demo from '../../../crates/core/tests/fixtures/synthetic-provider-withdrawals.csv?raw'
 
-const DEMO = { csv: demo, name: 'Synthetic provider revisions' }
+type Source = { csv: string; name: string; fixture?: SignedProviderRevisionFixture }
+
+const DEMO: Source = { csv: demo, name: 'Synthetic provider revisions' }
 const DEFAULT_EFFECTIVE = '2025-06-02T14:02:00Z'
 const DEFAULT_KNOWN = '2025-06-02T14:03:59Z'
 const DEFAULT_BAR = '2025-06-02T14:00:00Z'
 const PAGE_SIZE = 100
 const OHLCV = ['open', 'high', 'low', 'close', 'volume'] as const
+const EXPIRED_GRANT = 'The provider revision fixture grant has expired.'
 
 export function ProviderRevisionResearch({ core, policy, close }: {
   core: MarketCore; policy: ImportPolicy; close: () => void
@@ -33,10 +39,32 @@ export function ProviderRevisionResearch({ core, policy, close }: {
   const [observationPage, setObservationPage] = useState(0)
   const [inspectionProblem, setInspectionProblem] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  const [signed, setSigned] = useState(false)
+  const [verificationFile, setVerificationFile] = useState<File | null>(null)
+  const [grantExpired, setGrantExpired] = useState(false)
   const [loading, setLoading] = useState(false)
   const [problem, setProblem] = useState('')
   const title = useRef<HTMLHeadingElement>(null)
   useEffect(() => { title.current?.focus() }, [])
+  useEffect(() => {
+    if (!source.fixture) return
+    const expiresAt = Date.parse(source.fixture.permissions.expiresOn + 'T00:00:00Z') + 86_400_000
+    let timer: number | undefined
+    function checkGrant() {
+      window.clearTimeout(timer)
+      const remaining = expiresAt - Date.now()
+      if (remaining <= 0) setGrantExpired(true)
+      else timer = window.setTimeout(checkGrant, Math.min(remaining, 2_147_483_647))
+    }
+    checkGrant()
+    window.addEventListener('focus', checkGrant)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('focus', checkGrant)
+    }
+  }, [source])
+  const expired = grantExpired ||
+    sourcePermissionRestriction(source.fixture?.permissions, 'display') === 'expired'
   const chart = useMemo<Asset | null>(() => {
     if (view.bars.length === 0) return null
     const [venue, symbol] = view.instrument.split(':')
@@ -53,12 +81,16 @@ export function ProviderRevisionResearch({ core, policy, close }: {
     }
   }, [view])
 
-  function apply(history: typeof source) {
+  function apply(history: Source) {
+    if (sourcePermissionRestriction(history.fixture?.permissions, 'display') === 'expired') throw Error(EXPIRED_GRANT)
     const effectiveAt = effective.trim()
     const knownAt = known.trim()
     const snapshot = core.providerHistoryAsOf(history.csv, effectiveAt, knownAt)
+    if (history.fixture && (history.fixture.provider !== snapshot.provider || history.fixture.instrument !== snapshot.instrument))
+      throw Error('The provider revision CSV identity does not match the signed fixture.')
     const observations = core.providerBarObservations(history.csv, view.barAt, effectiveAt, knownAt)
     setSource(history)
+    setGrantExpired(false)
     setView({ ...snapshot, effectiveAt, knownAt, barAt: view.barAt, observations })
     setPage(0)
     setObservationPage(0)
@@ -76,14 +108,21 @@ export function ProviderRevisionResearch({ core, policy, close }: {
 
   async function load(event: FormEvent) {
     event.preventDefault()
-    if (!file || loading) return
+    if (!file || loading || (signed && !verificationFile)) return
     setLoading(true)
     try {
       if (file.size > policy.maxBytes)
-        throw Error(`Choose a CSV of at most ${policy.maxBytes.toLocaleString('en-US')} bytes.`)
-      const csv = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer())
-      checkImportRows(csv, policy)
-      apply({ csv, name: file.name })
+        throw Error(`Choose a ${signed ? 'fixture' : 'CSV'} of at most ${policy.maxBytes.toLocaleString('en-US')} bytes.`)
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer())
+      let history: Source = { csv: text, name: file.name }
+      if (signed && verificationFile) {
+        if (verificationFile.size > MAX_PROVIDER_VERIFICATION_BYTES)
+          throw Error('The provider verification file exceeds 64 KiB.')
+        const fixture = await parseSignedProviderRevisionFixture(text, await verificationFile.text(), core)
+        history = { csv: fixture.csv, name: file.name, fixture }
+      }
+      checkImportRows(history.csv, policy)
+      apply(history)
     } catch (error) {
       setProblem(error instanceof Error ? error.message : 'Could not load provider revisions.')
     } finally {
@@ -95,6 +134,7 @@ export function ProviderRevisionResearch({ core, policy, close }: {
     event.preventDefault()
     const barAt = barTime.trim()
     try {
+      if (sourcePermissionRestriction(source.fixture?.permissions, 'display') === 'expired') throw Error(EXPIRED_GRANT)
       const observations = core.providerBarObservations(source.csv, barAt, view.effectiveAt, view.knownAt)
       setView({ ...view, barAt, observations })
       setObservationPage(0)
@@ -117,11 +157,26 @@ export function ProviderRevisionResearch({ core, policy, close }: {
       <div className="page-head"><h1 ref={title} tabIndex={-1}>Provider revisions</h1></div>
       <section className="side-card replay-panel" aria-label="Provider revision controls">
         <form className="universe-query" onSubmit={load}>
-          <label>Provider revisions CSV
-            <input type="file" accept=".csv,text/csv" disabled={loading}
+          <label>Provider revision input
+            <select value={signed ? 'signed' : 'csv'} disabled={loading} onChange={event => {
+              setSigned(event.target.value === 'signed')
+              setFile(null)
+              setVerificationFile(null)
+              setProblem('')
+            }}>
+              <option value="csv">CSV file</option>
+              <option value="signed">Signed provider revision fixture</option>
+            </select>
+          </label>
+          <label>{signed ? 'Signed provider revision fixture' : 'Provider revisions CSV'}
+            <input key={signed ? 'signed' : 'csv'} type="file" accept={signed ? '.json,application/json' : '.csv,text/csv'} disabled={loading}
               onChange={event => setFile(event.target.files?.[0] ?? null)} />
           </label>
-          <button className="outline" disabled={!file || loading}>Load revisions</button>
+          {signed && <label>Provider revision verification key
+            <input type="file" accept=".pem,.json,application/json" disabled={loading}
+              onChange={event => setVerificationFile(event.target.files?.[0] ?? null)} />
+          </label>}
+          <button className="outline" disabled={!file || loading || (signed && !verificationFile)}>Load revisions</button>
         </form>
         <form className="universe-query" onSubmit={replay}>
           <label>Bars effective through (UTC)
@@ -130,13 +185,14 @@ export function ProviderRevisionResearch({ core, policy, close }: {
           <label>Revisions known through (UTC)
             <input required disabled={loading} value={known} onChange={event => setKnown(event.target.value)} />
           </label>
-          <button className="primary" disabled={loading}>Replay cutoffs</button>
+          <button className="primary" disabled={loading || expired}>Replay cutoffs</button>
         </form>
-        {problem && <p role="alert" className="warning">{problem}</p>}
+        {(problem || expired) && <p role="alert" className="warning">{problem || EXPIRED_GRANT}</p>}
       </section>
-      <section className="side-card replay-panel" aria-label="Observed provider history">
+      {!expired && <section className="side-card replay-panel" aria-label="Observed provider history">
         <h2>{view.instrument}</h2>
         <p role="status">{view.provider} · {source.name} · {view.bars.length} observed {view.bars.length === 1 ? 'bar' : 'bars'}</p>
+        {source.fixture && <p>Verified provider grant {source.fixture.grant} · Expires {source.fixture.permissions.expiresOn} UTC</p>}
         <p>Effective through {view.effectiveAt} · Known through {view.knownAt}</p>
         {chart && <section aria-label="Provider replay chart">
           <Chart key={[view.instrument, view.effectiveAt, view.knownAt, view.bars.length].join('/')}
@@ -159,8 +215,8 @@ export function ProviderRevisionResearch({ core, policy, close }: {
           <p>{page + 1} / {totalPages}</p>
           <button className="outline" disabled={page + 1 >= totalPages} onClick={() => setPage(page + 1)}>Next bars</button>
         </div>}
-      </section>
-      <section className="side-card replay-panel" aria-labelledby="provider-observation-heading">
+      </section>}
+      {!expired && <section className="side-card replay-panel" aria-labelledby="provider-observation-heading">
         <h2 id="provider-observation-heading">Bar observation history</h2>
         <form className="universe-query" onSubmit={inspect}>
           <label>Bar timestamp (UTC)
@@ -190,7 +246,7 @@ export function ProviderRevisionResearch({ core, policy, close }: {
           <button className="outline" disabled={observationPage + 1 >= observationPages}
             onClick={() => setObservationPage(observationPage + 1)}>Next observations</button>
         </div>}
-      </section>
+      </section>}
     </main>
   </>
 }

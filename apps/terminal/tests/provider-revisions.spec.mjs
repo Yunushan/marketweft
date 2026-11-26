@@ -1,8 +1,77 @@
+import { createHash, generateKeyPairSync, sign } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { expect, test } from './fixtures.mjs'
 import { catalogContents } from './catalog-fixtures.mjs'
 
 const fixture = new URL('../../../crates/core/tests/fixtures/synthetic-provider-revisions.csv', import.meta.url)
+
+test('a signed revision fixture is verified before replay and expires at midnight UTC', async ({ page, context }) => {
+  const csv = await readFile(fixture, 'utf8')
+  const signer = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+  function canonical(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value)
+    return '{' + Object.keys(value).sort().map(key =>
+      JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}'
+  }
+  const manifest = {
+    format: 'marketweft-provider-revisions', version: 1,
+    provider: 'synthetic-sample', venue: 'DEMO', symbol: 'ALFA',
+    grant: 'Synthetic revision fixture agreement',
+    permissions: { display: 'granted', storage: 'restricted', redistribution: 'restricted',
+      automatedUse: 'unconfirmed', expiresOn: '2099-05-18' },
+    csvSha256: createHash('sha256').update(csv).digest('hex'),
+  }
+  function packet(metadata) {
+    const signature = sign('sha256', Buffer.from(canonical(metadata)),
+      { key: signer.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url')
+    return { ...metadata, csv, signature }
+  }
+  const signed = packet(manifest)
+  await page.clock.setFixedTime(new Date('2099-05-18T23:59:59.999Z'))
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+  const initial = await catalogContents(page)
+  await page.getByRole('button', { name: 'Provider revisions', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Provider revision input' }).selectOption('signed')
+  const upload = page.getByLabel('Signed provider revision fixture', { exact: true })
+  const load = page.getByRole('button', { name: 'Load revisions' })
+  const results = page.getByRole('region', { name: 'Observed provider history' })
+  async function fixtureFile(value) {
+    await upload.setInputFiles({
+      name: 'checked-revisions.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(value)),
+    })
+  }
+  await fixtureFile(signed)
+  await expect(load).toBeDisabled()
+  await page.getByLabel('Provider revision verification key').setInputFiles({
+    name: 'provider.pub.pem', mimeType: 'application/x-pem-file',
+    buffer: Buffer.from(signer.publicKey.export({ type: 'spki', format: 'pem' })),
+  })
+  for (const [value, message] of [
+    [{ ...signed, csv: csv.replace('10.250001', '10.260001') }, 'SHA-256 does not match'],
+    [{ ...signed, grant: 'Altered after signing' }, 'signature does not match'],
+    [packet({ ...manifest, symbol: 'BETA' }), 'identity does not match'],
+    [packet({ ...manifest, permissions: { ...manifest.permissions, display: 'restricted' } }), 'requires granted display'],
+  ]) {
+    await fixtureFile(value)
+    await load.click()
+    await expect(page.getByRole('alert')).toContainText(message)
+    await expect(results.getByRole('status')).toContainText('Synthetic provider revisions')
+  }
+  await fixtureFile(signed)
+  await load.click()
+  await expect(results.getByRole('status')).toContainText('checked-revisions.json')
+  await expect(results.getByText('Verified provider grant Synthetic revision fixture agreement')).toBeVisible()
+  await expect(results.getByRole('table').getByText('10.000001', { exact: true }).first()).toBeVisible()
+  expect(await catalogContents(page)).toEqual(initial)
+  await page.clock.setFixedTime(new Date('2099-05-19T00:00:00Z'))
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(results).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveText('The provider revision fixture grant has expired.')
+  await expect(page.getByRole('button', { name: 'Replay cutoffs' })).toBeDisabled()
+})
 
 test('provider replay withdraws a bar at observation and restores it with a later replacement', async ({ page, context }) => {
   await page.goto('/')
