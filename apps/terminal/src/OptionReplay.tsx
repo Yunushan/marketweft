@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
-import type { MarketCore, OptionReport, OptionSnapshot, OptionSource, OptionUnavailable } from './market-core'
+import type { MarketCore, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource, OptionUnavailable } from './market-core'
 import { Mark } from './Icons'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoUnderlying from '../../../crates/core/tests/fixtures/synthetic-option-underlying.csv?raw'
 import demoQuotes from '../../../crates/core/tests/fixtures/synthetic-option-exercise-quotes.csv?raw'
+import demoCashDividends from '../../../crates/core/tests/fixtures/synthetic-option-cash-dividends.csv?raw'
 
 const statusText: Record<OptionUnavailable, string> = {
   expired: 'Expired',
@@ -26,7 +27,7 @@ const volatility = (value: number) => (value * 100).toFixed(2) + '%'
 const metric = (value: number) => value.toFixed(6)
 
 type Query = { effective: string; known: string; age: string }
-type Dataset = OptionSource & { underlying: string; quotes: string; source: string; demo: boolean }
+type Dataset = OptionSource & { underlying: string; quotes: string; cash: string | null; source: string; demo: boolean }
 
 function AmericanPricing({ core, dataset, query, contracts }: {
   core: MarketCore
@@ -37,13 +38,22 @@ function AmericanPricing({ core, dataset, query, contracts }: {
   const [contract, setContract] = useState(contracts[0].id)
   const [annualVolatility, setAnnualVolatility] = useState('25')
   const [steps, setSteps] = useState('128')
-  const [estimate, setEstimate] = useState<{ contract: string; price: number; iv?: number } | null>(null)
+  const [estimate, setEstimate] = useState<{
+    contract: string; price: number; iv?: number; cash?: OptionCashDividendReport[]
+  } | null>(null)
   const [error, setError] = useState('')
 
-  function calculate(mode: 'price' | 'implied') {
+  function calculate(mode: 'price' | 'implied' | 'cash') {
     setEstimate(null)
     setError('')
     try {
+      if (mode === 'cash' && dataset.cash !== null) {
+        const result = core.americanOptionCashPrice(dataset.underlying, dataset.quotes, dataset.cash,
+          contract, query.effective, query.known, Number(query.age), Number(annualVolatility) / 100, Number(steps))
+        if (typeof result === 'string') setError(statusText[result])
+        else setEstimate({ contract, price: result.price, cash: result.dividends })
+        return
+      }
       const inputs = [dataset.underlying, dataset.quotes, contract, query.effective, query.known, Number(query.age)] as const
       const value = mode === 'price'
         ? core.americanOptionPrice(...inputs, Number(annualVolatility) / 100, Number(steps))
@@ -60,7 +70,8 @@ function AmericanPricing({ core, dataset, query, contracts }: {
     <h2 id="american-pricing-title">American exercise pricing</h2>
     <form className="universe-query" onSubmit={event => {
       event.preventDefault()
-      calculate('price')
+      const submitter = (event.nativeEvent as SubmitEvent).submitter
+      calculate(submitter instanceof HTMLButtonElement && submitter.value === 'cash' ? 'cash' : 'price')
     }}>
       <label>American contract
         <select value={contract} onChange={event => {
@@ -81,10 +92,26 @@ function AmericanPricing({ core, dataset, query, contracts }: {
       </label>
       <button className="primary">Price American option</button>
       <button type="button" className="outline" onClick={() => calculate('implied')}>Solve midpoint IV</button>
+      {dataset.cash !== null && <button type="submit" value="cash"
+        className="outline">Price with cash dividends</button>}
     </form>
     {estimate && <p role="status">{estimate.contract}{estimate.iv !== undefined && (
       <> implied volatility {volatility(estimate.iv)} ·</>
-    )} model price {metric(estimate.price)} {dataset.currency}</p>}
+    )} {estimate.cash ? 'cash dividend model price' : 'model price'} {metric(estimate.price)} {dataset.currency}</p>}
+    {estimate?.cash && (estimate.cash.length > 0 ? (
+      <div className="replay-table-scroll" role="region" tabIndex={0} aria-label="Scrollable applied cash dividends">
+        <table className="universe-table" aria-label="Applied cash dividends">
+          <thead><tr>{['Dividend', 'Announced UTC', 'Ex UTC', 'Pay UTC', 'Observed UTC', 'Amount per share'].map(
+            name => <th scope="col" key={name}>{name}</th>
+          )}</tr></thead>
+          <tbody>{estimate.cash.map(report => <tr key={report.id}>
+            <th scope="row">{report.id}</th>
+            <td>{utc(report.announcedAt)}</td><td>{utc(report.exAt)}</td><td>{utc(report.payAt)}</td>
+            <td>{utc(report.observedAt)}</td><td>{fixed(report.amountPerShare, 6)} {report.currency}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+    ) : <p>No future cash dividends are known at these cutoffs.</p>)}
     {error && <p className="warning" role="alert">{error}</p>}
   </section>
 }
@@ -137,6 +164,7 @@ export function OptionReplay({ core, close }: { core: MarketCore; close: () => v
   const [draft, setDraft] = useState<Query>({ effective: '', known: '', age: '300' })
   const [underlyingFile, setUnderlyingFile] = useState<File | null>(null)
   const [quotesFile, setQuotesFile] = useState<File | null>(null)
+  const [cashFile, setCashFile] = useState<File | null>(null)
   const [showSurface, setShowSurface] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -152,8 +180,8 @@ export function OptionReplay({ core, close }: { core: MarketCore; close: () => v
     setError('')
   }
 
-  function start(underlying: string, quotes: string, source: string, demo = false) {
-    const book = { ...core.optionIndex(underlying, quotes), underlying, quotes, source, demo }
+  function start(underlying: string, quotes: string, cash: string | null, source: string, demo = false) {
+    const book = { ...core.optionIndex(underlying, quotes), underlying, quotes, cash, source, demo }
     const at = demo ? '2025-04-03T14:00:00Z' : utc(book.firstObservedAt)
     run(book, { effective: at, known: at, age: '300' })
     setDataset(book)
@@ -161,7 +189,7 @@ export function OptionReplay({ core, close }: { core: MarketCore; close: () => v
 
   function startDemo() {
     try {
-      start(demoUnderlying, demoQuotes, 'Synthetic underlying and option quotes', true)
+      start(demoUnderlying, demoQuotes, demoCashDividends, 'Synthetic option and cash dividend reports', true)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the option demo.')
     }
@@ -177,8 +205,13 @@ export function OptionReplay({ core, close }: { core: MarketCore; close: () => v
         if (file.size > 2 * 1024 * 1024) throw new Error('Each option input CSV must fit within 2 MiB.')
         return new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer())
       }
-      const [underlying, quotes] = await Promise.all([read(underlyingFile), read(quotesFile)])
-      start(underlying, quotes, underlyingFile.name + ' · ' + quotesFile.name)
+      if (cashFile && cashFile.size > 1024 * 1024)
+        throw new Error('Cash dividends CSV must fit within 1 MiB.')
+      const [underlying, quotes, cash] = await Promise.all([
+        read(underlyingFile), read(quotesFile), cashFile ? read(cashFile) : null,
+      ])
+      const source = [underlyingFile.name, quotesFile.name, cashFile?.name].filter(Boolean).join(' · ')
+      start(underlying, quotes, cash, source)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the option chain.')
     } finally {
@@ -222,6 +255,10 @@ export function OptionReplay({ core, close }: { core: MarketCore; close: () => v
                 <input type="file" accept=".csv,text/csv" required disabled={busy}
                   onChange={event => setQuotesFile(event.target.files?.[0] ?? null)} />
               </label>
+              <label>Cash dividends CSV (optional)
+                <input type="file" accept=".csv,text/csv" disabled={busy}
+                  onChange={(event) => setCashFile(event.target.files?.[0] ?? null)} />
+              </label>
               <button className="primary" disabled={busy || !underlyingFile || !quotesFile}>Load option chain</button>
             </form>
           </div>
@@ -235,6 +272,7 @@ export function OptionReplay({ core, close }: { core: MarketCore; close: () => v
                   setResult(null)
                   setUnderlyingFile(null)
                   setQuotesFile(null)
+                  setCashFile(null)
                   setShowSurface(false)
                   setError('')
                   heading.current?.focus()

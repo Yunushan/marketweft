@@ -16,6 +16,7 @@ mod fundamentals;
 mod history;
 mod indicator;
 mod macro_calendar;
+mod option_cash;
 mod option_chain;
 mod option_price;
 mod paper;
@@ -76,9 +77,11 @@ pub use fundamentals::{
 pub use history::{exact_utc as parse_exact_utc, parse_csv, Bar};
 pub use indicator::{indicator, Average};
 pub use macro_calendar::{MacroCalendar, ReleaseRecord, ReleaseSnapshot, ReportKind};
+pub use option_cash::CashOptionDividend;
 pub use option_chain::{
-    ChainSnapshot, Contract, ExerciseStyle, OptionBook, OptionBookError, OptionQuote, OptionRow,
-    QuoteStatus, Underlying, UnderlyingQuote,
+    AmericanCashRequest, AmericanCashValuation, CashOptionError, ChainSnapshot, Contract,
+    ExerciseStyle, OptionBook, OptionBookError, OptionQuote, OptionRow, QuoteStatus, Underlying,
+    UnderlyingQuote,
 };
 pub use option_price::{
     AmericanImplied, EuropeanOption, ModelError, OptionAnalytics, OptionSide, OptionTerms,

@@ -1,7 +1,8 @@
 use crate::{
     history::{decimal, exact_utc},
     universe::valid_id,
-    AmericanImplied, Instrument, ModelError, OptionAnalytics, OptionSide, OptionTerms, SCALE,
+    AmericanImplied, CashOptionDividend, Dividend, DividendBook, Instrument, ModelError,
+    OptionAnalytics, OptionSide, OptionTerms, SCALE,
 };
 use std::collections::BTreeMap;
 use std::fmt;
@@ -75,6 +76,29 @@ pub struct OptionRow<'a> {
 pub struct ChainSnapshot<'a> {
     pub underlying: Option<&'a UnderlyingQuote>,
     pub options: Vec<OptionRow<'a>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct AmericanCashRequest<'a> {
+    pub contract_id: &'a str,
+    pub effective_at: i64,
+    pub known_at: i64,
+    pub max_age: u32,
+    pub volatility: f64,
+    pub steps: u16,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct AmericanCashValuation<'a> {
+    pub price: f64,
+    pub dividends: Vec<&'a Dividend>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CashOptionError {
+    Quote(QuoteStatus),
+    InstrumentMismatch,
+    CurrencyMismatch,
 }
 
 #[derive(Debug)]
@@ -312,6 +336,67 @@ impl OptionBook {
         priced_terms(contract, market, at)
             .american_implied(midpoint, steps)
             .map_err(QuoteStatus::Model)
+    }
+
+    /// Apply the latest visible positive dividend for each stable ID at its upcoming ex-time.
+    pub fn american_cash_valuation<'a>(
+        &self,
+        dividends: &'a DividendBook,
+        request: AmericanCashRequest<'_>,
+    ) -> Result<AmericanCashValuation<'a>, CashOptionError> {
+        let (contract, _) = self
+            .american_contract(
+                request.contract_id,
+                request.effective_at,
+                request.known_at,
+                request.max_age,
+            )
+            .map_err(CashOptionError::Quote)?;
+        let market = fresh_market(
+            self.underlying_as_of(request.effective_at, request.known_at),
+            request.effective_at,
+            request.max_age,
+        )
+        .map_err(CashOptionError::Quote)?;
+        if dividends.instrument() != Some(&self.underlying.instrument) {
+            return Err(CashOptionError::InstrumentMismatch);
+        }
+        let mut reports: Vec<_> = dividends
+            .known_reports(request.known_at)
+            .filter(|report| {
+                report.amount_per_share > 0
+                    && request.effective_at < report.ex_at
+                    && report.ex_at <= contract.expiration
+            })
+            .collect();
+        if reports
+            .iter()
+            .any(|report| report.currency != self.underlying.currency)
+        {
+            return Err(CashOptionError::CurrencyMismatch);
+        }
+        reports
+            .sort_unstable_by(|left, right| (left.ex_at, &left.id).cmp(&(right.ex_at, &right.id)));
+        let schedule: Vec<_> = reports
+            .chunk_by(|left, right| left.ex_at == right.ex_at)
+            .map(|group| {
+                let total: i128 = group
+                    .iter()
+                    .map(|report| i128::from(report.amount_per_share))
+                    .sum();
+                CashOptionDividend {
+                    years: (group[0].ex_at - request.effective_at) as f64 / YEAR_SECONDS,
+                    amount: total as f64 / SCALE as f64,
+                }
+            })
+            .collect();
+        let price = priced_terms(contract, market, request.effective_at)
+            .american_cash_price(request.volatility, request.steps, &schedule)
+            .map_err(|error| CashOptionError::Quote(QuoteStatus::Model(error)))?;
+        Ok(AmericanCashValuation {
+            price,
+            dividends: reports,
+        })
     }
 
     fn american_contract(

@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.91.0 solves American implied volatility from the observed bid–ask midpoint. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.92.0 prices American options with discrete cash dividends known at the replay cutoff. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -94,16 +94,17 @@
 | Delivered · 0.89.0 | MCP financial snapshots (MW-023, MW-028) | Verify all three read-only tools and exact structured financial output with the official MCP client. [MCP financial snapshots](docs/local-mcp-research.md#financial-snapshots). |
 | Delivered · 0.90.0 | American exercise pricing (MW-026) | Retain exercise style in dated option quotes and verify selected-contract prices against independent lattice results before and after an underlying revision. [American exercise pricing](docs/option-chain.md#american-exercise-pricing). |
 | Delivered · 0.91.0 | American implied volatility (MW-026) | Solve a selected American quote, verify underlying-cutoff changes, and distinguish invalid quotes from unresolved volatility. [American implied volatility](docs/option-chain.md#american-implied-volatility). |
+| Delivered · 0.92.0 | Discrete cash dividends for American pricing (MW-026) | Verify known revisions and cancellation, exercise at the ex-date boundary, and source report details in offline replay. [Discrete cash dividends](docs/option-chain.md#discrete-cash-dividends). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Broaden reproducible strategy signals, portfolio-level optimization and execution inputs. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Support isolated executable plugins and independent formula SDK conformance. Verify schema compatibility across SDKs and extend the read-only MCP research tools. |
-| P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Add discrete option dividends, explicit webhook configuration, authenticated delivery, bounded retry, delivery receipts and authorized data sources. |
+| P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Add dividend-aware American IV, explicit webhook configuration, authenticated delivery, bounded retry, delivery receipts and authorized data sources. |
 | P2 | Order flow and specialized visualization (MW-012, MW-019) | Add authorized trade and depth streams, sequence recovery, trade-side classification and profiles. Benchmark Canvas against WebGL/wgpu with identical traces before adopting another renderer. |
 | P3 | Enterprise and authorized live execution (MW-022, MW-028, MW-030) | Extend the headless Rust service with SQLite/DuckDB persistence, remote authentication and audited operations. Add external stores/queues only after load tests justify them. Prove quota enforcement and disaster recovery before a hosted rollout. Require explicit authorization and deterministic pre-trade risk for any live route. |
 
 ## Handoff for the next change
 
-Apply an observed schedule of discrete cash dividends to American option pricing. Verify announcement revisions, the ex-date boundary, and exercise before a dividend.
+Solve American midpoint IV against the observed discrete cash schedule. Verify round trips, replay revisions, and unresolved IV at the exercise boundary.
 

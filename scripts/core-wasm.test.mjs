@@ -678,6 +678,33 @@ test('American option Wasm pricing uses the observed contract and underlying at 
   assert.deepEqual(implied('14:02:00'), first);
 });
 
+test('American cash-dividend Wasm replay selects exact revision amounts and keeps payout provenance', async () => {
+  const read = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-option-' + name + '.csv', import.meta.url), 'utf8');
+  const [underlying, quotes, cash] = await Promise.all([read('underlying'), read('exercise-quotes'), read('cash-dividends')]);
+  const iso = time => '2025-04-03T' + time + 'Z';
+  const price = (known, data = cash, effective = iso('14:00:00'), age = 300) =>
+    core.americanOptionCashPrice(underlying, quotes, data, 'APR-AM-C90', effective, known, age, 0.25, 128);
+  const early = price(iso('14:03:59'));
+  assert.deepEqual(early.dividends, []);
+  assert.equal(early.price, core.americanOptionPrice(
+    underlying, quotes, 'APR-AM-C90', iso('14:00:00'), iso('14:03:59'), 300, 0.25, 128,
+  ));
+  const first = price(iso('14:04:00'));
+  const combined = price(iso('14:05:00'));
+  const revised = price(iso('14:06:00'));
+  const cancelled = price(iso('14:07:00'));
+  assert.deepEqual(revised.dividends.map(row => [row.id, row.amountPerShare]), [['EXTRA', 1000000n], ['MAIN', 9000000n]]);
+  assert.equal(revised.dividends[1].payAt, Date.parse('2025-10-08T14:00:00Z') / 1000);
+  assert.equal(revised.dividends[1].observedAt, Date.parse(iso('14:06:00')) / 1000);
+  assert.ok(early.price > first.price && first.price > combined.price && combined.price > revised.price);
+  assert.ok(cancelled.price > revised.price);
+  assert.deepEqual(price(iso('14:04:00')), first);
+  const exAt = '2025-10-03T14:00:00Z';
+  assert.equal(price(exAt, cash, '2025-10-03T13:59:59Z', 0xffffffff).dividends.length, 1);
+  assert.deepEqual(price(exAt, cash, exAt, 0xffffffff).dividends, []);
+  assert.throws(() => price(iso('14:04:00'), cash.replaceAll(',USD,', ',EUR,')), /dividend currency/);
+});
+
 test('macro calendar Wasm preserves public and observed times and revision lineage', async () => {
   const data = await readFile(new URL('../crates/core/tests/fixtures/synthetic-macro-calendar.csv', import.meta.url), 'utf8');
   const iso = t => '2025-04-03T' + t + 'Z';

@@ -1,5 +1,5 @@
 const DAYS_IN_YEAR: f64 = 365.0;
-const MAX_VOLATILITY: f64 = 10.0;
+pub(crate) const MAX_VOLATILITY: f64 = 10.0;
 pub const MAX_AMERICAN_STEPS: u16 = 256;
 const SQRT_TWO_PI: f64 = 2.506_628_274_631_000_7;
 
@@ -10,7 +10,7 @@ pub enum OptionSide {
 }
 
 impl OptionSide {
-    fn sign(self) -> f64 {
+    pub(crate) fn sign(self) -> f64 {
         match self {
             Self::Call => 1.0,
             Self::Put => -1.0,
@@ -89,13 +89,7 @@ impl OptionTerms {
                 .fold(0.0, f64::max));
         }
         let jump = volatility * dt.sqrt();
-        let probability_up = (drift * dt + jump).exp_m1() / (2.0 * jump).exp_m1();
-        if !(0.0..=1.0).contains(&probability_up) {
-            return Err(ModelError::InputsOutOfRange);
-        }
-        let discount = (-self.rate * dt).exp();
-        let up = discount * probability_up;
-        let down = discount * (1.0 - probability_up);
+        let (down, up) = lattice_weights(self.rate, drift, dt, jump)?;
         let node_ratio = (2.0 * jump).exp();
         let mut spot = self.spot * (-f64::from(steps) * jump).exp();
         let mut lattice = (0..=steps)
@@ -207,7 +201,7 @@ impl OptionTerms {
         Ok(result)
     }
 
-    fn validate(self) -> Result<(), ModelError> {
+    pub(crate) fn validate(self) -> Result<(), ModelError> {
         if !(0.000_001..=2_000_000_000.0).contains(&self.spot)
             || !(0.000_001..=2_000_000_000.0).contains(&self.strike)
             || !(1.0 / (DAYS_IN_YEAR * 86_400.0)..=10.0).contains(&self.years)
@@ -218,6 +212,20 @@ impl OptionTerms {
         }
         Ok(())
     }
+}
+
+pub(crate) fn lattice_weights(
+    rate: f64,
+    drift: f64,
+    dt: f64,
+    jump: f64,
+) -> Result<(f64, f64), ModelError> {
+    let probability_up = (drift * dt + jump).exp_m1() / (2.0 * jump).exp_m1();
+    if !(0.0..=1.0).contains(&probability_up) {
+        return Err(ModelError::InputsOutOfRange);
+    }
+    let discount = (-rate * dt).exp();
+    Ok((discount * (1.0 - probability_up), discount * probability_up))
 }
 
 impl Terms {

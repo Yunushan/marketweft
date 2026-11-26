@@ -426,6 +426,21 @@ export interface AmericanImplied {
   price: number;
 }
 
+export interface OptionCashDividendReport {
+  id: string;
+  announcedAt: number;
+  exAt: number;
+  payAt: number;
+  observedAt: number;
+  currency: string;
+  amountPerShare: bigint;
+}
+
+export interface AmericanCashPrice {
+  price: number;
+  dividends: OptionCashDividendReport[];
+}
+
 export interface OptionReport {
   id: string;
   expiration: number;
@@ -822,6 +837,8 @@ export interface MarketCore {
     maxAge: number, volatility: number, steps: number): number | OptionUnavailable;
   americanOptionImplied(underlying: string, quotes: string, contract: string, effective: string, known: string,
     maxAge: number, steps: number): AmericanImplied | OptionUnavailable;
+  americanOptionCashPrice(underlying: string, quotes: string, cash: string, contract: string,
+    effective: string, known: string, maxAge: number, volatility: number, steps: number): AmericanCashPrice | OptionUnavailable;
   alertIndex(rules: string, observations: string): number;
   alertReplay(rules: string, observations: string, effective: string, known: string): AlertCrossing[];
   paperIndex(csv: string): number[];
@@ -892,6 +909,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_option_snapshot(underlyingBytes: number, maxAge: number): number;
   mw_american_option_price(underlyingBytes: number, maxAge: number, volatility: number, steps: number): number;
   mw_american_option_implied(underlyingBytes: number, maxAge: number, steps: number): number;
+  mw_american_option_cash_price(underlyingBytes: number, quoteBytes: number, maxAge: number,
+    volatility: number, steps: number): number;
   mw_alert_index(ruleBytes: number): number;
   mw_alert_replay(ruleBytes: number): number;
   mw_paper_index(): number;
@@ -1949,6 +1968,28 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const issue = unavailableOptions.find(candidate => candidate === status);
       if (issue) return issue;
       throw new Error('Invalid American implied volatility from the calculation engine.');
+    },
+    americanOptionCashPrice(underlying, quotes, cash, contract, effective, known, maxAge, volatility, steps) {
+      if (!Number.isFinite(volatility) || volatility < 0 || volatility > 10)
+        throw new Error('Use annual volatility from 0 to 10.');
+      const bytes = americanOptionInput(underlying, quotes + cash, contract, effective, known, maxAge, steps);
+      const payload = decoder.decode(output(api.mw_american_option_cash_price(
+        bytes, encoder.encode(quotes).length, maxAge, volatility, steps,
+      )));
+      const issue = unavailableOptions.find(candidate => candidate === payload);
+      if (issue) return issue;
+      const [heading, ...rows] = payload.trimEnd().split('\n');
+      const [status, price] = heading.split('\t');
+      if (status !== 'value' || !price || !Number.isFinite(Number(price)))
+        throw new Error('Invalid cash dividend option price from the calculation engine.');
+      const dividends = rows.map(row => {
+        const [tag, id, announcedAt, exAt, payAt, observedAt, currency, amount] = row.split('\t');
+        if (tag !== 'D' || !amount)
+          throw new Error('Invalid cash dividend report from the calculation engine.');
+        return { id, announcedAt: Number(announcedAt), exAt: Number(exAt), payAt: Number(payAt),
+          observedAt: Number(observedAt), currency, amountPerShare: BigInt(amount) };
+      });
+      return { price: Number(price), dividends };
     },
     alertIndex(rules, observations) {
       textInput(rules + observations);

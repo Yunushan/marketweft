@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.92.0 · Discrete cash dividends for American pricing
+
+| Check | Evidence |
+| --- | --- |
+| Independent prices | Native Rust compared three stochastic prices with published cash-dividend benchmarks. It also checked immediate exercise before off-grid and final dividends on deterministic paths and used an independently evaluated two-step stochastic tree. |
+| Point-in-time options | Native Rust and Wasm checked announcement visibility, a replacement amount, same-ex-date distributions, cancellation, and exclusion at the effective ex-date. A mismatched currency yields an explicit error. |
+| Offline Chromium | The selected call reproduced the first and revised reports at their observation times and restored the first price after rewinding. The 360-pixel layout retained the source report table. |
+
+[Discrete cash dividends](option-chain.md#discrete-cash-dividends) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.91.0 · American implied volatility
 
 | Check | Observed result |

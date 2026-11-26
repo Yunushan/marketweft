@@ -17,7 +17,10 @@ use crate::{
     PaperSide,
 };
 use crate::{parse_split_revisions, ShareRatio, SplitRevision, SplitRevisionBook};
-use crate::{ExerciseStyle, ModelError, OptionBook, OptionSide, QuoteStatus};
+use crate::{
+    AmericanCashRequest, CashOptionError, ExerciseStyle, ModelError, OptionBook, OptionSide,
+    QuoteStatus,
+};
 use std::cell::RefCell;
 
 thread_local! {
@@ -2143,15 +2146,74 @@ fn american_option_input(
     input: &[u8],
     underlying_bytes: usize,
 ) -> Result<(OptionBook, &str, i64, i64), String> {
+    let (contract, effective, known, reports) = american_option_fields(input)?;
+    let book = option_book(reports, underlying_bytes)?;
+    Ok((book, contract, effective, known))
+}
+
+fn american_option_fields(input: &[u8]) -> Result<(&str, i64, i64, &str), String> {
     let mut parts = utf8(input)?.splitn(4, '\n');
     let contract = parts.next().ok_or("Select an American contract.")?;
     let effective = option_cutoff(parts.next())?;
     let known = option_cutoff(parts.next())?;
-    let book = option_book(
-        parts.next().ok_or("Supply option chain reports.")?,
-        underlying_bytes,
-    )?;
-    Ok((book, contract, effective, known))
+    let reports = parts.next().ok_or("Supply option chain reports.")?;
+    Ok((contract, effective, known, reports))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_american_option_cash_price(
+    underlying_bytes: usize,
+    quote_bytes: usize,
+    max_age: u32,
+    volatility: f64,
+    steps: u32,
+) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let (contract_id, effective_at, known_at, reports) = american_option_fields(input)?;
+        let (chain, cash) = underlying_bytes
+            .checked_add(quote_bytes)
+            .and_then(|total| reports.split_at_checked(total))
+            .ok_or("Supply underlying, option and cash dividend reports.")?;
+        let book = option_book(chain, underlying_bytes)?;
+        let dividends = parse_dividends(cash, &book.underlying().instrument)?;
+        let request = AmericanCashRequest {
+            contract_id,
+            effective_at,
+            known_at,
+            max_age,
+            volatility,
+            steps: u16::try_from(steps).unwrap_or(0),
+        };
+        let result = match book.american_cash_valuation(&dividends, request) {
+            Ok(model) => model,
+            Err(CashOptionError::Quote(status)) => {
+                return Ok(option_status(status).as_bytes().to_vec())
+            }
+            Err(CashOptionError::InstrumentMismatch) => {
+                return Err("Cash dividend instrument must match the option chain.".into())
+            }
+            Err(CashOptionError::CurrencyMismatch) => {
+                return Err("Cash dividend currency must match the option chain.".into())
+            }
+        };
+        let mut text = format!("value\t{}\n", result.price);
+        for report in result.dividends {
+            writeln!(
+                text,
+                "D\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                report.id,
+                report.announced_at,
+                report.ex_at,
+                report.pay_at,
+                report.observed_at,
+                report.currency,
+                report.amount_per_share,
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
 }
 
 fn option_cutoff(raw: Option<&str>) -> Result<i64, &'static str> {

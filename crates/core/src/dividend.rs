@@ -123,6 +123,10 @@ impl DividendBook {
             })
     }
 
+    pub(crate) fn instrument(&self) -> Option<&Instrument> {
+        self.instrument.as_ref()
+    }
+
     fn validated(instrument: Option<Instrument>, mut rows: Vec<Dividend>) -> Result<Self, String> {
         if rows.is_empty() || rows.len() > MAX_ROWS {
             return Err("Supply 1–1,000 dividend reports.".into());
