@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, generateKeyPairSync, sign } from 'node:crypto'
 import { expect, test } from './fixtures.mjs'
 import { catalogContents, downloadWorkspace, microCSV, submitImport } from './catalog-fixtures.mjs'
 
@@ -18,6 +18,63 @@ const fixture = {
   csv: microCSV,
 }
 
+test('a supplied public key authenticates the provider, rights and exact CSV digest', async ({ page }) => {
+  function canonical(value) {
+    if (value !== null && typeof value === 'object')
+      return '{' + Object.keys(value).sort().map(key =>
+        JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}'
+    return JSON.stringify(value)
+  }
+  const trusted = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+  const wrongKey = generateKeyPairSync('ec', { namedCurve: 'prime256v1' }).publicKey
+  const { csv, ...metadata } = fixture
+  const manifest = { ...metadata, version: 3, csvSha256: createHash('sha256').update(csv).digest('hex') }
+  const signature = sign('sha256', Buffer.from(canonical(manifest)),
+    { key: trusted.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url')
+  const signed = { ...manifest, csv, signature }
+
+  await page.clock.setFixedTime(new Date('2099-12-31T23:59:59.999Z'))
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'NVDA', exact: true })).toBeVisible()
+  const before = await catalogContents(page)
+  const dialog = page.getByRole('dialog')
+  await page.getByRole('button', { name: 'Import CSV', exact: true }).click()
+  await dialog.getByRole('combobox', { name: 'Input format', exact: true }).selectOption('provider')
+  const mismatch = 'The provider history signature does not match the supplied key and manifest.'
+  async function select(value) {
+    await dialog.getByLabel('Provider history JSON', { exact: true }).setInputFiles({
+      name: 'signed.provider.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(value)),
+    })
+  }
+  async function key(publicKey) {
+    await dialog.getByLabel('Provider verification key', { exact: true }).setInputFiles({
+      name: 'provider.pem', mimeType: 'application/x-pem-file',
+      buffer: Buffer.from(publicKey.export({ type: 'spki', format: 'pem' })),
+    })
+  }
+  async function reject(value, message) {
+    await select(value)
+    await dialog.getByRole('button', { name: 'Import to watchlist' }).click()
+    await expect(dialog.getByRole('alert')).toHaveText(message)
+  }
+
+  await reject(signed, 'Choose the provider verification public key for this signed fixture.')
+  await key(wrongKey)
+  await reject(signed, mismatch)
+  await key(trusted.publicKey)
+  await reject({ ...manifest, version: 2, csv }, 'A provider verification key requires a signed version 3 fixture.')
+  await reject({ ...signed, provider: 'different-provider' }, mismatch)
+  await reject({ ...signed, permissions: { ...signed.permissions, redistribution: 'granted' } }, mismatch)
+  expect(await catalogContents(page)).toEqual(before)
+
+  await select(signed)
+  await submitImport(page, 'LICENSED')
+  expect((await catalogContents(page)).series[0]).toMatchObject({
+    csv,
+    descriptor: { source: fixture.provider, usageGrant: fixture.grant, sourceRights: fixture.permissions },
+  })
+})
+
 test('version 2 provider fixtures verify exact embedded CSV bytes before catalog writes', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2099-12-31T23:59:59.999Z'))
   await page.goto('/')
@@ -32,7 +89,7 @@ test('version 2 provider fixtures verify exact embedded CSV bytes before catalog
   await page.getByRole('button', { name: 'Import CSV', exact: true }).click()
   await dialog.getByRole('combobox', { name: 'Input format', exact: true }).selectOption('provider')
   async function select(value) {
-    await dialog.locator('input[type=file]').setInputFiles({
+    await dialog.getByLabel('Provider history JSON', { exact: true }).setInputFiles({
       name: 'verified.provider.json',
       mimeType: 'application/json',
       buffer: Buffer.from(JSON.stringify(value)),
@@ -67,7 +124,7 @@ test('provider fixture preflight checks identity, permissions and UTC expiry bef
     await dialog.getByRole('combobox', { name: 'Input format', exact: true }).selectOption('provider')
   }
   async function select(packet) {
-    await dialog.locator('input[type=file]').setInputFiles({
+    await dialog.getByLabel('Provider history JSON', { exact: true }).setInputFiles({
       name: 'history.provider.json',
       mimeType: 'application/json',
       buffer: Buffer.from(JSON.stringify(packet)),

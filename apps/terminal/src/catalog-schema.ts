@@ -2,6 +2,7 @@ import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core
 import { validIndicatorPeriod } from './market-core'
 import type { Asset, SavedImport } from './workspace'
 import { sha256Text } from './sha256'
+import { verifyProviderSignature } from './provider-signature'
 
 export type Preferences = {
   selected: string
@@ -203,7 +204,7 @@ function sourceRights(value: unknown): SourceRights {
   return result
 }
 
-export async function parseProviderHistoryFixture(text: string, filename: string): Promise<{
+export async function parseProviderHistoryFixture(text: string, filename: string, verificationKey?: string): Promise<{
   item: SavedImport; metadata: SeriesMetadata
 }> {
   let payload: unknown
@@ -214,15 +215,20 @@ export async function parseProviderHistoryFixture(text: string, filename: string
   }
   const version = payload && typeof payload === 'object' && 'version' in payload
     ? payload.version : undefined
-  if (version !== 1 && version !== 2)
+  if (version !== 1 && version !== 2 && version !== 3)
     throw Error('This provider history fixture format or version is unsupported.')
   fields(payload, [
     'format', 'version', 'provider', 'venue', 'symbol',
     'barInterval', 'grant', 'adjustmentPolicy', 'permissions', 'csv',
-    ...(version === 2 ? ['csvSha256'] : []),
+    ...(version >= 2 ? ['csvSha256'] : []),
+    ...(version === 3 ? ['signature'] : []),
   ], 'provider history fixture')
   if (payload.format !== 'marketweft-provider-history')
     throw Error('This provider history fixture format or version is unsupported.')
+  if (version === 3 && verificationKey === undefined)
+    throw Error('Choose the provider verification public key for this signed fixture.')
+  if (version < 3 && verificationKey !== undefined)
+    throw Error('A provider verification key requires a signed version 3 fixture.')
   const provider = payload.provider
   if (typeof provider !== 'string' || provider.length > 64 ||
       !/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(provider))
@@ -233,13 +239,17 @@ export async function parseProviderHistoryFixture(text: string, filename: string
   if (permissions.display !== 'granted' || permissions.storage !== 'granted')
     throw Error('A provider history fixture requires granted display and storage permissions.')
   const csv = requiredText(payload.csv, 'OHLCV CSV')
-  if (version === 2) {
+  if (version >= 2) {
     if (typeof payload.csvSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(payload.csvSha256))
       throw Error('Supply the provider CSV SHA-256 as 64 lowercase hexadecimal characters.')
     if (!globalThis.crypto?.subtle)
       throw Error('Provider CSV verification needs HTTPS or localhost.')
     if (await sha256Text(csv) !== payload.csvSha256)
       throw Error('The provider CSV SHA-256 does not match the fixture.')
+  }
+  if (version === 3 && verificationKey !== undefined) {
+    const manifest = Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'csv' && key !== 'signature'))
+    await verifyProviderSignature(verificationKey, payload.signature, manifest)
   }
   if (sourcePermissionRestriction(permissions, 'display') === 'expired')
     throw Error('The provider history fixture grant has expired.')

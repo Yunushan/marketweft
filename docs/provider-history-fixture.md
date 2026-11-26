@@ -36,3 +36,11 @@ sha256sum bars.csv
 ```
 
 The importer compares the digest before preparing the catalog update. A changed value or different line ending fails integrity verification. Version 1 fixtures use the original grant and CSV validation.
+
+## Verify a signed provider fixture
+
+Use packet version 3 when you have a provider public key from a trusted source. In the import form, select the packet and its separate **Provider verification key** file. The key uses PEM SubjectPublicKeyInfo encoding for an ECDSA P-256 public key.
+
+The signed message is the UTF-8 encoding of the packet's JSON fields except `csv` and `signature`. Sort object keys recursively in UTF-16 code-unit order and preserve array order. Serialize with JSON string escaping and without insignificant whitespace. The signed `csvSha256` field binds the message to the decoded CSV bytes. Use ECDSA with P-256 and SHA-256 and encode the concatenated 32-byte `r` and 32-byte `s` values as unpadded base64url in `signature`. [Web Cryptography ECDSA specification](https://www.w3.org/TR/webcrypto/#ecdsa).
+
+Selecting a public key requires a signed version 3 packet. The importer checks the key, provider, grant, signature and CSV digest before a catalog write.

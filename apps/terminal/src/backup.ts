@@ -3,6 +3,7 @@ import type { CatalogData, History } from './catalog'
 import type { MarketCore } from './market-core'
 import type { Asset } from './workspace'
 import { sha256Text } from './sha256'
+import { canonicalJson } from './canonical-json'
 
 const FORMAT = 'marketweft-workspace'
 const SINGLE_PANE_BACKUP_VERSION = 1
@@ -23,33 +24,12 @@ function backupVersion({ preferences, series }: CatalogData) {
   return preferences.comparison ? COMPARISON_BACKUP_VERSION : SINGLE_PANE_BACKUP_VERSION
 }
 
-// Data is JSON. Object keys use UTF-16 code-unit order; array order is significant.
-function canonical(value: unknown): string {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean')
-    return JSON.stringify(value)
-  if (typeof value === 'number' && Number.isSafeInteger(value))
-    return String(value)
-  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']'
-  if (typeof value === 'object' && value !== null) {
-    const record = value as Record<string, unknown>
-    return (
-      '{' +
-      Object.keys(record)
-        .sort()
-        .map((key) => JSON.stringify(key) + ':' + canonical(record[key]))
-        .join(',') +
-      '}'
-    )
-  }
-  throw Error('Workspace contains a value outside the backup format.')
-}
-
 async function digest(value: unknown): Promise<string> {
   if (!globalThis.crypto?.subtle)
     throw Error(
       'Backup verification needs a secure origin. Open MarketWeft over HTTPS or localhost.',
     )
-  return sha256Text(canonical(value))
+  return sha256Text(canonicalJson(value, 'Workspace contains a value outside the backup format.'))
 }
 
 // Samples are embedded in the terminal. Pin their identities, ordering and all

@@ -37,6 +37,7 @@ import type {
 import { WorkspaceBackup } from './WorkspaceBackup'
 import { HistoricalReplay } from './HistoricalReplay'
 import { checkImportRows, type ImportPolicy } from './import-policy'
+import { MAX_PROVIDER_KEY_BYTES } from './provider-signature'
 
 declare const __MARKETWEFT_IMPORT_POLICY__: ImportPolicy
 const importPolicy = __MARKETWEFT_IMPORT_POLICY__
@@ -141,6 +142,7 @@ function ImportForm({
   })
   const [expiresOn, setExpiresOn] = useState('')
   const [providerFixture, setProviderFixture] = useState(false)
+  const [verificationKey, setVerificationKey] = useState<File | null>(null)
   async function submit(e: FormEvent) {
     e.preventDefault()
     setError('')
@@ -158,7 +160,10 @@ function ImportForm({
     try {
       const text = await file.text()
       if (providerFixture) {
-        const { item, metadata } = await parseProviderHistoryFixture(text, file.name)
+        if (verificationKey && verificationKey.size > MAX_PROVIDER_KEY_BYTES)
+          throw Error('The provider verification key exceeds 4 KiB.')
+        const publicKey = await verificationKey?.text()
+        const { item, metadata } = await parseProviderHistoryFixture(text, file.name, publicKey)
         checkImportRows(item.csv, importPolicy)
         await save(item, metadata)
         return
@@ -192,6 +197,7 @@ function ImportForm({
         <select value={providerFixture ? 'provider' : 'csv'} onChange={(event) => {
           setProviderFixture(event.target.value === 'provider')
           setFile(null)
+          setVerificationKey(null)
           setError('')
         }}>
           <option value="csv">CSV file</option>
@@ -230,6 +236,12 @@ function ImportForm({
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
       </label>
+      {providerFixture && <label className="file-field">
+        <Icon name="file" size={22} />
+        <strong>Provider verification key</strong>
+        <input type="file" accept=".pem,application/x-pem-file"
+          onChange={(event) => setVerificationKey(event.target.files?.[0] ?? null)} />
+      </label>}
       {!providerFixture && <><details className="series-details">
         <summary>Series details</summary>
         <div className="metadata-fields">
