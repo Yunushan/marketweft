@@ -1,7 +1,7 @@
 use marketweft_core::{
-    backtest, backtest_with_trades, parse_csv, parse_paper_config, parse_sessions, BacktestConfig,
-    Instrument, PaperAction, PaperOrderStatus, PaperRejection, PaperSide, RecordedBacktestCutoffs,
-    TradeTape, SCALE,
+    backtest, backtest_with_formulas, backtest_with_trades, parse_csv, parse_paper_config,
+    parse_sessions, BacktestConfig, Formula, FormulaBacktestConfig, Instrument, PaperAction,
+    PaperOrderStatus, PaperRejection, PaperSide, RecordedBacktestCutoffs, TradeTape, SCALE,
 };
 
 const CALENDAR: &str = include_str!("fixtures/synthetic-backtest-sessions.csv");
@@ -20,6 +20,120 @@ fn config() -> BacktestConfig {
         limit_buffer_bps: 2000,
         max_wait_bars: 3,
     }
+}
+
+#[test]
+fn formula_signals_are_observed_at_close_and_share_the_delayed_paper_engine() {
+    let instrument = Instrument::new("DEMO", "SMA").unwrap();
+    let sessions = parse_sessions(CALENDAR).unwrap();
+    let bars = parse_csv(BARS).unwrap();
+    let tape = TradeTape::parse_execution(TRADES, &instrument).unwrap();
+    let entry = Formula::compile("if(close >= 13, 1, 0 / 0)").unwrap();
+    let exit = Formula::compile("close <= 10").unwrap();
+    let run = |source: &[_], known: i64, tape: Option<&TradeTape>| {
+        backtest_with_formulas(
+            &instrument,
+            &sessions,
+            source,
+            60,
+            FormulaBacktestConfig {
+                cutoffs: RecordedBacktestCutoffs {
+                    effective_at: BASE + 660,
+                    known_at: BASE + known,
+                },
+                execution: config(),
+                entry: &entry,
+                exit: &exit,
+            },
+            tape,
+        )
+        .unwrap()
+    };
+    let warm = run(&bars, 299, None);
+    assert!(warm.evaluations.iter().all(|row| row.entry.is_none()));
+    assert!(warm.backtest.ledger.history().is_empty());
+    let submit = run(&bars, 300, None);
+    assert_eq!(
+        submit.evaluations.last().unwrap().decision,
+        Some(PaperSide::Buy)
+    );
+    assert_eq!(submit.backtest.ledger.history().len(), 1);
+    assert!(submit.backtest.ledger.positions().is_empty());
+    assert_eq!(
+        run(&bars, 360, None).backtest.ledger.history(),
+        submit.backtest.ledger.history()
+    );
+    let later = run(&bars, 420, None);
+    assert_eq!(later.backtest.ledger.positions()["DEMO:SMA"].shares, 2);
+    assert_eq!(later.backtest.ledger.cash(), 969_800_000);
+    let terminal = run(&bars, 660, None);
+    assert_eq!(terminal.backtest.ledger.cash(), 957_800_000);
+    let recorded = run(&bars, 670, Some(&tape));
+    assert_eq!(recorded.backtest.ledger.cash(), 957_800_000);
+    assert!(recorded.backtest.ledger.history().iter().any(|(event, receipt)| {
+        matches!(&event.action, PaperAction::Fill { source_id, .. } if source_id == "TRADE-9007199254741000")
+            && receipt.rejection.is_none()
+    }));
+
+    let mut revised = bars.clone();
+    revised.last_mut().unwrap().close = 123 * SCALE;
+    let revised = run(&revised, 420, None);
+    assert_eq!(later.evaluations, revised.evaluations);
+    assert_eq!(
+        later.backtest.ledger.history(),
+        revised.backtest.ledger.history()
+    );
+    for known in [0, 299, 300, 360, 420, 659, 660] {
+        let prefix = run(&bars, known, None);
+        assert_eq!(
+            prefix.evaluations,
+            terminal.evaluations[..prefix.evaluations.len()]
+        );
+        let events = prefix.backtest.ledger.history();
+        assert_eq!(events, &terminal.backtest.ledger.history()[..events.len()]);
+    }
+}
+
+#[test]
+fn exit_wins_if_both_formulas_trigger_and_both_missing_keep_the_ledger_idle() {
+    let instrument = Instrument::new("DEMO", "SMA").unwrap();
+    let sessions = parse_sessions(CALENDAR).unwrap();
+    let bars = parse_csv(BARS).unwrap();
+    let entry = Formula::compile("1 / 0").unwrap();
+    let active = Formula::compile("close > 0").unwrap();
+    let expired = Formula::compile("lag(close, 4096)").unwrap();
+    let cutoffs = RecordedBacktestCutoffs {
+        effective_at: BASE + 660,
+        known_at: BASE + 660,
+    };
+    let run = |entry, exit| {
+        backtest_with_formulas(
+            &instrument,
+            &sessions,
+            &bars,
+            60,
+            FormulaBacktestConfig {
+                cutoffs,
+                execution: config(),
+                entry,
+                exit,
+            },
+            None,
+        )
+        .unwrap()
+    };
+    let missing = run(&entry, &expired);
+    assert!(missing
+        .evaluations
+        .iter()
+        .all(|row| row.entry.is_none() && row.exit.is_none() && row.decision.is_none()));
+    assert!(missing.backtest.ledger.history().is_empty());
+    let conflicting = run(&active, &active);
+    assert!(conflicting
+        .evaluations
+        .iter()
+        .all(|row| row.decision == Some(PaperSide::Sell)));
+    assert!(conflicting.backtest.ledger.history().is_empty());
 }
 
 #[test]

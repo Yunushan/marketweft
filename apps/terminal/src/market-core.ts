@@ -583,6 +583,22 @@ export interface RecordedBacktestQuery {
   config: BacktestConfig;
 }
 
+export interface FormulaBacktestQuery extends RecordedBacktestQuery {
+  entry: string;
+  exit: string;
+}
+
+export interface FormulaBacktestResult {
+  backtest: BacktestResult;
+  evaluations: {
+    at: number;
+    barIndex: number;
+    entry: bigint | null;
+    exit: bigint | null;
+    decision: 'buy' | 'sell' | null;
+  }[];
+}
+
 export interface WalkForwardConfig {
   trainingBars: string;
   testBars: string;
@@ -731,6 +747,8 @@ export interface MarketCore {
     cutoff: string, config: BacktestConfig): BacktestResult;
   recordedBacktest(instrument: string, calendar: string, bars: string, trades: string,
     interval: number, query: RecordedBacktestQuery): BacktestResult;
+  formulaBacktest(instrument: string, calendar: string, bars: string, trades: string,
+    interval: number, query: FormulaBacktestQuery): FormulaBacktestResult;
   walkForward(instrument: string, calendar: string, bars: string, interval: number,
     cutoff: string, execution: BacktestConfig, config: WalkForwardConfig): WalkForwardFold[];
   scenarios(instrument: string, calendar: string, bars: string, interval: number,
@@ -791,6 +809,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_backtest(calendarBytes: number, interval: number): number;
   mw_recorded_backtest(calendarBytes: number, barBytes: number, interval: number): number;
   mw_recorded_backtest_input(bytes: number): number;
+  mw_formula_backtest(calendarBytes: number, barBytes: number, entryBytes: number, exitBytes: number, interval: number): number;
   mw_walk_forward(calendarBytes: number, interval: number): number;
   mw_run_scenarios(calendarBytes: number, interval: number): number;
 }
@@ -1003,6 +1022,33 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       }
       dest.setBigInt64(start + 8 + index * 8, BigInt(ticks), true);
     }
+  }
+
+  function putBacktestInput(calendar: string, bars: string, trades: string, parts: Uint8Array[]) {
+    const sessionBytes = encoder.encode(calendar);
+    const barBytes = encoder.encode(bars);
+    const tradeBytes = encoder.encode(trades);
+    if (sessionBytes.length > 1024 * 1024) throw new Error('Session calendar exceeds 1 MiB.');
+    if (barBytes.length > LIMIT) throw new Error('Bar history exceeds 8 MiB.');
+    if (tradeBytes.length > LIMIT) throw new Error('Trade CSV exceeds 8 MiB.');
+    const chunks = [...parts, sessionBytes, barBytes, tradeBytes];
+    const size = chunks.reduce((sum, part) => sum + part.length, 0);
+    const ptr = api.mw_recorded_backtest_input(size);
+    if (!ptr) throw new Error('The calculation engine could not allocate recorded backtest input.');
+    const dest = new Uint8Array(api.memory.buffer, ptr, size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      dest.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return { calendarBytes: sessionBytes.length, barBytes: barBytes.length };
+  }
+
+  function timedBacktestHeader(instrument: string, { effective, known, config }: RecordedBacktestQuery) {
+    if (effective.length !== 20 || /[\r\n]/.test(effective)) {
+      throw new Error('Use a YYYY-MM-DDTHH:MM:SSZ effective cutoff.');
+    }
+    return encoder.encode([...backtestHeader(instrument, known, config), effective, ''].join('\n'));
   }
 
   function putTimeframeInput(bars: readonly Bar[], source: number, target: number,
@@ -1713,29 +1759,32 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const text = decoder.decode(output(api.mw_backtest(encoder.encode(calendar).length, interval)));
       return decodeBacktest(text.slice(0, -1).split('\n'));
     },
-    recordedBacktest(instrument, calendar, bars, trades, interval, { effective, known, config }) {
+    recordedBacktest(instrument, calendar, bars, trades, interval, query) {
       validateInterval(interval);
-      if (effective.length !== 20 || /[\r\n]/.test(effective)) {
-        throw new Error('Use a YYYY-MM-DDTHH:MM:SSZ effective cutoff.');
-      }
-      const header = encoder.encode([...backtestHeader(instrument, known, config), effective, ''].join('\n'));
-      const sessionBytes = encoder.encode(calendar);
-      const barBytes = encoder.encode(bars);
-      const tradeBytes = encoder.encode(trades);
-      if (sessionBytes.length > 1024 * 1024) throw new Error('Session calendar exceeds 1 MiB.');
-      if (barBytes.length > LIMIT) throw new Error('Bar history exceeds 8 MiB.');
-      if (tradeBytes.length > LIMIT) throw new Error('Trade CSV exceeds 8 MiB.');
-      const size = header.length + sessionBytes.length + barBytes.length + tradeBytes.length;
-      const ptr = api.mw_recorded_backtest_input(size);
-      if (!ptr) throw new Error('The calculation engine could not allocate recorded backtest input.');
-      const dest = new Uint8Array(api.memory.buffer, ptr, size);
-      let offset = 0;
-      for (const chunk of [header, sessionBytes, barBytes, tradeBytes]) {
-        dest.set(chunk, offset);
-        offset += chunk.length;
-      }
-      const bytes = output(api.mw_recorded_backtest(sessionBytes.length, barBytes.length, interval));
+      const header = timedBacktestHeader(instrument, query);
+      const files = putBacktestInput(calendar, bars, trades, [header]);
+      const bytes = output(api.mw_recorded_backtest(files.calendarBytes, files.barBytes, interval));
       return decodeBacktest(decoder.decode(bytes).slice(0, -1).split('\n'));
+    },
+    formulaBacktest(instrument, calendar, bars, trades, interval, query) {
+      validateInterval(interval);
+      const sources = [query.entry, query.exit];
+      if (sources.some(source => source.length > 2048)) throw new Error('Formula exceeds 2,048 source bytes.');
+      const [entry, exit] = sources.map(source => encoder.encode(source));
+      if (entry.length > 2048 || exit.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
+      const header = timedBacktestHeader(instrument, query);
+      const files = putBacktestInput(calendar, bars, trades, [header, entry, exit]);
+      const bytes = output(api.mw_formula_backtest(files.calendarBytes, files.barBytes, entry.length, exit.length, interval));
+      const evaluations: FormulaBacktestResult['evaluations'] = [];
+      const backtest = decodeBacktest(decoder.decode(bytes).slice(0, -1).split('\n').filter(line => {
+        if (!line.startsWith('C\t')) return true;
+        const [, at, bar, entryValue, exitValue, side] = line.split('\t');
+        if (side !== '' && side !== 'buy' && side !== 'sell') throw new Error('Invalid formula signal.');
+        evaluations.push({ at: Number(at), barIndex: Number(bar), entry: entryValue ? BigInt(entryValue) : null,
+          exit: exitValue ? BigInt(exitValue) : null, decision: side || null });
+        return false;
+      }));
+      return { backtest, evaluations };
     },
     walkForward(instrument, calendar, bars, interval, cutoff, execution, config) {
       validateInterval(interval);

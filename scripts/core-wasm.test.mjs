@@ -9,6 +9,31 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('formula-driven paper backtests audit missing signals and fill through the shared engine', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');
+  const [calendar, bars, trades] = await Promise.all([fixture('sessions'), fixture('bars'), fixture('trades')]);
+  const config = {
+    paper: { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' },
+    fastWindow: '2', slowWindow: '3', targetShares: '6', participation: '1000',
+    slippage: '0', limitBuffer: '2000', maxWait: '3',
+  };
+  const query = { config, effective: '2025-04-03T14:11:00Z', known: '2025-04-03T14:11:00Z',
+    entry: 'if(close >= 13,\n 1, 0 / 0)', exit: 'close <= 10' };
+  const run = (changes, tape = '') => core.formulaBacktest('DEMO:SMA', calendar, bars, tape, 60, { ...query, ...changes });
+  const early = run({ known: '2025-04-03T14:05:00Z' });
+  assert.deepEqual(early.evaluations[0], { at: 1743688860, barIndex: 0, entry: null, exit: 1000000n, decision: 'sell' });
+  assert.equal(early.evaluations.at(-1).decision, 'buy');
+  assert.equal(early.backtest.ledger.cash, 1000000000n);
+  assert.deepEqual(early.backtest.ledger.receipts.map(row => row.id), ['SUBMIT-4']);
+  const later = run({});
+  assert.deepEqual(later.evaluations.slice(0, early.evaluations.length), early.evaluations);
+  assert.equal(later.backtest.ledger.cash, 957800000n);
+  const precise = run({ known: '2025-04-03T14:11:10Z' }, trades);
+  assert.equal(precise.backtest.ledger.cash, later.backtest.ledger.cash);
+  assert.equal(precise.backtest.ledger.receipts.at(-1).sourceId, 'TRADE-9007199254741000');
+  assert.throws(() => run({ exit: 'lag(close, -1)' }), /Exit formula:/);
+});
+
 test('time-series formulas preserve exact output, missing values and prefix rules in Wasm', async () => {
   const fixture = await readFile(new URL('../crates/core/tests/fixtures/synthetic-formula-bars.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(fixture);

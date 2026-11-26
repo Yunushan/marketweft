@@ -109,7 +109,7 @@ pub extern "C" fn mw_input(len: usize) -> *mut u8 {
 
 #[no_mangle]
 pub extern "C" fn mw_recorded_backtest_input(len: usize) -> *mut u8 {
-    allocate_input(len, 2 * MAX_INPUT_BYTES + 1024 * 1024 + 1024)
+    allocate_input(len, 2 * MAX_INPUT_BYTES + 1024 * 1024 + 8192)
 }
 
 fn allocate_input(len: usize, limit: usize) -> *mut u8 {
@@ -1486,6 +1486,81 @@ pub extern "C" fn mw_recorded_backtest(
         )?;
         let mut text = String::new();
         encode_backtest(&mut text, report);
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_formula_backtest(
+    calendar_bytes: usize,
+    bar_bytes: usize,
+    entry_bytes: usize,
+    exit_bytes: usize,
+    interval: u32,
+) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let (instrument, known_at, execution, remainder) = backtest_request(utf8(input)?)?;
+        let (effective, payload) = remainder
+            .split_once('\n')
+            .ok_or("Supply the effective UTC cutoff.")?;
+        let effective_at = exact_utc(effective).ok_or("Use an exact effective UTC cutoff.")?;
+        let (entry, payload) = payload
+            .split_at_checked(entry_bytes)
+            .ok_or("Invalid entry source length.")?;
+        let (exit, payload) = payload
+            .split_at_checked(exit_bytes)
+            .ok_or("Invalid exit source length.")?;
+        let entry =
+            crate::Formula::compile(entry).map_err(|cause| format!("Entry formula: {cause}"))?;
+        let exit =
+            crate::Formula::compile(exit).map_err(|cause| format!("Exit formula: {cause}"))?;
+        let (calendar, payload) = payload
+            .split_at_checked(calendar_bytes)
+            .ok_or("Invalid session data.")?;
+        let (bars, trades) = payload
+            .split_at_checked(bar_bytes)
+            .ok_or("Invalid bar data.")?;
+        let sessions = parse_sessions(calendar)?;
+        let bars = parse_csv(bars)?;
+        let tape = (!trades.is_empty())
+            .then(|| crate::TradeTape::parse_execution(trades, &instrument))
+            .transpose()?;
+        let config = crate::FormulaBacktestConfig {
+            cutoffs: crate::RecordedBacktestCutoffs {
+                effective_at,
+                known_at,
+            },
+            execution,
+            entry: &entry,
+            exit: &exit,
+        };
+        let report = crate::backtest_with_formulas(
+            &instrument,
+            &sessions,
+            &bars,
+            interval,
+            config,
+            tape.as_ref(),
+        )?;
+        let mut text = String::new();
+        encode_backtest(&mut text, report.backtest);
+        for row in report.evaluations {
+            let side = match row.decision {
+                Some(PaperSide::Buy) => "buy",
+                Some(PaperSide::Sell) => "sell",
+                None => "",
+            };
+            writeln!(
+                &mut text,
+                "C\t{}\t{}\t{}\t{}\t{side}",
+                row.at,
+                row.bar_index,
+                optional_number(row.entry),
+                optional_number(row.exit)
+            )
+            .unwrap();
+        }
         Ok(text.into_bytes())
     })
 }

@@ -1,7 +1,7 @@
 use crate::{
-    history::valid_second, replay, tick_bars::Trade, Bar, Instrument, PaperAccount, PaperAction,
-    PaperApply, PaperConfig, PaperEvent, PaperOrderStatus, PaperSide, Session, TradeTape,
-    MAX_TICKS, SCALE,
+    history::valid_second, replay, tick_bars::Trade, Bar, Formula, Instrument, PaperAccount,
+    PaperAction, PaperApply, PaperConfig, PaperEvent, PaperOrderStatus, PaperSide, Session,
+    TradeTape, MAX_TICKS, SCALE,
 };
 use std::cmp::Ordering;
 
@@ -51,6 +51,36 @@ pub struct RecordedBacktestCutoffs {
     pub known_at: i64,
 }
 
+impl RecordedBacktestCutoffs {
+    fn visible_bar(self) -> Result<i64, String> {
+        if !valid_second(self.effective_at) || !valid_second(self.known_at) {
+            return Err("Use supported effective and known UTC cutoffs.".into());
+        }
+        Ok(self.effective_at.min(self.known_at))
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FormulaBacktestSignal {
+    pub at: i64,
+    pub bar_index: usize,
+    pub entry: Option<i64>,
+    pub exit: Option<i64>,
+    pub decision: Option<PaperSide>,
+}
+
+pub struct FormulaBacktestConfig<'a> {
+    pub cutoffs: RecordedBacktestCutoffs,
+    pub execution: BacktestConfig,
+    pub entry: &'a Formula,
+    pub exit: &'a Formula,
+}
+
+pub struct FormulaBacktestReport {
+    pub backtest: BacktestReport,
+    pub evaluations: Vec<FormulaBacktestSignal>,
+}
+
 struct Pending {
     order: String,
     started: usize,
@@ -86,21 +116,71 @@ pub fn backtest_with_trades(
     config: BacktestConfig,
     trades: &TradeTape,
 ) -> Result<BacktestReport, String> {
-    if !valid_second(cutoffs.effective_at) || !valid_second(cutoffs.known_at) {
-        return Err("Use supported effective and known UTC cutoffs.".into());
-    }
-    if trades.instrument() != instrument {
-        return Err("Recorded trades must match the backtest instrument.".into());
-    }
+    let visible_bar = cutoffs.visible_bar()?;
+    let playback = TradePlayback::new(instrument, sessions, cutoffs, trades)?;
     let mut observations = prepare_observations(instrument, sessions, bars, interval)?;
-    let visible_bar = cutoffs.effective_at.min(cutoffs.known_at);
     observations.truncate(observations.partition_point(|row| row.at <= visible_bar));
-    let playback = TradePlayback {
-        trades: trades.observed_prefix(Some(cutoffs.known_at)),
-        sessions,
-        effective_at: cutoffs.effective_at,
-    };
-    run_backtest(instrument, &observations, 0, config, Some(playback))
+    run_backtest(instrument, &observations, 0, config, Some(playback), None)
+}
+
+/// Evaluate one entry and exit condition at every observed close. A known
+/// nonzero exit takes priority. Order admission and fills use the paper engine.
+pub fn backtest_with_formulas(
+    instrument: &Instrument,
+    sessions: &[Session],
+    bars: &[Bar],
+    interval: u32,
+    config: FormulaBacktestConfig<'_>,
+    trades: Option<&TradeTape>,
+) -> Result<FormulaBacktestReport, String> {
+    let visible_bar = config.cutoffs.visible_bar()?;
+    let playback = trades
+        .map(|tape| TradePlayback::new(instrument, sessions, config.cutoffs, tape))
+        .transpose()?;
+    let mut observations = prepare_observations(instrument, sessions, bars, interval)?;
+    observations.truncate(observations.partition_point(|row| row.at <= visible_bar));
+    let visible: Vec<_> = observations.iter().map(|row| *row.bar).collect();
+    let entry = config
+        .entry
+        .evaluate(&visible)
+        .map_err(|cause| format!("Entry formula: {cause}"))?;
+    let exit = config
+        .exit
+        .evaluate(&visible)
+        .map_err(|cause| format!("Exit formula: {cause}"))?;
+    let evaluations: Vec<_> = observations
+        .iter()
+        .zip(entry)
+        .zip(exit)
+        .map(|((bar, entry), exit)| {
+            let decision = if exit.is_some_and(|value| value != 0) {
+                Some(PaperSide::Sell)
+            } else if entry.is_some_and(|value| value != 0) {
+                Some(PaperSide::Buy)
+            } else {
+                None
+            };
+            FormulaBacktestSignal {
+                at: bar.at,
+                bar_index: bar.index,
+                entry,
+                exit,
+                decision,
+            }
+        })
+        .collect();
+    let backtest = run_backtest(
+        instrument,
+        &observations,
+        0,
+        config.execution,
+        playback,
+        Some(&evaluations),
+    )?;
+    Ok(FormulaBacktestReport {
+        backtest,
+        evaluations,
+    })
 }
 
 pub(crate) fn prepare_observations<'a>(
@@ -139,7 +219,7 @@ pub(crate) fn evaluate(
     trade_from: usize,
     config: BacktestConfig,
 ) -> Result<BacktestReport, String> {
-    run_backtest(instrument, observations, trade_from, config, None)
+    run_backtest(instrument, observations, trade_from, config, None, None)
 }
 
 fn run_backtest(
@@ -148,10 +228,12 @@ fn run_backtest(
     trade_from: usize,
     config: BacktestConfig,
     mut playback: Option<TradePlayback<'_>>,
+    scripted: Option<&[FormulaBacktestSignal]>,
 ) -> Result<BacktestReport, String> {
-    if config.fast_window == 0
-        || config.slow_window <= config.fast_window
-        || config.slow_window > MAX_WINDOW
+    if (scripted.is_none()
+        && (config.fast_window == 0
+            || config.slow_window <= config.fast_window
+            || config.slow_window > MAX_WINDOW))
         || !(1..=1_000_000_000).contains(&config.target_shares)
         || !(1..=10_000).contains(&config.participation_bps)
         || config.slippage_bps > 10_000
@@ -164,8 +246,10 @@ fn run_backtest(
     }
     let mut ledger = PaperAccount::new(config.paper).map_err(|_| "Invalid paper configuration.")?;
     let mut pending: Option<Pending> = None;
-    let mut sums = vec![0_i128];
-    let mut previous_relation = None;
+    let mut crossover = SmaCrossover {
+        sums: vec![0],
+        previous: None,
+    };
     let mut signals = Vec::new();
     let instrument_key = instrument.to_string();
     let mut equity = EquityTimeline::new(&instrument_key, config.paper.starting_cash);
@@ -206,67 +290,56 @@ fn run_backtest(
             )?;
         }
 
-        sums.push(*sums.last().unwrap() + i128::from(bar.close));
-        let len = sums.len() - 1;
-        if len >= config.slow_window {
-            let average = |window| sums[len] - sums[len - window];
-            let relation = (average(config.fast_window) * config.slow_window as i128)
-                .cmp(&(average(config.slow_window) * config.fast_window as i128));
-            let side = match (previous_relation, relation) {
-                (Some(Ordering::Equal | Ordering::Less), Ordering::Greater) => Some(PaperSide::Buy),
-                (Some(Ordering::Equal | Ordering::Greater), Ordering::Less) => {
-                    Some(PaperSide::Sell)
-                }
-                _ => None,
-            };
-            previous_relation = Some(relation);
-            if let Some(side) = side.filter(|_| trading) {
-                signals.push(BacktestSignal {
+        let side = match scripted {
+            Some(rows) => rows[cursor].decision,
+            None => crossover.observe(bar.close, config.fast_window, config.slow_window),
+        };
+        if let Some(side) = side.filter(|_| trading) {
+            signals.push(BacktestSignal {
+                at,
+                bar_index: index,
+                side,
+            });
+            if pending.as_ref().is_some_and(|order| order.side != side) {
+                let order = pending.take().unwrap();
+                apply(
+                    &mut ledger,
+                    format!("CANCEL-{index}"),
                     at,
-                    bar_index: index,
-                    side,
-                });
-                if pending.as_ref().is_some_and(|order| order.side != side) {
-                    let order = pending.take().unwrap();
-                    apply(
-                        &mut ledger,
-                        format!("CANCEL-{index}"),
-                        at,
-                        PaperAction::Cancel {
-                            order_id: order.order,
-                        },
-                    )?;
-                }
-                let held = ledger
-                    .positions()
-                    .get(&instrument_key)
-                    .map_or(0, |position| position.shares);
-                let shares = match side {
-                    PaperSide::Buy => config.target_shares.saturating_sub(held),
-                    PaperSide::Sell => held,
-                };
-                if pending.is_none() && shares > 0 {
-                    let order_id = format!("ORDER-{index}");
-                    let limit = adjust(bar.close, config.limit_buffer_bps, side, false);
-                    let accepted = apply(
-                        &mut ledger,
-                        format!("SUBMIT-{index}"),
-                        at,
-                        PaperAction::Submit {
-                            order_id: order_id.clone(),
-                            instrument: instrument.clone(),
-                            side,
-                            shares,
-                            limit,
-                        },
-                    )?;
-                    if accepted {
-                        pending = Some(Pending {
-                            order: order_id,
-                            started: observed_bar,
-                            side,
-                        });
-                    }
+                    PaperAction::Cancel {
+                        order_id: order.order,
+                    },
+                )?;
+            }
+            let held = ledger
+                .positions()
+                .get(&instrument_key)
+                .map_or(0, |position| position.shares);
+            let shares = match side {
+                PaperSide::Buy => config.target_shares.saturating_sub(held),
+                PaperSide::Sell => held,
+            };
+            if pending.is_none() && shares > 0 {
+                let order_id = format!("ORDER-{index}");
+                let limit = adjust(bar.close, config.limit_buffer_bps, side, false);
+                let accepted = apply(
+                    &mut ledger,
+                    format!("SUBMIT-{index}"),
+                    at,
+                    PaperAction::Submit {
+                        order_id: order_id.clone(),
+                        instrument: instrument.clone(),
+                        side,
+                        shares,
+                        limit,
+                    },
+                )?;
+                if accepted {
+                    pending = Some(Pending {
+                        order: order_id,
+                        started: observed_bar,
+                        side,
+                    });
                 }
             }
         }
@@ -291,6 +364,29 @@ fn run_backtest(
         marks: equity.marks,
         largest_drawdown: equity.largest_drawdown,
     })
+}
+
+struct SmaCrossover {
+    sums: Vec<i128>,
+    previous: Option<Ordering>,
+}
+
+impl SmaCrossover {
+    fn observe(&mut self, close: i64, fast: usize, slow: usize) -> Option<PaperSide> {
+        let current = self.sums.last().unwrap() + i128::from(close);
+        self.sums.push(current);
+        let len = self.sums.len() - 1;
+        if len < slow {
+            return None;
+        }
+        let sum = |window| current - self.sums[len - window];
+        let relation = (sum(fast) * slow as i128).cmp(&(sum(slow) * fast as i128));
+        match (self.previous.replace(relation), relation) {
+            (Some(Ordering::Equal | Ordering::Less), Ordering::Greater) => Some(PaperSide::Buy),
+            (Some(Ordering::Equal | Ordering::Greater), Ordering::Less) => Some(PaperSide::Sell),
+            _ => None,
+        }
+    }
 }
 
 struct EquityTimeline<'a> {
@@ -393,7 +489,23 @@ struct TradePlayback<'a> {
     effective_at: i64,
 }
 
-impl TradePlayback<'_> {
+impl<'a> TradePlayback<'a> {
+    fn new(
+        instrument: &Instrument,
+        sessions: &'a [Session],
+        cutoffs: RecordedBacktestCutoffs,
+        trades: &'a TradeTape,
+    ) -> Result<Self, String> {
+        if trades.instrument() != instrument {
+            return Err("Recorded trades must match the backtest instrument.".into());
+        }
+        Ok(Self {
+            trades: trades.observed_prefix(Some(cutoffs.known_at)),
+            sessions,
+            effective_at: cutoffs.effective_at,
+        })
+    }
+
     fn advance(
         &mut self,
         through: i64,

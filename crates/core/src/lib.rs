@@ -38,8 +38,9 @@ pub use alerts::{
     AlertBook, AlertDirection, AlertNotification, AlertRule, Comparator, Observation,
 };
 pub use backtest::{
-    backtest, backtest_with_trades, BacktestConfig, BacktestMark, BacktestReport, BacktestSignal,
-    RecordedBacktestCutoffs,
+    backtest, backtest_with_formulas, backtest_with_trades, BacktestConfig, BacktestMark,
+    BacktestReport, BacktestSignal, FormulaBacktestConfig, FormulaBacktestReport,
+    FormulaBacktestSignal, RecordedBacktestCutoffs,
 };
 pub use cross_section::{
     CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,
