@@ -13,6 +13,7 @@ import { FundamentalReplay } from './FundamentalReplay'
 import { MacroReplay } from './MacroReplay'
 import { OptionReplay } from './OptionReplay'
 import { AlertReplay } from './AlertReplay'
+import { PaperReplay } from './PaperReplay'
 import type { Asset } from './workspace'
 import { Chart } from './Chart'
 import { Icon, Mark } from './Icons'
@@ -60,7 +61,7 @@ type ReplayRun = {
   dividends?: { events: DividendEvent[]; shares: number }
 }
 
-type ReplayView = 'universe' | 'fundamentals' | 'macro' | 'options' | 'alerts'
+type ReplayView = 'universe' | 'fundamentals' | 'macro' | 'options' | 'alerts' | 'paper'
 
 export function HistoricalReplay({
   core,
@@ -80,6 +81,7 @@ export function HistoricalReplay({
   const macroButton = useRef<HTMLButtonElement>(null)
   const optionsButton = useRef<HTMLButtonElement>(null)
   const alertsButton = useRef<HTMLButtonElement>(null)
+  const paperButton = useRef<HTMLButtonElement>(null)
   const returnFocus = useRef<ReplayView | null>(null)
   const [cursor, setCursor] = useState(-1)
   const [playing, setPlaying] = useState(false)
@@ -114,6 +116,7 @@ export function HistoricalReplay({
         macro: macroButton,
         options: optionsButton,
         alerts: alertsButton,
+        paper: paperButton,
       }
       const button = buttons[returnFocus.current]
       returnFocus.current = null
@@ -329,6 +332,8 @@ export function HistoricalReplay({
     return <OptionReplay core={core} close={() => setView(null)} />
   if (view === 'alerts')
     return <AlertReplay core={core} close={() => setView(null)} />
+  if (view === 'paper')
+    return <PaperReplay core={core} close={() => setView(null)} />
 
   return (
     <>
@@ -445,6 +450,17 @@ export function HistoricalReplay({
                     setView('alerts')
                   }}>
                   Open replay alerts
+                </button>
+              </section>
+              <section className="side-card replay-panel">
+                <h2>Paper ledger</h2>
+                <p>Replay simulated orders, fills and a local kill switch with an auditable cash ledger.</p>
+                <button ref={paperButton} className="primary" disabled={busy}
+                  onClick={() => {
+                    returnFocus.current = 'paper'
+                    setView('paper')
+                  }}>
+                  Open paper ledger
                 </button>
               </section>
             </div>

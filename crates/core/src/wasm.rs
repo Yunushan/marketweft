@@ -8,6 +8,10 @@ use crate::{
     indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
     Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
 };
+use crate::{
+    parse_paper_config, PaperAction, PaperError, PaperOrderStatus, PaperRejection, PaperReplay,
+    PaperSide,
+};
 use crate::{AlertBook, AlertDirection, Comparator};
 use crate::{ModelError, OptionBook, OptionSide, QuoteStatus};
 use std::cell::RefCell;
@@ -358,6 +362,151 @@ fn encode_bars(bars: Vec<Bar>) -> Vec<u8> {
         }
     }
     bytes
+}
+
+#[no_mangle]
+pub extern "C" fn mw_paper_index() -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let replay = PaperReplay::parse(utf8(input)?)?;
+        let mut text = String::new();
+        for time in replay.cutoffs() {
+            writeln!(&mut text, "{time}").unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_paper_replay() -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(3, '\n');
+        let cutoff = parts
+            .next()
+            .and_then(exact_utc)
+            .ok_or("Paper cutoff requires a YYYY-MM-DDTHH:MM:SSZ timestamp.")?;
+        let config = parse_paper_config(
+            parts
+                .next()
+                .ok_or("Supply the paper account configuration.")?,
+        )?;
+        let replay = PaperReplay::parse(parts.next().ok_or("Supply the paper event report.")?)?;
+        let ledger = replay
+            .account_at(config, cutoff)
+            .map_err(|error| match error {
+                PaperError::InvalidConfig => {
+                    "Invalid paper account cash, position, exposure or fee configuration."
+                }
+                _ => "Could not replay the paper account history.",
+            })?;
+        let mut text = String::new();
+        writeln!(
+            &mut text,
+            "H\t{}\t{}\t{}\t{}\t{}\t{}",
+            ledger.cash(),
+            ledger.reserved_cash(),
+            ledger.available_cash(),
+            ledger.committed_cost(),
+            ledger.realized(),
+            u8::from(ledger.halted())
+        )
+        .unwrap();
+        for (id, order) in ledger.orders() {
+            let side = match order.side {
+                PaperSide::Buy => "buy",
+                PaperSide::Sell => "sell",
+            };
+            let status = match order.status {
+                PaperOrderStatus::Open => "open",
+                PaperOrderStatus::PartiallyFilled => "partial",
+                PaperOrderStatus::Filled => "filled",
+                PaperOrderStatus::Canceled => "canceled",
+            };
+            writeln!(
+                &mut text,
+                "O\t{id}\t{}\t{side}\t{}\t{}\t{}\t{}\t{status}",
+                order.instrument, order.submitted_at, order.limit, order.shares, order.remaining
+            )
+            .unwrap();
+        }
+        for (symbol, position) in ledger.positions() {
+            writeln!(
+                &mut text,
+                "P\t{symbol}\t{}\t{}",
+                position.shares, position.cost
+            )
+            .unwrap();
+        }
+        for (event, receipt) in ledger.history() {
+            let (order, kind, source, price_at, shares, price) = match &event.action {
+                PaperAction::Submit {
+                    order_id,
+                    shares,
+                    limit,
+                    ..
+                } => (
+                    order_id.as_str(),
+                    "submit",
+                    "",
+                    None,
+                    Some(*shares),
+                    Some(*limit),
+                ),
+                PaperAction::Fill {
+                    order_id,
+                    source_id,
+                    price_at,
+                    shares,
+                    price,
+                } => (
+                    order_id.as_str(),
+                    "fill",
+                    source_id.as_str(),
+                    Some(*price_at),
+                    Some(*shares),
+                    Some(*price),
+                ),
+                PaperAction::Cancel { order_id } => {
+                    (order_id.as_str(), "cancel", "", None, None, None)
+                }
+                PaperAction::Halt => ("", "halt", "", None, None, None),
+            };
+            let rejection = receipt.rejection.map_or("accepted", paper_rejection);
+            writeln!(
+                &mut text,
+                "E\t{}\t{}\t{kind}\t{order}\t{source}\t{}\t{}\t{}\t{rejection}\t{}\t{}\t{}",
+                event.id,
+                event.observed_at,
+                optional_number(price_at),
+                optional_number(shares),
+                optional_number(price),
+                receipt.cash_delta,
+                receipt.fee,
+                receipt.realized_delta
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+fn paper_rejection(reason: PaperRejection) -> &'static str {
+    match reason {
+        PaperRejection::InvalidOrder => "invalid-order",
+        PaperRejection::ExistingOrder => "existing-order",
+        PaperRejection::UnknownOrder => "unknown-order",
+        PaperRejection::ClosedOrder => "closed-order",
+        PaperRejection::AccountHalted => "halted",
+        PaperRejection::CashLimit => "cash-limit",
+        PaperRejection::PositionLimit => "position-limit",
+        PaperRejection::ExposureLimit => "exposure-limit",
+        PaperRejection::InsufficientShares => "insufficient-shares",
+        PaperRejection::InvalidFill => "invalid-fill",
+        PaperRejection::IneligiblePriceTime => "price-time",
+        PaperRejection::LimitPrice => "limit-price",
+        PaperRejection::RepeatedFillSource => "repeated-fill-source",
+    }
 }
 
 fn alert_book(csvs: &str, rule_bytes: usize) -> Result<AlertBook, String> {

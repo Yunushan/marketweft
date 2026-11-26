@@ -75,6 +75,9 @@ Open Replay alerts under Historical replay and Start alert demo, or load
 alert-rules.csv and alert-observations.csv. Save the full replay to the
 local inbox twice to verify that each crossing is delivered once.
 
+Open Paper ledger under Historical replay and Start paper demo, or load
+paper-events.csv. Step through reserves, partial fills, fees and the halt.
+
 The chart supports panning, zooming, a crosshair and moving-average overlays.
 This build has no broker connection or order entry. Press Ctrl+C in the
 launcher's terminal to stop serving the application.
@@ -110,6 +113,7 @@ def main():
         files[f"option-{kind}.csv"] = (fixture / f"synthetic-option-{kind}.csv").read_bytes()
     for kind in ("rules", "observations"):
         files[f"alert-{kind}.csv"] = (fixture / f"synthetic-alert-{kind}.csv").read_bytes()
+    files["paper-events.csv"] = (fixture / "synthetic-paper-events.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
     inventory["components"] = [item for item in inventory["components"]
                                if any(p["value"] == "web-runtime" for p in item["properties"])]

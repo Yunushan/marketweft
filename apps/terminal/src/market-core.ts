@@ -231,6 +231,52 @@ export interface AlertCrossing {
   current: AlertObservation;
 }
 
+export interface PaperConfig {
+  startingCash: string;
+  positionLimit: string;
+  exposureLimit: string;
+  feePerShare: string;
+  feePerOrder: string;
+}
+
+export interface PaperOrder {
+  id: string;
+  instrument: string;
+  side: string;
+  at: number;
+  limit: bigint;
+  shares: bigint;
+  remaining: bigint;
+  status: string;
+}
+
+export interface PaperReceipt {
+  id: string;
+  observedAt: number;
+  kind: string;
+  orderId: string | null;
+  sourceId: string | null;
+  priceAt: number | null;
+  shares: bigint | null;
+  price: bigint | null;
+  status: string;
+  cashDelta: bigint;
+  fee: bigint;
+  realizedDelta: bigint;
+}
+
+export interface PaperSnapshot {
+  cash: bigint;
+  reserved: bigint;
+  available: bigint;
+  committed: bigint;
+  realized: bigint;
+  halted: boolean;
+  orders: PaperOrder[];
+  positions: { instrument: string; shares: bigint; cost: bigint }[];
+  receipts: PaperReceipt[];
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -253,6 +299,8 @@ export interface MarketCore {
   optionSnapshot(underlying: string, quotes: string, effective: string, known: string, maxAge: number): OptionSnapshot;
   alertIndex(rules: string, observations: string): number;
   alertReplay(rules: string, observations: string, effective: string, known: string): AlertCrossing[];
+  paperIndex(csv: string): number[];
+  paperReplay(csv: string, cutoff: string, config: PaperConfig): PaperSnapshot;
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -280,6 +328,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_option_snapshot(underlyingBytes: number, maxAge: number): number;
   mw_alert_index(ruleBytes: number): number;
   mw_alert_replay(ruleBytes: number): number;
+  mw_paper_index(): number;
+  mw_paper_replay(): number;
 }
 
 const SCALE = 1_000_000;
@@ -610,6 +660,48 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           observedAt: Number(observed), kind, operand, direction: ruleDirection },
           direction, previous: observation(fields.slice(0, 6)), current: observation(fields.slice(6)) };
       });
+    },
+    paperIndex(csv) {
+      textInput(csv);
+      const text = decoder.decode(output(api.mw_paper_index()));
+      return text.trimEnd().split('\n').map(Number);
+    },
+    paperReplay(csv, cutoff, config) {
+      if (cutoff.length !== 20 || /[\n\r]/.test(cutoff)) {
+        throw new Error('Paper cutoff requires a YYYY-MM-DDTHH:MM:SSZ timestamp.');
+      }
+      const { startingCash, positionLimit, exposureLimit, feePerShare, feePerOrder } = config;
+      const settings = [startingCash, positionLimit, exposureLimit, feePerShare, feePerOrder];
+      if (settings.some(value => /[,\n\r]/.test(value))) {
+        throw new Error('Use plain numbers for account settings.');
+      }
+      textInput([cutoff, settings.join(','), csv].join('\n'));
+      const text = decoder.decode(output(api.mw_paper_replay()));
+      const [header, ...rows] = text.slice(0, -1).split('\n');
+      const [, cash, reserved, available, committed, realized, halted] = header.split('\t');
+      const snapshot: PaperSnapshot = { cash: BigInt(cash), reserved: BigInt(reserved),
+        available: BigInt(available), committed: BigInt(committed), realized: BigInt(realized),
+        halted: halted === '1', orders: [], positions: [], receipts: [] };
+      for (const row of rows) {
+        const [type, ...fields] = row.split('\t');
+        if (type === 'O') {
+          const [id, instrument, side, at, limit, shares, remaining, status] = fields;
+          snapshot.orders.push({ id, instrument, side, at: Number(at), limit: BigInt(limit),
+            shares: BigInt(shares), remaining: BigInt(remaining), status });
+        } else if (type === 'P') {
+          const [instrument, shares, cost] = fields;
+          snapshot.positions.push({ instrument, shares: BigInt(shares), cost: BigInt(cost) });
+        } else if (type === 'E') {
+          const [id, observedAt, kind, order, source, effective, shares, price, status, cashDelta, fee, realizedDelta] = fields;
+          snapshot.receipts.push({ id, observedAt: Number(observedAt), kind, orderId: order || null, sourceId: source || null,
+            priceAt: effective === '' ? null : Number(effective), shares: shares === '' ? null : BigInt(shares),
+            price: price === '' ? null : BigInt(price), status, cashDelta: BigInt(cashDelta),
+            fee: BigInt(fee), realizedDelta: BigInt(realizedDelta) });
+        } else {
+          throw new Error('Invalid paper ledger row from the calculation engine.');
+        }
+      }
+      return snapshot;
     },
     splitBook(instrument, csv) {
       textInput(instrument + '\n' + csv);

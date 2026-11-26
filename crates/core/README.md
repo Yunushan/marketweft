@@ -62,3 +62,7 @@ Parse `OptionBook` from matching underlying and option CSVs. Call `snapshot(effe
 ## Replay alerts
 
 Parse `AlertBook` from rule revisions and observations. Query `notifications(effective_cutoff, known_cutoff)` for stable crossing records. Each record carries its selected rule, both source observations and exact fixed-point comparator fractions. [Alert contract](../../docs/replay-alerts.md).
+
+## Paper ledger
+
+Construct a `PaperAccount` with a fixed-point configuration and apply time-ordered commands with stable event IDs. `PaperReplay` parses a local report and rebuilds an account through an inclusive observation cutoff. Rejections, fees and cash and realized deltas are recorded for audit. [Paper ledger](../../docs/paper-ledger.md).

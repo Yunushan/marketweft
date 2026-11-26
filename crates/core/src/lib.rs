@@ -9,6 +9,8 @@ mod indicator;
 mod macro_calendar;
 mod option_chain;
 mod option_price;
+mod paper;
+mod paper_replay;
 mod replay;
 mod screen;
 mod sector;
@@ -32,6 +34,12 @@ pub use option_chain::{
     Underlying, UnderlyingQuote,
 };
 pub use option_price::{EuropeanOption, ModelError, OptionAnalytics, OptionSide};
+pub use paper::{
+    Action as PaperAction, Apply as PaperApply, LedgerError as PaperError, Order as PaperOrder,
+    OrderStatus as PaperOrderStatus, PaperAccount, PaperConfig, PaperEvent, PaperReceipt,
+    Position as PaperPosition, Rejection as PaperRejection, Side as PaperSide,
+};
+pub use paper_replay::{parse_paper_config, PaperReplay};
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use screen::{PriceBook, PriceObservation, ScreenRow};
 pub use sector::{Classification, Heatmap, HeatmapListing, SectorGroup};

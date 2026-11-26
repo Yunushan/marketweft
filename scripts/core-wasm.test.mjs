@@ -9,6 +9,26 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('paper replay Wasm reconciles cash, fees and observed unique fills', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-paper-events.csv', import.meta.url), 'utf8');
+  const config = { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' };
+  const at = time => core.paperReplay(csv, '2025-04-03T' + time + 'Z', config);
+  assert.equal(core.paperIndex(csv).length, 9);
+  const partial = at('14:02:00');
+  assert.equal(partial.cash, 801600000n);
+  assert.equal(partial.reserved, 300600000n);
+  assert.deepEqual(partial.receipts.map(entry => [entry.id, entry.status, entry.fee]), [
+    ['OPEN', 'accepted', 0n], ['EARLY', 'price-time', 0n], ['FILL1', 'accepted', 2400000n],
+  ]);
+  const end = at('14:08:00');
+  assert.equal(end.cash, 663700000n);
+  assert.equal(end.realized, 13000000n);
+  assert.equal(end.halted, true);
+  assert.equal(end.receipts.at(-1).status, 'halted');
+  assert.equal(end.orders.find(order => order.id === 'PENDING').status, 'canceled');
+  assert.deepEqual(at('14:02:00'), partial);
+});
+
 test('alert replay Wasm returns auditable and stable crossing IDs at each cutoff', async () => {
   const read = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-alert-' + name + '.csv', import.meta.url), 'utf8');
   const [rules, observations] = await Promise.all([read('rules'), read('observations')]);
