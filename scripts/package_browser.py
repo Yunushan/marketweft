@@ -36,6 +36,9 @@ On another profile or device, select the backup file, review the verified
 counts and confirm Restore workspace to replace that profile's catalog.
 Opening a 0.1.0 workspace on the same browser origin migrates it to IndexedDB.
 
+Use Compare charts to choose a second instrument and link exact UTC bars.
+A two-pane workspace includes both instruments and overlays in its backup.
+
 Choose Historical replay and Start demo for the NYSE session example. Replay
 reveals each bar at its scheduled close and marks missing intervals in-session.
 To replay your own import, choose a matching UTC session calendar and bar

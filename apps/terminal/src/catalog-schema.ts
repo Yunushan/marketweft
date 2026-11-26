@@ -6,6 +6,14 @@ export type Preferences = {
   watchlist: string[]
   sma: boolean
   ema: boolean
+  comparison?: ComparisonPreferences
+}
+
+export type ComparisonPreferences = {
+  selected: string
+  sma: boolean
+  ema: boolean
+  linked: boolean
 }
 
 export type SeriesDescriptor = {
@@ -57,7 +65,9 @@ function requiredText(value: unknown, name: string): string {
 }
 
 export function preferences(value: unknown, ids: Set<string>): Preferences {
-  fields(value, ['selected', 'watchlist', 'sma', 'ema'], 'workspace preference')
+  const keys = ['selected', 'watchlist', 'sma', 'ema']
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'comparison')) keys.push('comparison')
+  fields(value, keys, 'workspace preference')
   const { selected, watchlist, sma, ema } = value
   if (
     typeof selected !== 'string' ||
@@ -71,7 +81,17 @@ export function preferences(value: unknown, ids: Set<string>): Preferences {
     throw Error(
       'Invalid selection, watchlist or indicator settings in the workspace.',
     )
-  return { selected, watchlist: [...watchlist], sma, ema }
+  const result: Preferences = { selected, watchlist: [...watchlist], sma, ema }
+  if (keys.includes('comparison')) {
+    fields(value.comparison, ['selected', 'sma', 'ema', 'linked'], 'comparison preference')
+    const pane = value.comparison
+    if (typeof pane.selected !== 'string' || !ids.has(pane.selected) ||
+      typeof pane.sma !== 'boolean' || typeof pane.ema !== 'boolean' || typeof pane.linked !== 'boolean') {
+      throw Error('Invalid comparison chart settings in the workspace.')
+    }
+    result.comparison = { selected: pane.selected, sma: pane.sma, ema: pane.ema, linked: pane.linked }
+  }
+  return result
 }
 
 function descriptor(value: unknown, core: MarketCore): SeriesDescriptor {

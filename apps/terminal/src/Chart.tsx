@@ -23,6 +23,17 @@ function changeView(
   count = clamp(Math.round(count), Math.min(5, total), total)
   return { count, end: clamp(view.end + shift, count, total) }
 }
+
+function visibleBarAt(bars: Bar[], timestamp: number, start: number, end: number) {
+  let low = start
+  let high = end
+  while (low < high) {
+    const mid = (low + high) >>> 1
+    if (bars[mid].time < timestamp) low = mid + 1
+    else high = mid
+  }
+  return low < end && bars[low].time === timestamp ? low : null
+}
 function draw(
   canvas: HTMLCanvasElement,
   width: number,
@@ -247,22 +258,32 @@ export function Chart({
   asset,
   sma,
   ema,
+  linkedTimestamp,
+  onTimestamp,
 }: {
   asset: Asset
   sma: Series
   ema: Series
+  linkedTimestamp?: number | null
+  onTimestamp?: (timestamp: number | null) => void
 }) {
   const { bars } = asset,
     n = bars.length
   const [view, setView] = useState<View>(() => defaultView(n)),
-    [active, setActive] = useState<number | null>(null)
+    [pointerIndex, setPointerIndex] = useState<number | null>(null)
   const [size, setSize] = useState({ width: 800, height: 360 })
   const ref = useRef<HTMLCanvasElement>(null),
     zone = useRef<HTMLDivElement>(null)
   const plottedWidth = useRef(1)
   const drag = useRef<{ x: number; end: number } | null>(null)
-  const start = view.end - view.count,
-    b = bars[active ?? view.end - 1]
+  const start = view.end - view.count
+  const linkedIndex = linkedTimestamp == null ? null : visibleBarAt(bars, linkedTimestamp, start, view.end)
+  const active = pointerIndex ?? linkedIndex
+  const b = bars[active ?? view.end - 1]
+  function hover(index: number | null) {
+    setPointerIndex(index)
+    onTimestamp?.(index === null ? null : bars[index].time)
+  }
   useLayoutEffect(() => {
     const obs = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect
@@ -286,11 +307,11 @@ export function Chart({
         ) ?? 1
   }, [bars, view, sma, ema, active, size])
   function pan(amount: number) {
-    setActive(null)
+    hover(null)
     setView((v) => changeView(v, n, v.count, amount))
   }
   function zoom(factor: number) {
-    setActive(null)
+    hover(null)
     setView((v) => changeView(v, n, v.count * factor, 0))
   }
   useEffect(() => {
@@ -298,24 +319,25 @@ export function Chart({
     if (!el) return
     function wheel(e: WheelEvent) {
       e.preventDefault()
-      setActive(null)
+      setPointerIndex(null)
+      onTimestamp?.(null)
       setView((v) => changeView(v, n, v.count * (e.deltaY < 0 ? 0.8 : 1.25), 0))
     }
     el.addEventListener('wheel', wheel, { passive: false })
     return () => el.removeEventListener('wheel', wheel)
-  }, [n])
+  }, [n, onTimestamp])
   function move(e: ReactPointerEvent<HTMLCanvasElement>) {
     const plotWidth = Math.max(1, plottedWidth.current)
     if (drag.current) {
       const shift = Math.round(
         ((drag.current.x - e.clientX) / plotWidth) * view.count,
       )
-      setActive(null)
+      hover(null)
       setView({ ...view, end: clamp(drag.current.end + shift, view.count, n) })
       return
     }
     const x = e.clientX - e.currentTarget.getBoundingClientRect().left - 10
-    setActive(
+    hover(
       x < 0 || x > plotWidth
         ? null
         : clamp(
@@ -326,7 +348,8 @@ export function Chart({
     )
   }
   return (
-    <section className="plot" aria-label="Price and volume chart">
+    <section className="plot" aria-label="Price and volume chart"
+      data-crosshair-time={active === null ? undefined : bars[active].time}>
       <div className="ohlc">
         <time>{timeLabel(b.time)} UTC</time>
         {(['open', 'high', 'low', 'close'] as const).map((k) => (
@@ -357,10 +380,10 @@ export function Chart({
           }}
           onPointerCancel={() => {
             drag.current = null
-            setActive(null)
+            hover(null)
           }}
           onPointerLeave={() => {
-            if (!drag.current) setActive(null)
+            if (!drag.current) hover(null)
           }}
           onPointerMove={move}
           onKeyDown={(e) => {
@@ -381,7 +404,7 @@ export function Chart({
               key={r}
               aria-pressed={view.count === (r === 'All' ? n : r)}
               onClick={() => {
-                setActive(null)
+                hover(null)
                 setView({ end: n, count: r === 'All' ? n : Math.min(r, n) })
               }}
             >
@@ -429,7 +452,7 @@ export function Chart({
             title="Reset chart view"
             aria-label="Reset chart view"
             onClick={() => {
-              setActive(null)
+              hover(null)
               setView(defaultView(n))
             }}
           >

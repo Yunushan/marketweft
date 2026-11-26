@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
@@ -17,6 +18,7 @@ import type {
   Catalog,
   CatalogData,
   CatalogSnapshot,
+  ComparisonPreferences,
   Preferences,
   SeriesDescriptor,
 } from './catalog'
@@ -327,6 +329,7 @@ export function App({
   const [saveError, setSaveError] = useState(''),
     [offlineReady, setOfflineReady] = useState(false)
   const [notice, setNotice] = useState('')
+  const [crosshair, setCrosshair] = useState<{ identity: string; time: number | null } | null>(null)
   const asset =
     assets.find((a) => a.id === ws.selected) ??
     assets.find((a) => a.id === saved.preferences.selected)!
@@ -342,6 +345,28 @@ export function App({
     () => (ws.ema ? core.indicator('ema', 9, bars) : []),
     [core, ws.ema, bars],
   )
+  const comparison = ws.comparison
+  const other = comparison && assets.find((item) => item.id === comparison.selected)
+  const otherBars = other?.bars
+  const otherSma = useMemo(
+    () => comparison?.sma && otherBars ? core.indicator('sma', 20, otherBars) : [],
+    [comparison?.sma, core, otherBars],
+  )
+  const otherEma = useMemo(
+    () => comparison?.ema && otherBars ? core.indicator('ema', 9, otherBars) : [],
+    [comparison?.ema, core, otherBars],
+  )
+  const chartIdentity =
+    asset.id + ':' + bars.length + '|' + (other?.id ?? '') + ':' + (otherBars?.length ?? 0)
+  const onCrosshair = useCallback((time: number | null) => {
+    setCrosshair((previous) =>
+      previous?.identity === chartIdentity && previous.time === time
+        ? previous
+        : { identity: chartIdentity, time },
+    )
+  }, [chartIdentity])
+  const cursor =
+    comparison?.linked && crosshair?.identity === chartIdentity ? crosshair.time : null
   const source = asset.source === 'sample' ? 'Synthetic sample' : 'Imported CSV'
   const descriptor = saved.series.find(
     (item) => item.id === asset.id,
@@ -429,6 +454,20 @@ export function App({
       )
       .finally(() => setPendingPrefs(null))
   }
+  function toggleComparison() {
+    if (comparison) {
+      const { comparison: _comparison, ...preferences } = ws
+      update(preferences)
+      return
+    }
+    const selected = assets.find((item) => item.id !== asset.id)?.id ?? asset.id
+    update({ ...ws, comparison: { selected, sma: ws.sma, ema: ws.ema, linked: true } })
+  }
+  function setComparison(change: Partial<ComparisonPreferences>) {
+    if (!comparison) return
+    if (change.linked !== undefined) setCrosshair(null)
+    update({ ...ws, comparison: { ...comparison, ...change } })
+  }
   async function addImport(item: SavedImport, metadata: ImportMetadata) {
     const history = createHistory(core, item, metadata)
     await commit(() => catalog.addSeries(saved.revision, history))
@@ -436,6 +475,7 @@ export function App({
   }
   async function restore(revision: number, data: CatalogData) {
     await commit(() => catalog.restore(revision, data))
+    setCrosshair(null)
     setDialog(null)
     setNotice('Workspace restored.')
   }
@@ -550,13 +590,14 @@ export function App({
                 <i />
                 {asset.source === 'sample' ? 'Daily bars' : 'Source bars'}
               </div>
-              <button
-                className="indicator-btn"
-                onClick={() => setDialog('indicators')}
-              >
-                <Icon name="sliders" />
-                Indicators <b>{Number(ws.sma) + Number(ws.ema)}</b>
-              </button>
+              <div className="chart-actions">
+                <button className="indicator-btn" onClick={() => setDialog('indicators')}>
+                  <Icon name="sliders" />
+                  Indicators <b>{Number(ws.sma) + Number(ws.ema)}</b>
+                </button>
+                <button className="outline" aria-label="Compare charts" aria-pressed={Boolean(comparison)}
+                  onClick={toggleComparison} disabled={saving}>Compare</button>
+              </div>
             </div>
             <div className="legend" aria-label="Chart legend">
               <span>
@@ -576,14 +617,49 @@ export function App({
                 </span>
               )}
             </div>
-            {/* A restore can replace a series under its existing ID. Reset the
-                chart's bar-indexed viewport and crosshair when its length changes. */}
-            <Chart
-              key={`${asset.id}:${bars.length}`}
-              asset={asset}
-              sma={sma}
-              ema={ema}
-            />
+            {comparison && other && (
+              <div className="comparison-preferences" role="group" aria-label="Comparison chart settings">
+                <label>
+                  Comparison instrument
+                  <select value={comparison.selected} disabled={saving}
+                    onChange={event => setComparison({ selected: event.target.value })}>
+                    {assets.map(item => (
+                      <option key={item.id} value={item.id}>{item.symbol} · {item.venue}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="comparison-toggles">
+                  <label>
+                    <input type="checkbox" checked={comparison.sma} disabled={saving}
+                      onChange={event => setComparison({ sma: event.target.checked })} />
+                    SMA 20
+                  </label>
+                  <label>
+                    <input type="checkbox" checked={comparison.ema} disabled={saving}
+                      onChange={event => setComparison({ ema: event.target.checked })} />
+                    EMA 9
+                  </label>
+                  <label>
+                    <input type="checkbox" checked={comparison.linked} disabled={saving}
+                      onChange={event => setComparison({ linked: event.target.checked })} />
+                    Link by UTC
+                  </label>
+                </div>
+              </div>
+            )}
+            <div className={other ? 'chart-panes is-comparison' : 'chart-panes'}>
+              <section aria-label="Primary chart pane">
+                {/* Replacing the history can invalidate bar-indexed viewport and crosshair state. */}
+                <Chart key={`${asset.id}:${bars.length}`} asset={asset} sma={sma} ema={ema}
+                  linkedTimestamp={cursor} onTimestamp={comparison?.linked ? onCrosshair : undefined} />
+              </section>
+              {comparison && other && (
+                <section aria-label="Comparison chart pane">
+                  <Chart key={`${other.id}:${other.bars.length}`} asset={other} sma={otherSma} ema={otherEma}
+                    linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined} />
+                </section>
+              )}
+            </div>
           </article>
           <aside>
             <section className="side-card watchlist">

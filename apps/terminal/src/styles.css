@@ -674,6 +674,65 @@ h1 {
   color: var(--mint);
   background: #273b32;
 }
+.chart-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.chart-panes.is-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.chart-panes.is-comparison > section {
+  min-width: 0;
+}
+.chart-panes.is-comparison > section + section {
+  border-left: 1px solid var(--line);
+}
+.chart-panes.is-comparison .chart-foot {
+  flex-wrap: wrap;
+}
+.comparison-preferences {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 16px;
+  padding: 0 20px 12px;
+  color: var(--soft);
+  font-size: 11px;
+}
+.comparison-preferences select {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #151c1f;
+  color: var(--text);
+}
+.comparison-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.comparison-toggles label {
+  display: inline-flex;
+  align-items: center;
+}
+@media (max-width: 1150px) {
+  .chart-panes.is-comparison {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .chart-panes.is-comparison > section + section {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .comparison-preferences {
+    padding-top: 12px;
+  }
+}
 .legend {
   display: flex;
   align-items: center;

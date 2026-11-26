@@ -4,7 +4,8 @@ import type { MarketCore } from './market-core'
 import type { Asset } from './workspace'
 
 const FORMAT = 'marketweft-workspace'
-const BACKUP_VERSION = 1
+const SINGLE_PANE_BACKUP_VERSION = 1
+const COMPARISON_BACKUP_VERSION = 2
 const SAMPLE_VERSION = 1
 
 // Data is JSON. Object keys use UTF-16 code-unit order; array order is significant.
@@ -95,7 +96,7 @@ export async function exportWorkspace(
     JSON.stringify(
       {
         format: FORMAT,
-        version: BACKUP_VERSION,
+        version: data.preferences.comparison ? COMPARISON_BACKUP_VERSION : SINGLE_PANE_BACKUP_VERSION,
         manifest,
         sha256: await digest(manifest),
       },
@@ -119,7 +120,7 @@ export async function verifyWorkspaceBackup(
   const file = fields(parsed, ['format', 'version', 'manifest', 'sha256'])
   if (file.format !== FORMAT)
     throw Error('Choose a MarketWeft workspace backup.')
-  if (file.version !== BACKUP_VERSION)
+  if (file.version !== SINGLE_PANE_BACKUP_VERSION && file.version !== COMPARISON_BACKUP_VERSION)
     throw Error('This workspace backup version is unsupported.')
   const manifest = fields(file.manifest, [
     'sampleSet',
@@ -160,6 +161,9 @@ export async function verifyWorkspaceBackup(
     { preferences: manifest.preferences, series },
     samples,
   )
+  if (Boolean(data.preferences.comparison) !== (file.version === COMPARISON_BACKUP_VERSION)) {
+    throw Error('The backup version does not match its chart settings.')
+  }
   if (
     data.series.reduce(
       (count: number, item: History) => count + item.barCount,
