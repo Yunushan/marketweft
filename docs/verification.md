@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.39.0 · Recorded trade execution
+
+| Check | Observed result |
+| --- | --- |
+| Dual cutoff and session | The signal-time print, late pre-signal print and session-close print leave the ledger unchanged. A trade executed at 14:05:20 fills two shares only when the effective cutoff includes it and the receipt at 14:05:30 is known. |
+| Exact fills | Five accepted prints reconcile cash from 1,000 to 957.8. The final three shares sell on a print executed at 14:10:10 and known at 14:11:10. Fractional volume, per-order fees, limits and observed-bar expiry use the paper ledger. |
+| Offline receipts | Chromium checks the full capture sequence, execution and observation times, exact CSV after rewind, and retention of the accepted result on a malformed import. Wasm accepts an 8 MiB trade file alongside the bar and calendar data. |
+| Regression suite | All 80 browser, six SDK and four launcher tests passed on Windows x64. All 92 native tests passed on Linux x64, all 35 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Recorded trade execution](recorded-trade-execution.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.38.0 · Paper corporate cash
 
 | Check | Observed result |
