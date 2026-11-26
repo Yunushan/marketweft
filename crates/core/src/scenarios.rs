@@ -70,7 +70,7 @@ pub fn run_scenarios(
     }
     let template = &known[known.len() - length..];
     let baseline = stats(evaluate(instrument, template, 0, execution)?);
-    let mut random = SplitMix64(config.seed);
+    let mut random = SplitMix64::new(config.seed);
     let mut bars = Vec::with_capacity(length);
     let mut paths = Vec::with_capacity(config.paths);
     for _ in 0..config.paths {
@@ -141,7 +141,7 @@ fn stats(report: BacktestReport) -> ScenarioStats {
     }
 }
 
-fn quantiles(paths: &[ScenarioStats], get: impl Fn(&ScenarioStats) -> i128) -> ThreeQuantiles {
+pub(crate) fn quantiles<T>(paths: &[T], get: impl Fn(&T) -> i128) -> ThreeQuantiles {
     let mut ordered: Vec<_> = paths.iter().map(get).collect();
     ordered.sort_unstable();
     let rank = |percent: usize| ordered[(percent * paths.len()).div_ceil(100) - 1];
@@ -152,10 +152,14 @@ fn quantiles(paths: &[ScenarioStats], get: impl Fn(&ScenarioStats) -> i128) -> T
     }
 }
 
-struct SplitMix64(u64);
+pub(crate) struct SplitMix64(u64);
 
 impl SplitMix64 {
-    fn uniform_index(&mut self, length: usize) -> usize {
+    pub(crate) fn new(seed: u64) -> Self {
+        Self(seed)
+    }
+
+    pub(crate) fn uniform_index(&mut self, length: usize) -> usize {
         let length = length as u64;
         let limit = u64::MAX - u64::MAX % length;
         loop {

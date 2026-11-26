@@ -87,6 +87,9 @@ Start listing risk demo under Universe replay, or open the matching
 listing-risk-membership.csv and listing-risk-prices.csv files. Compare A
 and B, then expand Rolling risk. Use an effective time of 14:06 UTC and
 compare knowledge at 14:06, 14:07 and 14:08 to inspect paired coverage.
+Expand Correlated portfolio scenarios in the same view. Choose A and B
+with 5,000 basis points each. Run the same windows, then use 14:01 UTC
+for one move with a 100-basis-point rebalance fee to reconcile net value.
 
 Select the NVDA chart and open Recorded market depth. Choose Load depth demo
 or open depth.csv. Inspect the sequence gap at 14:00:05 UTC and the recovered

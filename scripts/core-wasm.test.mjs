@@ -9,6 +9,31 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('portfolio scenarios resample whole vectors and reconcile exact fee paths', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, prices] = await Promise.all([fixture('membership'), fixture('prices')]);
+  const utc = minute => '2025-06-02T14:0' + minute + ':00Z';
+  const allocations = [{ listingId: 'A', weightBasisPoints: 5000 }, { listingId: 'B', weightBasisPoints: 5000 }];
+  const defaults = { from: utc(0), through: utc(6), known: utc(6), intervalSeconds: 60, startingValue: '100',
+    feeBasisPoints: 0, seed: 9007199254740993n, paths: 10, horizon: 12 };
+  const run = changes => core.portfolioScenarios(membership, prices, allocations, { ...defaults, ...changes });
+  const earlier = run({});
+  assert.equal(earlier.expectedVectors, 6);
+  assert.equal(earlier.eligibleVectors, 4);
+  assert.deepEqual(earlier.coverage.map(row => row.knownReturns), [6, 4]);
+  assert.ok(earlier.paths.every(path => path.endingValue === 100000000n && path.drawdownMillionths === 0n));
+  assert.equal(run({ known: utc(7) }).eligibleVectors, 6);
+  assert.deepEqual(run({ known: utc(8) }).coverage.map(row => row.knownReturns), [4, 6]);
+  assert.deepEqual(run({}), earlier);
+  const fee = run({ through: utc(1), known: utc(1), horizon: 1, feeBasisPoints: 100 });
+  assert.deepEqual(fee.endingValue, [99950000n, 99950000n, 99950000n]);
+  assert.deepEqual(fee.drawdownMillionths, [500n, 500n, 500n]);
+  assert.deepEqual(fee.fees, [50000n, 50000n, 50000n]);
+  assert.equal(fee.lossPaths, 10);
+  assert.throws(() => run({ seed: -1n }), /unsigned 64-bit seed/);
+  assert.throws(() => run({ known: utc(0) }), /No interval has observed adjacent closes/);
+});
+
 test('listing risk pairs exact adjacent intervals and preserves missing and zero-variance values', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8');
   const [membership, prices] = await Promise.all([fixture('membership'), fixture('prices')]);

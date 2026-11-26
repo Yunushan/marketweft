@@ -347,6 +347,12 @@ main {
   width: 100%;
   height: 170px;
 }
+.scenario-allocations {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.scenario-allocations > button { justify-self: start; }
 .profile-summaries {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));

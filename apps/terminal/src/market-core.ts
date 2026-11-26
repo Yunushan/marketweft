@@ -190,6 +190,40 @@ export interface ListingRiskQuery {
   volatilityPeriods: number;
 }
 
+export interface ScenarioAllocation {
+  listingId: string;
+  weightBasisPoints: number;
+}
+
+export interface JointScenarioQuery {
+  from: string;
+  through: string;
+  known: string;
+  intervalSeconds: number;
+  startingValue: string;
+  feeBasisPoints: number;
+  seed: bigint;
+  paths: number;
+  horizon: number;
+}
+
+export interface JointScenarioPath {
+  endingValue: bigint;
+  drawdownMillionths: bigint;
+  fees: bigint;
+}
+
+export interface JointScenarioReport {
+  expectedVectors: number;
+  eligibleVectors: number;
+  lossPaths: number;
+  coverage: Array<ScenarioAllocation & { knownReturns: number }>;
+  endingValue: [bigint, bigint, bigint];
+  drawdownMillionths: [bigint, bigint, bigint];
+  fees: [bigint, bigint, bigint];
+  paths: JointScenarioPath[];
+}
+
 export interface ListingRiskPoint {
   fromAt: number;
   throughAt: number;
@@ -570,6 +604,8 @@ export interface MarketCore {
   relativeSeries(membership: string, prices: string, leftId: string, rightId: string,
     baselineAt: string, effectiveAt: string, knownAt: string): RelativePoint[];
   listingRisk(membership: string, prices: string, leftId: string, rightId: string, query: ListingRiskQuery): ListingRiskPoint[];
+  portfolioScenarios(membership: string, prices: string, allocations: ScenarioAllocation[],
+    query: JointScenarioQuery): JointScenarioReport;
   sectorHeatmap(membership: string, prices: string, sectors: string, baselineAt: string,
     effectiveAt: string, knownAt: string): Heatmap;
   financialIndex(filings: string, caps: string): FinancialIssuer[];
@@ -624,6 +660,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_universe_screen(membershipBytes: number): number;
   mw_relative_series(membershipBytes: number): number;
   mw_listing_risk(membershipBytes: number, intervalSeconds: number, windowPeriods: number, volatilityPeriods: number): number;
+  mw_portfolio_scenarios(membershipBytes: number): number;
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
   mw_financial_index(filingBytes: number): number;
   mw_financial_as_of(filingBytes: number): number;
@@ -790,8 +827,12 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     textInput([...times, files.join('')].join('\n'));
   }
 
+  function validListingId(id: string) {
+    return id.length >= 1 && id.length <= 40 && !/[^a-zA-Z0-9._-]/.test(id);
+  }
+
   function putPairInput(membership: string, prices: string, leftId: string, rightId: string, times: string[]) {
-    if ([leftId, rightId].some(id => id.length < 1 || id.length > 40 || /[^a-zA-Z0-9._-]/.test(id))) {
+    if (![leftId, rightId].every(validListingId)) {
       throw new Error('Use two valid listing IDs.');
     }
     screenInput(times, leftId, '\n', rightId, '\n', membership, prices);
@@ -1194,6 +1235,43 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           leftVolatility: metric(32), rightVolatility: metric(40), correlation: metric(48),
         };
       });
+    },
+    portfolioScenarios(membership, prices, allocations, query) {
+      const { from, through, known, intervalSeconds, startingValue, feeBasisPoints, seed, paths, horizon } = query;
+      if (allocations.some(entry => !validListingId(entry.listingId) || !Number.isInteger(entry.weightBasisPoints))) {
+        throw new Error('Choose valid listing IDs and whole weights in basis points.');
+      }
+      if ([intervalSeconds, feeBasisPoints, paths, horizon].some(value => !Number.isSafeInteger(value)) ||
+          seed < 0n || seed > 0xffff_ffff_ffff_ffffn || /[\r\n]/.test(startingValue)) {
+        throw new Error('Use valid scenario settings and an unsigned 64-bit seed.');
+      }
+      const weights = allocations.map(entry => entry.listingId + '=' + entry.weightBasisPoints).join('\t');
+      screenInput([from, through, known], [intervalSeconds, startingValue, feeBasisPoints, seed, paths, horizon, weights, ''].join('\n'),
+        membership, prices);
+      const text = decoder.decode(output(api.mw_portfolio_scenarios(encoder.encode(membership).length)));
+      const [header, ...lines] = text.trimEnd().split('\n');
+      const [tag, expected, eligible, losses] = header.split('\t');
+      if (tag !== 'H') throw new Error('Invalid portfolio scenario summary from the calculation engine.');
+      const report: JointScenarioReport = { expectedVectors: Number(expected), eligibleVectors: Number(eligible),
+        lossPaths: Number(losses), coverage: [], endingValue: [0n, 0n, 0n], drawdownMillionths: [0n, 0n, 0n],
+        fees: [0n, 0n, 0n], paths: [] };
+      for (const line of lines) {
+        const [kind, a, b, c] = line.split('\t');
+        if (kind === 'A') {
+          report.coverage.push({ listingId: a, weightBasisPoints: Number(b), knownReturns: Number(c) });
+        } else if (kind === 'V') {
+          report.endingValue = [BigInt(a), BigInt(b), BigInt(c)];
+        } else if (kind === 'D') {
+          report.drawdownMillionths = [BigInt(a), BigInt(b), BigInt(c)];
+        } else if (kind === 'F') {
+          report.fees = [BigInt(a), BigInt(b), BigInt(c)];
+        } else if (kind === 'P') {
+          report.paths.push({ endingValue: BigInt(a), drawdownMillionths: BigInt(b), fees: BigInt(c) });
+        } else {
+          throw new Error('Invalid portfolio scenario record from the calculation engine.');
+        }
+      }
+      return report;
     },
     sectorHeatmap(membership, prices, sectors, baselineAt, effectiveAt, knownAt) {
       screenInput([baselineAt, effectiveAt, knownAt], membership, prices, sectors);

@@ -7,6 +7,12 @@ use std::{cmp::Ordering, collections::BTreeMap};
 #[path = "relative.rs"]
 mod relative;
 pub use relative::{RelativeLegPoint, RelativePoint};
+#[path = "portfolio_scenarios.rs"]
+mod portfolio_scenarios;
+pub use portfolio_scenarios::{
+    PortfolioScenarioConfig, PortfolioScenarioPath, PortfolioScenarioReport, ScenarioAllocation,
+    ScenarioCoverage,
+};
 #[path = "listing_risk.rs"]
 mod listing_risk;
 pub use listing_risk::{ListingRiskPoint, ListingRiskQuery};

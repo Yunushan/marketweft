@@ -21,14 +21,14 @@ pub struct RelativePoint {
     pub spread_units: Option<i128>,
 }
 
-struct MembershipCursor<'a> {
+pub(super) struct MembershipCursor<'a> {
     events: Vec<&'a UniverseChange>,
     next: usize,
     state: Option<UniverseAction>,
 }
 
 impl<'a> MembershipCursor<'a> {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             events: Vec::new(),
             next: 0,
@@ -36,7 +36,11 @@ impl<'a> MembershipCursor<'a> {
         }
     }
 
-    fn through(&mut self, time: i64) -> Option<UniverseAction> {
+    pub(super) fn add(&mut self, event: &'a UniverseChange) {
+        self.events.push(event);
+    }
+
+    pub(super) fn through(&mut self, time: i64) -> Option<UniverseAction> {
         while self.state != Some(UniverseAction::Delist)
             && self
                 .events
@@ -76,8 +80,8 @@ impl PriceBook<'_> {
         let mut right = MembershipCursor::new();
         for row in self.universe.visible_changes(through_at, known_at) {
             match row.listing_id.as_str() {
-                id if id == left_id => left.events.push(row),
-                id if id == right_id => right.events.push(row),
+                id if id == left_id => left.add(row),
+                id if id == right_id => right.add(row),
                 _ => {}
             }
         }

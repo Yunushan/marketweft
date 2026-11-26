@@ -1,0 +1,83 @@
+import { readFile } from 'node:fs/promises'
+import { expect, test } from './fixtures.mjs'
+import { catalogContents } from './catalog-fixtures.mjs'
+
+const utc = minute => '2025-06-02T14:0' + minute + ':00Z'
+
+test('joint portfolio paths preserve return pairs, cutoff coverage and exact fees offline', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  const original = await catalogContents(page)
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Historical replay' }).click()
+  await page.getByRole('button', { name: 'Open universe replay' }).click()
+  await page.getByRole('button', { name: 'Start listing risk demo' }).click()
+  const screen = page.getByRole('region', { name: 'Universe screen' })
+  await screen.getByText('Correlated portfolio scenarios', { exact: true }).click()
+  const view = screen.getByRole('region', { name: 'Correlated portfolio scenarios', exact: true })
+  const cutoffs = async (effective, known) => {
+    await page.getByLabel('Effective time (UTC)').fill(utc(effective))
+    await page.getByLabel('Known time (UTC)').fill(utc(known))
+    await page.getByRole('button', { name: 'Run as-of query' }).click()
+  }
+  const run = view.getByRole('button', { name: 'Run portfolio scenarios' })
+  const status = view.getByRole('status')
+  const table = view.getByRole('table', { name: 'Portfolio scenario percentiles' })
+  const metric = name => table.getByRole('row', { name: new RegExp('^' + name) }).getByRole('cell').nth(1)
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await view.getByRole('button', { name: 'Download scenario paths' }).click()
+    const saved = await pending
+    expect(saved.suggestedFilename()).toBe('portfolio-scenarios.csv')
+    return (await readFile(await saved.path(), 'utf8')).trimEnd().split('\r\n')
+  }
+
+  await cutoffs(6, 6)
+  await view.getByRole('combobox', { name: 'Scenario listing 1', exact: true }).selectOption('A')
+  await view.getByRole('combobox', { name: 'Scenario listing 2', exact: true }).selectOption('B')
+  await run.click()
+  await expect(status).toHaveText('4 / 6 complete return vectors · 0 / 10 paths ended below starting value')
+  await expect(metric('Ending portfolio value')).toHaveText('100')
+  const originalPaths = await download()
+  expect(originalPaths).toHaveLength(11)
+  expect(originalPaths[1]).toBe(
+    '"Synthetic listing risk membership","Synthetic listing risk closes","2025-06-02T14:00:00Z","2025-06-02T14:06:00Z","2025-06-02T14:06:00Z",60,100,0,9007199254740993,12,"A=5000|B=5000",6,4,1,100,0,0',
+  )
+
+  await cutoffs(6, 7)
+  await expect(status).toContainText('6 / 6 complete return vectors')
+  await cutoffs(6, 8)
+  await expect(status).toContainText('4 / 6 complete return vectors')
+  const coverage = view.getByRole('table', { name: 'Portfolio scenario coverage' })
+  await expect(coverage.getByRole('row', { name: /^A / }).getByRole('cell').last()).toHaveText('4 / 6')
+  await cutoffs(6, 6)
+  expect(await download()).toEqual(originalPaths)
+
+  await view.getByRole('button', { name: 'Add scenario listing' }).click()
+  await view.getByRole('combobox', { name: 'Scenario listing 3', exact: true }).selectOption('A')
+  await view.getByLabel('Listing 1 weight (basis points)').fill('4000')
+  await view.getByLabel('Listing 2 weight (basis points)').fill('4000')
+  await view.getByLabel('Listing 3 weight (basis points)').fill('2000')
+  await run.click()
+  await expect(view.getByRole('alert')).toHaveText('Choose distinct listing IDs from the supplied universe.')
+  expect(await download()).toEqual(originalPaths)
+  await view.getByRole('button', { name: 'Remove listing 3' }).click()
+  await view.getByLabel('Listing 1 weight (basis points)').fill('5000')
+  await view.getByLabel('Listing 2 weight (basis points)').fill('5000')
+  await cutoffs(1, 1)
+  await view.getByLabel('Rebalance fee (basis points)').fill('100')
+  await view.getByLabel('Moves per portfolio path').fill('1')
+  await run.click()
+  await expect(status).toHaveText('1 / 1 complete return vectors · 10 / 10 paths ended below starting value')
+  await expect(metric('Ending portfolio value')).toHaveText('99.95')
+  await expect(metric('Peak-to-trough drawdown')).toHaveText('0.05%')
+  await expect(metric('Turnover fees')).toHaveText('0.05')
+  const fees = await download()
+  expect(fees[1].endsWith(',1,99.95,0.05,0.05')).toBe(true)
+  await page.setViewportSize({ width: 360, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360)
+  await page.getByRole('button', { name: 'Return to historical replay' }).click()
+  await page.getByRole('button', { name: 'Return to workspace' }).click()
+  expect(await catalogContents(page)).toEqual(original)
+})
