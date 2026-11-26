@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.77.0 · Provider key registry
+
+| Check | Observed result |
+| --- | --- |
+| Provider scope | Chromium rejected a fixture if its provider had no key in the registry. A matching signer listed under a different provider also failed before import. |
+| Key rotation | Independently signed histories imported with the original and replacement keys while each was authorized. Two overlapping entries selected the replacement key correctly and saved its exact fingerprint. |
+| Retired key | After the registry supplied only the replacement key, the prior signature failed and the existing histories stayed intact. |
+
+[Provider key registry](provider-history-fixture.md#provider-key-registry) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.76.0 · Provider verification provenance
 
 | Check | Observed result |

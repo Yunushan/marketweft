@@ -18,23 +18,81 @@ const fixture = {
   csv: microCSV,
 }
 
+function canonical(value) {
+  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']'
+  if (value !== null && typeof value === 'object')
+    return '{' + Object.keys(value).sort().map(key =>
+      JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}'
+  return JSON.stringify(value)
+}
+
+function signedFixture(privateKey, symbol = fixture.symbol) {
+  const { csv, ...metadata } = fixture
+  const manifest = { ...metadata, symbol, version: 3, csvSha256: createHash('sha256').update(csv).digest('hex') }
+  const signature = sign('sha256', Buffer.from(canonical(manifest)),
+    { key: privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url')
+  return { manifest, signed: { ...manifest, csv, signature }, csv }
+}
+
+test('a provider key registry scopes and rotates accepted public keys', async ({ page }) => {
+  const previous = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+  const next = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+  const first = signedFixture(previous.privateKey).signed
+  const rotated = signedFixture(next.privateKey, 'ROTATED').signed
+  const providerEntry = (pair, provider = fixture.provider) => ({
+    provider, pem: pair.publicKey.export({ type: 'spki', format: 'pem' }),
+  })
+  const fingerprint = pair => createHash('sha256').update(pair.publicKey.export({ type: 'spki', format: 'der' })).digest('hex')
+  await page.clock.setFixedTime(new Date('2099-12-31T23:59:59.999Z'))
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'NVDA', exact: true })).toBeVisible()
+  const initial = await catalogContents(page)
+  const dialog = page.getByRole('dialog')
+  const mismatch = 'The provider history signature does not match the supplied key and manifest.'
+  async function open() {
+    await page.getByRole('button', { name: 'Import CSV', exact: true }).click()
+    await dialog.getByRole('combobox', { name: 'Input format', exact: true }).selectOption('provider')
+  }
+  async function select(packet, keys) {
+    await dialog.getByLabel('Provider history JSON', { exact: true }).setInputFiles({
+      name: 'signed.provider.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(packet)),
+    })
+    await dialog.getByLabel('Provider verification key or registry', { exact: true }).setInputFiles({
+      name: 'keys.json', mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ format: 'marketweft-provider-key-registry', version: 1, keys })),
+    })
+  }
+  await open()
+  await select(rotated, [providerEntry(next, 'other-provider')])
+  await dialog.getByRole('button', { name: 'Import to watchlist' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText('The provider key registry has no key for this provider.')
+  await select(rotated, [providerEntry(previous), providerEntry(next, 'other-provider')])
+  await dialog.getByRole('button', { name: 'Import to watchlist' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(mismatch)
+  expect(await catalogContents(page)).toEqual(initial)
+
+  await select(first, [providerEntry(previous)])
+  await submitImport(page, 'LICENSED')
+  expect((await catalogContents(page)).series[0].descriptor.providerVerification.keySha256).toBe(fingerprint(previous))
+  await open()
+  await select(rotated, [providerEntry(previous), providerEntry(next)])
+  await submitImport(page, 'ROTATED')
+  const accepted = await catalogContents(page)
+  expect(accepted.series.find(row => row.id === 'DEMO:ROTATED').descriptor.providerVerification.keySha256)
+    .toBe(fingerprint(next))
+  await open()
+  await select(first, [providerEntry(next)])
+  await dialog.getByRole('button', { name: 'Import to watchlist' }).click()
+  await expect(dialog.getByRole('alert')).toHaveText(mismatch)
+  expect(await catalogContents(page)).toEqual(accepted)
+})
+
 test('a supplied key verifies provider rights and preserves its fingerprint and CSV digest on restore', async ({
   page, browser, baseURL,
 }) => {
-  function canonical(value) {
-    if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']'
-    if (value !== null && typeof value === 'object')
-      return '{' + Object.keys(value).sort().map(key =>
-        JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}'
-    return JSON.stringify(value)
-  }
   const trusted = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
   const wrongKey = generateKeyPairSync('ec', { namedCurve: 'prime256v1' }).publicKey
-  const { csv, ...metadata } = fixture
-  const manifest = { ...metadata, version: 3, csvSha256: createHash('sha256').update(csv).digest('hex') }
-  const signature = sign('sha256', Buffer.from(canonical(manifest)),
-    { key: trusted.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url')
-  const signed = { ...manifest, csv, signature }
+  const { manifest, signed, csv } = signedFixture(trusted.privateKey)
 
   await page.clock.setFixedTime(new Date('2099-12-31T23:59:59.999Z'))
   await page.goto('/')
@@ -50,7 +108,7 @@ test('a supplied key verifies provider rights and preserves its fingerprint and 
     })
   }
   async function key(publicKey) {
-    await dialog.getByLabel('Provider verification key', { exact: true }).setInputFiles({
+    await dialog.getByLabel('Provider verification key or registry', { exact: true }).setInputFiles({
       name: 'provider.pem', mimeType: 'application/x-pem-file',
       buffer: Buffer.from(publicKey.export({ type: 'spki', format: 'pem' })),
     })

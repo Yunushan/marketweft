@@ -2,7 +2,7 @@ import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core
 import { validIndicatorPeriod } from './market-core'
 import type { Asset, SavedImport } from './workspace'
 import { isSha256, sha256Text } from './sha256'
-import { verifyProviderSignature } from './provider-signature'
+import { validProvider, verifyProviderSignature } from './provider-signature'
 
 export type Preferences = {
   selected: string
@@ -207,11 +207,6 @@ function sourceRights(value: unknown): SourceRights {
   return result
 }
 
-function validProvider(value: unknown): value is string {
-  return typeof value === 'string' && value.length <= 64 &&
-    /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(value)
-}
-
 export async function parseProviderHistoryFixture(text: string, filename: string, verificationKey?: string): Promise<{
   item: SavedImport; metadata: SeriesMetadata
 }> {
@@ -257,7 +252,7 @@ export async function parseProviderHistoryFixture(text: string, filename: string
       throw Error('The provider CSV SHA-256 does not match the fixture.')
     if (verificationKey !== undefined) {
       const manifest = Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'csv' && key !== 'signature'))
-      const keySha256 = await verifyProviderSignature(verificationKey, payload.signature, manifest)
+      const keySha256 = await verifyProviderSignature(verificationKey, provider, payload.signature, manifest)
       providerVerification = { keySha256, csvSha256 }
     }
   }

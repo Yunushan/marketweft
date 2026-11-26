@@ -37,7 +37,7 @@ import type {
 import { WorkspaceBackup } from './WorkspaceBackup'
 import { HistoricalReplay } from './HistoricalReplay'
 import { checkImportRows, type ImportPolicy } from './import-policy'
-import { MAX_PROVIDER_KEY_BYTES } from './provider-signature'
+import { MAX_PROVIDER_VERIFICATION_BYTES } from './provider-signature'
 
 declare const __MARKETWEFT_IMPORT_POLICY__: ImportPolicy
 const importPolicy = __MARKETWEFT_IMPORT_POLICY__
@@ -160,8 +160,8 @@ function ImportForm({
     try {
       const text = await file.text()
       if (providerFixture) {
-        if (verificationKey && verificationKey.size > MAX_PROVIDER_KEY_BYTES)
-          throw Error('The provider verification key exceeds 4 KiB.')
+        if (verificationKey && verificationKey.size > MAX_PROVIDER_VERIFICATION_BYTES)
+          throw Error('The provider verification file exceeds 64 KiB.')
         const publicKey = await verificationKey?.text()
         const { item, metadata } = await parseProviderHistoryFixture(text, file.name, publicKey)
         checkImportRows(item.csv, importPolicy)
@@ -238,8 +238,8 @@ function ImportForm({
       </label>
       {providerFixture && <label className="file-field">
         <Icon name="file" size={22} />
-        <strong>Provider verification key</strong>
-        <input type="file" accept=".pem,application/x-pem-file"
+        <strong>Provider verification key or registry</strong>
+        <input type="file" accept=".pem,.json,application/x-pem-file,application/json"
           onChange={(event) => setVerificationKey(event.target.files?.[0] ?? null)} />
       </label>}
       {!providerFixture && <><details className="series-details">

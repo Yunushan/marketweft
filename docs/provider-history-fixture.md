@@ -39,7 +39,7 @@ The importer compares the digest before preparing the catalog update. A changed 
 
 ## Verify a signed provider fixture
 
-Use packet version 3 when you have a provider public key from a trusted source. In the import form, select the packet and its separate **Provider verification key** file. The key uses PEM SubjectPublicKeyInfo encoding for an ECDSA P-256 public key.
+Use packet version 3 when you have a provider public key from a trusted source. In the import form, select the packet and its separate **Provider verification key or registry** file. A single key uses PEM SubjectPublicKeyInfo encoding for an ECDSA P-256 public key.
 
 The signed message is the UTF-8 encoding of the packet's JSON fields except `csv` and `signature`. Sort object keys recursively in UTF-16 code-unit order and preserve array order. Serialize with JSON string escaping and without insignificant whitespace. The signed `csvSha256` field binds the message to the decoded CSV bytes. Use ECDSA with P-256 and SHA-256 and encode the concatenated 32-byte `r` and 32-byte `s` values as unpadded base64url in `signature`. [Web Cryptography ECDSA specification](https://www.w3.org/TR/webcrypto/#ecdsa).
 
@@ -50,3 +50,9 @@ Selecting a public key requires a signed version 3 packet. The importer checks t
 The catalog shows the SHA-256 fingerprint of the verified public key's DER SubjectPublicKeyInfo and the digest of the verified CSV. Both digests travel with the source rights in series descriptor version 3 and workspace backup version 8.
 
 Restore checks the archived CSV against its recorded provider digest before preparing the workspace replacement. The key fingerprint records which public key verified the fixture at import.
+
+## Provider key registry
+
+The verification input also accepts an operator-supplied JSON registry with `format` set to `marketweft-provider-key-registry`, `version` set to `1`, and a `keys` array. Each entry contains the `provider` identifier and its P-256 public key in `pem`. Choose a registry from a trusted source. It can contain up to 32 keys, with up to four keys per provider.
+
+During a key rotation, include the existing and replacement public keys under the same provider identifier. Remove the retired key from the registry when its acceptance period ends. The importer checks only keys listed under the fixture's signed provider identifier and records the fingerprint of the key that verified the packet.
