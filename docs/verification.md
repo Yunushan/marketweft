@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.28.0 · Session-aware timeframes
+
+| Check | Observed result |
+| --- | --- |
+| Session opens and DST | With a one-hour source interval and two-hour target, the October 31 bucket opens at 13:30 UTC and the November 3 bucket opens at 14:30 UTC. The first rolls open 5, high 8, low 1, close 7 and volume 0.000003. The second reports one observed source bar out of two. |
+| Early close | On November 28 the final bucket runs from 16:30 to 18:00 UTC. It reports one observed bar out of two expected slots, including the final half-hour slot, and identifies the early session. |
+| Offline workflow | The research CSV includes bucket close, session open, session kind, source counts and the selected calendar filename. A malformed calendar preserves the preceding chart. Returning to source restores all four bars, and export preserves the original backup manifest. |
+| Regression suite | All 67 browser and six SDK tests passed on Windows x64, 66 native tests passed on Linux x64, 24 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Chart workspace](chart-workspace.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.27.0 · Fixed-duration UTC timeframes
 
 | Check | Observed result |

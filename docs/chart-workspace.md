@@ -18,11 +18,13 @@ The x-axis places consecutive observed bars at regular bar spacing. An unobserve
 
 ## Fixed-duration timeframes
 
-Open **Timeframe** in either pane. Enter the source and target intervals in whole seconds. Source timestamps are bar opens aligned to the source interval from the Unix epoch. The target must be a larger whole multiple of the source. The tool uses half-open UTC buckets, so a source bar on a boundary belongs to the bucket opening at that timestamp.
+Open **Timeframe** in either pane. Enter the source and target intervals in whole seconds. The target must be a larger whole multiple of the source. UTC mode aligns source opens and target buckets to the Unix epoch. A source bar on a boundary belongs to the bucket opening at that timestamp.
 
-Each bucket uses the first observed open, highest observed high, lowest observed low, last observed close and exact volume sum. Empty buckets are omitted. A partial bucket shows the observed and expected source counts in the selected-bar readout. The expected count reflects the fixed duration. Exchange sessions, holidays and calendar-month schedules require a separate calendar. This research view uses saved source history. Historical replay retains its session and observation clock.
+Each bucket uses the first observed open, highest observed high, lowest observed low, last observed close and exact volume sum. Empty buckets are omitted. A partial bucket shows the observed and expected source counts.
 
-The pane's indicators and CSV export follow the current view. Research CSV includes both interval lengths and source coverage per row. A plain OHLCV export of the aggregated view contains derived bars. **Show source bars** restores the original chart, and workspace backup contains the original imported histories. The applied timeframe lasts for the current view.
+To align buckets to trading sessions, add a **Session calendar CSV** in the Timeframe panel. Use the [historical replay calendar format](historical-replay.md). The calendar supplies dated opens, closes and UTC offsets. Each session restarts the source and target grids at its open. The last bucket stops at the listed close, including early closes, and its expected count includes a shortened final source slot. The source CSV must fall on the calendar's source grid. The selected-bar readout shows the bucket's UTC close and marks early-close sessions.
+
+The pane's indicators and CSV export follow the current view. Research CSV includes both interval lengths and source coverage per row. In session mode it also includes bucket close, session open, session kind and calendar filename. A plain OHLCV export of the aggregated view contains derived bars. **Show source bars** restores the original chart. The applied timeframe and calendar are scoped to the current view, and workspace backup contains the original imported histories. Historical replay uses its own observation clock.
 
 ## Measured drawings
 
