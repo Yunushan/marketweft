@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.91.0 · American implied volatility
+
+| Check | Observed result |
+| --- | --- |
+| Independent solve | The 60-digit reference solver gave volatility of 0.249590854657967033 and 0.238200742105657681 at the two observed spots. Rust and Wasm matched both. |
+| Replay and quote eligibility | Offline Chromium displayed 24.96% at 14:02 UTC and 23.82% after 14:03 UTC against the same USD 16.234568 midpoint. Rewind restored the earlier result. Native tests rejected stale underlying and option quotes, missing sides and crossed spreads. |
+| Lattice and price boundaries | Inversion recovered synthetic call and put inputs, including a one-step grid with a positive feasibility floor. A flat immediate-exercise premium returned unresolved volatility, and an out-of-bound premium returned a separate status. |
+
+[American implied volatility](option-chain.md#american-implied-volatility) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.90.0 · American exercise pricing
 
 | Check | Observed result |

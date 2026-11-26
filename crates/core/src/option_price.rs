@@ -39,6 +39,12 @@ pub struct OptionAnalytics {
     pub rho: f64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AmericanImplied {
+    pub volatility: f64,
+    pub price: f64,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct OptionTerms {
     pub spot: f64,
@@ -108,6 +114,54 @@ impl OptionTerms {
             }
         }
         Ok(lattice[0])
+    }
+
+    /// Invert the selected American lattice against a positive-time option price.
+    pub fn american_implied(
+        self,
+        midpoint: f64,
+        steps: u16,
+    ) -> Result<AmericanImplied, ModelError> {
+        let lower = self.american_price(0.0, steps)?;
+        let upper = match self.side {
+            OptionSide::Call => self.spot,
+            OptionSide::Put => self.strike * (-self.rate * self.years).max(0.0).exp(),
+        };
+        let tolerance =
+            (64.0 * f64::EPSILON * self.spot.max(self.strike)).max(midpoint.abs() * 1e-12);
+        if !midpoint.is_finite() || midpoint < lower - tolerance || midpoint > upper + tolerance {
+            return Err(ModelError::PriceOutsideBounds);
+        }
+        let mut high = MAX_VOLATILITY;
+        let high_price = self.american_price(high, steps)?;
+        if midpoint <= lower + tolerance
+            || midpoint >= upper - tolerance
+            || midpoint > high_price + tolerance
+        {
+            return Err(ModelError::VolatilityUnresolved);
+        }
+        // At the feasibility floor the risk-neutral move is deterministic.
+        let mut low =
+            (self.rate - self.dividend_yield).abs() * (self.years / f64::from(steps)).sqrt();
+        for _ in 0..52 {
+            let trial = (low + high) / 2.0;
+            let price = self
+                .american_price(trial, steps)
+                .map_err(|_| ModelError::VolatilityUnresolved)?;
+            if price < midpoint {
+                low = trial;
+            } else {
+                high = trial;
+            }
+        }
+        let volatility = (low + high) / 2.0;
+        let price = self
+            .american_price(volatility, steps)
+            .map_err(|_| ModelError::VolatilityUnresolved)?;
+        if (price - midpoint).abs() > tolerance {
+            return Err(ModelError::VolatilityUnresolved);
+        }
+        Ok(AmericanImplied { volatility, price })
     }
 
     pub fn analytics(self, volatility: f64) -> Result<OptionAnalytics, ModelError> {

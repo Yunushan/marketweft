@@ -2110,14 +2110,7 @@ pub extern "C" fn mw_american_option_price(
     steps: u32,
 ) -> u32 {
     process(|input| {
-        let mut parts = utf8(input)?.splitn(4, '\n');
-        let contract = parts.next().ok_or("Select an American contract.")?;
-        let effective = option_cutoff(parts.next())?;
-        let known = option_cutoff(parts.next())?;
-        let book = option_book(
-            parts.next().ok_or("Supply option chain reports.")?,
-            underlying_bytes,
-        )?;
+        let (book, contract, effective, known) = american_option_input(input, underlying_bytes)?;
         let steps = u16::try_from(steps).unwrap_or(0);
         let result = book.price_american(contract, effective, known, max_age, volatility, steps);
         Ok(match result {
@@ -2126,6 +2119,39 @@ pub extern "C" fn mw_american_option_price(
         }
         .into_bytes())
     })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_american_option_implied(
+    underlying_bytes: usize,
+    max_age: u32,
+    steps: u32,
+) -> u32 {
+    process(|input| {
+        let (book, contract, effective, known) = american_option_input(input, underlying_bytes)?;
+        let steps = u16::try_from(steps).unwrap_or(0);
+        let result = book.implied_american(contract, effective, known, max_age, steps);
+        Ok(match result {
+            Ok(model) => format!("value\t{}\t{}", model.volatility, model.price),
+            Err(status) => option_status(status).to_owned(),
+        }
+        .into_bytes())
+    })
+}
+
+fn american_option_input(
+    input: &[u8],
+    underlying_bytes: usize,
+) -> Result<(OptionBook, &str, i64, i64), String> {
+    let mut parts = utf8(input)?.splitn(4, '\n');
+    let contract = parts.next().ok_or("Select an American contract.")?;
+    let effective = option_cutoff(parts.next())?;
+    let known = option_cutoff(parts.next())?;
+    let book = option_book(
+        parts.next().ok_or("Supply option chain reports.")?,
+        underlying_bytes,
+    )?;
+    Ok((book, contract, effective, known))
 }
 
 fn option_cutoff(raw: Option<&str>) -> Result<i64, &'static str> {

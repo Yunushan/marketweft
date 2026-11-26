@@ -666,6 +666,16 @@ test('American option Wasm pricing uses the observed contract and underlying at 
   assert.ok(Math.abs(before - 16.24775629746149) < 1e-10);
   assert.ok(value('14:03:00') > before);
   assert.equal(value('14:02:00'), before);
+  const implied = (known, age = 300) =>
+    core.americanOptionImplied(underlying, quotes, 'APR-AM-C90', iso('14:00:00'), iso(known), age, 128);
+  assert.equal(implied('14:01:59'), 'missing-contract');
+  assert.equal(implied('14:02:00', 0), 'stale-underlying');
+  const first = implied('14:02:00');
+  const revised = implied('14:03:00');
+  assert.ok(Math.abs(first.volatility - 0.249590854657967) < 1e-10);
+  assert.ok(Math.abs(revised.volatility - 0.238200742105658) < 1e-10);
+  assert.ok(Math.abs(first.price - 16.234568) < 1e-10);
+  assert.deepEqual(implied('14:02:00'), first);
 });
 
 test('macro calendar Wasm preserves public and observed times and revision lineage', async () => {

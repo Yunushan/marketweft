@@ -44,3 +44,9 @@ Use the original header for a European-only file. Insert `exercise_style` immedi
 The recombining Cox–Ross–Rubinstein lattice steps backward from expiry and compares immediate exercise with discounted continuation at each node. Zero volatility evaluates the exercise dates along a deterministic forward path. A positive-volatility grid with a risk-neutral probability outside the valid range reports a model-range status. [Cox, Ross and Rubinstein's original lattice paper](https://www.sciencedirect.com/science/article/pii/0304405X79900151).
 
 The demo's American call becomes visible at 14:02 UTC. With 25% annual volatility and 128 steps, its model price is USD 16.247756. The underlying revision at 14:03 UTC changes it to USD 16.614676. Choose **Late option quote** to restore the earlier underlying and price the same contract again. The adjacent European contracts retain their quote-derived IV and Greeks. [Mixed option sample](../crates/core/tests/fixtures/synthetic-option-exercise-quotes.csv).
+
+## American implied volatility
+
+Choose **Solve midpoint IV** for a selected American contract and lattice size. The solve uses the observed two-sided midpoint, the underlying snapshot and both applied UTC cutoffs. The manual volatility field is used for **Price American option**. Expired, stale, missing or crossed inputs produce a status. A midpoint at the flat immediate-exercise boundary leaves volatility unresolved.
+
+At 128 steps, the demo call's midpoint is USD 16.234568. The implied volatility is 24.96% at 14:02 UTC and 23.82% after the 14:03 UTC underlying update. The model reproduces the same midpoint at both volatilities.

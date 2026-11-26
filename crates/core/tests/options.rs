@@ -4,6 +4,114 @@ use marketweft_core::{
 };
 
 #[test]
+fn american_implied_recovers_lattice_prices_above_the_feasible_floor() {
+    let call = OptionTerms {
+        spot: 100.0,
+        strike: 90.0,
+        years: 1.0,
+        rate: 0.03,
+        dividend_yield: 0.01,
+        side: OptionSide::Call,
+    };
+    for (terms, volatility, steps) in [
+        (call, 0.25, 128),
+        (
+            OptionTerms {
+                strike: 110.0,
+                rate: -0.015,
+                side: OptionSide::Put,
+                ..call
+            },
+            0.3,
+            128,
+        ),
+        (
+            OptionTerms {
+                rate: 0.5,
+                dividend_yield: 0.0,
+                ..call
+            },
+            0.75,
+            1,
+        ),
+    ] {
+        let price = terms.american_price(volatility, steps).unwrap();
+        let implied = terms.american_implied(price, steps).unwrap();
+        assert!((implied.volatility - volatility).abs() < 1e-10);
+        assert!((implied.price - price).abs() < 1e-10);
+    }
+    let exercise = OptionTerms {
+        spot: 20.0,
+        strike: 40.0,
+        rate: 0.05,
+        dividend_yield: 0.0,
+        side: OptionSide::Put,
+        ..call
+    };
+    assert_eq!(
+        exercise.american_implied(20.0, 128),
+        Err(ModelError::VolatilityUnresolved)
+    );
+    assert_eq!(
+        exercise.american_implied(19.999, 128),
+        Err(ModelError::PriceOutsideBounds)
+    );
+    assert_eq!(
+        call.american_implied(101.0, 128),
+        Err(ModelError::PriceOutsideBounds)
+    );
+    assert_eq!(
+        call.american_implied(f64::NAN, 128),
+        Err(ModelError::PriceOutsideBounds)
+    );
+}
+
+#[test]
+fn american_implied_requires_an_observed_fresh_two_sided_quote() {
+    let quotes = include_str!("fixtures/synthetic-option-exercise-quotes.csv");
+    let underlying = include_str!("fixtures/synthetic-option-underlying.csv");
+    let book = OptionBook::parse(underlying, quotes).unwrap();
+    let at = marketweft_core::parse_exact_utc("2025-04-03T14:00:00Z").unwrap();
+    let solve = |book: &OptionBook, known, age| {
+        book.implied_american("APR-AM-C90", at, at + known, age, 128)
+    };
+    assert_eq!(solve(&book, 119, 300), Err(QuoteStatus::MissingContract));
+    assert_eq!(solve(&book, 120, 0), Err(QuoteStatus::StaleUnderlying));
+    assert_eq!(
+        book.implied_american("APR-AM-C90", at + 60, at + 180, 59, 128),
+        Err(QuoteStatus::StaleQuote)
+    );
+    let first = solve(&book, 120, 300).unwrap();
+    let revised = solve(&book, 180, 300).unwrap();
+    assert!((first.volatility - 0.249_590_854_657_967).abs() < 1e-10);
+    assert!((revised.volatility - 0.238_200_742_105_658).abs() < 1e-10);
+    assert!((first.price - 16.234_568).abs() < 1e-10);
+    assert!((revised.price - 16.234_568).abs() < 1e-10);
+    assert_eq!(solve(&book, 120, 300), Ok(first));
+    for (values, reason) in [
+        (",,16.254568", QuoteStatus::MissingBidAsk),
+        (",16.254568,16.214568", QuoteStatus::CrossedQuote),
+        (",0,0", QuoteStatus::Model(ModelError::PriceOutsideBounds)),
+    ] {
+        let changed = quotes
+            .lines()
+            .map(|row| {
+                if row.starts_with("APR-AM-C90,") {
+                    row.replace(",16.214568,16.254568", values)
+                } else {
+                    row.to_owned()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert_eq!(
+            solve(&OptionBook::parse(underlying, &changed).unwrap(), 120, 300),
+            Err(reason)
+        );
+    }
+}
+
+#[test]
 fn american_contracts_keep_their_style_and_both_observation_cutoffs() {
     let quotes = include_str!("fixtures/synthetic-option-quotes.csv");
     let underlying = include_str!("fixtures/synthetic-option-underlying.csv");

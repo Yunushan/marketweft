@@ -421,6 +421,11 @@ const unavailableOptions = [
 
 export type OptionUnavailable = typeof unavailableOptions[number];
 
+export interface AmericanImplied {
+  volatility: number;
+  price: number;
+}
+
 export interface OptionReport {
   id: string;
   expiration: number;
@@ -815,6 +820,8 @@ export interface MarketCore {
   optionSnapshot(underlying: string, quotes: string, effective: string, known: string, maxAge: number): OptionSnapshot;
   americanOptionPrice(underlying: string, quotes: string, contract: string, effective: string, known: string,
     maxAge: number, volatility: number, steps: number): number | OptionUnavailable;
+  americanOptionImplied(underlying: string, quotes: string, contract: string, effective: string, known: string,
+    maxAge: number, steps: number): AmericanImplied | OptionUnavailable;
   alertIndex(rules: string, observations: string): number;
   alertReplay(rules: string, observations: string, effective: string, known: string): AlertCrossing[];
   paperIndex(csv: string): number[];
@@ -884,6 +891,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_option_index(underlyingBytes: number): number;
   mw_option_snapshot(underlyingBytes: number, maxAge: number): number;
   mw_american_option_price(underlyingBytes: number, maxAge: number, volatility: number, steps: number): number;
+  mw_american_option_implied(underlyingBytes: number, maxAge: number, steps: number): number;
   mw_alert_index(ruleBytes: number): number;
   mw_alert_replay(ruleBytes: number): number;
   mw_paper_index(): number;
@@ -1075,6 +1083,24 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     const view = new DataView(api.memory.buffer, api.mw_output(), api.mw_output_len());
     if (status !== 0) throw new Error(decoder.decode(view));
     return view;
+  }
+
+  function checkOptionCutoffs(effective: string, known: string, maxAge: number) {
+    if ([effective, known].some(value => value.length !== 20 || /[\n\r]/.test(value)))
+      throw new Error('Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
+    if (!Number.isInteger(maxAge) || maxAge < 0 || maxAge > 0xffffffff)
+      throw new Error('Maximum quote age must be a whole number from 0 to 4,294,967,295 seconds.');
+  }
+
+  function americanOptionInput(underlying: string, quotes: string, contract: string,
+    effective: string, known: string, maxAge: number, steps: number): number {
+    if (!/^[A-Za-z0-9._-]{1,40}$/.test(contract))
+      throw new Error('Select a valid American contract ID.');
+    checkOptionCutoffs(effective, known, maxAge);
+    if (!Number.isInteger(steps) || steps < 1 || steps > 256)
+      throw new Error('Use 1 to 256 whole pricing steps.');
+    textInput([contract, effective, known, underlying + quotes].join('\n'));
+    return encoder.encode(underlying).length;
   }
 
   function financialQuery(filings: string, caps: string, issuer: string, at: string, known: string,
@@ -1867,12 +1893,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return { instrument, currency, firstObservedAt: Number(firstObservedAt) };
     },
     optionSnapshot(underlying, quotes, effective, known, maxAge) {
-      if ([effective, known].some(value => value.length !== 20 || /[\n\r]/.test(value))) {
-        throw new Error('Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
-      }
-      if (!Number.isInteger(maxAge) || maxAge < 0 || maxAge > 0xffffffff) {
-        throw new Error('Maximum quote age must be a whole number from 0 to 4,294,967,295 seconds.');
-      }
+      checkOptionCutoffs(effective, known, maxAge);
       textInput([effective, known, underlying + quotes].join('\n'));
       const text = decoder.decode(output(api.mw_option_snapshot(encoder.encode(underlying).length, maxAge)));
       const snapshot: OptionSnapshot = { underlying: null, options: [] };
@@ -1909,24 +1930,25 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return snapshot;
     },
     americanOptionPrice(underlying, quotes, contract, effective, known, maxAge, volatility, steps) {
-      if (!/^[A-Za-z0-9._-]{1,40}$/.test(contract))
-        throw new Error('Select a valid American contract ID.');
-      if ([effective, known].some(value => value.length !== 20 || /[\n\r]/.test(value)))
-        throw new Error('Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
-      if (!Number.isInteger(maxAge) || maxAge < 0 || maxAge > 0xffffffff)
-        throw new Error('Maximum quote age must be a whole number from 0 to 4,294,967,295 seconds.');
-      if (!Number.isFinite(volatility) || volatility < 0 || volatility > 10 ||
-          !Number.isInteger(steps) || steps < 1 || steps > 256)
-        throw new Error('Use annual volatility from 0 to 10 and 1 to 256 whole pricing steps.');
-      textInput([contract, effective, known, underlying + quotes].join('\n'));
-      const text = decoder.decode(output(api.mw_american_option_price(
-        encoder.encode(underlying).length, maxAge, volatility, steps,
-      )));
+      if (!Number.isFinite(volatility) || volatility < 0 || volatility > 10)
+        throw new Error('Use annual volatility from 0 to 10.');
+      const bytes = americanOptionInput(underlying, quotes, contract, effective, known, maxAge, steps);
+      const text = decoder.decode(output(api.mw_american_option_price(bytes, maxAge, volatility, steps)));
       const [status, value] = text.split('\t');
       if (status === 'value' && value && Number.isFinite(Number(value))) return Number(value);
       const issue = unavailableOptions.find(candidate => candidate === status);
       if (issue) return issue;
       throw new Error('Invalid American option price from the calculation engine.');
+    },
+    americanOptionImplied(underlying, quotes, contract, effective, known, maxAge, steps) {
+      const bytes = americanOptionInput(underlying, quotes, contract, effective, known, maxAge, steps);
+      const text = decoder.decode(output(api.mw_american_option_implied(bytes, maxAge, steps)));
+      const [status, volatility, price] = text.split('\t');
+      if (status === 'value' && volatility && price && Number.isFinite(Number(volatility)) && Number.isFinite(Number(price)))
+        return { volatility: Number(volatility), price: Number(price) };
+      const issue = unavailableOptions.find(candidate => candidate === status);
+      if (issue) return issue;
+      throw new Error('Invalid American implied volatility from the calculation engine.');
     },
     alertIndex(rules, observations) {
       textInput(rules + observations);

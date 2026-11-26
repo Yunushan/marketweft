@@ -81,7 +81,8 @@ pub use option_chain::{
     QuoteStatus, Underlying, UnderlyingQuote,
 };
 pub use option_price::{
-    EuropeanOption, ModelError, OptionAnalytics, OptionSide, OptionTerms, MAX_AMERICAN_STEPS,
+    AmericanImplied, EuropeanOption, ModelError, OptionAnalytics, OptionSide, OptionTerms,
+    MAX_AMERICAN_STEPS,
 };
 pub use paper::{
     Action as PaperAction, Apply as PaperApply, LedgerError as PaperError, Order as PaperOrder,

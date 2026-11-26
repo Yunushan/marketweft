@@ -17,7 +17,7 @@ const statusText: Record<OptionUnavailable, string> = {
   'model-range': 'Input outside model range',
   'price-bounds': 'Midpoint outside model bounds',
   'unresolved-vol': 'Implied volatility unresolved',
-  'american-volatility-required': 'American model needs a volatility input',
+  'american-volatility-required': 'American pricing available below',
   'missing-contract': 'No contract observation at these cutoffs',
   'european-contract': 'Select an American contract',
 }
@@ -37,18 +37,20 @@ function AmericanPricing({ core, dataset, query, contracts }: {
   const [contract, setContract] = useState(contracts[0].id)
   const [annualVolatility, setAnnualVolatility] = useState('25')
   const [steps, setSteps] = useState('128')
-  const [estimate, setEstimate] = useState<{ contract: string; value: number } | null>(null)
+  const [estimate, setEstimate] = useState<{ contract: string; price: number; iv?: number } | null>(null)
   const [error, setError] = useState('')
 
-  function submit(event: FormEvent) {
-    event.preventDefault()
+  function calculate(mode: 'price' | 'implied') {
     setEstimate(null)
     setError('')
     try {
-      const value = core.americanOptionPrice(dataset.underlying, dataset.quotes, contract,
-        query.effective, query.known, Number(query.age), Number(annualVolatility) / 100, Number(steps))
-      if (typeof value === 'number') setEstimate({ contract, value })
-      else setError(statusText[value])
+      const inputs = [dataset.underlying, dataset.quotes, contract, query.effective, query.known, Number(query.age)] as const
+      const value = mode === 'price'
+        ? core.americanOptionPrice(...inputs, Number(annualVolatility) / 100, Number(steps))
+        : core.americanOptionImplied(...inputs, Number(steps))
+      if (typeof value === 'string') setError(statusText[value])
+      else if (typeof value === 'number') setEstimate({ contract, price: value })
+      else setEstimate({ contract, price: value.price, iv: value.volatility })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not price the American option.')
     }
@@ -56,7 +58,10 @@ function AmericanPricing({ core, dataset, query, contracts }: {
 
   return <section className="side-card replay-panel" aria-labelledby="american-pricing-title">
     <h2 id="american-pricing-title">American exercise pricing</h2>
-    <form className="universe-query" onSubmit={submit}>
+    <form className="universe-query" onSubmit={event => {
+      event.preventDefault()
+      calculate('price')
+    }}>
       <label>American contract
         <select value={contract} onChange={event => {
           setContract(event.target.value)
@@ -75,8 +80,11 @@ function AmericanPricing({ core, dataset, query, contracts }: {
           onChange={event => { setSteps(event.target.value); setEstimate(null); setError('') }} />
       </label>
       <button className="primary">Price American option</button>
+      <button type="button" className="outline" onClick={() => calculate('implied')}>Solve midpoint IV</button>
     </form>
-    {estimate && <p role="status">{estimate.contract} model price {metric(estimate.value)} {dataset.currency}</p>}
+    {estimate && <p role="status">{estimate.contract}{estimate.iv !== undefined && (
+      <> implied volatility {volatility(estimate.iv)} ·</>
+    )} model price {metric(estimate.price)} {dataset.currency}</p>}
     {error && <p className="warning" role="alert">{error}</p>}
   </section>
 }

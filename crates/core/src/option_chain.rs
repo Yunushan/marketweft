@@ -1,7 +1,7 @@
 use crate::{
     history::{decimal, exact_utc},
     universe::valid_id,
-    Instrument, ModelError, OptionAnalytics, OptionSide, OptionTerms, SCALE,
+    AmericanImplied, Instrument, ModelError, OptionAnalytics, OptionSide, OptionTerms, SCALE,
 };
 use std::collections::BTreeMap;
 use std::fmt;
@@ -290,6 +290,37 @@ impl OptionBook {
         volatility: f64,
         steps: u16,
     ) -> Result<f64, QuoteStatus> {
+        let (contract, _) = self.american_contract(contract_id, at, known_at, max_age)?;
+        let market = fresh_market(self.underlying_as_of(at, known_at), at, max_age)?;
+        priced_terms(contract, market, at)
+            .american_price(volatility, steps)
+            .map_err(QuoteStatus::Model)
+    }
+
+    /// Solve the implied American volatility from the observed two-sided midpoint.
+    pub fn implied_american(
+        &self,
+        contract_id: &str,
+        at: i64,
+        known_at: i64,
+        max_age: u32,
+        steps: u16,
+    ) -> Result<AmericanImplied, QuoteStatus> {
+        let (contract, quote) = self.american_contract(contract_id, at, known_at, max_age)?;
+        let midpoint = quote_midpoint(quote)?;
+        let market = fresh_market(self.underlying_as_of(at, known_at), at, max_age)?;
+        priced_terms(contract, market, at)
+            .american_implied(midpoint, steps)
+            .map_err(QuoteStatus::Model)
+    }
+
+    fn american_contract(
+        &self,
+        contract_id: &str,
+        at: i64,
+        known_at: i64,
+        max_age: u32,
+    ) -> Result<(&Contract, &OptionQuote), QuoteStatus> {
         let listing = self
             .contracts
             .get(contract_id)
@@ -299,10 +330,7 @@ impl OptionBook {
             return Err(QuoteStatus::EuropeanContract);
         }
         validate_quote_time(&listing.contract, quote, at, max_age)?;
-        let market = fresh_market(self.underlying_as_of(at, known_at), at, max_age)?;
-        priced_terms(&listing.contract, market, at)
-            .american_price(volatility, steps)
-            .map_err(QuoteStatus::Model)
+        Ok((&listing.contract, quote))
     }
 
     fn underlying_as_of(&self, at: i64, known_at: i64) -> Option<&UnderlyingQuote> {
@@ -330,18 +358,22 @@ fn analyze(
     max_age: u32,
 ) -> Result<OptionAnalytics, QuoteStatus> {
     validate_quote_time(contract, quote, at, max_age)?;
-    let (bid, ask) = quote.bid.zip(quote.ask).ok_or(QuoteStatus::MissingBidAsk)?;
-    if bid > ask {
-        return Err(QuoteStatus::CrossedQuote);
-    }
+    let midpoint = quote_midpoint(quote)?;
     let market = fresh_market(underlying, at, max_age)?;
     if contract.exercise_style == ExerciseStyle::American {
         return Err(QuoteStatus::AmericanVolatilityRequired);
     }
-    let midpoint = (bid + ask) as f64 / (2.0 * SCALE as f64);
     priced_terms(contract, market, at)
         .implied(midpoint)
         .map_err(QuoteStatus::Model)
+}
+
+fn quote_midpoint(quote: &OptionQuote) -> Result<f64, QuoteStatus> {
+    let (bid, ask) = quote.bid.zip(quote.ask).ok_or(QuoteStatus::MissingBidAsk)?;
+    if bid > ask {
+        return Err(QuoteStatus::CrossedQuote);
+    }
+    Ok((bid + ask) as f64 / (2.0 * SCALE as f64))
 }
 
 fn validate_quote_time(
