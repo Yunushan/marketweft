@@ -15,6 +15,8 @@ The fixture uses April 3, 2025 UTC and one synthetic USD underlying.
 
 The fixture also includes a one-sided quote, a stale quote and a midpoint above the European price bound. Each remains visible with a reason in its analytics cells.
 
+The native research executable and Python SDK replay the same option snapshot from local CSVs. [Native option snapshots](../packages/python-research/README.md#option-chain-snapshots).
+
 ## Input
 
 Upload **Underlying CSV** and **Option quotes CSV** with one matching canonical instrument and three-letter uppercase currency. Each UTF-8 file accepts up to 20,000 rows and 2 MiB. Supply positive spot and strike, nonnegative bid and ask, and rates as annual fractions. A blank bid or ask remains missing. Times are exact UTC seconds. An observation must be at or after its quote time. Contract IDs keep their strike, expiry, side and exercise style. An observation of the same quote time with a new observation timestamp can revise it. Duplicate quote and observation times within a series fail validation. [Underlying sample](../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [European option sample](../crates/core/tests/fixtures/synthetic-option-quotes.csv).

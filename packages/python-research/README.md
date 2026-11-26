@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.5.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.6.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -55,6 +55,29 @@ Amounts and valuation multiples are integer millionths. Timestamps are whole UTC
 
 MCP clients can call the same calculation through the local `financial_snapshot_as_of` tool. [MCP financial snapshots](../../docs/local-mcp-research.md#financial-snapshots).
 
+## Option chain snapshots
+
+Call `option_snapshot` with the underlying and options CSV strings and independent effective and known UTC timestamps. The engine selects the observation visible at both cutoffs and applies the maximum quote age to the underlying and option inputs.
+
+```python
+from pathlib import Path
+from marketweft_research import ResearchEngine
+
+engine = ResearchEngine("./marketweft-research")
+snapshot = engine.option_snapshot(
+    Path("underlying.csv").read_text(encoding="utf-8"),
+    Path("option-quotes.csv").read_text(encoding="utf-8"),
+    effective_at="2025-04-03T14:00:00Z",
+    known_at="2025-04-03T14:02:00Z",
+    max_age=300,
+)
+print(snapshot.instrument, snapshot.currency)
+for row in snapshot.options:
+    print(row.contract_id, row.exercise_style, row.status, row.analytics)
+```
+
+The snapshot retains the exact quote and observation timestamps in UTC seconds. Strike, bid, ask and spot use integer millionths in the instrument currency. Interest rate and continuous dividend yield use integer millionths of an annual fraction. European `analytics` includes modeled price, implied volatility as an annual fraction, and Delta, Gamma, Vega, Theta and Rho. Unavailable models return `None` with a status, and contracts with no known observation are excluded. [Option inputs and demo cutoffs](../../docs/option-chain.md).
+
 ## Native protocol
 
 `marketweft-research --version` prints the process protocol version. An evaluation sends one UTF-8 request to standard input. The first line contains these tab-separated fields in order.
@@ -85,3 +108,17 @@ The response starts with `marketweft-financial`, protocol `1` and the issuer ID,
 | `T` | Trailing coverage. If `available`, the row includes the currency, revenue, common net income and operating cash flow. |
 
 Blank amount fields denote missing amounts. Coverage statuses are `insufficient-quarters`, `noncontiguous` and `currency`. Multiple statuses are `missing-filing`, `missing-cap`, `currency`, `missing-denominator` and `nonpositive-denominator`. The two trailing flow multiples use `missing-quarters` whenever trailing coverage is unavailable. Every response row ends in LF.
+
+
+### Option snapshot protocol
+
+Run `marketweft-research options` with one UTF-8 request on standard input. The LF-terminated header contains `marketweft-options`, `1`, the underlying CSV byte length, the effective UTC timestamp, the known UTC timestamp and the maximum quote age in seconds. Use tabs between the fields. Append the underlying and option CSV bytes in that order. Each CSV is limited to 2 MiB.
+
+The response header contains the same identifier and version followed by the underlying instrument and currency separated by a comma. Optional `U` and repeated `Q` rows use tabs between fields and end with LF.
+
+| Tag | Contents |
+| --- | --- |
+| `U` | Effective quote time, observation time, spot, interest rate and continuous dividend yield. |
+| `Q` | Contract ID, expiration, strike, side, effective quote time, observation time, bid, ask and model status. For `ok`, seven model fields follow in the order volatility, price, Delta, Gamma, Vega, Theta and Rho. The last field is exercise style. |
+
+Blank bid and ask fields denote missing quotes. The response may contain only the header when no underlying or contract quotes are visible.

@@ -19,6 +19,7 @@ mod macro_calendar;
 mod option_cash;
 mod option_chain;
 mod option_price;
+mod option_wire;
 mod paper;
 mod paper_replay;
 mod portfolio;

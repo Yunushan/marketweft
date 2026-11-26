@@ -1,6 +1,7 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
 use crate::formula::{decode_formula_library, MAX_FORMULA_LIBRARY_BYTES};
+use crate::option_wire::{option_snapshot_rows, option_status};
 use crate::{
     aggregate_session_timeframe, aggregate_timeframe, measure_drawing, AlertBook, AlertDirection,
     Comparator, DrawingEndpoint, TimeframeBar,
@@ -17,10 +18,7 @@ use crate::{
     PaperSide,
 };
 use crate::{parse_split_revisions, ShareRatio, SplitRevision, SplitRevisionBook};
-use crate::{
-    AmericanCashImpliedRequest, AmericanCashRequest, CashOptionError, ExerciseStyle, ModelError,
-    OptionBook, OptionSide, QuoteStatus,
-};
+use crate::{AmericanCashImpliedRequest, AmericanCashRequest, CashOptionError, OptionBook};
 use std::cell::RefCell;
 
 thread_local! {
@@ -2042,7 +2040,6 @@ pub extern "C" fn mw_option_index(underlying_bytes: usize) -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_option_snapshot(underlying_bytes: usize, max_age: u32) -> u32 {
-    use std::fmt::Write;
     process(|input| {
         let mut parts = utf8(input)?.splitn(3, '\n');
         let effective = option_cutoff(parts.next())?;
@@ -2051,57 +2048,7 @@ pub extern "C" fn mw_option_snapshot(underlying_bytes: usize, max_age: u32) -> u
             parts.next().ok_or("Supply option chain reports.")?,
             underlying_bytes,
         )?;
-        let view = book.snapshot(effective, known, max_age);
-        let mut text = String::new();
-        if let Some(underlying) = view.underlying {
-            writeln!(
-                &mut text,
-                "U\t{}\t{}\t{}\t{}\t{}",
-                underlying.at,
-                underlying.observed_at,
-                underlying.spot,
-                underlying.rate,
-                underlying.yield_rate
-            )
-            .unwrap();
-        }
-        for row in view.options {
-            let contract = row.contract;
-            let side = match contract.side {
-                OptionSide::Call => "call",
-                OptionSide::Put => "put",
-            };
-            let quote = row.quote;
-            write!(
-                &mut text,
-                "Q\t{}\t{}\t{}\t{side}\t{}\t{}\t{}\t{}\t{}",
-                contract.id,
-                contract.expiration,
-                contract.strike,
-                quote.at,
-                quote.observed_at,
-                optional_number(quote.bid),
-                optional_number(quote.ask),
-                row.analytics
-                    .as_ref()
-                    .map_or_else(|status| option_status(*status), |_| "ok")
-            )
-            .unwrap();
-            if let Ok(a) = row.analytics {
-                write!(
-                    &mut text,
-                    "\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                    a.volatility, a.price, a.delta, a.gamma, a.vega, a.theta, a.rho
-                )
-                .unwrap();
-            }
-            let style = match contract.exercise_style {
-                ExerciseStyle::European => "european",
-                ExerciseStyle::American => "american",
-            };
-            writeln!(text, "\t{style}").unwrap();
-        }
-        Ok(text.into_bytes())
+        Ok(option_snapshot_rows(book.snapshot(effective, known, max_age)).into_bytes())
     })
 }
 
@@ -2269,23 +2216,6 @@ fn american_option_cash(
 fn option_cutoff(raw: Option<&str>) -> Result<i64, &'static str> {
     raw.and_then(exact_utc)
         .ok_or("Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
-}
-
-fn option_status(status: QuoteStatus) -> &'static str {
-    match status {
-        QuoteStatus::Expired => "expired",
-        QuoteStatus::StaleQuote => "stale-option",
-        QuoteStatus::MissingBidAsk => "missing-bid-ask",
-        QuoteStatus::CrossedQuote => "crossed",
-        QuoteStatus::MissingUnderlying => "missing-underlying",
-        QuoteStatus::StaleUnderlying => "stale-underlying",
-        QuoteStatus::AmericanVolatilityRequired => "american-volatility-required",
-        QuoteStatus::MissingContract => "missing-contract",
-        QuoteStatus::EuropeanContract => "european-contract",
-        QuoteStatus::Model(ModelError::InputsOutOfRange) => "model-range",
-        QuoteStatus::Model(ModelError::PriceOutsideBounds) => "price-bounds",
-        QuoteStatus::Model(ModelError::VolatilityUnresolved) => "unresolved-vol",
-    }
 }
 
 #[no_mangle]

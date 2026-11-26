@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.93.0 solves American implied volatility using the cash dividends known at the replay cutoff. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.94.0 adds point-in-time option snapshots to the native research command and Python SDK. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -96,6 +96,7 @@
 | Delivered · 0.91.0 | American implied volatility (MW-026) | Solve a selected American quote, verify underlying-cutoff changes, and distinguish invalid quotes from unresolved volatility. [American implied volatility](docs/option-chain.md#american-implied-volatility). |
 | Delivered · 0.92.0 | Discrete cash dividends for American pricing (MW-026) | Verify known revisions and cancellation, exercise at the ex-date boundary, and source report details in offline replay. [Discrete cash dividends](docs/option-chain.md#discrete-cash-dividends). |
 | Delivered · 0.93.0 | Cash-dividend implied volatility (MW-026) | Reprice the observed American midpoint across cash report revisions and retain the selected report provenance. [Cash-dividend implied volatility](docs/option-chain.md#cash-dividend-implied-volatility). |
+| Delivered · 0.94.0 | Native option snapshots (MW-026, MW-028) | Verify the native command and installed Python SDK against the same offline exercise-style, quote and underlying fixtures as the browser. [Native option snapshots](packages/python-research/README.md#option-chain-snapshots). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -107,5 +108,5 @@
 
 ## Handoff for the next change
 
-Expose point-in-time option snapshots in the native research command and Python SDK. Verify contract identity, analytics and quote statuses against the browser replay fixture.
+Expose American price and midpoint IV using an optional observed cash-dividend schedule through the native research command and Python SDK. Verify unavailable statuses and selected report provenance against the browser.
 

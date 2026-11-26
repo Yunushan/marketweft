@@ -10,12 +10,15 @@ from typing import Sequence
 __all__ = [
     "FinancialFiling", "FinancialMarketCap", "FinancialMultiple", "FinancialMultiples",
     "FinancialSnapshot", "FinancialTrailing",
-    "FormulaFunction", "FormulaResult", "FormulaRow", "ResearchEngine", "ResearchError",
+    "FormulaFunction", "FormulaResult", "FormulaRow",
+    "OptionChainAnalytics", "OptionChainQuote", "OptionChainSnapshot", "OptionUnderlyingQuote",
+    "ResearchEngine", "ResearchError",
     "ScreenPrice", "ScreenResult", "ScreenRow",
 ]
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,31}\Z")
 _IDENTITY = re.compile(r"[A-Za-z0-9._-]{1,40}\Z")
+_INSTRUMENT = re.compile(r"[A-Z0-9._/-]{1,32}:[A-Z0-9._/-]{1,32}\Z")
 _CURRENCY = re.compile(r"[A-Z]{3}\Z")
 _UTC = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\Z")
 _WHOLE = re.compile(r"-?(?:0|[1-9][0-9]{0,18})\Z")
@@ -25,6 +28,12 @@ _MAX_I64 = (1 << 63) - 1
 _MAX_SOURCE = 2048
 _MAX_CSV = 8 * 1024 * 1024
 _MAX_FINANCIAL_CSV = 1024 * 1024
+_MAX_OPTION_CSV = 2 * 1024 * 1024
+_OPTION_STATUSES = {
+    "expired", "stale-option", "missing-bid-ask", "crossed", "missing-underlying",
+    "stale-underlying", "american-volatility-required", "model-range", "price-bounds",
+    "unresolved-vol",
+}
 _CAPITALIZATION_HEADER = "issuer_id,source_id,valuation_at,observed_at,currency,market_cap"
 
 
@@ -130,6 +139,49 @@ class FinancialSnapshot:
     quarters: tuple[FinancialFiling, ...]
     trailing: FinancialTrailing
     quarterly_valuation: FinancialMultiples
+
+
+@dataclass(frozen=True)
+class OptionChainAnalytics:
+    volatility: float
+    price: float
+    delta: float
+    gamma: float
+    vega: float
+    theta: float
+    rho: float
+
+
+@dataclass(frozen=True)
+class OptionUnderlyingQuote:
+    quote_at: int
+    observed_at: int
+    spot_ticks: int
+    rate_units: int
+    dividend_yield_units: int
+
+
+@dataclass(frozen=True)
+class OptionChainQuote:
+    contract_id: str
+    expiration: int
+    strike_ticks: int
+    side: str
+    exercise_style: str
+    quote_at: int
+    observed_at: int
+    bid_ticks: int | None
+    ask_ticks: int | None
+    status: str
+    analytics: OptionChainAnalytics | None
+
+
+@dataclass(frozen=True)
+class OptionChainSnapshot:
+    instrument: str
+    currency: str
+    underlying: OptionUnderlyingQuote | None
+    options: tuple[OptionChainQuote, ...]
 
 
 def _definitions(functions: Sequence[FormulaFunction]) -> bytes:
@@ -308,6 +360,50 @@ def _financial_result(output: bytes, requested_issuer: str) -> FinancialSnapshot
                              tuple(quarters), trailing, FinancialMultiples(*quarter_multiples))
 
 
+def _option_analytics(status: str, fields: list[str]) -> OptionChainAnalytics | None:
+    if status in _OPTION_STATUSES and not fields:
+        return None
+    if status != "ok" or len(fields) != 7:
+        raise ResearchError("Invalid model status or analytics in option response.")
+    try:
+        values = [float(value) for value in fields]
+    except ValueError as exc:
+        raise ResearchError("Invalid option analytics in research response.") from exc
+    if any(not math.isfinite(value) for value in values):
+        raise ResearchError("Nonfinite option analytics in research response.")
+    return OptionChainAnalytics(*values)
+
+
+def _option_snapshot(output: bytes) -> OptionChainSnapshot:
+    identity, lines = _response(output, "marketweft-options")
+    instrument, separator, currency = identity.partition(",")
+    if not separator or not _INSTRUMENT.fullmatch(instrument) or not _CURRENCY.fullmatch(currency):
+        raise ResearchError("Invalid option underlying identity in research response.")
+    if len(lines) > 20_001:
+        raise ResearchError("Too many rows in option snapshot response.")
+    underlying = None
+    options: list[OptionChainQuote] = []
+    ids: set[str] = set()
+    for line in lines:
+        tag, *fields = line.split("\t")
+        if tag == "U" and len(fields) == 5 and underlying is None and not options:
+            underlying = OptionUnderlyingQuote(*(_whole(field) for field in fields))
+            continue
+        if tag != "Q" or len(fields) not in {10, 17}:
+            raise ResearchError("Invalid option quote row in research response.")
+        contract, expiration, strike, side, at, observed, bid, ask, status, *model, style = fields
+        if (not _IDENTITY.fullmatch(contract) or contract in ids or side not in {"call", "put"}
+                or style not in {"american", "european"}):
+            raise ResearchError("Invalid or repeated option contract in research response.")
+        ids.add(contract)
+        options.append(OptionChainQuote(
+            contract, _whole(expiration), _whole(strike), side, style, _whole(at), _whole(observed),
+            _whole(bid) if bid else None, _whole(ask) if ask else None, status,
+            _option_analytics(status, model),
+        ))
+    return OptionChainSnapshot(instrument, currency, underlying, tuple(options))
+
+
 class ResearchEngine:
     """Run read-only analytics using a caller-selected native executable."""
 
@@ -384,6 +480,27 @@ class ResearchEngine:
             raise ValueError("Each financial report CSV must fit within 1 MiB.")
         header = "\t".join(("marketweft-financial", "1", str(len(filings)), issuer, *times)).encode("ascii") + b"\n"
         return _financial_result(self._invoke(header + filings + caps, "financial"), issuer)
+
+    def option_snapshot(
+        self,
+        underlying_csv: str,
+        quotes_csv: str,
+        *,
+        effective_at: str,
+        known_at: str,
+        max_age: int = 300,
+    ) -> OptionChainSnapshot:
+        """Return the eligible option quotes and model results at both inclusive UTC cutoffs."""
+        times = (effective_at, known_at)
+        if any(not isinstance(timestamp, str) or not _UTC.fullmatch(timestamp) for timestamp in times):
+            raise ValueError("Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+        if type(max_age) is not int or not 0 <= max_age <= 0xFFFFFFFF:
+            raise ValueError("Use a whole maximum quote age from 0 to 4,294,967,295 seconds.")
+        underlying, quotes = underlying_csv.encode("utf-8"), quotes_csv.encode("utf-8")
+        if max(len(underlying), len(quotes)) > _MAX_OPTION_CSV:
+            raise ValueError("Each option input CSV must fit within 2 MiB.")
+        header = "\t".join(("marketweft-options", "1", str(len(underlying)), *times, str(max_age)))
+        return _option_snapshot(self._invoke(header.encode("ascii") + b"\n" + underlying + quotes, "options"))
 
     def _invoke(self, request: bytes, *arguments: str) -> bytes:
         try:

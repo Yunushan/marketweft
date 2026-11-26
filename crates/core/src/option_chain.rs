@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 const MAX_ROWS: usize = 20_000;
-const MAX_BYTES: usize = 2 * 1024 * 1024;
+pub(crate) const MAX_OPTION_CSV_BYTES: usize = 2 * 1024 * 1024;
 const YEAR_SECONDS: f64 = 365.0 * 86_400.0;
 const OPTION_HEADER: &str =
     "contract_id,underlying,currency,side,expiry,strike,quote_at,observed_at,bid,ask";
@@ -606,7 +606,7 @@ fn rows<'a>(
     headers: &[&str],
     source: &str,
 ) -> Result<(usize, impl Iterator<Item = (usize, &'a str)> + 'a), OptionBookError> {
-    if csv.len() > MAX_BYTES {
+    if csv.len() > MAX_OPTION_CSV_BYTES {
         return Err(OptionBookError(format!("{source} CSV exceeds 2 MiB.")));
     }
     let mut lines = csv

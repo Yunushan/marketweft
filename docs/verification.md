@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.94.0 · Native option snapshots
+
+| Check | Evidence |
+| --- | --- |
+| Native parity | Compared native and Wasm outputs over seven replay snapshots. All 56 quote rows matched on exact prices, identities, sources and statuses. The 182 modeled fields agreed within relative or absolute tolerance of 1e-10. |
+| Python SDK | The real native executable returned the 20% European IV, the delayed American contract, and the revised underlying. It preserved unavailable analytics and quote statuses and returned an empty snapshot before the first report. |
+| Browser | The same mixed exercise-style fixture retained the European analytics, visible American calculations and the late-quote cutoffs in offline Chromium. |
+
+[Native option snapshots](../packages/python-research/README.md#option-chain-snapshots) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.93.0 · American implied volatility with discrete cash dividends
 
 | Check | Evidence |

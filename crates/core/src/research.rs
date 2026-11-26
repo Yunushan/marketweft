@@ -4,10 +4,13 @@ use crate::financial_wire::financial_rows;
 use crate::formula::{decode_formula_library, MAX_FORMULA_LIBRARY_BYTES, MAX_SOURCE_BYTES};
 use crate::fundamentals::MAX_FINANCIAL_CSV_BYTES;
 use crate::history::exact_utc;
+use crate::option_chain::MAX_OPTION_CSV_BYTES;
+use crate::option_wire::option_snapshot_rows;
 use crate::screen::MAX_PRICE_BYTES;
 use crate::universe::MAX_MEMBERSHIP_BYTES;
 use crate::{
-    parse_csv, parse_universe, FinancialBook, Formula, PriceBook, FORMULA_VERSION, MAX_INPUT_BYTES,
+    parse_csv, parse_universe, FinancialBook, Formula, OptionBook, PriceBook, FORMULA_VERSION,
+    MAX_INPUT_BYTES,
 };
 use std::fmt::Write;
 
@@ -16,6 +19,7 @@ pub const MAX_REQUEST_BYTES: usize =
     MAX_INPUT_BYTES + MAX_FORMULA_LIBRARY_BYTES + MAX_SOURCE_BYTES + 128;
 pub const MAX_SCREEN_REQUEST_BYTES: usize = MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 128;
 pub const MAX_FINANCIAL_REQUEST_BYTES: usize = 2 * MAX_FINANCIAL_CSV_BYTES + 128;
+pub const MAX_OPTION_REQUEST_BYTES: usize = 2 * MAX_OPTION_CSV_BYTES + 128;
 
 /// Return annual and quarterly financial evidence for independently dated cutoffs.
 pub fn financial_snapshot_request(bytes: &[u8]) -> Result<String, String> {
@@ -45,6 +49,44 @@ pub fn financial_snapshot_request(bytes: &[u8]) -> Result<String, String> {
     let rows = financial_rows(&book, issuer, at, known, true)?;
     Ok(format!(
         "marketweft-financial\t{PROTOCOL_VERSION}\t{issuer}\n{rows}"
+    ))
+}
+
+/// Replay the visible option chain using independent effective and knowledge cutoffs.
+pub fn option_snapshot_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_OPTION_REQUEST_BYTES {
+        return Err("Option snapshot request exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 option snapshot request.")?;
+    let (header, payload) = request
+        .split_once('\n')
+        .ok_or("Missing option snapshot header.")?;
+    let fields = header.split('\t').collect::<Vec<_>>();
+    let ["marketweft-options", "1", length, effective_at, known_at, max_age] = fields.as_slice()
+    else {
+        return Err("Invalid option snapshot request or protocol version.".into());
+    };
+    let length = length
+        .parse::<usize>()
+        .ok()
+        .filter(|size| *size <= MAX_OPTION_CSV_BYTES)
+        .ok_or("Invalid underlying CSV length.")?;
+    let (Some(effective_at), Some(known_at)) = (exact_utc(effective_at), exact_utc(known_at))
+    else {
+        return Err("Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.".into());
+    };
+    let max_age: u32 = max_age
+        .parse()
+        .map_err(|_| "Use a whole maximum quote age in seconds.")?;
+    let (underlying, quotes) = payload
+        .split_at_checked(length)
+        .ok_or("Invalid underlying CSV boundary.")?;
+    let book = OptionBook::parse(underlying, quotes).map_err(|error| error.to_string())?;
+    let source = book.underlying();
+    let rows = option_snapshot_rows(book.snapshot(effective_at, known_at, max_age));
+    Ok(format!(
+        "marketweft-options\t{PROTOCOL_VERSION}\t{},{}\n{rows}",
+        source.instrument, source.currency
     ))
 }
 
