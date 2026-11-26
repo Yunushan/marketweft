@@ -1,0 +1,66 @@
+x-research-container: &research-container
+  image: ${MARKETWEFT_RESEARCH_IMAGE:?Set the imported MarketWeft research image tag}
+  pull_policy: never
+  user: "65532:65532"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  research:
+    <<: *research-container
+    environment:
+      MARKETWEFT_RESEARCH_BIND_IP: ${MARKETWEFT_RESEARCH_BIND_IP:?Set the private service address}
+      MARKETWEFT_RESEARCH_PORT: ${MARKETWEFT_RESEARCH_PORT:-4174}
+      MARKETWEFT_RESEARCH_AUTHORITY: ${MARKETWEFT_RESEARCH_HOST:?Set the private certificate host}:${MARKETWEFT_RESEARCH_PORT:-4174}
+      MARKETWEFT_RESEARCH_TLS_CERT: /run/marketweft/tls/tls.crt
+      MARKETWEFT_RESEARCH_TLS_KEY: /run/marketweft/tls/tls.key
+      MARKETWEFT_RESEARCH_CREDENTIALS_DB: /var/lib/marketweft/credentials/credentials.sqlite
+      MARKETWEFT_RESEARCH_AUDIT_DB: /var/lib/marketweft/audit/${MARKETWEFT_RESEARCH_AUDIT_FILE:-audit.sqlite}
+    networks:
+      research:
+        ipv4_address: ${MARKETWEFT_RESEARCH_BIND_IP:?Set the private service address}
+        aliases:
+          - ${MARKETWEFT_RESEARCH_HOST:?Set the private certificate host}
+    volumes:
+      - type: bind
+        source: ${MARKETWEFT_RESEARCH_TLS_DIRECTORY:?Set the TLS directory containing tls.crt and tls.key}
+        target: /run/marketweft/tls
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: credentials
+        target: /var/lib/marketweft/credentials
+        read_only: true
+      - type: volume
+        source: audit
+        target: /var/lib/marketweft/audit
+    healthcheck:
+      test: ["CMD", "bash", "-ec", 'exec 3<>"/dev/tcp/$$MARKETWEFT_RESEARCH_BIND_IP/$$MARKETWEFT_RESEARCH_PORT"']
+      interval: 5s
+      timeout: 2s
+      retries: 4
+      start_period: 5s
+    restart: unless-stopped
+
+  credential-admin:
+    <<: *research-container
+    profiles: [operators]
+    network_mode: none
+    volumes:
+      - type: volume
+        source: credentials
+        target: /var/lib/marketweft/credentials
+
+networks:
+  research:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${MARKETWEFT_RESEARCH_SUBNET:?Set an available private IPv4 subnet}
+
+volumes:
+  credentials:
+  audit:

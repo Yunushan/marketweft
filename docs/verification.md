@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## Private Docker Compose acceptance
+
+| Check | Observed result |
+| --- | --- |
+| Private startup | The non-root OCI image became healthy on its internal Compose network. A separate client verified the certificate, scopes and point-in-time ranks. The service published zero host ports. |
+| Restart and recovery | Restart preserved the credential and audit volumes. After two client passes, the backup and restore each reported six completed receipts. A replacement container reopened the restored database and recorded three more receipts. |
+
+[Private Docker Compose deployment](local-rest-research.md#private-docker-compose-deployment).
+
 ## 0.60.0 · Non-root research OCI image
 
 | Check | Observed result |

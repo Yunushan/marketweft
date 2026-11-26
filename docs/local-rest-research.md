@@ -118,3 +118,30 @@ Download the `research-oci-linux-x64-attempt-N` GitHub Actions artifact and extr
 Run the service as its configured UID and GID 65532. Use a read-only root filesystem, drop Linux capabilities and set `no-new-privileges`. Mount the managed database read-only at `/var/lib/marketweft/credentials` and give the service a separate writable audit volume at `/var/lib/marketweft/audit`. Issue or revoke credentials with a separate invocation that can write to the credentials volume. For private-interface service, mount the certificate and key read-only and configure the advertised authority as described above.
 
 The default listener is localhost inside the container. Use the private bind settings to reach it from a separate client on a private container network.
+
+## Private Docker Compose deployment
+
+The source includes `apps/research-service/deploy/compose.yaml`. It binds research to a fixed IPv4 address on an internal network and applies the OCI image's non-root runtime settings. A separate operator service can write the credential volume with networking disabled. The running service reads that volume and writes receipts to its distinct audit volume.
+
+Set `MARKETWEFT_RESEARCH_IMAGE` to the imported image tag. Select an available private CIDR in `MARKETWEFT_RESEARCH_SUBNET`, an address within it in `MARKETWEFT_RESEARCH_BIND_IP` and the certificate's DNS name in `MARKETWEFT_RESEARCH_HOST`. Set `MARKETWEFT_RESEARCH_TLS_DIRECTORY` to an existing host directory containing `tls.crt` and `tls.key`, readable by the service user. The port defaults to 4174.
+
+From the repository root, issue a credential and start the service.
+
+```sh
+docker compose -f apps/research-service/deploy/compose.yaml run --rm credential-admin credential issue /var/lib/marketweft/credentials/credentials.sqlite formula 3600
+docker compose -f apps/research-service/deploy/compose.yaml up -d --wait research
+```
+
+Connect a client to the project's internal network. Trust the configured CA and use the HTTPS authority printed by the service. To snapshot the audit ledger into its persistent volume, run the following command.
+
+```sh
+docker compose -f apps/research-service/deploy/compose.yaml exec research marketweft-research-service audit backup /var/lib/marketweft/audit/audit.sqlite /var/lib/marketweft/audit/snapshot.sqlite
+```
+
+Restore to a fresh filename in that volume and recreate the research container with the restored file.
+
+```sh
+docker compose -f apps/research-service/deploy/compose.yaml exec research marketweft-research-service audit restore /var/lib/marketweft/audit/snapshot.sqlite /var/lib/marketweft/audit/recovered.sqlite
+export MARKETWEFT_RESEARCH_AUDIT_FILE=recovered.sqlite
+docker compose -f apps/research-service/deploy/compose.yaml up -d --wait research
+```
