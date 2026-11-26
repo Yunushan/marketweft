@@ -1,6 +1,7 @@
 //! Fixed-point, bar-close calculations shared by native consumers and WebAssembly.
 
 mod actions;
+mod alerts;
 mod dividend;
 mod fundamentals;
 mod history;
@@ -16,6 +17,9 @@ mod universe;
 mod wasm;
 
 pub use actions::{parse_splits, Split, SplitBook, MAX_SPLIT_ROWS};
+pub use alerts::{
+    AlertBook, AlertDirection, AlertNotification, AlertRule, Comparator, Observation,
+};
 pub use dividend::{
     parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind, DividendMovement,
 };

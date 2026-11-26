@@ -204,6 +204,33 @@ export interface OptionSnapshot {
   options: OptionReport[];
 }
 
+export interface AlertObservation {
+  id: string;
+  measuredAt: number;
+  observedAt: number;
+  ticks: string;
+  comparisonNumerator: string;
+  comparisonCount: number;
+}
+
+export interface AlertCrossing {
+  schemaVersion: 1;
+  id: string;
+  rule: {
+    id: string;
+    revision: string;
+    series: string;
+    effectiveAt: number;
+    observedAt: number;
+    kind: 'threshold' | 'sma';
+    operand: string;
+    direction: 'above' | 'below' | 'either';
+  };
+  direction: 'above' | 'below';
+  previous: AlertObservation;
+  current: AlertObservation;
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -224,6 +251,8 @@ export interface MarketCore {
   macroAsOf(csv: string, published: string, known: string): MacroRelease[];
   optionIndex(underlying: string, quotes: string): OptionSource;
   optionSnapshot(underlying: string, quotes: string, effective: string, known: string, maxAge: number): OptionSnapshot;
+  alertIndex(rules: string, observations: string): number;
+  alertReplay(rules: string, observations: string, effective: string, known: string): AlertCrossing[];
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -249,6 +278,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_macro_as_of(): number;
   mw_option_index(underlyingBytes: number): number;
   mw_option_snapshot(underlyingBytes: number, maxAge: number): number;
+  mw_alert_index(ruleBytes: number): number;
+  mw_alert_replay(ruleBytes: number): number;
 }
 
 const SCALE = 1_000_000;
@@ -552,6 +583,33 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         }
       }
       return snapshot;
+    },
+    alertIndex(rules, observations) {
+      textInput(rules + observations);
+      return Number(decoder.decode(output(api.mw_alert_index(encoder.encode(rules).length))));
+    },
+    alertReplay(rules, observations, effective, known) {
+      if ([effective, known].some(value => value.length !== 20 || /[\n\r]/.test(value))) {
+        throw new Error('Alert times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
+      }
+      textInput([effective, known, rules + observations].join('\n'));
+      const text = decoder.decode(output(api.mw_alert_replay(encoder.encode(rules).length)));
+      if (!text) return [];
+      function observation(fields: string[]): AlertObservation {
+        const [id, measuredAt, observedAt, ticks, comparisonNumerator, comparisonCount] = fields;
+        return { id, measuredAt: Number(measuredAt), observedAt: Number(observedAt),
+          ticks, comparisonNumerator, comparisonCount: Number(comparisonCount) };
+      }
+      return text.slice(0, -1).split('\n').map(line => {
+        const [id, ruleId, revision, series, since, observed, kind, operand, ruleDirection, direction, ...fields] = line.split('\t');
+        if ((kind !== 'threshold' && kind !== 'sma') || (direction !== 'above' && direction !== 'below') ||
+          (ruleDirection !== 'above' && ruleDirection !== 'below' && ruleDirection !== 'either')) {
+          throw new Error('Invalid alert record from the calculation engine.');
+        }
+        return { schemaVersion: 1, id, rule: { id: ruleId, revision, series, effectiveAt: Number(since),
+          observedAt: Number(observed), kind, operand, direction: ruleDirection },
+          direction, previous: observation(fields.slice(0, 6)), current: observation(fields.slice(6)) };
+      });
     },
     splitBook(instrument, csv) {
       textInput(instrument + '\n' + csv);

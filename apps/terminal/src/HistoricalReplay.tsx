@@ -12,6 +12,7 @@ import { UniverseReplay } from './UniverseReplay'
 import { FundamentalReplay } from './FundamentalReplay'
 import { MacroReplay } from './MacroReplay'
 import { OptionReplay } from './OptionReplay'
+import { AlertReplay } from './AlertReplay'
 import type { Asset } from './workspace'
 import { Chart } from './Chart'
 import { Icon, Mark } from './Icons'
@@ -59,7 +60,7 @@ type ReplayRun = {
   dividends?: { events: DividendEvent[]; shares: number }
 }
 
-type ReplayView = 'universe' | 'fundamentals' | 'macro' | 'options'
+type ReplayView = 'universe' | 'fundamentals' | 'macro' | 'options' | 'alerts'
 
 export function HistoricalReplay({
   core,
@@ -78,6 +79,7 @@ export function HistoricalReplay({
   const fundamentalsButton = useRef<HTMLButtonElement>(null)
   const macroButton = useRef<HTMLButtonElement>(null)
   const optionsButton = useRef<HTMLButtonElement>(null)
+  const alertsButton = useRef<HTMLButtonElement>(null)
   const returnFocus = useRef<ReplayView | null>(null)
   const [cursor, setCursor] = useState(-1)
   const [playing, setPlaying] = useState(false)
@@ -106,7 +108,13 @@ export function HistoricalReplay({
   }, [active])
   useEffect(() => {
     if (view === null && returnFocus.current) {
-      const buttons = { universe: universeButton, fundamentals: fundamentalsButton, macro: macroButton, options: optionsButton }
+      const buttons = {
+        universe: universeButton,
+        fundamentals: fundamentalsButton,
+        macro: macroButton,
+        options: optionsButton,
+        alerts: alertsButton,
+      }
       const button = buttons[returnFocus.current]
       returnFocus.current = null
       button.current?.focus()
@@ -319,6 +327,8 @@ export function HistoricalReplay({
     return <MacroReplay core={core} close={() => setView(null)} />
   if (view === 'options')
     return <OptionReplay core={core} close={() => setView(null)} />
+  if (view === 'alerts')
+    return <AlertReplay core={core} close={() => setView(null)} />
 
   return (
     <>
@@ -424,6 +434,17 @@ export function HistoricalReplay({
                     setView('options')
                   }}>
                   Open option chain
+                </button>
+              </section>
+              <section className="side-card replay-panel">
+                <h2>Replay alerts</h2>
+                <p>Audit threshold and moving-average crossings and save notifications locally.</p>
+                <button ref={alertsButton} className="primary" disabled={busy}
+                  onClick={() => {
+                    returnFocus.current = 'alerts'
+                    setView('alerts')
+                  }}>
+                  Open replay alerts
                 </button>
               </section>
             </div>

@@ -58,3 +58,7 @@ Parse `MacroCalendar` from one local CSV and call `as_of(published_through, know
 ## European option chains
 
 Parse `OptionBook` from matching underlying and option CSVs. Call `snapshot(effective_at, known_at, max_quote_age_seconds)` to obtain the latest eligible inputs and typed diagnostics. The standalone `EuropeanOption` model exposes price and Greeks for supplied volatility and can invert a valid midpoint. [Option-chain contract](../../docs/option-chain.md).
+
+## Replay alerts
+
+Parse `AlertBook` from rule revisions and observations. Query `notifications(effective_cutoff, known_cutoff)` for stable crossing records. Each record carries its selected rule, both source observations and exact fixed-point comparator fractions. [Alert contract](../../docs/replay-alerts.md).

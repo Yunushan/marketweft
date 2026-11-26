@@ -8,6 +8,7 @@ use crate::{
     indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
     Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
 };
+use crate::{AlertBook, AlertDirection, Comparator};
 use crate::{ModelError, OptionBook, OptionSide, QuoteStatus};
 use std::cell::RefCell;
 
@@ -357,6 +358,88 @@ fn encode_bars(bars: Vec<Bar>) -> Vec<u8> {
         }
     }
     bytes
+}
+
+fn alert_book(csvs: &str, rule_bytes: usize) -> Result<AlertBook, String> {
+    let (rules, observations) = csvs
+        .split_at_checked(rule_bytes)
+        .ok_or("Supply alert rules and observations CSV reports.")?;
+    AlertBook::parse(rules, observations)
+}
+
+#[no_mangle]
+pub extern "C" fn mw_alert_index(rule_bytes: usize) -> u32 {
+    process(|input| {
+        let book = alert_book(utf8(input)?, rule_bytes)?;
+        Ok(book
+            .last_observation()
+            .unwrap_or_default()
+            .to_string()
+            .into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_alert_replay(rule_bytes: usize) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(3, '\n');
+        let mut cutoff = || {
+            parts
+                .next()
+                .and_then(exact_utc)
+                .ok_or("Alert times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+        };
+        let effective = cutoff()?;
+        let known = cutoff()?;
+        let book = alert_book(parts.next().ok_or("Supply alert reports.")?, rule_bytes)?;
+        let mut text = String::new();
+        for record in book.notifications(effective, known)? {
+            let rule = record.rule;
+            let (kind, operand) = match rule.comparator {
+                Comparator::Threshold(level) => ("threshold", level.to_string()),
+                Comparator::MovingAverage(window) => ("sma", window.to_string()),
+                Comparator::Off => return Err("Inactive rule produced a notification.".into()),
+            };
+            write!(
+                &mut text,
+                "{}\t{}\t{}\t{}\t{}\t{}\t{kind}\t{operand}\t{}\t{}",
+                record.id,
+                rule.id,
+                rule.revision_id,
+                rule.series,
+                rule.effective_at,
+                rule.observed_at,
+                alert_direction(rule.direction),
+                alert_direction(record.direction)
+            )
+            .unwrap();
+            for (observation, (value, count)) in [
+                (record.previous, record.previous_comparison),
+                (record.current, record.current_comparison),
+            ] {
+                write!(
+                    &mut text,
+                    "\t{}\t{}\t{}\t{}\t{value}\t{count}",
+                    observation.id,
+                    observation.measured_at,
+                    observation.observed_at,
+                    observation.value
+                )
+                .unwrap();
+            }
+            text.push('\n');
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+fn alert_direction(direction: AlertDirection) -> &'static str {
+    match direction {
+        AlertDirection::Above => "above",
+        AlertDirection::Below => "below",
+        AlertDirection::Either => "either",
+    }
 }
 
 fn option_book(csvs: &str, underlying_bytes: usize) -> Result<OptionBook, String> {

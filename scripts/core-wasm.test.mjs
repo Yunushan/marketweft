@@ -9,6 +9,23 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('alert replay Wasm returns auditable and stable crossing IDs at each cutoff', async () => {
+  const read = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-alert-' + name + '.csv', import.meta.url), 'utf8');
+  const [rules, observations] = await Promise.all([read('rules'), read('observations')]);
+  const iso = t => '2025-04-03T' + t + 'Z';
+  const run = (at, known) => core.alertReplay(rules, observations, iso(at), iso(known));
+  assert.equal(core.alertIndex(rules, observations), Date.parse(iso('14:08:00')) / 1000);
+  assert.deepEqual(run('14:08:00', '14:02:00').map(record => record.id), ['LEVEL/R1/O2']);
+  const records = run('14:08:00', '14:08:00');
+  assert.equal(records.length, 8);
+  assert.equal(records[2].id, 'MEAN/R1/O2C');
+  assert.equal(records[2].previous.ticks, '6000000');
+  assert.equal(records[2].previous.comparisonNumerator, '15000000');
+  assert.equal(records[2].current.comparisonNumerator, '12000000');
+  assert.equal(records[2].current.comparisonCount, 3);
+  assert.deepEqual(run('14:08:00', '14:08:00'), records);
+});
+
 test('option chain Wasm exposes correct IV, gated underlying and invalid spread reasons', async () => {
   const read = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-option-' + name + '.csv', import.meta.url), 'utf8');
   const [underlying, quotes] = await Promise.all([read('underlying'), read('quotes')]);

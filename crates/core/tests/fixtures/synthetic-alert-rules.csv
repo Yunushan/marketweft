@@ -1,0 +1,5 @@
+rule_id,revision_id,series_id,effective_at,observed_at,kind,direction,operand
+LEVEL,R1,DEMO.CLOSE,2025-04-03T14:00:00Z,2025-04-03T14:00:00Z,threshold,either,5
+LEVEL,R2,DEMO.CLOSE,2025-04-03T14:03:00Z,2025-04-03T14:05:00Z,threshold,either,6
+LEVEL,R3,DEMO.CLOSE,2025-04-03T14:07:00Z,2025-04-03T14:08:00Z,off,,
+MEAN,R1,DEMO.CLOSE,2025-04-03T14:00:00Z,2025-04-03T14:00:00Z,sma,either,3

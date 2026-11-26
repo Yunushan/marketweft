@@ -239,6 +239,15 @@ main {
 .option-surface-points small {
   margin-inline-start: 4px;
 }
+.alert-evidence dl {
+  margin: 10px 0 0;
+}
+.alert-evidence dl div + div {
+  margin-top: 8px;
+}
+.alert-evidence dd {
+  margin: 3px 0 0;
+}
 .dividend-reports {
   display: grid;
   gap: 8px;
