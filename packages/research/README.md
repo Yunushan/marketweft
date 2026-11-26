@@ -2,7 +2,11 @@
 
 The TypeScript SDK evaluates versioned time-series formulas against user-supplied OHLCV. It uses the same checked-in Rust WebAssembly module as the terminal.
 
-In Node.js 22.12 or later, load the bundled engine and read your own CSV.
+Download `marketweft-research-0.1.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
+```sh
+npm install --offline ./marketweft-research-0.1.0.tgz
+```
 
 ```js
 import { readFile } from 'node:fs/promises'

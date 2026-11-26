@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.47.0 · TypeScript research SDK
+
+| Check | Observed result |
+| --- | --- |
+| Shared execution | The terminal and SDK use the same TypeScript bridge and Rust Wasm module. The packaged Wasm matches the checked-in terminal binary byte for byte. |
+| Numerical agreement | The SDK reproduces every observed prefix in the synthetic formula fixture, including unavailable rows and exact integer millionths. Separate engines and formula calls keep custom function scopes independent. |
+| Independent install | A fresh Node project installed the npm tarball offline, imported the public package, loaded the bundled Wasm and verified that close plus one millionth is exactly 10,000,001 ticks. |
+| Regression suite | All 87 browser, eight SDK and four launcher tests passed on Windows x64. All 105 native tests passed on Linux x64, all 42 Wasm tests passed, and all 21 README editions passed parity. |
+
+[TypeScript research SDK](../packages/research/README.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.46.0 · Portable strategy function scopes
 
 | Check | Observed result |

@@ -39,6 +39,31 @@ jobs:
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm run build
       - run: npm test
+      - name: Pack and install the research SDK offline
+        run: |
+          mkdir -p reports
+          npm pack --workspace @marketweft/research --pack-destination reports
+          version="$(node -p 'require("./packages/research/package.json").version')"
+          archive="$PWD/reports/marketweft-research-$version.tgz"
+          consumer="$(mktemp -d)"
+          printf '{"name":"research-sdk-smoke","private":true}\n' > "$consumer/package.json"
+          npm --prefix "$consumer" install --offline --ignore-scripts --no-audit --no-fund "$archive"
+          cd "$consumer"
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict'
+          import { readFile } from 'node:fs/promises'
+          import { createResearchEngine, MARKET_CORE_WASM_URL, RESEARCH_SDK_VERSION } from '@marketweft/research'
+
+          const research = await createResearchEngine(await readFile(new URL(MARKET_CORE_WASM_URL)))
+          const bars = research.parseBars('time,open,high,low,close,volume\n2025-04-03T14:00:00Z,10,10,10,10,20\n')
+          assert.equal(research.version, RESEARCH_SDK_VERSION)
+          assert.deepEqual(research.evaluateFormula('close + 0.000001', bars).values, [10000001n])
+          JS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: research-sdk-attempt-${{ github.run_attempt }}
+          path: reports/marketweft-research-*.tgz
+          if-no-files-found: error
       - name: Match a release tag to the package version
         if: startsWith(github.ref, 'refs/tags/v')
         run: test "$GITHUB_REF_NAME" = "v$(node -p "require('./package.json').version")"
