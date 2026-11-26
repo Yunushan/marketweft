@@ -1,6 +1,6 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
-use crate::{history::exact_utc, parse_universe, PriceBook};
+use crate::{history::exact_utc, parse_universe, FinancialBook, Multiple, PriceBook};
 use crate::{
     indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
     Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
@@ -251,6 +251,98 @@ pub extern "C" fn mw_sector_heatmap(membership_bytes: usize, price_bytes: usize)
 
 fn optional_number(value: Option<impl ToString>) -> String {
     value.map(|number| number.to_string()).unwrap_or_default()
+}
+
+fn financial_book(csvs: &str, filing_bytes: usize) -> Result<FinancialBook, String> {
+    let (filings, caps) = csvs
+        .split_at_checked(filing_bytes)
+        .ok_or("Supply filing and capitalization CSV reports.")?;
+    FinancialBook::parse(filings, caps)
+}
+
+#[no_mangle]
+pub extern "C" fn mw_financial_index(filing_bytes: usize) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let book = financial_book(utf8(input)?, filing_bytes)?;
+        let mut text = String::new();
+        for issuer in book.issuers() {
+            writeln!(
+                &mut text,
+                "{issuer}\t{}",
+                book.suggested_time(issuer).unwrap()
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_financial_as_of(filing_bytes: usize) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(4, '\n');
+        let issuer = parts.next().ok_or("Select an issuer.")?;
+        let mut cutoff = || {
+            parts
+                .next()
+                .and_then(exact_utc)
+                .ok_or("Use YYYY-MM-DDTHH:MM:SSZ UTC timestamps for valuation and knowledge.")
+        };
+        let at = cutoff()?;
+        let known = cutoff()?;
+        let book = financial_book(
+            parts.next().ok_or("Supply financial reports.")?,
+            filing_bytes,
+        )?;
+        let valuation = book.as_of(issuer, at, known)?;
+        let mut text = String::new();
+        if let Some(f) = valuation.filing {
+            writeln!(
+                &mut text,
+                "F\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                f.source_id,
+                f.fiscal_start,
+                f.fiscal_end,
+                f.published_at,
+                f.observed_at,
+                f.currency,
+                optional_number(f.revenue),
+                optional_number(f.common_net_income),
+                optional_number(f.common_equity),
+                optional_number(f.operating_cash_flow)
+            )
+            .unwrap();
+        }
+        if let Some(c) = valuation.market_cap {
+            writeln!(
+                &mut text,
+                "C\t{}\t{}\t{}\t{}\t{}",
+                c.source_id, c.at, c.observed_at, c.currency, c.ticks
+            )
+            .unwrap();
+        }
+        for multiple in [
+            valuation.price_earnings,
+            valuation.price_sales,
+            valuation.price_book,
+        ] {
+            let code = match multiple {
+                Multiple::Value(value) => {
+                    writeln!(&mut text, "R\tvalue\t{value}").unwrap();
+                    continue;
+                }
+                Multiple::MissingFiling => "missing-filing",
+                Multiple::MissingMarketCap => "missing-cap",
+                Multiple::CurrencyMismatch => "currency",
+                Multiple::MissingDenominator => "missing-denominator",
+                Multiple::NonPositiveDenominator => "nonpositive-denominator",
+            };
+            writeln!(&mut text, "R\t{code}").unwrap();
+        }
+        Ok(text.into_bytes())
+    })
 }
 
 fn encode_bars(bars: Vec<Bar>) -> Vec<u8> {

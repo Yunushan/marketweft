@@ -9,6 +9,26 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('financial Wasm bridge returns exact balances and revision-specific multiples', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-financial-' + name + '.csv', import.meta.url), 'utf8');
+  const [filings, caps] = await Promise.all([fixture('filings'), fixture('market-caps')]);
+  const iso = t => '2025-04-03T' + t + 'Z';
+  assert.deepEqual(core.financialIndex(filings, caps).map(row => row.id), ['DEMO-ALFA', 'DEMO-BETA']);
+  const at = (known, issuer = 'DEMO-ALFA') => core.financialAsOf(filings, caps, issuer, iso('14:00:00'), iso(known));
+  const original = at('14:19:59');
+  assert.deepEqual(original.priceEarnings, { kind: 'value', units: 10000000n });
+  assert.equal(original.marketCap.ticks, 12000000000000000n);
+  const revised = at('14:20:00');
+  assert.equal(revised.filing.sourceId, 'ALFA-FY24-A1');
+  assert.equal(revised.filing.operatingCashFlow, -250000000000000n);
+  assert.deepEqual(revised.priceEarnings, { kind: 'value', units: 15000000n });
+  assert.deepEqual(revised.priceBook, { kind: 'missing-denominator' });
+  assert.deepEqual(at('14:25:00'), revised);
+  assert.deepEqual(at('14:35:00').priceEarnings, { kind: 'value', units: 20000000n });
+  assert.deepEqual(at('14:35:00', 'DEMO-BETA').priceEarnings, { kind: 'nonpositive-denominator' });
+  assert.throws(() => at('14:00:00', 'UNKNOWN'), /Select an issuer/);
+});
+
 test('sector heatmap Wasm bridge groups the screen and preserves weighted coverage', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-universe' + name + '.csv', import.meta.url), 'utf8');
   const [members, prices, sectors] = await Promise.all([fixture(''), fixture('-prices'), fixture('-sectors')]);
