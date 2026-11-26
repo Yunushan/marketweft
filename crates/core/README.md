@@ -42,3 +42,5 @@ Use `parse_dividends` for the instrument's reports, then `DividendBook::ledger` 
 ## Point-in-time universe state
 
 Use `parse_universe` for one history, `UniverseBook::checkpoints` for replay and `UniverseBook::as_of(effective_at, known_at)` for listing states. Both arguments are inclusive UTC Unix seconds. Each result is the source row responsible for membership, removal or delisting. The Wasm index returns the universe ID followed by newline-separated replay times. The query accepts two UTC timestamp lines followed by the CSV and returns tab-separated listing rows with identity, status, change ID and both times. [Universe contract](../../docs/universe-membership.md).
+
+Use `PriceBook::parse` with the membership book and a matching close CSV, then call `screen(baseline_at, effective_at, known_at)` with integer UTC seconds. Return values carry exact price ticks, optional ranks and signed `i128` return units. The Wasm screen accepts three UTC timestamp lines followed by the two CSVs, with the first CSV's UTF-8 byte length passed to the export. The TypeScript wrapper decodes ticks and return units as BigInt. [Screen contract](../../docs/universe-screen.md).
