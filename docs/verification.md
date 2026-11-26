@@ -1,5 +1,18 @@
 # MarketWeft verification
 
+## 0.4.0 · Point-in-time stock splits
+
+| Check | Observed result |
+| --- | --- |
+| Before effect | The first raw and adjusted close is 101.00. At 14:20 UTC on June 2 the report becomes visible, but the 2-for-1 ratio becomes eligible at 14:00 UTC on June 3. |
+| At and after effect | The last pre-split close is 106.50 raw and 53.25 adjusted. Its volume is 810.000001 raw and 1,620.000002 adjusted. The first post-split close is 53.00 in both views. |
+| Clock-aware corrections | The browser keeps the historical close at 101.00 until a late report is observed, switches it to 50.50, and returns to 101.00 when rewound. Native Rust and Wasm also verify a later 3-for-1 ratio correction without exposing it at earlier cutoffs. |
+| Numerical and file boundaries | Native tests cover reciprocal volume, rational composition, reverse splits, signed tie rounding and overflow rejection. Browser tests reject a mismatched instrument and a split inside a candle. The imported workspace database stays unchanged. |
+| Packaged upgrade | Using both archives' own launchers, Chromium opened a 0.3.0 catalog under 0.4.0 on the same origin and ran the imported split offline. The raw CSV, catalog and preferences matched before and after the upgrade and replay. The split view fit a 360-pixel viewport. |
+| Regression suite | All 27 production Chromium and six SDK tests passed on Windows x64. Twelve native tests passed on Linux x64. Five compiled Wasm checks passed. The README check verified all 21 editions and their shared runnable examples. |
+
+The fixture uses synthetic prices, volumes and sessions. [Corporate actions contract](corporate-actions.md) · [Hosted verification history](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.3.0 · Session-aware historical replay
 
 | Check | Observed result |

@@ -41,6 +41,10 @@ reveals each bar at its scheduled close and marks missing intervals in-session.
 To replay your own import, choose a matching UTC session calendar and bar
 interval. The replay-*.csv files let you try the import workflow with the demo.
 
+Choose Start split demo to compare point-in-time splits in the raw and
+split-adjusted views. The split-*.csv files supply the same raw history,
+calendar and actions for a 600-second imported replay under DEMO:SPLIT.
+
 The chart supports panning, zooming, a crosshair and moving-average overlays.
 This build has no broker connection or order entry. Press Ctrl+C in the
 launcher's terminal to stop serving the application.
@@ -63,6 +67,8 @@ def main():
     fixture = ROOT / "crates/core/tests/fixtures"
     files["replay-sessions.csv"] = (fixture / "nyse-2025-replay-sessions.csv").read_bytes()
     files["replay-ohlcv.csv"] = (fixture / "nyse-2025-replay-ohlcv.csv").read_bytes()
+    for kind in ("actions", "ohlcv", "sessions"):
+        files[f"split-{kind}.csv"] = (fixture / f"synthetic-split-{kind}.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
     inventory["components"] = [item for item in inventory["components"]
                                if any(p["value"] == "web-runtime" for p in item["properties"])]
