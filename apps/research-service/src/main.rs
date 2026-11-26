@@ -1,4 +1,6 @@
-use marketweft_research_service::{research_router, research_router_with_audit, Tokens};
+use marketweft_research_service::{
+    copy_audit_database, research_router, research_router_with_audit, Tokens,
+};
 use std::env::{self, VarError};
 use std::io;
 use std::net::Ipv4Addr;
@@ -13,8 +15,29 @@ fn setting(key: &str) -> Result<Option<String>, VarError> {
     }
 }
 
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<_> = env::args_os().skip(1).collect();
+    match args.as_slice() {
+        [] => serve(),
+        [group, action, source, destination]
+            if group == "audit" && (action == "backup" || action == "restore") =>
+        {
+            let summary = copy_audit_database(Path::new(source), Path::new(destination))?;
+            println!(
+                "Verified {} audit receipts, {} unfinished.",
+                summary.receipts, summary.unfinished
+            );
+            Ok(())
+        }
+        _ => Err(io::Error::other(
+            "Usage: marketweft-research-service audit <backup|restore> <source> <new-destination>",
+        )
+        .into()),
+    }
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn serve() -> Result<(), Box<dyn std::error::Error>> {
     let port = setting("MARKETWEFT_RESEARCH_PORT")?
         .map(|value| value.parse::<u16>())
         .transpose()?

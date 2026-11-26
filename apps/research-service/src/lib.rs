@@ -2,6 +2,7 @@
 
 mod analytics;
 mod audit;
+mod audit_recovery;
 mod grpc;
 mod websocket;
 
@@ -9,6 +10,8 @@ mod websocket;
 pub mod proto {
     tonic::include_proto!("marketweft.research.v1");
 }
+
+pub use audit_recovery::{copy_audit_database, AuditSummary};
 
 use analytics::ResearchPage;
 use audit::{Outcome, Receipt, Trail, Transport};

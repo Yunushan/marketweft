@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.55.0 · Audit database recovery
+
+| Check | Observed result |
+| --- | --- |
+| Snapshot during a WAL write | The live source had two committed receipts and a third uncommitted write. The snapshot and restored database contained exactly the two committed receipts. The source accepted its third receipt after the snapshot. |
+| Restored state and sequence | The restored service reopened the ledger with receipt 1 complete and receipt 2 unfinished. The next insert received ID 3. Both commands reported two verified receipts, including one unfinished. |
+| Destination and source validation | Recovery rejected an occupied destination, a stale SQLite sidecar and a corrupt input. Existing files preserved their bytes and the rejected restore left no partial database. |
+
+[Audit recovery](local-rest-research.md#audit-backup-and-recovery) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.54.0 · Local SQLite research audit
 
 | Check | Observed result |

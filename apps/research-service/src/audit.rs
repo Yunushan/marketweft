@@ -6,8 +6,8 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-const APPLICATION_ID: i32 = 0x4D57_5241;
-const SCHEMA_VERSION: i32 = 1;
+pub(crate) const APPLICATION_ID: i32 = 0x4D57_5241;
+pub(crate) const SCHEMA_VERSION: i32 = 1;
 const SCHEMA: &str = r#"
     CREATE TABLE research_receipts (
         receipt_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,6 +76,12 @@ impl Outcome {
 #[derive(Clone)]
 pub(crate) struct Trail(Arc<Mutex<Connection>>);
 
+pub(crate) fn schema_version(database: &Connection) -> rusqlite::Result<(i32, i32)> {
+    let application = database.pragma_query_value(None, "application_id", |row| row.get(0))?;
+    let version = database.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    Ok((application, version))
+}
+
 impl Trail {
     pub(crate) fn open(path: &Path) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         if path.as_os_str().is_empty() || path == Path::new(":memory:") {
@@ -89,10 +95,7 @@ impl Trail {
         database.pragma_update(None, "synchronous", "EXTRA")?;
         database.pragma_update(None, "trusted_schema", false)?;
         let schema = database.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let application: i32 =
-            schema.pragma_query_value(None, "application_id", |row| row.get(0))?;
-        let version: i32 = schema.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        match (application, version) {
+        match schema_version(&schema)? {
             (0, 0) => {
                 let has_objects: bool = schema.query_row(
                     "SELECT EXISTS (SELECT 1 FROM sqlite_schema WHERE name NOT GLOB 'sqlite_*')",

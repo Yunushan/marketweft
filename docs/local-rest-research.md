@@ -59,3 +59,14 @@ sqlite3 -readonly "$MARKETWEFT_RESEARCH_AUDIT_DB" 'SELECT receipt_id, transport,
 ```
 
 If SQLite cannot write a receipt, REST and WebSocket upgrades return HTTP 503 and gRPC returns `Unavailable`. An upgraded WebSocket returns an error frame when finalizing its receipt fails. An interrupted admission keeps its original receipt ID.
+
+## Audit backup and recovery
+
+Use the standalone service executable to snapshot a running ledger and restore it to a fresh path.
+
+```sh
+./marketweft-research-service audit backup research-audit.sqlite snapshot.sqlite
+./marketweft-research-service audit restore snapshot.sqlite recovered-audit.sqlite
+```
+
+Both commands report the verified receipt and unfinished counts. SQLite reads a consistent snapshot of committed data, verifies the destination and publishes a single file. Choose unused destination paths, including their SQLite sidecar names. To resume service with recovered data, start it with `MARKETWEFT_RESEARCH_AUDIT_DB` set to the recovered file. The next receipt follows the restored sequence.
