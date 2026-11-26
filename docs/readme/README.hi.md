@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.10.0 · 0BSD**
+**0.11.0 · 0BSD**
 
 **दस्तावेज़ की भाषाएँ**
 
@@ -15,14 +15,14 @@
 
 MarketWeft विश्लेषकों, डेवलपरों और संचालकों के लिए स्थानीय शोध टर्मिनल है। यह अधिकृत OHLCV फ़ाइलें खोलता है, कैंडल और मात्रा दिखाता है, स्थिर दशमलव में SMA और EMA निकालता है और निगरानी सूची, चयन तथा संकेतक IndexedDB में रखता है। संसाधनों की कैशिंग के बाद ऑफ़लाइन चलता है। शामिल भाव और मात्राएँ कृत्रिम हैं और खाता नहीं चाहिए।
 
-MarketWeft 0.10.0 रिलीज़ समय, अनुमान और संशोधित वास्तविक आँकड़ों का ऐतिहासिक कैलेंडर जोड़ता है। MarketWeft 0.7.0 किसी समय पर उपलब्ध जानकारी से मूल्य प्रतिफल के अनुसार यूनिवर्स स्क्रीनिंग जोड़ता है। सत्र-आधारित रीप्ले में शेयर विभाजन, नकद लाभांश, सदस्यता और डीलिस्टिंग हैं। रिपॉज़िटरी में अलग trading-bot सेवा के लिए केवल-पठन TypeScript ऑब्ज़र्वर और प्रायोगिक Tauri रैपर भी हैं। प्रदाता फ़ीड, ऑर्डर, हस्ताक्षरित इंस्टॉलर और बहु-उपयोगकर्ता होस्टिंग रोडमैप में हैं।
+MarketWeft 0.11.0 ऐतिहासिक यूरोपीय विकल्प श्रृंखला, निहित अस्थिरता और ग्रीक्स जोड़ता है। MarketWeft 0.7.0 किसी समय पर उपलब्ध जानकारी से मूल्य प्रतिफल के अनुसार यूनिवर्स स्क्रीनिंग जोड़ता है। सत्र-आधारित रीप्ले में शेयर विभाजन, नकद लाभांश, सदस्यता और डीलिस्टिंग हैं। रिपॉज़िटरी में अलग trading-bot सेवा के लिए केवल-पठन TypeScript ऑब्ज़र्वर और प्रायोगिक Tauri रैपर भी हैं। प्रदाता फ़ीड, ऑर्डर, हस्ताक्षरित इंस्टॉलर और बहु-उपयोगकर्ता होस्टिंग रोडमैप में हैं।
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## पोर्टेबल टर्मिनल शुरू करें
 
-सफल GitHub सत्यापन से browser-terminal-attempt-N डाउनलोड करें। MarketWeft-browser-0.10.0.zip खोलें, dist/ को serve-terminal.mjs के साथ रखें और उसी फ़ोल्डर में आदेश चलाएँ। WebAssembly, Canvas, BigInt और IndexedDB वाले आधुनिक ब्राउज़र में http://127.0.0.1:4173/ खोलें। Node.js 22.12 या नया चाहिए। npm इंस्टॉल नहीं चाहिए। नेटवर्क बंद करने से पहले Offline ready देखें।
+सफल GitHub सत्यापन से browser-terminal-attempt-N डाउनलोड करें। MarketWeft-browser-0.11.0.zip खोलें, dist/ को serve-terminal.mjs के साथ रखें और उसी फ़ोल्डर में आदेश चलाएँ। WebAssembly, Canvas, BigInt और IndexedDB वाले आधुनिक ब्राउज़र में http://127.0.0.1:4173/ खोलें। Node.js 22.12 या नया चाहिए। npm इंस्टॉल नहीं चाहिए। नेटवर्क बंद करने से पहले Offline ready देखें।
 
 ```sh
 node serve-terminal.mjs
@@ -92,7 +92,19 @@ INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A0,actual,2025-04-03T14:30:00Z,202
 INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A1,revision,2025-04-03T14:40:00Z,2025-04-03T14:45:00Z,,2.6,CPI-A0
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv)
+Historical replay → Open option chain → Start option demo खोलें। अप्रैल में 100 स्ट्राइक वाले विकल्पों की IV करीब 20% है। Late option quote पर 90 स्ट्राइक का कॉल 25% IV के साथ दिखता है, और Corrected spread से पुट की गणना संभव होती है। Implied volatility surface में अलग-अलग समाप्तियाँ देखें। अपने समयबद्ध भावों के लिए Underlying CSV और Option quotes CSV लोड करें।
+
+```csv
+underlying,currency,quote_at,observed_at,spot,rate,dividend_yield
+DEMO:OPT,USD,2025-04-03T13:59:00Z,2025-04-03T13:59:00Z,100,0.03,0.01
+```
+
+```csv
+contract_id,underlying,currency,side,expiry,strike,quote_at,observed_at,bid,ask
+APR-C100,DEMO:OPT,USD,call,2026-04-03T14:00:00Z,100,2025-04-03T14:00:00Z,2025-04-03T14:00:00Z,8.807321,8.847321
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv)
 
 <!-- section:04 -->
 ## अपना डेटा आयात और पुनर्चालित करें

@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.10.0 · 0BSD**
+**0.11.0 · 0BSD**
 
 **لغات التوثيق**
 
@@ -21,7 +21,7 @@ MarketWeft محطة بحث محلية للمحللين والمطورين وال
 
 <div dir="rtl">
 
-يضيف MarketWeft 0.10.0 تقويمًا اقتصاديًا حسب وقت الاستعلام يشمل المواعيد والتوقعات والقيم الفعلية المصححة. يضيف MarketWeft 0.7.0 فرز أعضاء الكون حسب عائد السعر وفق البيانات المعروفة عند وقت الاستعلام. تشمل إعادة التشغيل وفق الجلسات تجزئات الأسهم والتوزيعات النقدية وتغير العضوية والشطب. يتضمن المستودع أيضًا مراقب TypeScript للقراءة فقط لخدمة trading-bot مستقلة وغلاف Tauri تجريبيًا. لا تزال تغذيات البيانات وإدخال الأوامر والمثبّتات الموقّعة والاستضافة متعددة المستخدمين على خارطة الطريق.
+يضيف MarketWeft 0.11.0 سلاسل خيارات أوروبية تاريخية وتقلبًا ضمنيًا وحساسيات الخيار. يضيف MarketWeft 0.7.0 فرز أعضاء الكون حسب عائد السعر وفق البيانات المعروفة عند وقت الاستعلام. تشمل إعادة التشغيل وفق الجلسات تجزئات الأسهم والتوزيعات النقدية وتغير العضوية والشطب. يتضمن المستودع أيضًا مراقب TypeScript للقراءة فقط لخدمة trading-bot مستقلة وغلاف Tauri تجريبيًا. لا تزال تغذيات البيانات وإدخال الأوامر والمثبّتات الموقّعة والاستضافة متعددة المستخدمين على خارطة الطريق.
 
 </div>
 
@@ -32,7 +32,7 @@ MarketWeft محطة بحث محلية للمحللين والمطورين وال
 
 <div dir="rtl">
 
-نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.10.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
+نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.11.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
 
 </div>
 
@@ -140,7 +140,23 @@ INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A0,actual,2025-04-03T14:30:00Z,202
 INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A1,revision,2025-04-03T14:40:00Z,2025-04-03T14:45:00Z,,2.6,CPI-A0
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv)
+<div dir="rtl">
+
+افتح Historical replay → Open option chain → Start option demo. يبدأ زوج أبريل بسعر تنفيذ 100 عند تقلب ضمني يقارب 20%. يعرض Late option quote خيار شراء بسعر تنفيذ 90 وتقلب 25%. يصحح Corrected spread عرض خيار بيع كان غير متاح للتقييم. افتح Implied volatility surface لمقارنة آجال الانتهاء. حمّل Underlying CSV وOption quotes CSV لبياناتك.
+
+</div>
+
+```csv
+underlying,currency,quote_at,observed_at,spot,rate,dividend_yield
+DEMO:OPT,USD,2025-04-03T13:59:00Z,2025-04-03T13:59:00Z,100,0.03,0.01
+```
+
+```csv
+contract_id,underlying,currency,side,expiry,strike,quote_at,observed_at,bid,ask
+APR-C100,DEMO:OPT,USD,call,2026-04-03T14:00:00Z,100,2025-04-03T14:00:00Z,2025-04-03T14:00:00Z,8.807321,8.847321
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv)
 
 <!-- section:04 -->
 ## استيراد بياناتك وإعادة تشغيلها

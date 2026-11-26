@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.10.0 · 0BSD**
+**0.11.0 · 0BSD**
 
 **لغات الدليل**
 
@@ -21,7 +21,7 @@ MarketWeft محطة بحث بتشتغل محلي للمحللين والمطور
 
 <div dir="rtl">
 
-MarketWeft 0.10.0 بيضيف تقويم اقتصادي حسب الوقت فيه المواعيد والتوقعات والأرقام الفعلية بعد التعديل. MarketWeft 0.7.0 بيضيف ترتيب أعضاء المجموعة حسب عائد السعر بالمعلومات اللي كانت معروفة وقت الاستعلام. إعادة التشغيل حسب الجلسة فيها تجزئة الأسهم والتوزيعات النقدية وتغييرات العضوية والشطب. المستودع فيه كمان مراقب TypeScript للقراءة بس لخدمة trading-bot منفصلة وغلاف Tauri تجريبي. تغذية البيانات والأوامر والمثبّتات الموقّعة والاستضافة لأكتر من مستخدم لسه في خطة الشغل.
+MarketWeft 0.11.0 بيضيف سلاسل الخيارات الأوروبية التاريخية والتقلب الضمني وحساسيات السعر. MarketWeft 0.7.0 بيضيف ترتيب أعضاء المجموعة حسب عائد السعر بالمعلومات اللي كانت معروفة وقت الاستعلام. إعادة التشغيل حسب الجلسة فيها تجزئة الأسهم والتوزيعات النقدية وتغييرات العضوية والشطب. المستودع فيه كمان مراقب TypeScript للقراءة بس لخدمة trading-bot منفصلة وغلاف Tauri تجريبي. تغذية البيانات والأوامر والمثبّتات الموقّعة والاستضافة لأكتر من مستخدم لسه في خطة الشغل.
 
 </div>
 
@@ -32,7 +32,7 @@ MarketWeft 0.10.0 بيضيف تقويم اقتصادي حسب الوقت فيه 
 
 <div dir="rtl">
 
-نزّل browser-terminal-attempt-N من تشغيل GitHub ناجح. فك MarketWeft-browser-0.10.0.zip وسيب dist/ جنب serve-terminal.mjs وشغّل الأمر جوه نفس المجلد. افتح http://127.0.0.1:4173/ في متصفح حديث فيه WebAssembly وCanvas وBigInt وIndexedDB. استخدم Node.js 22.12 أو أحدث. مش محتاج تثبت npm. استنى Offline ready قبل ما تفصل النت.
+نزّل browser-terminal-attempt-N من تشغيل GitHub ناجح. فك MarketWeft-browser-0.11.0.zip وسيب dist/ جنب serve-terminal.mjs وشغّل الأمر جوه نفس المجلد. افتح http://127.0.0.1:4173/ في متصفح حديث فيه WebAssembly وCanvas وBigInt وIndexedDB. استخدم Node.js 22.12 أو أحدث. مش محتاج تثبت npm. استنى Offline ready قبل ما تفصل النت.
 
 </div>
 
@@ -140,7 +140,23 @@ INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A0,actual,2025-04-03T14:30:00Z,202
 INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A1,revision,2025-04-03T14:40:00Z,2025-04-03T14:45:00Z,,2.6,CPI-A0
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv)
+<div dir="rtl">
+
+افتح Historical replay → Open option chain → Start option demo. زوج أبريل بسعر تنفيذ 100 بيبدأ بتقلب ضمني حوالي 20%. Late option quote بيعرض خيار الشراء بسعر تنفيذ 90 وتقلب 25%. Corrected spread بيرجع تقييم خيار بيع. افتح Implied volatility surface علشان تقارن المواعيد. حمّل Underlying CSV وOption quotes CSV لو عندك أسعارك.
+
+</div>
+
+```csv
+underlying,currency,quote_at,observed_at,spot,rate,dividend_yield
+DEMO:OPT,USD,2025-04-03T13:59:00Z,2025-04-03T13:59:00Z,100,0.03,0.01
+```
+
+```csv
+contract_id,underlying,currency,side,expiry,strike,quote_at,observed_at,bid,ask
+APR-C100,DEMO:OPT,USD,call,2026-04-03T14:00:00Z,100,2025-04-03T14:00:00Z,2025-04-03T14:00:00Z,8.807321,8.847321
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv)
 
 <!-- section:04 -->
 ## استورد بياناتك وشغّلها

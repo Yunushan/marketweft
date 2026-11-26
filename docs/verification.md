@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.11.0 · Point-in-time European option chains
+
+| Check | Observed result |
+| --- | --- |
+| Independent pricing evidence | A 100-strike one-year fixture gives USD 8.827321 and USD 6.866891 for the 20% call and put. Tests compare a separate Gaussian calculation, dividend-adjusted parity and an out-of-the-money tail value. |
+| Numerical sensitivity | Native tests invert 54 combinations of strike, expiry, volatility and side, then verify Delta, Gamma, Vega, Theta and Rho by finite differences. |
+| Cutoff and invalid quotes | Rust, Wasm and Chromium verify the 14:02 delayed quote, 14:03 underlying update and 14:04 spread correction. One-sided, crossed, stale, expired and out-of-bounds rows retain typed reasons. |
+| Offline surface and regressions | Chromium compares April and October IV points, rewinds checks and validates both local files while preserving the catalog. All 41 browser and six SDK tests passed on Windows x64. Thirty-seven native tests passed on Linux x64, twelve Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Option-chain methods and fixture](option-chain.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.10.0 · Point-in-time economic release calendar
 
 | Check | Observed result |

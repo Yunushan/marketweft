@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.10.0 · 0BSD**
+**0.11.0 · 0BSD**
 
 **పత్రాల భాషలు**
 
@@ -15,14 +15,14 @@
 
 MarketWeft విశ్లేషకులు, డెవలపర్లు, నిర్వాహకుల కోసం స్థానిక పరిశోధన టెర్మినల్. అనుమతి ఉన్న OHLCV ఫైళ్లను తెరుస్తుంది, క్యాండిళ్లు మరియు పరిమాణం చూపిస్తుంది, స్థిర దశాంశంతో SMA, EMA లెక్కిస్తుంది. గమనిక జాబితా, ఎంచుకున్న సాధనం, సూచికలు IndexedDBలో ఉంటాయి. వనరులు కాష్ అయిన తర్వాత ఆఫ్‌లైన్‌లో పనిచేస్తుంది. అందించిన ధరలు, పరిమాణం కృత్రిమమైనవి. ఖాతా అవసరం లేదు.
 
-MarketWeft 0.10.0లో షెడ్యూల్, అంచనా, సవరించిన వాస్తవ విలువలతో చారిత్రక ఆర్థిక క్యాలెండర్ చేరింది. MarketWeft 0.7.0లో ప్రశ్న సమయానికి తెలిసిన ధరల రాబడిని బట్టి సమూహ సభ్యులకు ర్యాంకు ఇవ్వవచ్చు. సెషన్ ఆధారిత రీప్లేలో షేరు విభజనలు, నగదు డివిడెండ్లు, సభ్యత్వం, డీలిస్టింగ్ ఉన్నాయి. వేరే trading-bot సేవ కోసం చదవడానికి మాత్రమే TypeScript అబ్జర్వర్, ప్రయోగాత్మక Tauri ర్యాపర్ కూడా ఉన్నాయి. డేటా ఫీడ్లు, ఆర్డర్లు, సంతకం చేసిన ఇన్‌స్టాలర్లు, బహుళ వినియోగదారుల హోస్టింగ్ రోడ్‌మ్యాప్‌లో ఉన్నాయి.
+MarketWeft 0.11.0లో చారిత్రక యూరోపియన్ ఆప్షన్ చైన్లు, ఇంప్లైడ్ వోలటిలిటీ, గ్రీక్స్ చేరాయి. MarketWeft 0.7.0లో ప్రశ్న సమయానికి తెలిసిన ధరల రాబడిని బట్టి సమూహ సభ్యులకు ర్యాంకు ఇవ్వవచ్చు. సెషన్ ఆధారిత రీప్లేలో షేరు విభజనలు, నగదు డివిడెండ్లు, సభ్యత్వం, డీలిస్టింగ్ ఉన్నాయి. వేరే trading-bot సేవ కోసం చదవడానికి మాత్రమే TypeScript అబ్జర్వర్, ప్రయోగాత్మక Tauri ర్యాపర్ కూడా ఉన్నాయి. డేటా ఫీడ్లు, ఆర్డర్లు, సంతకం చేసిన ఇన్‌స్టాలర్లు, బహుళ వినియోగదారుల హోస్టింగ్ రోడ్‌మ్యాప్‌లో ఉన్నాయి.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## పోర్టబుల్ టెర్మినల్ ప్రారంభించండి
 
-విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.10.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
+విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.11.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
 
 ```sh
 node serve-terminal.mjs
@@ -92,7 +92,19 @@ INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A0,actual,2025-04-03T14:30:00Z,202
 INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A1,revision,2025-04-03T14:40:00Z,2025-04-03T14:45:00Z,,2.6,CPI-A0
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv)
+Historical replay → Open option chain → Start option demo తెరవండి. ఏప్రిల్ 100 స్ట్రైక్ జత IV దాదాపు 20%. Late option quote లో 90 స్ట్రైక్ కాల్ 25% IVతో వస్తుంది. Corrected spread ఒక పుట్ విలువను తిరిగి లెక్కిస్తుంది. గడువులను పోల్చేందుకు Implied volatility surface తెరవండి. సొంత కోట్స్ కోసం Underlying CSV, Option quotes CSV లోడ్ చేయండి.
+
+```csv
+underlying,currency,quote_at,observed_at,spot,rate,dividend_yield
+DEMO:OPT,USD,2025-04-03T13:59:00Z,2025-04-03T13:59:00Z,100,0.03,0.01
+```
+
+```csv
+contract_id,underlying,currency,side,expiry,strike,quote_at,observed_at,bid,ask
+APR-C100,DEMO:OPT,USD,call,2026-04-03T14:00:00Z,100,2025-04-03T14:00:00Z,2025-04-03T14:00:00Z,8.807321,8.847321
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv)
 
 <!-- section:04 -->
 ## మీ డేటాను దిగుమతి చేసి పునరావృతం చేయండి

@@ -1,6 +1,6 @@
 # MarketWeft requirements and acceptance evidence
 
-The evidence column tracks delivery through 0.10.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
+The evidence column tracks delivery through 0.11.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
 
 | ID | Behavior and acceptance criterion | Evidence or next test |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ The evidence column tracks delivery through 0.10.0. “Backlog” identifies beh
 | MW-023 | Research financial statements and valuation using publication-time vintages, currencies and restatements. | 0.9.0 reconstructs annual publication vintages with stable issuer and filing IDs, separate capitalization revisions and traceable P/E, P/S and P/B. Scope remains local with annual periods. [Contracts and fixtures](financial-statements.md). |
 | MW-024 | Serve economic events with release time, actual, forecast and revision lineage. | 0.10.0 reconstructs local scheduled releases, known forecasts, actuals and their revision chains with independent published and observed cutoffs. Provider feeds remain open. [Economic calendar contract](macro-calendar.md). |
 | MW-025 | Run walk-forward optimization and seeded Monte Carlo, report drawdown, exposure and portfolio risk. | Backlog. Enforce disjoint evaluation periods and reproduce percentiles on a synthetic portfolio. |
-| MW-026 | Observe option chains and calculate Greeks and implied volatility surfaces. | Backlog. Check put-call parity, finite-difference Greeks, inversion error and invalid quote handling. |
+| MW-026 | Observe option chains and calculate Greeks and implied volatility surfaces. | 0.11.0 delivers local dated European option chains with IV, five Greeks and a sparse observed surface. Native and browser tests verify cutoff gating, parity, finite differences and unavailable quotes. [Option-chain contract](option-chain.md). |
 | MW-027 | Trigger auditable alerts and webhooks from explicit, replayable rules and recognized patterns. | Backlog. Replay a crossing twice, deduplicate the notification and verify bounded delivery retries. |
 | MW-028 | Offer versioned MarketWeft REST, WebSocket, gRPC and read-only MCP research surfaces. | Backlog. Test schema compatibility, auth scopes, throttling, provenance and disconnect/resume. The trading-bot SDK is a client of a separate service. |
 | MW-029 | Enforce provider-specific display, storage, redistribution and automated-use rights. | 0.2.0 records source and usage-grant text with imported CSV and preserves them across backup and restore. Automated entitlement and expiry checks remain a requirement before adding a network feed. |
