@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.48.0 ships a Python research SDK and a versioned native executable for the shared Rust formula engine. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.49.0 exposes exact historical formula evaluation through a bounded, read-only local MCP server. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -51,16 +51,17 @@
 | Delivered · 0.46.0 | Portable strategy function scopes (MW-015, MW-016, MW-020) | Validate imported functions with the strategy, reproduce accepted receipts and score candidates with separate function libraries. [Formula strategy packages](docs/formula-strategy-packages.md). |
 | Delivered · 0.47.0 | TypeScript research SDK (MW-015, MW-016) | Independently install the SDK and its bundled Wasm offline. Verify exact formula outputs, observed prefixes and scoped function definitions. [SDK guide](packages/research/README.md). |
 | Delivered · 0.48.0 | Python research SDK (MW-015, MW-016) | Install the wheel offline, pass an observed cutoff and verify exact parity and isolated custom functions against the Rust and TypeScript fixtures. [Python SDK guide](packages/python-research/README.md). |
+| Delivered · 0.49.0 | Local MCP formula research (MW-028) | Negotiate MCP over stdio, return exact formula ticks, page observed rows and recover from tool errors. [Local MCP research](docs/local-mcp-research.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Broaden reproducible strategy signals, portfolio-level optimization and execution inputs. |
-| P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Support isolated executable plugins and independent formula SDK conformance. Verify schema compatibility across SDKs and start MCP with read-only research queries. |
+| P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Support isolated executable plugins and independent formula SDK conformance. Verify schema compatibility across SDKs and extend the read-only MCP research tools. |
 | P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Add explicit webhook configuration, authenticated delivery, bounded retry and delivery receipts. Extend annual filings with quarterly/TTM aggregation, add options exercise and dividend models, and integrate authorized data sources. |
 | P2 | Order flow and specialized visualization (MW-012, MW-019) | Add authorized trade and depth streams, sequence recovery, trade-side classification and profiles. Benchmark Canvas against WebGL/wgpu with identical traces before adopting another renderer. |
 | P3 | Enterprise and authorized live execution (MW-022, MW-028, MW-030) | Introduce a headless Rust service, SQLite/DuckDB persistence, authenticated APIs and audited operations. Add external stores/queues only after load tests justify them. Prove quota enforcement and disaster recovery before a hosted rollout. Require explicit authorization and deterministic pre-trade risk for any live route. |
 
 ## Handoff for the next change
 
-Expose bounded, read-only historical formula evaluation through a local MCP interface with a versioned tool schema.
+Expose point-in-time universe screening through the local research SDK and MCP. Verify addition, removal, late prices, revisions and missing endpoints against the terminal fixtures.
 

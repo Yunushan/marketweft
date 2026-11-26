@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.49.0 · Local MCP formula research
+
+| Check | Observed result |
+| --- | --- |
+| Client interoperability | The official TypeScript MCP client 1.32.2 connected over stdio, negotiated protocol 2025-11-25, discovered the read-only tool and validated both result pages against the advertised output schema. |
+| Exact cutoff and paging | At 14:04 UTC the fixture yields five rows with three unavailable values and a final value of 14.5. Repeated requests reconstruct the same sequence with different page sizes. |
+| Errors and limits | The server rejects premature calls, unknown methods and arguments, invalid JSON and oversized frames. A rejected formula leaves the session usable. The installed wheel passes the same subprocess tests. |
+| Regression suite | All 87 browser, eight Node SDK and four launcher tests passed on Windows x64. All 42 Wasm and six Python tests passed, and all 21 README editions passed parity. |
+
+[Local MCP research](local-mcp-research.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.48.0 · Python research SDK
 
 | Check | Observed result |
