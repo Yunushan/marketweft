@@ -1,5 +1,18 @@
 # MarketWeft verification
 
+## 0.5.0 · Point-in-time cash dividends
+
+| Check | Observed result |
+| --- | --- |
+| Cutoff ledger | Compared the synthetic 100-share ledger at all 35 browser replay events. Native tests also checked immediately before, at and after every dividend event and at the superseded pay time. |
+| Ex-date and revisions | USD starts at zero, accrues 25.00 at ex-date and rises to 30.00 when the amount revision arrives. The old pay date produces no cash. The revised pay date closes the 30.00 receivable and credits USD 30.00. |
+| Late and corrected reports | The late EUR record posts EUR 10.00 at observation. The post-payment correction posts a USD 2.00 debit and leaves USD 28.00. Rewinding restores USD 30.00 and the earlier postings. |
+| Multi-currency and limits | Native tests exercise currency replacement, post-payment reversals, cancellation, coincident cutoffs, zero shares and exact totals above JavaScript's safe-integer limit. Browser tests verify validation and a custom seven-share scenario alongside raw and split-adjusted charts, with no catalog changes. |
+| Packaged upgrade | The actual 0.4.0 and 0.5.0 browser archives opened the same workspace in an isolated profile. After upgrading, Chromium replayed the uploaded dividend fixture offline and kept the stored history and preferences intact. |
+| Regression suite | 29 production Chromium and six SDK tests passed on Windows x64. Sixteen native tests passed on Linux x64, and six compiled Wasm tests passed. The README checker verified all 21 editions and their shared examples. |
+
+The fixture is synthetic and uses explicit UTC times and an assumed whole-share entitlement. [Dividend ledger contract and cutoff table](cash-dividends.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.4.0 · Point-in-time stock splits
 
 | Check | Observed result |
