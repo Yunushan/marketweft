@@ -6,6 +6,7 @@ import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
 import type { Bar, MarketCore, MeasuredDrawing } from './market-core'
+import type { OverlayPeriods } from './catalog-schema'
 
 type View = { end: number; count: number }
 type Series = (number | null)[]
@@ -297,6 +298,7 @@ export function Chart({
   linkedTimestamp,
   onTimestamp,
   drawingTools,
+  periods,
 }: {
   asset: Asset
   sma: Series
@@ -304,6 +306,7 @@ export function Chart({
   linkedTimestamp?: number | null
   onTimestamp?: (timestamp: number | null) => void
   drawingTools?: DrawingTools
+  periods?: OverlayPeriods
 }) {
   const { bars } = asset,
     n = bars.length
@@ -324,7 +327,9 @@ export function Chart({
   const start = view.end - view.count
   const linkedIndex = linkedTimestamp == null ? null : visibleBarAt(bars, linkedTimestamp, start, view.end)
   const active = pointerIndex ?? linkedIndex
-  const b = bars[active ?? view.end - 1]
+  const readoutIndex = active ?? view.end - 1
+  const b = bars[readoutIndex]
+  const indicatorValues = sma.length > 0 || ema.length > 0
   function stopEditing() {
     setDrawingFields(null)
     setPicking(null)
@@ -452,6 +457,18 @@ export function Chart({
           <small>Vol</small> {volume(b.volume)}
         </span>
       </div>
+      {periods && (
+        <div className="ohlc chart-overlay-values" role={indicatorValues ? 'group' : undefined}
+          aria-label={indicatorValues ? 'Moving average values' : undefined}>
+          {([['sma', sma], ['ema', ema]] as const).map(([kind, series]) => {
+            if (!series.length) return null
+            const value = series[readoutIndex]
+            return <span key={kind}>
+              <small>{kind.toUpperCase()} {periods[kind]}</small> {value == null ? '—' : price(value)}
+            </span>
+          })}
+        </div>
+      )}
       <div ref={zone} className={picking ? 'canvas-zone picking-endpoint' : 'canvas-zone'}>
         <canvas
           tabIndex={0}

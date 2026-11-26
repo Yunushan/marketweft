@@ -482,6 +482,13 @@ const LIMIT = 8 * 1024 * 1024;
 const LEGACY_SPLIT_BYTES = 32;
 const SPLIT_ID_BYTES = 40;
 const REVISED_SPLIT_BYTES = LEGACY_SPLIT_BYTES + SPLIT_ID_BYTES;
+export const DEFAULT_INDICATOR_PERIODS = { sma: 20, ema: 9 } as const;
+export const MAX_INDICATOR_PERIOD = 100_000;
+
+export function validIndicatorPeriod(period: unknown): period is number {
+  return typeof period === 'number' && Number.isInteger(period) &&
+    period >= 1 && period <= MAX_INDICATOR_PERIOD;
+}
 
 function decodeDividendEvents(text: string, withPositions = false): DividendEvent[] {
   return text.slice(0, -1).split('\n').map(line => {
@@ -643,7 +650,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     },
     indicator(kind, period, bars) {
       if (kind !== 'sma' && kind !== 'ema') throw new Error('Unknown indicator.');
-      if (!Number.isInteger(period) || period < 1 || period > 100_000 || bars.length > 100_000) {
+      if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD) {
         throw new Error('Series and indicator period must fit within 100,000 bars.');
       }
       const dest = input(bars.length * 8);

@@ -8,9 +8,11 @@ const FORMAT = 'marketweft-workspace'
 const SINGLE_PANE_BACKUP_VERSION = 1
 const COMPARISON_BACKUP_VERSION = 2
 const DRAWING_BACKUP_VERSION = 3
+const INDICATOR_PERIODS_BACKUP_VERSION = 4
 const SAMPLE_VERSION = 1
 
 function backupVersion(preferences: Preferences) {
+  if (preferences.overlayPeriods) return INDICATOR_PERIODS_BACKUP_VERSION
   if (preferences.drawings) return DRAWING_BACKUP_VERSION
   return preferences.comparison ? COMPARISON_BACKUP_VERSION : SINGLE_PANE_BACKUP_VERSION
 }
@@ -127,8 +129,8 @@ export async function verifyWorkspaceBackup(
   const file = fields(parsed, ['format', 'version', 'manifest', 'sha256'])
   if (file.format !== FORMAT)
     throw Error('Choose a MarketWeft workspace backup.')
-  if (file.version !== SINGLE_PANE_BACKUP_VERSION &&
-      file.version !== COMPARISON_BACKUP_VERSION && file.version !== DRAWING_BACKUP_VERSION)
+  if (file.version !== SINGLE_PANE_BACKUP_VERSION && file.version !== COMPARISON_BACKUP_VERSION &&
+      file.version !== DRAWING_BACKUP_VERSION && file.version !== INDICATOR_PERIODS_BACKUP_VERSION)
     throw Error('This workspace backup version is unsupported.')
   const manifest = fields(file.manifest, [
     'sampleSet',

@@ -9,7 +9,9 @@ import {
 } from 'react'
 import type { ReactNode, FormEvent } from 'react'
 import type { MarketCore, MeasuredDrawing } from './market-core'
+import { DEFAULT_INDICATOR_PERIODS } from './market-core'
 import { Chart, Spark } from './Chart'
+import { IndicatorPeriods } from './IndicatorPeriods'
 import { Icon, Mark } from './Icons'
 import { changeString, dateLabel, movement, price, volume } from './workspace'
 import type { Asset, SavedImport } from './workspace'
@@ -22,6 +24,7 @@ import type {
   Preferences,
   SeriesDescriptor,
 } from './catalog'
+import type { ChartPane, OverlayPeriods } from './catalog-schema'
 import { WorkspaceBackup } from './WorkspaceBackup'
 import { HistoricalReplay } from './HistoricalReplay'
 import { checkImportRows, type ImportPolicy } from './import-policy'
@@ -337,24 +340,26 @@ export function App({
     last = bars.at(-1)!,
     move = movement(bars)
   const color = move.delta === null ? 'muted' : move.delta < 0 ? 'down' : 'up'
+  const primaryPeriods = ws.overlayPeriods?.primary ?? DEFAULT_INDICATOR_PERIODS
+  const comparisonPeriods = ws.overlayPeriods?.comparison ?? DEFAULT_INDICATOR_PERIODS
   const sma = useMemo(
-    () => (ws.sma ? core.indicator('sma', 20, bars) : []),
-    [core, ws.sma, bars],
+    () => (ws.sma ? core.indicator('sma', primaryPeriods.sma, bars) : []),
+    [core, ws.sma, bars, primaryPeriods.sma],
   )
   const ema = useMemo(
-    () => (ws.ema ? core.indicator('ema', 9, bars) : []),
-    [core, ws.ema, bars],
+    () => (ws.ema ? core.indicator('ema', primaryPeriods.ema, bars) : []),
+    [core, ws.ema, bars, primaryPeriods.ema],
   )
   const comparison = ws.comparison
   const other = comparison && assets.find((item) => item.id === comparison.selected)
   const otherBars = other?.bars
   const otherSma = useMemo(
-    () => comparison?.sma && otherBars ? core.indicator('sma', 20, otherBars) : [],
-    [comparison?.sma, core, otherBars],
+    () => comparison?.sma && otherBars ? core.indicator('sma', comparisonPeriods.sma, otherBars) : [],
+    [comparison?.sma, core, otherBars, comparisonPeriods.sma],
   )
   const otherEma = useMemo(
-    () => comparison?.ema && otherBars ? core.indicator('ema', 9, otherBars) : [],
-    [comparison?.ema, core, otherBars],
+    () => comparison?.ema && otherBars ? core.indicator('ema', comparisonPeriods.ema, otherBars) : [],
+    [comparison?.ema, core, otherBars, comparisonPeriods.ema],
   )
   const chartIdentity =
     asset.id + ':' + bars.length + '|' + (other?.id ?? '') + ':' + (otherBars?.length ?? 0)
@@ -467,6 +472,19 @@ export function App({
     if (!comparison) return
     if (change.linked !== undefined) setCrosshair(null)
     update({ ...ws, comparison: { ...comparison, ...change } })
+  }
+  function setPeriods(pane: ChartPane, periods: OverlayPeriods) {
+    const existing = ws.overlayPeriods?.[pane] ?? DEFAULT_INDICATOR_PERIODS
+    if (periods.sma === existing.sma && periods.ema === existing.ema) return
+    const { overlayPeriods: current, ...preferences } = ws
+    const overlayPeriods = { ...current }
+    if (periods.sma === DEFAULT_INDICATOR_PERIODS.sma &&
+        periods.ema === DEFAULT_INDICATOR_PERIODS.ema) {
+      delete overlayPeriods[pane]
+    } else {
+      overlayPeriods[pane] = periods
+    }
+    update(Object.keys(overlayPeriods).length ? { ...preferences, overlayPeriods } : preferences)
   }
   function drawingTools(id: string) {
     return {
@@ -622,13 +640,13 @@ export function App({
               {ws.sma && (
                 <span>
                   <i className="line-key sma" />
-                  SMA 20
+                  SMA {primaryPeriods.sma}
                 </span>
               )}
               {ws.ema && (
                 <span>
                   <i className="line-key ema" />
-                  EMA 9
+                  EMA {primaryPeriods.ema}
                 </span>
               )}
             </div>
@@ -647,12 +665,12 @@ export function App({
                   <label>
                     <input type="checkbox" checked={comparison.sma} disabled={saving}
                       onChange={event => setComparison({ sma: event.target.checked })} />
-                    SMA 20
+                    SMA {comparisonPeriods.sma}
                   </label>
                   <label>
                     <input type="checkbox" checked={comparison.ema} disabled={saving}
                       onChange={event => setComparison({ ema: event.target.checked })} />
-                    EMA 9
+                    EMA {comparisonPeriods.ema}
                   </label>
                   <label>
                     <input type="checkbox" checked={comparison.linked} disabled={saving}
@@ -667,13 +685,13 @@ export function App({
                 {/* Replacing the history can invalidate bar-indexed viewport and crosshair state. */}
                 <Chart key={`${asset.id}:${bars.length}`} asset={asset} sma={sma} ema={ema}
                   linkedTimestamp={cursor} onTimestamp={comparison?.linked ? onCrosshair : undefined}
-                  drawingTools={drawingTools(asset.id)} />
+                  drawingTools={drawingTools(asset.id)} periods={primaryPeriods} />
               </section>
               {comparison && other && (
                 <section aria-label="Comparison chart pane">
                   <Chart key={`${other.id}:${other.bars.length}`} asset={other} sma={otherSma} ema={otherEma}
                     linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined}
-                    drawingTools={drawingTools(other.id)} />
+                    drawingTools={drawingTools(other.id)} periods={comparisonPeriods} />
                 </section>
               )}
             </div>
@@ -863,7 +881,7 @@ export function App({
                         : 'Exponential moving average'}
                     </strong>
                     <small>
-                      {k === 'sma' ? 'SMA · 20 bars' : 'EMA · 9 bars'}
+                      {k.toUpperCase()} · {primaryPeriods[k]} bars
                     </small>
                   </span>
                   <input
@@ -874,6 +892,14 @@ export function App({
                   />
                 </label>
               ))}
+              <IndicatorPeriods label="Primary chart periods" periods={primaryPeriods} saving={saving}
+                key={`primary:${primaryPeriods.sma}:${primaryPeriods.ema}`}
+                onApply={periods => setPeriods('primary', periods)} />
+              {comparison && (
+                <IndicatorPeriods label="Comparison chart periods" periods={comparisonPeriods} saving={saving}
+                  key={`comparison:${comparisonPeriods.sma}:${comparisonPeriods.ema}`}
+                  onApply={periods => setPeriods('comparison', periods)} />
+              )}
             </>
           )}
           {(dialog === 'list' || dialog === 'indicators') && (

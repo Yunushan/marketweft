@@ -777,6 +777,13 @@ h1 {
 .ohlc time {
   color: var(--soft);
 }
+.chart-overlay-values {
+  min-height: 20px;
+  font-family: var(--mono);
+}
+.chart-overlay-values small {
+  margin-right: 3px;
+}
 .ohlc small {
   font-size: inherit;
 }
@@ -849,6 +856,43 @@ h1 {
   border-radius: 3px;
   font: inherit;
   font-family: var(--mono);
+}
+.indicator-periods {
+  margin-top: 12px;
+}
+.indicator-periods fieldset {
+  display: grid;
+  min-inline-size: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 100px), 1fr));
+  align-items: end;
+  gap: 8px;
+  padding: 10px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.indicator-periods legend,
+.indicator-periods label {
+  color: var(--soft);
+  font-size: 11px;
+}
+.indicator-periods input,
+.indicator-periods button {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px;
+  background: #151c1f;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 12px;
+}
+.indicator-periods p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #ec817e;
+  font-size: 11px;
 }
 .drawing-editor > p,
 .drawing-editor > .drawing-buttons {

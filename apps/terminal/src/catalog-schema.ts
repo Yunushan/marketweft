@@ -1,4 +1,5 @@
 import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core'
+import { validIndicatorPeriod } from './market-core'
 import type { Asset, SavedImport } from './workspace'
 
 export type Preferences = {
@@ -8,7 +9,11 @@ export type Preferences = {
   ema: boolean
   comparison?: ComparisonPreferences
   drawings?: Record<string, MeasuredDrawing>
+  overlayPeriods?: Partial<Record<ChartPane, OverlayPeriods>>
 }
+
+export type ChartPane = 'primary' | 'comparison'
+export type OverlayPeriods = { sma: number; ema: number }
 
 export type ComparisonPreferences = {
   selected: string
@@ -77,6 +82,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   const keys = ['selected', 'watchlist', 'sma', 'ema']
   if (value && typeof value === 'object' && Object.hasOwn(value, 'comparison')) keys.push('comparison')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'drawings')) keys.push('drawings')
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'overlayPeriods')) keys.push('overlayPeriods')
   fields(value, keys, 'workspace preference')
   const { selected, watchlist, sma, ema } = value
   if (
@@ -115,6 +121,24 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       core.measureDrawing(drawing)
       return [id, drawing]
     }))
+  }
+  if (keys.includes('overlayPeriods')) {
+    const settings = value.overlayPeriods
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings))
+      throw Error('Invalid chart period settings.')
+    const names = Object.keys(settings)
+    if (!names.length || names.some(name => name !== 'primary' && name !== 'comparison'))
+      throw Error('Invalid chart pane in indicator period settings.')
+    const periods: NonNullable<Preferences['overlayPeriods']> = {}
+    for (const pane of ['primary', 'comparison'] as const) {
+      if (!Object.hasOwn(settings, pane)) continue
+      const pair = (settings as Record<string, unknown>)[pane]
+      fields(pair, ['sma', 'ema'], 'pane indicator period')
+      if (!validIndicatorPeriod(pair.sma) || !validIndicatorPeriod(pair.ema))
+        throw Error('Indicator periods must be whole numbers from 1 through 100,000.')
+      periods[pane] = { sma: pair.sma, ema: pair.ema }
+    }
+    result.overlayPeriods = periods
   }
   return result
 }
