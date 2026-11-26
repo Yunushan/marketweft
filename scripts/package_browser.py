@@ -42,6 +42,8 @@ Choose Draw measurement to anchor a line to two UTC bars and exact prices.
 Its coordinates stay with the instrument and are included in workspace backups.
 Open Indicators to save separate SMA and EMA periods for each pane. The chart
 readout shows the results at the selected bar when enough closes are available.
+Open Export CSV beneath either pane to download visible or all bars. The
+research format also includes provenance and enabled moving averages.
 
 Choose Historical replay and Start demo for the NYSE session example. Replay
 reveals each bar at its scheduled close and marks missing intervals in-session.

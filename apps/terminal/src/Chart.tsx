@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from './Icons'
+import { ChartExport } from './ChartExport'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
 import type { Bar, MarketCore, MeasuredDrawing } from './market-core'
-import type { OverlayPeriods } from './catalog-schema'
+import type { OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 type View = { end: number; count: number }
 type Series = (number | null)[]
@@ -299,6 +300,7 @@ export function Chart({
   onTimestamp,
   drawingTools,
   periods,
+  exportOptions,
 }: {
   asset: Asset
   sma: Series
@@ -307,6 +309,7 @@ export function Chart({
   onTimestamp?: (timestamp: number | null) => void
   drawingTools?: DrawingTools
   periods?: OverlayPeriods
+  exportOptions?: { metadata?: SeriesMetadata }
 }) {
   const { bars } = asset,
     n = bars.length
@@ -596,6 +599,13 @@ export function Chart({
             </div>
           )}
         </div>
+      )}
+      {exportOptions && (
+        <ChartExport asset={asset} visible={{ start, end: view.end }} metadata={exportOptions.metadata}
+          overlays={periods ? ([
+            { name: 'sma_' + periods.sma, series: sma },
+            { name: 'ema_' + periods.ema, series: ema },
+          ]).filter(overlay => overlay.series.length > 0) : []} />
       )}
       <span className="sr-only">
         Data from {dateLabel(bars[start].time)} through{' '}

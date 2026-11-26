@@ -4,6 +4,7 @@ import type { Catalog, CatalogData, CatalogSnapshot } from './catalog'
 import type { MarketCore } from './market-core'
 import type { Asset } from './workspace'
 import { Icon } from './Icons'
+import { downloadFile } from './download'
 
 type Preview = { data: CatalogData; revision: number }
 
@@ -32,22 +33,8 @@ export function WorkspaceBackup({
     setMessage('')
     try {
       const text = await exportWorkspace(await catalog.read(), samples)
-      const url = URL.createObjectURL(
-        new Blob([text], { type: 'application/json' }),
-      )
-      const link = document.createElement('a')
-      link.href = url
-      link.download =
-        'marketweft-workspace-' +
-        new Date().toISOString().slice(0, 10) +
-        '.marketweft.json'
-      document.body.appendChild(link)
-      try {
-        link.click()
-      } finally {
-        link.remove()
-        window.setTimeout(() => URL.revokeObjectURL(url), 30_000)
-      }
+      const name = 'marketweft-workspace-' + new Date().toISOString().slice(0, 10) + '.marketweft.json'
+      downloadFile(name, new Blob([text], { type: 'application/json' }))
       setMessage('Workspace backup prepared for download.')
     } catch (cause) {
       setError(

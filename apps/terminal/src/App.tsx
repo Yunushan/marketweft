@@ -376,6 +376,7 @@ export function App({
   const descriptor = saved.series.find(
     (item) => item.id === asset.id,
   )?.descriptor
+  const comparisonDescriptor = other && saved.series.find((item) => item.id === other.id)?.descriptor
   function accept(next: CatalogSnapshot) {
     setSaved((previous) =>
       next.revision >= previous.revision ? next : previous,
@@ -685,13 +686,15 @@ export function App({
                 {/* Replacing the history can invalidate bar-indexed viewport and crosshair state. */}
                 <Chart key={`${asset.id}:${bars.length}`} asset={asset} sma={sma} ema={ema}
                   linkedTimestamp={cursor} onTimestamp={comparison?.linked ? onCrosshair : undefined}
-                  drawingTools={drawingTools(asset.id)} periods={primaryPeriods} />
+                  drawingTools={drawingTools(asset.id)} periods={primaryPeriods}
+                  exportOptions={{ metadata: descriptor }} />
               </section>
               {comparison && other && (
                 <section aria-label="Comparison chart pane">
                   <Chart key={`${other.id}:${other.bars.length}`} asset={other} sma={otherSma} ema={otherEma}
                     linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined}
-                    drawingTools={drawingTools(other.id)} periods={comparisonPeriods} />
+                    drawingTools={drawingTools(other.id)} periods={comparisonPeriods}
+                    exportOptions={{ metadata: comparisonDescriptor }} />
                 </section>
               )}
             </div>
