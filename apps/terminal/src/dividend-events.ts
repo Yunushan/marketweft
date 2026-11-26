@@ -43,6 +43,3 @@ export function dividendTimeline(
   appendThrough(Infinity)
   return result
 }
-
-export const utc = (time: number) =>
-  new Date(time * 1000).toISOString().replace('.000Z', 'Z')

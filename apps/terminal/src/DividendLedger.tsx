@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { dividendName, utc } from './dividend-events'
+import { dividendName } from './dividend-events'
+import { utc } from './workspace'
 import type { DividendEvent, DividendMovement } from './market-core'
 
 const scale = 1_000_000n
@@ -69,7 +70,7 @@ export function DividendLedger({
 
   return (
     <section
-      className="side-card replay-panel dividend-ledger"
+      className="side-card replay-panel replay-results"
       aria-labelledby="dividend-ledger-heading"
     >
       <div className="replay-heading">
@@ -113,7 +114,7 @@ export function DividendLedger({
         </div>
       )}
       {balances.length > 0 ? (
-        <div className="dividend-balances">
+        <div className="replay-table-scroll">
           <table aria-label="Dividend balances">
             <thead>
               <tr>

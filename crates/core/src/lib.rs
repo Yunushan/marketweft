@@ -5,6 +5,7 @@ mod dividend;
 mod history;
 mod indicator;
 mod replay;
+mod universe;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
@@ -15,6 +16,7 @@ pub use dividend::{
 pub use history::{parse_csv, Bar};
 pub use indicator::{indicator, Average};
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
+pub use universe::{parse_universe, UniverseAction, UniverseBook, UniverseChange};
 
 pub const SCALE: i64 = 1_000_000;
 /// Bound keeps each six-place tick distinguishable through the browser number boundary.

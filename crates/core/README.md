@@ -38,3 +38,7 @@ Use `parse_splits` with the instrument and action CSV. Call `SplitBook::adjust` 
 ## Cash dividend ledger
 
 Use `parse_dividends` for the instrument's reports, then `DividendBook::ledger` with the fixed entitled share count. Consume events through the inclusive replay cutoff. Each event exposes the visible report and per-currency deltas and cumulative balances in integer millionths. The Wasm bridge uses tab-separated event fields, followed by zero or more tab-separated movements with comma-separated currency, receivable delta, cash delta, receivable and cash. Decimal integer strings carry exact 128-bit amounts to the browser's BigInt. [Cash dividend contract](../../docs/cash-dividends.md).
+
+## Point-in-time universe state
+
+Use `parse_universe` for one history, `UniverseBook::checkpoints` for replay and `UniverseBook::as_of(effective_at, known_at)` for listing states. Both arguments are inclusive UTC Unix seconds. Each result is the source row responsible for membership, removal or delisting. The Wasm index returns the universe ID followed by newline-separated replay times. The query accepts two UTC timestamp lines followed by the CSV and returns tab-separated listing rows with identity, status, change ID and both times. [Universe contract](../../docs/universe-membership.md).

@@ -209,7 +209,7 @@ main {
   display: grid;
   gap: 16px;
 }
-.dividend-ledger {
+.replay-results {
   margin-top: 16px;
 }
 .dividend-reports {
@@ -221,24 +221,42 @@ main {
   padding-top: 8px;
   overflow-wrap: anywhere;
 }
-.dividend-ledger table {
+.replay-results table {
   width: 100%;
   border-collapse: collapse;
   text-align: start;
   font: 13px var(--mono);
 }
-.dividend-ledger th,
-.dividend-ledger td {
+.replay-results th,
+.replay-results td {
   text-align: start;
   padding: 8px 4px;
   border-bottom: 1px solid var(--line);
 }
-.dividend-balances,
+.replay-table-scroll,
 .dividend-postings {
   overflow: auto;
 }
 .dividend-postings {
   max-height: 24rem;
+}
+.universe-query {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.universe-query label {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.universe-query input,
+.universe-table td {
+  font: 13px var(--mono);
+}
+.universe-table th,
+.universe-table td {
+  white-space: nowrap;
 }
 .replay-panel {
   display: grid;
