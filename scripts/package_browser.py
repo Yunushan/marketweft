@@ -152,6 +152,9 @@ Expand Formula paper backtest to use the default entry and exit expressions.
 Hold effective time at 2025-04-03T14:11:00Z, then compare knowledge at
 14:05, 14:07 and 14:11 UTC. For exact trade receipts, select Recorded trades,
 load backtest-trades.csv and advance knowledge to 14:11:10 UTC.
+Load formula-strategy.mwstrategy.json in Formula paper backtest to apply
+the sample's four-share target and 1,100.25 starting cash. Download the
+strategy package after replay to reproduce the validated settings elsewhere.
 Expand Recorded trade execution and load backtest-trades.csv or use the
 sample execution trades. Set effective time to 2025-04-03T14:11:00Z.
 Compare knowledge at 14:05:29, 14:05:30 and 14:11:10 UTC, then export the
@@ -189,6 +192,7 @@ def main():
     files["replay-ohlcv.csv"] = (fixture / "nyse-2025-replay-ohlcv.csv").read_bytes()
     files["tick-trades.csv"] = (fixture / "synthetic-tick-trades.csv").read_bytes()
     files["formula-bars.csv"] = (fixture / "synthetic-formula-bars.csv").read_bytes()
+    files["formula-strategy.mwstrategy.json"] = (fixture / "synthetic-formula-strategy.mwstrategy.json").read_bytes()
     files["depth.csv"] = (fixture / "synthetic-depth.csv").read_bytes()
     files["footprint-trades.csv"] = (fixture / "synthetic-footprint.csv").read_bytes()
     for kind in ("actions", "ohlcv", "sessions"):

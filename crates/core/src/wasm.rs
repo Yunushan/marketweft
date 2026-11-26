@@ -1384,10 +1384,20 @@ fn backtest_request(input: &str) -> Result<(Instrument, i64, crate::BacktestConf
         .next()
         .and_then(exact_utc)
         .ok_or("Use a YYYY-MM-DDTHH:MM:SSZ UTC observation cutoff.")?;
-    let paper = parse_paper_config(parts.next().ok_or("Supply paper account settings.")?)?;
-    let settings = parts
-        .next()
-        .ok_or("Supply backtest strategy settings.")?
+    let paper = parts.next().ok_or("Supply paper account settings.")?;
+    let settings = parts.next().ok_or("Supply backtest strategy settings.")?;
+    let config = parse_backtest_settings(paper, settings)?;
+    Ok((
+        instrument,
+        through,
+        config,
+        parts.next().ok_or("Supply backtest history.")?,
+    ))
+}
+
+fn parse_backtest_settings(paper: &str, settings: &str) -> Result<crate::BacktestConfig, String> {
+    let paper = parse_paper_config(paper)?;
+    let settings = settings
         .split(',')
         .map(|value| value.parse::<u32>())
         .collect::<Result<Vec<_>, _>>()
@@ -1398,7 +1408,7 @@ fn backtest_request(input: &str) -> Result<(Instrument, i64, crate::BacktestConf
     let basis_points = |value: u32| {
         u16::try_from(value).map_err(|_| "Basis points are outside the allowed range.")
     };
-    let config = crate::BacktestConfig {
+    Ok(crate::BacktestConfig {
         paper,
         fast_window: *fast as usize,
         slow_window: *slow as usize,
@@ -1407,13 +1417,29 @@ fn backtest_request(input: &str) -> Result<(Instrument, i64, crate::BacktestConf
         slippage_bps: basis_points(*slippage)?,
         limit_buffer_bps: basis_points(*buffer)?,
         max_wait_bars: *wait as usize,
-    };
-    Ok((
-        instrument,
-        through,
-        config,
-        parts.next().ok_or("Supply backtest history.")?,
-    ))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_validate_formula_strategy(language_version: u32, entry_bytes: usize) -> u32 {
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(3, '\n');
+        let (paper, settings, source) = (
+            parts.next().ok_or("Supply paper account settings.")?,
+            parts.next().ok_or("Supply backtest strategy settings.")?,
+            parts.next().ok_or("Supply entry and exit formulas.")?,
+        );
+        let (entry, exit) = source
+            .split_at_checked(entry_bytes)
+            .ok_or("Invalid entry source length.")?;
+        crate::validate_formula_strategy(
+            language_version,
+            entry,
+            exit,
+            parse_backtest_settings(paper, settings)?,
+        )?;
+        Ok(Vec::new())
+    })
 }
 
 fn encode_backtest(text: &mut String, report: crate::BacktestReport) {
@@ -1511,10 +1537,7 @@ pub extern "C" fn mw_formula_backtest(
         let (exit, payload) = payload
             .split_at_checked(exit_bytes)
             .ok_or("Invalid exit source length.")?;
-        let entry =
-            crate::Formula::compile(entry).map_err(|cause| format!("Entry formula: {cause}"))?;
-        let exit =
-            crate::Formula::compile(exit).map_err(|cause| format!("Exit formula: {cause}"))?;
+        let (entry, exit) = crate::backtest::compile_formula_signals(entry, exit)?;
         let (calendar, payload) = payload
             .split_at_checked(calendar_bytes)
             .ok_or("Invalid session data.")?;

@@ -22,6 +22,26 @@ pub struct BacktestConfig {
     pub max_wait_bars: usize,
 }
 
+impl BacktestConfig {
+    fn account(self, check_windows: bool) -> Result<PaperAccount, String> {
+        if (check_windows
+            && (self.fast_window == 0
+                || self.slow_window <= self.fast_window
+                || self.slow_window > MAX_WINDOW))
+            || !(1..=1_000_000_000).contains(&self.target_shares)
+            || !(1..=10_000).contains(&self.participation_bps)
+            || self.slippage_bps > 10_000
+            || self.limit_buffer_bps > 10_000
+            || !(1..=MAX_REPLAY_BARS).contains(&self.max_wait_bars)
+        {
+            return Err(
+                "Invalid backtest windows, target, participation, slippage, buffer or wait.".into(),
+            );
+        }
+        PaperAccount::new(self.paper).map_err(|_| "Invalid paper configuration.".into())
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct BacktestSignal {
     pub at: i64,
@@ -79,6 +99,31 @@ pub struct FormulaBacktestConfig<'a> {
 pub struct FormulaBacktestReport {
     pub backtest: BacktestReport,
     pub evaluations: Vec<FormulaBacktestSignal>,
+}
+
+pub(crate) fn compile_formula_signals(
+    entry: &str,
+    exit: &str,
+) -> Result<(Formula, Formula), String> {
+    Ok((
+        Formula::compile(entry).map_err(|cause| format!("Entry formula: {cause}"))?,
+        Formula::compile(exit).map_err(|cause| format!("Exit formula: {cause}"))?,
+    ))
+}
+
+/// Validate a portable formula strategy with the same rules used by historical execution.
+pub fn validate_formula_strategy(
+    language_version: u32,
+    entry: &str,
+    exit: &str,
+    config: BacktestConfig,
+) -> Result<(), String> {
+    if language_version != crate::FORMULA_VERSION {
+        return Err("Unsupported formula language version.".into());
+    }
+    compile_formula_signals(entry, exit)?;
+    config.account(false)?;
+    Ok(())
 }
 
 struct Pending {
@@ -230,21 +275,7 @@ fn run_backtest(
     mut playback: Option<TradePlayback<'_>>,
     scripted: Option<&[FormulaBacktestSignal]>,
 ) -> Result<BacktestReport, String> {
-    if (scripted.is_none()
-        && (config.fast_window == 0
-            || config.slow_window <= config.fast_window
-            || config.slow_window > MAX_WINDOW))
-        || !(1..=1_000_000_000).contains(&config.target_shares)
-        || !(1..=10_000).contains(&config.participation_bps)
-        || config.slippage_bps > 10_000
-        || config.limit_buffer_bps > 10_000
-        || !(1..=MAX_REPLAY_BARS).contains(&config.max_wait_bars)
-    {
-        return Err(
-            "Invalid backtest windows, target, participation, slippage, buffer or wait.".into(),
-        );
-    }
-    let mut ledger = PaperAccount::new(config.paper).map_err(|_| "Invalid paper configuration.")?;
+    let mut ledger = config.account(scripted.is_none())?;
     let mut pending: Option<Pending> = None;
     let mut crossover = SmaCrossover {
         sums: vec![0],

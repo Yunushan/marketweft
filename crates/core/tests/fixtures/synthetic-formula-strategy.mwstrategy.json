@@ -1,0 +1,24 @@
+{
+  "format": "marketweft.formula-strategy",
+  "packageVersion": 1,
+  "languageVersion": 1,
+  "formulas": {
+    "entry": "if(close >= 13, 1, 0 / 0)",
+    "exit": "close <= 10"
+  },
+  "execution": {
+    "source": "bars",
+    "targetShares": "4",
+    "participation": "1000",
+    "slippage": "0",
+    "limitBuffer": "2000",
+    "maxWait": "3"
+  },
+  "account": {
+    "startingCash": "1100.25",
+    "positionLimit": "10",
+    "exposureLimit": "1200",
+    "feePerShare": "0.1",
+    "feePerOrder": "2"
+  }
+}

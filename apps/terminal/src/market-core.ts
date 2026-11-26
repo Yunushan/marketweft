@@ -750,6 +750,7 @@ export interface MarketCore {
     interval: number, query: RecordedBacktestQuery): BacktestResult;
   formulaBacktest(instrument: string, calendar: string, bars: string, trades: string,
     interval: number, query: FormulaBacktestQuery): FormulaBacktestResult;
+  validateFormulaStrategy(languageVersion: number, entry: string, exit: string, config: BacktestConfig): void;
   walkForward(instrument: string, calendar: string, bars: string, interval: number,
     cutoff: string, execution: BacktestConfig, config: WalkForwardConfig): WalkForwardFold[];
   scenarios(instrument: string, calendar: string, bars: string, interval: number,
@@ -811,6 +812,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_recorded_backtest(calendarBytes: number, barBytes: number, interval: number): number;
   mw_recorded_backtest_input(bytes: number): number;
   mw_formula_backtest(calendarBytes: number, barBytes: number, entryBytes: number, exitBytes: number, interval: number): number;
+  mw_validate_formula_strategy(languageVersion: number, entryBytes: number): number;
   mw_walk_forward(calendarBytes: number, interval: number): number;
   mw_run_scenarios(calendarBytes: number, interval: number): number;
 }
@@ -853,12 +855,16 @@ function backtestHeader(instrument: string, cutoff: string, config: BacktestConf
   if (cutoff.length !== 20 || /[\n\r]/.test(instrument + cutoff)) {
     throw new Error('Use an instrument and a YYYY-MM-DDTHH:MM:SSZ UTC observation cutoff.');
   }
+  return [instrument, cutoff, ...backtestSettings(config)];
+}
+
+function backtestSettings(config: BacktestConfig): [string, string] {
   const settings = [config.fastWindow, config.slowWindow, config.targetShares,
     config.participation, config.slippage, config.limitBuffer, config.maxWait].map(value => value.trim());
   if (settings.some(value => !/^\d+$/.test(value))) {
     throw new Error('Use whole-number strategy settings.');
   }
-  return [instrument, cutoff, paperSettings(config.paper), settings.join(',')];
+  return [paperSettings(config.paper), settings.join(',')];
 }
 
 function decodeBacktest(lines: string[]): BacktestResult {
@@ -1786,6 +1792,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         return false;
       }));
       return { version: api.mw_formula_version(), backtest, evaluations };
+    },
+    validateFormulaStrategy(languageVersion, entry, exit, config) {
+      if (!Number.isInteger(languageVersion) || languageVersion < 1 || languageVersion > 0xffffffff) {
+        throw new Error('Unsupported formula language version.');
+      }
+      if (entry.length > 2048 || exit.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
+      const entryBytes = encoder.encode(entry).length;
+      if (entryBytes > 2048 || encoder.encode(exit).length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
+      textInput([...backtestSettings(config), entry + exit].join('\n'));
+      output(api.mw_validate_formula_strategy(languageVersion, entryBytes));
     },
     walkForward(instrument, calendar, bars, interval, cutoff, execution, config) {
       validateInterval(interval);

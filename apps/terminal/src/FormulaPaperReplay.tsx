@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { BacktestConfig, FormulaBacktestQuery, FormulaBacktestResult, MarketCore } from './market-core'
 import { BacktestReceiptTable, backtestEvidenceRows } from './RecordedTradeReplay'
@@ -7,10 +7,11 @@ import { quoteText } from './chart-export'
 import { downloadFile } from './download'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
+import { MAX_STRATEGY_PACKAGE_BYTES, parseFormulaStrategy, serializeFormulaStrategy } from './formula-strategy'
 import sampleTrades from '../../../crates/core/tests/fixtures/synthetic-backtest-trades.csv?raw'
 
 type TradeSource = { name: string; csv: string }
-type Replay = { source: string; query: FormulaBacktestQuery; report: FormulaBacktestResult }
+type Replay = { source: string; mode: 'bars' | 'trades'; query: FormulaBacktestQuery; report: FormulaBacktestResult }
 const money = (value: bigint | null) => value === null ? '' : fixed(value, 6)
 
 function exportReplay(book: BacktestBook, replay: Replay) {
@@ -37,6 +38,9 @@ export function FormulaPaperReplay({ book, config, core }: { book: BacktestBook;
   const [recorded, setRecorded] = useState(false)
   const [source, setSource] = useState<TradeSource | null>(null)
   const [file, setFile] = useState<File | null>(null)
+  const [packageFile, setPackageFile] = useState<File | null>(null)
+  const packageInput = useRef<HTMLInputElement>(null)
+  const [activePackage, setActivePackage] = useState<{ name: string; config: BacktestConfig } | null>(null)
   const [replay, setReplay] = useState<Replay | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -58,10 +62,11 @@ export function FormulaPaperReplay({ book, config, core }: { book: BacktestBook;
       }
       const tape = recorded ? next : null
       if (recorded && !tape) throw new Error('Supply recorded trades for trade execution.')
-      const query = { effective: effective.trim(), known: known.trim(), config, entry: entry.trim(), exit: exit.trim() }
+      const query = { effective: effective.trim(), known: known.trim(), config: activePackage?.config ?? config,
+        entry: entry.trim(), exit: exit.trim() }
       const report = core.formulaBacktest(book.instrument, book.calendar, book.bars,
         tape?.csv ?? '', book.interval, query)
-      setReplay({ source: tape?.name ?? 'Bar volume', query, report })
+      setReplay({ source: tape?.name ?? 'Bar volume', mode: recorded ? 'trades' : 'bars', query, report })
       if (recorded) {
         setSource(next)
         setFile(null)
@@ -74,14 +79,63 @@ export function FormulaPaperReplay({ book, config, core }: { book: BacktestBook;
     }
   }
 
+  async function loadPackage() {
+    if (!packageFile) return
+    setBusy(true)
+    try {
+      if (packageFile.size > MAX_STRATEGY_PACKAGE_BYTES) throw new Error('Formula strategy package exceeds 32 KiB.')
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(await packageFile.arrayBuffer())
+      const strategy = parseFormulaStrategy(text, core)
+      setEntry(strategy.entry)
+      setExit(strategy.exit)
+      setRecorded(strategy.source === 'trades')
+      setSource(null)
+      setFile(null)
+      setActivePackage({ name: packageFile.name, config: strategy.config })
+      setPackageFile(null)
+      if (packageInput.current) packageInput.current.value = ''
+      setError('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not load the formula strategy package.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function downloadPackage(accepted: Replay) {
+    try {
+      const text = serializeFormulaStrategy({
+        languageVersion: accepted.report.version, entry: accepted.query.entry, exit: accepted.query.exit,
+        source: accepted.mode, config: accepted.query.config,
+      })
+      downloadFile('formula-strategy.mwstrategy.json', new Blob([text], { type: 'application/json;charset=utf-8' }))
+      setError('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not export the formula strategy package.')
+    }
+  }
+
   return <details className="side-card replay-panel research-details">
     <summary>Formula paper backtest</summary>
     <section aria-label="Formula paper backtest">
       <p>Evaluate entry and exit at each observed close using the active paper account and execution settings.</p>
+      <div className="universe-query">
+        <label>Formula strategy package
+          <input ref={packageInput} type="file" accept=".json,application/json" disabled={busy}
+            onChange={event => setPackageFile(event.target.files?.[0] ?? null)} />
+        </label>
+        <button type="button" className="outline" disabled={busy || !packageFile}
+          onClick={loadPackage}>Load strategy package</button>
+      </div>
+      {activePackage && <div className="universe-query">
+        <p>Using settings from {activePackage.name}</p>
+        <button type="button" className="outline" disabled={busy}
+          onClick={() => setActivePackage(null)}>Use current backtest settings</button>
+      </div>}
       <form className="formula-form" onSubmit={run}>
-        <label>Entry formula<textarea rows={2} maxLength={2048} value={entry} required spellCheck={false}
+        <label>Entry formula<textarea rows={2} maxLength={2048} value={entry} required spellCheck={false} disabled={busy}
           onChange={event => setEntry(event.target.value)} /></label>
-        <label>Exit formula<textarea rows={2} maxLength={2048} value={exit} required spellCheck={false}
+        <label>Exit formula<textarea rows={2} maxLength={2048} value={exit} required spellCheck={false} disabled={busy}
           onChange={event => setExit(event.target.value)} /></label>
         <div className="universe-query">
           <label>Formula effective cutoff (UTC)
@@ -91,7 +145,7 @@ export function FormulaPaperReplay({ book, config, core }: { book: BacktestBook;
             <input required value={known} onChange={event => setKnown(event.target.value)} />
           </label>
           <label>Formula execution source
-            <select value={recorded ? 'trades' : 'bars'} onChange={event => setRecorded(event.target.value === 'trades')}>
+            <select value={recorded ? 'trades' : 'bars'} disabled={busy} onChange={event => setRecorded(event.target.value === 'trades')}>
               <option value="bars">Bar volume</option><option value="trades">Recorded trades</option>
             </select>
           </label>
@@ -126,7 +180,10 @@ export function FormulaPaperReplay({ book, config, core }: { book: BacktestBook;
           </table>
         </div>}
         <BacktestReceiptTable report={backtest} label="Formula backtest receipts" />
-        <button type="button" className="outline" onClick={() => exportReplay(book, replay)}>Download formula backtest</button>
+        <div className="universe-query">
+          <button type="button" className="outline" onClick={() => exportReplay(book, replay)}>Download formula backtest</button>
+          <button type="button" className="outline" onClick={() => downloadPackage(replay)}>Download strategy package</button>
+        </div>
       </>}
     </section>
   </details>

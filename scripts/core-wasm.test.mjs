@@ -2,12 +2,38 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { instantiateMarketCore } from '../apps/terminal/src/market-core.ts';
+import { parseFormulaStrategy, serializeFormulaStrategy } from '../apps/terminal/src/formula-strategy.ts';
 
 const [wasm, csv] = await Promise.all([
   readFile(new URL('../apps/terminal/public/marketweft_core.wasm', import.meta.url)),
   readFile(new URL('../crates/core/tests/fixtures/reference.csv', import.meta.url), 'utf8'),
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
+
+test('formula strategy packages round-trip versioned rules and exact settings through Rust validation', async () => {
+  const sample = await readFile(new URL('../crates/core/tests/fixtures/synthetic-formula-strategy.mwstrategy.json', import.meta.url), 'utf8');
+  assert.equal(serializeFormulaStrategy(parseFormulaStrategy(sample, core)), sample);
+  const strategy = { languageVersion: 1, entry: 'close >= sma(close, 3)', exit: 'close <= 10', source: 'trades',
+    config: {
+      fastWindow: '2', slowWindow: '3', targetShares: '0006', participation: '1000', slippage: '10', limitBuffer: '2000', maxWait: '3',
+      paper: { startingCash: '1000.000001', positionLimit: '+10', exposureLimit: '1200', feePerShare: '0.100001', feePerOrder: '-0' },
+    },
+  };
+  const text = serializeFormulaStrategy(strategy);
+  assert.equal(serializeFormulaStrategy(parseFormulaStrategy(text, core)), text);
+  const change = (key, value) => {
+    const manifest = JSON.parse(text);
+    manifest[key] = value;
+    return JSON.stringify(manifest);
+  };
+  assert.throws(() => parseFormulaStrategy(change('packageVersion', 2), core), /package version/);
+  assert.throws(() => parseFormulaStrategy(change('languageVersion', 2), core), /language version/);
+  assert.throws(() => parseFormulaStrategy(change('formulas', { entry: '1', exit: 'lag(close,-1)' }), core), /Exit formula:/);
+  assert.throws(() => parseFormulaStrategy(change('account', { ...strategy.config.paper, startingCash: '1\n2' }), core), /Invalid numeric strategy setting/);
+  assert.throws(() => parseFormulaStrategy(change('execution', { ...JSON.parse(text).execution, participation: '10001' }), core), /participation/);
+  assert.throws(() => parseFormulaStrategy(text.padEnd(32769, ' '), core), /32 KiB/);
+  assert.throws(() => parseFormulaStrategy(change('unknown', 1), core), /Invalid formula strategy package fields/);
+});
 
 test('formula-driven paper backtests audit missing signals and fill through the shared engine', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');

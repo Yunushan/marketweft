@@ -1,7 +1,8 @@
 use marketweft_core::{
     backtest, backtest_with_formulas, backtest_with_trades, parse_csv, parse_paper_config,
-    parse_sessions, BacktestConfig, Formula, FormulaBacktestConfig, Instrument, PaperAction,
-    PaperOrderStatus, PaperRejection, PaperSide, RecordedBacktestCutoffs, TradeTape, SCALE,
+    parse_sessions, validate_formula_strategy, BacktestConfig, Formula, FormulaBacktestConfig,
+    Instrument, PaperAction, PaperOrderStatus, PaperRejection, PaperSide, RecordedBacktestCutoffs,
+    TradeTape, SCALE,
 };
 
 const CALENDAR: &str = include_str!("fixtures/synthetic-backtest-sessions.csv");
@@ -20,6 +21,41 @@ fn config() -> BacktestConfig {
         limit_buffer_bps: 2000,
         max_wait_bars: 3,
     }
+}
+
+#[test]
+fn portable_formula_validation_reuses_the_execution_constraints() {
+    let config = BacktestConfig {
+        fast_window: 0,
+        slow_window: 0,
+        ..config()
+    };
+    assert!(validate_formula_strategy(1, "close > sma(close, 3)", "close <= 10", config).is_ok());
+    assert_eq!(
+        validate_formula_strategy(9, "1", "0", config).unwrap_err(),
+        "Unsupported formula language version."
+    );
+    assert!(validate_formula_strategy(1, "lag(close, -1)", "0", config)
+        .unwrap_err()
+        .starts_with("Entry formula:"));
+    assert!(validate_formula_strategy(1, "1", "bad(close)", config)
+        .unwrap_err()
+        .starts_with("Exit formula:"));
+    let invalid = BacktestConfig {
+        participation_bps: 0,
+        ..config
+    };
+    assert!(validate_formula_strategy(1, "1", "0", invalid)
+        .unwrap_err()
+        .contains("participation"));
+    let invalid = BacktestConfig {
+        paper: parse_paper_config("1000,0,1200,0,2").unwrap(),
+        ..config
+    };
+    assert_eq!(
+        validate_formula_strategy(1, "1", "0", invalid).unwrap_err(),
+        "Invalid paper configuration."
+    );
 }
 
 #[test]
