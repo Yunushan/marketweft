@@ -345,6 +345,7 @@ export function Chart({
   type = 'candles',
   timeframe,
   ticks,
+  observedAt,
 }: {
   asset: Asset
   sma: Series
@@ -357,6 +358,7 @@ export function Chart({
   type?: ChartType
   timeframe?: TimeframeView
   ticks?: TickBar[]
+  observedAt?: readonly number[]
 }) {
   const { bars } = asset,
     n = bars.length
@@ -382,6 +384,7 @@ export function Chart({
   const coverage = timeframe?.buckets[readoutIndex]
   const session = timeframe?.mode === 'session' ? timeframe.buckets[readoutIndex] : undefined
   const tick = ticks?.[readoutIndex]
+  const observation = observedAt?.[readoutIndex]
   const indicatorValues = sma.length > 0 || ema.length > 0
   function stopEditing() {
     setDrawingFields(null)
@@ -510,6 +513,9 @@ export function Chart({
         <span className="ohlc-vol">
           <small>Vol</small> {volume(b.volume)}
         </span>
+        {observation !== undefined && <span className="timeframe-coverage">
+          Observed at {timeLabel(observation)} UTC
+        </span>}
         {coverage && <span className="timeframe-coverage">
           {coverage.observedBars}/{coverage.expectedBars} source bars
         </span>}

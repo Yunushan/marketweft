@@ -38,6 +38,6 @@ An `upsert` after the withdrawal restores that same bar with its replacement val
 
 ## Provider replay chart
 
-The candlestick and volume chart plots the same observed bars as the table. Move the crosshair over a candle to read its UTC time and OHLCV. Use the range controls or drag the chart to inspect earlier bars. The table gives the observation time and full fixed-point values for each bar.
+The candlestick and volume chart plots the same observed bars as the table. Move the crosshair over a candle to read its effective UTC time, provider observation time and OHLCV. When the crosshair is outside the plot, the readout shows the last visible candle. Use the range controls or drag the chart to inspect earlier bars. The table gives the observation time and full fixed-point values for each bar.
 
 Set the demo's effective cutoff to 14:00 UTC. The chart and table show the original close of 10.000001 before the 14:04 correction and 10.250001 afterward. Both are empty at the 14:06 withdrawal. At 14:07 the chart and table show the replacement close of 10.400001 and volume of 100.000003.

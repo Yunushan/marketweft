@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.82.0 · Provider chart observation time
+
+| Check | Observed result |
+| --- | --- |
+| Inspect an earlier bar | Offline Chromium showed the latest candle observed at 14:02 UTC. Moving the crosshair to the earlier, corrected candle showed its 14:04 UTC observation and close of `10.250001`, matching the 14:00 table row. |
+| Replacement and rewind | The chart showed the replacement observed at 14:07 UTC. Rewinding the replay recovered the 14:04 UTC observation and its close. |
+
+[Provider replay chart](provider-revisions.md#provider-replay-chart) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.81.0 · Provider replay chart
 
 | Check | Observed result |

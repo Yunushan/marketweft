@@ -116,7 +116,7 @@ export function ProviderRevisionResearch({ core, policy, close }: {
         <p>Effective through {view.effectiveAt} · Known through {view.knownAt}</p>
         {chart && <section aria-label="Provider replay chart">
           <Chart key={[view.instrument, view.effectiveAt, view.knownAt, view.bars.length].join('/')}
-            asset={chart} sma={[]} ema={[]} />
+            asset={chart} sma={[]} ema={[]} observedAt={view.bars.map(bar => bar.observedAt)} />
         </section>}
         {bars.length === 0 ? <p>No bars meet these cutoffs.</p> : (
           <div className="replay-table-scroll" tabIndex={0} role="region" aria-label="Scrollable provider history">
