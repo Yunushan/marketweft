@@ -319,6 +319,29 @@ test('Wasm split snapshots gate all fields and revisions by replay observation t
   assert.deepEqual(bars, saved);
 });
 
+test('split revision Wasm composes same-time IDs and rewinds a canceled action', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-split-' + name + '.csv', import.meta.url), 'utf8');
+  const [raw, csv] = await Promise.all([fixture('ohlcv'), fixture('revisions')]);
+  const bars = core.parseCsv(raw);
+  const original = structuredClone(bars);
+  const revisions = core.splitBook('DEMO:SPLIT', csv);
+  assert.deepEqual(revisions.map(row => [row.actionId, row.canceled]), [
+    ['SPLIT-A', false], ['SPLIT-A', false], ['SPLIT-A', true], ['SPLIT-B', false],
+  ]);
+  const open = bars[12].time;
+  const at = (minutes, count) => core.adjustSplits(bars.slice(0, count), revisions, open + 60 * minutes);
+  assert.equal(at(0, 12)[11].close, 53.25);
+  assert.deepEqual(at(10, 13), bars.slice(0, 13));
+  const changed = at(20, 14);
+  assert.equal(changed[0].close, 33.666667);
+  assert.equal(changed[13].close, 17.833333);
+  assert.equal(at(30, 15)[13].close, 35.666667);
+  assert.deepEqual(at(30, 15)[14], bars[14]);
+  assert.deepEqual(at(20, 14), changed);
+  assert.deepEqual(bars, original);
+  assert.throws(() => core.splitBook('DEMO:SPLIT', csv.replace(',cancel,,', ',cancel,2,1')), /counts blank/);
+});
+
 test('Wasm replay schedules the expected UTC cutoffs and every indicator prefix', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const bars = core.parseCsv(await fixture('nyse-2025-replay-ohlcv.csv'));

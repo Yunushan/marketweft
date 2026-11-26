@@ -20,6 +20,8 @@ export interface ReplayEvent {
 }
 
 export interface Split {
+  actionId?: string;
+  canceled?: boolean;
   announcedAt: number;
   effectiveAt: number;
   observedAt: number;
@@ -404,7 +406,9 @@ interface MarketExports extends WebAssembly.Exports {
   mw_indicator(kind: number, period: number): number;
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
   mw_split_book(): number;
+  mw_split_revision_book(): number;
   mw_adjust_splits(records: number): number;
+  mw_adjust_split_revisions(records: number): number;
   mw_dividend_ledger(shares: number): number;
   mw_universe_index(): number;
   mw_universe_as_of(): number;
@@ -430,6 +434,9 @@ interface MarketExports extends WebAssembly.Exports {
 const SCALE = 1_000_000;
 const MISSING = -(1n << 63n);
 const LIMIT = 8 * 1024 * 1024;
+const LEGACY_SPLIT_BYTES = 32;
+const SPLIT_ID_BYTES = 40;
+const REVISED_SPLIT_BYTES = LEGACY_SPLIT_BYTES + SPLIT_ID_BYTES;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -936,16 +943,24 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     },
     splitBook(instrument, csv) {
       textInput(instrument + '\n' + csv);
-      const out = output(api.mw_split_book());
+      const revised = csv.trimStart().startsWith('instrument,action_id,');
+      const width = revised ? REVISED_SPLIT_BYTES : LEGACY_SPLIT_BYTES;
+      const out = output(revised ? api.mw_split_revision_book() : api.mw_split_book());
       const records: Split[] = [];
-      for (let i = 0; i < out.byteLength; i += 32) {
-        records.push({
+      for (let i = 0; i < out.byteLength; i += width) {
+        const row: Split = {
           announcedAt: Number(out.getBigInt64(i, true)),
           effectiveAt: Number(out.getBigInt64(i + 8, true)),
           observedAt: Number(out.getBigInt64(i + 16, true)),
           newShares: out.getUint32(i + 24, true),
           oldShares: out.getUint32(i + 28, true),
-        });
+        };
+        if (revised) {
+          const id = new Uint8Array(out.buffer, out.byteOffset + i + LEGACY_SPLIT_BYTES, SPLIT_ID_BYTES);
+          row.actionId = decoder.decode(id).replace(/\0+$/, '');
+          row.canceled = row.newShares === 0 && row.oldShares === 0;
+        }
+        records.push(row);
       }
       return records;
     },
@@ -971,7 +986,9 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     },
     adjustSplits(bars, splits, asOf) {
       if (bars.length > 100_000 || splits.length > 1_000) throw new Error('Split-adjustment input is too large.');
-      const dest = input(8 + splits.length * 32 + bars.length * 48);
+      const revised = splits.some(row => row.actionId !== undefined || row.canceled);
+      const width = revised ? REVISED_SPLIT_BYTES : LEGACY_SPLIT_BYTES;
+      const dest = input(8 + splits.length * width + bars.length * 48);
       const timestamp = (offset: number, value: number) => {
         if (!Number.isSafeInteger(value)) throw new Error('Split adjustment requires integer UTC seconds.');
         dest.setBigInt64(offset, BigInt(value), true);
@@ -979,16 +996,27 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       timestamp(0, asOf);
       let offset = 8;
       for (const row of splits) {
+        if (revised) {
+          if (!row.actionId || !/^[A-Za-z0-9._-]{1,40}$/.test(row.actionId)) {
+            throw new Error('Supply stable action IDs for all revision rows.');
+          }
+          const id = new Uint8Array(dest.buffer, dest.byteOffset + offset + LEGACY_SPLIT_BYTES, SPLIT_ID_BYTES);
+          id.fill(0);
+          id.set(encoder.encode(row.actionId));
+        }
         timestamp(offset, row.announcedAt);
         timestamp(offset + 8, row.effectiveAt);
         timestamp(offset + 16, row.observedAt);
+        if (row.canceled && (row.newShares !== 0 || row.oldShares !== 0)) {
+          throw new Error('Canceled splits require blank share counts.');
+        }
         for (const [index, value] of [row.newShares, row.oldShares].entries()) {
-          if (!Number.isInteger(value) || value < 1 || value > 1_000_000) {
+          if (!row.canceled && (!Number.isInteger(value) || value < 1 || value > 1_000_000)) {
             throw new Error('Share counts must be whole numbers between 1 and 1,000,000.');
           }
           dest.setUint32(offset + 24 + index * 4, value, true);
         }
-        offset += 32;
+        offset += width;
       }
       for (const bar of bars) {
         timestamp(offset, bar.time);
@@ -1003,7 +1031,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         }
         offset += 48;
       }
-      return decodeBars(output(api.mw_adjust_splits(splits.length)));
+      return decodeBars(output(revised ? api.mw_adjust_split_revisions(splits.length) : api.mw_adjust_splits(splits.length)));
     },
   };
 }

@@ -1,9 +1,10 @@
 use marketweft_core::{
-    indicator, parse_csv, parse_sessions, parse_splits, replay, Average, Instrument, Split,
-    SplitBook, SCALE,
+    indicator, parse_csv, parse_sessions, parse_split_revisions, parse_splits, replay, Average,
+    Instrument, Split, SplitBook, SCALE,
 };
 
 const ACTIONS: &str = include_str!("fixtures/synthetic-split-actions.csv");
+const REVISIONS: &str = include_str!("fixtures/synthetic-split-revisions.csv");
 const BARS: &str = include_str!("fixtures/synthetic-split-ohlcv.csv");
 const CALENDAR: &str = include_str!("fixtures/synthetic-split-sessions.csv");
 
@@ -160,4 +161,68 @@ fn corporate_actions_reject_wrong_identity_bad_times_and_ambiguous_revisions() {
     ] {
         assert!(parse_splits(&text, &instrument()).is_err(), "{text}");
     }
+}
+
+#[test]
+fn split_action_ids_preserve_original_cutoffs_when_effect_moves_or_is_canceled() {
+    let bars = parse_csv(BARS).unwrap();
+    let original = bars.clone();
+    let book = parse_split_revisions(REVISIONS, &instrument()).unwrap();
+    let open = bars[12].time;
+    let at = |minute, count| book.adjust(&bars[..count], open + minute * 60).unwrap();
+    let applied = at(0_i64, 12);
+    assert_eq!(
+        (applied[0].close, applied[11].volume),
+        (50_500_000, 1_620_000_002)
+    );
+    assert_eq!(at(9, 12), applied);
+    assert_eq!(at(10, 13), bars[..13]);
+    assert_eq!(at(19, 13), bars[..13]);
+    let compounded = at(20, 14);
+    assert_eq!(
+        (compounded[0].close, compounded[11].volume),
+        (33_666_667, 2_430_000_003)
+    );
+    assert_eq!(
+        (compounded[12].close, compounded[13].close),
+        (17_666_667, 17_833_333)
+    );
+    assert_eq!(at(29, 14), compounded);
+    let canceled = at(30, 15);
+    assert_eq!(
+        (canceled[0].close, canceled[11].volume),
+        (67_333_333, 1_215_000_002)
+    );
+    assert_eq!(canceled[14], bars[14]);
+    assert_eq!(at(10, 13), bars[..13]);
+    assert_eq!(at(0, 12), applied);
+    assert_eq!(bars, original);
+}
+
+#[test]
+fn rejects_ambiguous_split_revisions_and_withdraws_future_effective_times() {
+    for text in [
+        REVISIONS.replace("SPLIT-A", "SPLIT A"),
+        REVISIONS.replace("14:30:00Z,cancel,,", "14:30:00Z,cancel,2,1"),
+        REVISIONS.replace("14:30:00Z,cancel,,", "14:10:00Z,cancel,,"),
+        REVISIONS.replace("14:20:00Z,2025-06-03T14:10", "14:20:00Z,2025-06-03T14:1x"),
+        REVISIONS.replace("split,2,1", "split,1,1"),
+    ] {
+        assert!(
+            parse_split_revisions(&text, &instrument()).is_err(),
+            "{text}"
+        );
+    }
+    let early_cancel = REVISIONS.replace("14:30:00Z,cancel,,", "14:12:00Z,cancel,,");
+    let book = parse_split_revisions(&early_cancel, &instrument()).unwrap();
+    let bars = parse_csv(BARS).unwrap();
+    let open = bars[12].time;
+    assert_eq!(
+        book.adjust(&bars[..13], open + 19 * 60).unwrap(),
+        bars[..13]
+    );
+    assert_eq!(
+        book.adjust(&bars[..14], open + 20 * 60).unwrap()[0].close,
+        67_333_333
+    );
 }

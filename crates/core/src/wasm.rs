@@ -12,6 +12,7 @@ use crate::{
     parse_paper_config, PaperAction, PaperError, PaperOrderStatus, PaperRejection, PaperReplay,
     PaperSide,
 };
+use crate::{parse_split_revisions, ShareRatio, SplitRevision, SplitRevisionBook};
 use crate::{AlertBook, AlertDirection, Comparator};
 use crate::{ModelError, OptionBook, OptionSide, QuoteStatus};
 use std::cell::RefCell;
@@ -1105,76 +1106,154 @@ pub extern "C" fn mw_instrument() -> u32 {
     })
 }
 
-// Split records occupy 32 bytes. All numbers in the bridge are little-endian.
+fn action_source(input: &[u8]) -> Result<(Instrument, &str), String> {
+    let (identity, csv) = utf8(input)?
+        .split_once('\n')
+        .ok_or("Missing corporate actions data.")?;
+    let (venue, symbol) = identity
+        .split_once(':')
+        .ok_or("Missing replay instrument.")?;
+    Ok((Instrument::new(venue, symbol)?, csv))
+}
+
+const LEGACY_SPLIT_BYTES: usize = 32;
+const SPLIT_ID_BYTES: usize = 40;
+const REVISED_SPLIT_BYTES: usize = LEGACY_SPLIT_BYTES + SPLIT_ID_BYTES;
+
+// Split timestamps and ratios occupy 32 bytes in all layouts. All numbers are little-endian.
+fn encode_split_terms(bytes: &mut Vec<u8>, times: [i64; 3], shares: [u32; 2]) {
+    for time in times {
+        bytes.extend_from_slice(&time.to_le_bytes());
+    }
+    for count in shares {
+        bytes.extend_from_slice(&count.to_le_bytes());
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn mw_split_book() -> u32 {
     process(|input| {
-        let (identity, csv) = utf8(input)?
-            .split_once('\n')
-            .ok_or("Missing corporate actions data.")?;
-        let (venue, symbol) = identity
-            .split_once(':')
-            .ok_or("Missing replay instrument.")?;
-        let book = parse_splits(csv, &Instrument::new(venue, symbol)?)?;
-        let mut bytes = Vec::with_capacity(book.records().len() * 32);
+        let (instrument, csv) = action_source(input)?;
+        let book = parse_splits(csv, &instrument)?;
+        let mut bytes = Vec::with_capacity(book.records().len() * LEGACY_SPLIT_BYTES);
         for split in book.records() {
-            for value in [split.announced_at, split.effective_at, split.observed_at] {
-                bytes.extend_from_slice(&value.to_le_bytes());
-            }
-            bytes.extend_from_slice(&split.new_shares.to_le_bytes());
-            bytes.extend_from_slice(&split.old_shares.to_le_bytes());
+            encode_split_terms(
+                &mut bytes,
+                [split.announced_at, split.effective_at, split.observed_at],
+                [split.new_shares, split.old_shares],
+            );
         }
         Ok(bytes)
     })
 }
 
 #[no_mangle]
+pub extern "C" fn mw_split_revision_book() -> u32 {
+    process(|input| {
+        let (instrument, csv) = action_source(input)?;
+        let book = parse_split_revisions(csv, &instrument)?;
+        let mut bytes = Vec::with_capacity(book.records().len() * REVISED_SPLIT_BYTES);
+        for row in book.records() {
+            encode_split_terms(
+                &mut bytes,
+                [row.announced_at, row.effective_at, row.observed_at],
+                row.ratio
+                    .map_or([0, 0], |ratio| [ratio.new_shares, ratio.old_shares]),
+            );
+            bytes.extend_from_slice(row.action_id.as_bytes());
+            bytes.resize(bytes.len() + SPLIT_ID_BYTES - row.action_id.len(), 0);
+        }
+        Ok(bytes)
+    })
+}
+
+fn split_i64(bytes: &[u8], offset: usize) -> i64 {
+    i64::from_le_bytes(bytes[offset..offset + 8].try_into().unwrap())
+}
+
+fn split_u32(bytes: &[u8], offset: usize) -> u32 {
+    u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
+}
+
+fn split_adjustment_input(
+    input: &[u8],
+    count: usize,
+    width: usize,
+) -> Result<(i64, &[u8], Vec<Bar>), String> {
+    if count > MAX_SPLIT_ROWS {
+        return Err("Too many split records.".into());
+    }
+    let (clock, input) = input
+        .split_first_chunk::<8>()
+        .ok_or("Missing observation time.")?;
+    let (splits, bars) = input
+        .split_at_checked(count * width)
+        .ok_or("Invalid split record count.")?;
+    let (bar_rows, trailing) = bars.as_chunks::<48>();
+    if !trailing.is_empty() || bar_rows.len() > MAX_BARS {
+        return Err("Invalid series length.".into());
+    }
+    let bars = bar_rows
+        .iter()
+        .map(|row| Bar {
+            time: split_i64(row, 0),
+            open: split_i64(row, 8),
+            high: split_i64(row, 16),
+            low: split_i64(row, 24),
+            close: split_i64(row, 32),
+            volume: split_i64(row, 40),
+        })
+        .collect();
+    Ok((i64::from_le_bytes(*clock), splits, bars))
+}
+
+#[no_mangle]
 pub extern "C" fn mw_adjust_splits(records: usize) -> u32 {
     process(|input| {
-        if records > MAX_SPLIT_ROWS {
-            return Err("Too many split records.".into());
-        }
-        let (clock, input) = input
-            .split_first_chunk::<8>()
-            .ok_or("Missing observation time.")?;
-        let (splits, bars) = input
-            .split_at_checked(records * 32)
-            .ok_or("Invalid split record count.")?;
-        let (bar_rows, trailing) = bars.as_chunks::<48>();
-        if !trailing.is_empty() || bar_rows.len() > MAX_BARS {
-            return Err("Invalid series length.".into());
-        }
-        let read_i64 = |bytes: &[u8], offset: usize| {
-            i64::from_le_bytes(bytes[offset..offset + 8].try_into().unwrap())
-        };
-        let read_u32 = |bytes: &[u8], offset: usize| {
-            u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
-        };
-        let (split_rows, _) = splits.as_chunks::<32>();
+        let (clock, splits, bars) = split_adjustment_input(input, records, LEGACY_SPLIT_BYTES)?;
+        let (split_rows, _) = splits.as_chunks::<LEGACY_SPLIT_BYTES>();
         let book = SplitBook::new(
             split_rows
                 .iter()
                 .map(|row| Split {
-                    announced_at: read_i64(row, 0),
-                    effective_at: read_i64(row, 8),
-                    observed_at: read_i64(row, 16),
-                    new_shares: read_u32(row, 24),
-                    old_shares: read_u32(row, 28),
+                    announced_at: split_i64(row, 0),
+                    effective_at: split_i64(row, 8),
+                    observed_at: split_i64(row, 16),
+                    new_shares: split_u32(row, 24),
+                    old_shares: split_u32(row, 28),
                 })
                 .collect(),
         )?;
-        let bars: Vec<_> = bar_rows
+        Ok(encode_bars(book.adjust(&bars, clock)?))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_adjust_split_revisions(records: usize) -> u32 {
+    process(|input| {
+        let (clock, splits, bars) = split_adjustment_input(input, records, REVISED_SPLIT_BYTES)?;
+        let (split_rows, _) = splits.as_chunks::<REVISED_SPLIT_BYTES>();
+        let revisions = split_rows
             .iter()
-            .map(|row| Bar {
-                time: read_i64(row, 0),
-                open: read_i64(row, 8),
-                high: read_i64(row, 16),
-                low: read_i64(row, 24),
-                close: read_i64(row, 32),
-                volume: read_i64(row, 40),
+            .map(|row| {
+                let id = utf8(&row[LEGACY_SPLIT_BYTES..])?.trim_end_matches('\0');
+                let new_shares = split_u32(row, 24);
+                let old_shares = split_u32(row, 28);
+                Ok(SplitRevision {
+                    action_id: id.to_owned(),
+                    announced_at: split_i64(row, 0),
+                    effective_at: split_i64(row, 8),
+                    observed_at: split_i64(row, 16),
+                    ratio: (new_shares != 0 || old_shares != 0).then_some(ShareRatio {
+                        new_shares,
+                        old_shares,
+                    }),
+                })
             })
-            .collect();
-        Ok(encode_bars(book.adjust(&bars, i64::from_le_bytes(*clock))?))
+            .collect::<Result<Vec<_>, String>>()?;
+        Ok(encode_bars(
+            SplitRevisionBook::new(revisions)?.adjust(&bars, clock)?,
+        ))
     })
 }
 

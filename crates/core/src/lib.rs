@@ -22,7 +22,10 @@ mod walk_forward;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
-pub use actions::{parse_splits, Split, SplitBook, MAX_SPLIT_ROWS};
+pub use actions::{
+    parse_split_revisions, parse_splits, ShareRatio, Split, SplitBook, SplitRevision,
+    SplitRevisionBook, MAX_SPLIT_ROWS,
+};
 pub use alerts::{
     AlertBook, AlertDirection, AlertNotification, AlertRule, Comparator, Observation,
 };

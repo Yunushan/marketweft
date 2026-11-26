@@ -24,6 +24,7 @@ import demoBars from '../../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv
 import splitCalendar from '../../../crates/core/tests/fixtures/synthetic-split-sessions.csv?raw'
 import splitBars from '../../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv?raw'
 import splitActions from '../../../crates/core/tests/fixtures/synthetic-split-actions.csv?raw'
+import splitRevisions from '../../../crates/core/tests/fixtures/synthetic-split-revisions.csv?raw'
 import dividendActions from '../../../crates/core/tests/fixtures/synthetic-cash-dividends.csv?raw'
 
 const eventNames = {
@@ -33,6 +34,8 @@ const eventNames = {
   close: 'Session closed',
   'split-notice': 'Split report observed',
   'split-effective': 'Split effective',
+  'split-revised': 'Split revision observed',
+  'split-canceled': 'Split cancellation observed',
 }
 function eventLabel(event: TimelineEvent | undefined) {
   if (!event) return 'Ready to replay'
@@ -160,7 +163,7 @@ export function HistoricalReplay({
     setActive({ asset, calendarName, events, counts, splits, dividends })
   }
 
-  function splitDemo() {
+  function splitDemo(actions: string) {
     setError('')
     try {
       start(
@@ -175,7 +178,7 @@ export function HistoricalReplay({
         splitCalendar,
         600,
         'Synthetic market · Jun 2–3, 2025',
-        { splits: splitActions },
+        { splits: actions },
       )
     } catch (cause) {
       setError(
@@ -377,9 +380,14 @@ export function HistoricalReplay({
                   Compare raw and adjusted candles before and after a synthetic
                   2-for-1 split. Rewind to inspect what was known at each point.
                 </p>
-                <button className="primary" onClick={splitDemo} disabled={busy}>
-                  Start split demo
-                </button>
+                <div className="replay-controls">
+                  <button className="primary" onClick={() => splitDemo(splitActions)} disabled={busy}>
+                    Start split demo
+                  </button>
+                  <button className="outline" onClick={() => splitDemo(splitRevisions)} disabled={busy}>
+                    Start split revisions demo
+                  </button>
+                </div>
               </section>
               <section className="side-card replay-panel">
                 <h2>Cash dividend demo</h2>
@@ -569,6 +577,12 @@ export function HistoricalReplay({
                   step is applied once effective. Keep the file with its source
                   and usage terms.
                 </p>
+                <p>Use action IDs to revise effective times or cancel an action. Leave both share counts blank on a cancellation.</p>
+                <pre>
+                  instrument,action_id,announced_at,effective_at,observed_at,action,new_shares,old_shares
+                  {'\n'}
+                  DEMO:SPLIT,SPLIT-A,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,split,2,1
+                </pre>
                 <pre>
                   instrument,announced_at,effective_at,observed_at,new_shares,old_shares
                   {'\n'}
@@ -733,12 +747,13 @@ export function HistoricalReplay({
                 {event && (
                   <dl className="replay-times">
                     {'split' in event ? (
-                      <div>
-                        <dt>Share ratio</dt>
-                        <dd>
-                          {event.split.newShares} for {event.split.oldShares}
-                        </dd>
-                      </div>
+                      <>
+                        {event.split.actionId && <div><dt>Action ID</dt><dd>{event.split.actionId}</dd></div>}
+                        {!event.split.canceled && <div>
+                          <dt>Share ratio</dt>
+                          <dd>{event.split.newShares} for {event.split.oldShares}</dd>
+                        </div>}
+                      </>
                     ) : 'sessionIndex' in event ? (
                       <div>
                         <dt>Session</dt>

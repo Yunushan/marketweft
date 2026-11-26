@@ -44,6 +44,8 @@ interval. The replay-*.csv files let you try the import workflow with the demo.
 Choose Start split demo to compare point-in-time splits in the raw and
 split-adjusted views. The split-*.csv files supply the same raw history,
 calendar and actions for a 600-second imported replay under DEMO:SPLIT.
+Use Start split revisions demo or import split-revisions.csv to follow
+a rescheduled split, two IDs sharing an effective time, and a cancellation.
 
 Choose Start dividend demo to follow receivables and cash at each cutoff.
 The cash-dividends.csv file uses DEMO:DIVIDEND with split-ohlcv.csv and
@@ -116,6 +118,7 @@ def main():
     files["cash-dividends.csv"] = (fixture / "synthetic-cash-dividends.csv").read_bytes()
     files["universe-membership.csv"] = (fixture / "synthetic-universe.csv").read_bytes()
     files["delisting-terms.csv"] = (fixture / "synthetic-delisting-terms.csv").read_bytes()
+    files["split-revisions.csv"] = (fixture / "synthetic-split-revisions.csv").read_bytes()
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()
     files["universe-sectors.csv"] = (fixture / "synthetic-universe-sectors.csv").read_bytes()
     files["financial-filings.csv"] = (fixture / "synthetic-financial-filings.csv").read_bytes()

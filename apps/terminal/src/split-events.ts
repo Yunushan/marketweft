@@ -1,7 +1,7 @@
 import type { ReplayEvent, Split } from './market-core'
 
 type SplitEvent = {
-  kind: 'split-notice' | 'split-effective'
+  kind: 'split-notice' | 'split-effective' | 'split-revised' | 'split-canceled'
   eventTime: number
   observedAt: number
   split: Split
@@ -36,32 +36,39 @@ export function splitTimeline(
   const first = events[0].observedAt
   const last = events.at(-1)!.observedAt
   const extra: SplitEvent[] = []
-  const effective = new Map<number, Split>()
+  const history = new Map<string | number, Split[]>()
   for (const split of splits) {
-    validateBoundary(split.effectiveAt)
-    if (split.observedAt <= split.effectiveAt)
-      effective.set(split.effectiveAt, split)
-    if (
-      split.observedAt >= first &&
-      split.observedAt <= last &&
-      split.observedAt !== split.effectiveAt
-    ) {
-      extra.push({
-        kind: 'split-notice',
-        eventTime: split.announcedAt,
-        observedAt: split.observedAt,
-        split,
-      })
-    }
+    const id = split.actionId ?? split.effectiveAt
+    const revisions = history.get(id)
+    if (revisions) revisions.push(split)
+    else history.set(id, [split])
   }
-  for (const split of effective.values()) {
-    if (split.effectiveAt >= first && split.effectiveAt <= last) {
-      extra.push({
-        kind: 'split-effective',
-        eventTime: split.effectiveAt,
-        observedAt: split.effectiveAt,
-        split,
-      })
+  const visible = (time: number) => time >= first && time <= last
+  for (const revisions of history.values()) {
+    revisions.sort((a, b) => a.observedAt - b.observedAt)
+    for (const [i, split] of revisions.entries()) {
+      const eligibleAt = Math.max(split.effectiveAt, split.observedAt)
+      const nextObservation = revisions[i + 1]?.observedAt ?? Infinity
+      const eligible = !split.canceled && eligibleAt < nextObservation
+      if (eligible) validateBoundary(split.effectiveAt)
+      const effectiveEvent = eligible && split.effectiveAt >= split.observedAt
+      if (visible(split.observedAt) && (!effectiveEvent || split.observedAt !== split.effectiveAt)) {
+        const kind = split.canceled ? 'split-canceled' : split.actionId && i > 0 ? 'split-revised' : 'split-notice'
+        extra.push({
+          kind,
+          eventTime: kind === 'split-notice' ? split.announcedAt : split.observedAt,
+          observedAt: split.observedAt,
+          split,
+        })
+      }
+      if (effectiveEvent && visible(split.effectiveAt)) {
+        extra.push({
+          kind: 'split-effective',
+          eventTime: split.effectiveAt,
+          observedAt: split.effectiveAt,
+          split,
+        })
+      }
     }
   }
   extra.sort((a, b) => a.observedAt - b.observedAt)

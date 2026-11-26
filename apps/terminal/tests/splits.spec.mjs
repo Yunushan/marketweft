@@ -64,6 +64,61 @@ test('offline split replay gates disclosure and changes only the older candles',
   await expect(quote).toHaveText('53.00')
 })
 
+test('offline split replay moves and cancels only the affected action ID', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  const original = await catalogContents(page)
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Historical replay' }).click()
+  await page.getByRole('button', { name: 'Start split revisions demo' }).click()
+  const basis = page.getByLabel('Price basis')
+  const next = page.getByRole('button', { name: 'Next event' })
+  const previous = page.getByRole('button', { name: 'Previous event' })
+  const status = page.locator('.replay-state')
+  const quote = page.getByTestId('replay-last-close')
+  async function through(label, id) {
+    for (let i = 0; i < 35; i++) {
+      const text = await status.innerText()
+      if (text.includes(label) && text.includes(id)) return
+      await next.click()
+    }
+    throw new Error('Missing replay event: ' + label + ' ' + id)
+  }
+  await basis.selectOption('adjusted')
+  await through('Split effective', 'SPLIT-A')
+  await expect(quote).toHaveText('53.25')
+  await through('Split revision observed', 'SPLIT-A')
+  await expect(status).toContainText('2025-06-03T14:20:00Z')
+  await expect(quote).toHaveText('106.50')
+  await through('Split report observed', 'SPLIT-B')
+  await expect(quote).toHaveText('53.00')
+  await through('Split effective', 'SPLIT-A')
+  await expect(quote).toHaveText('17.666667')
+  await next.click()
+  await expect(status).toContainText('SPLIT-B')
+  await expect(quote).toHaveText('17.666667')
+  await next.click()
+  await expect(quote).toHaveText('17.833333')
+  await next.click()
+  await expect(status).toContainText('Split cancellation observed')
+  await expect(status).toContainText('SPLIT-A')
+  await expect(status).not.toContainText('Share ratio')
+  await expect(quote).toHaveText('35.666667')
+  await basis.selectOption('raw')
+  await expect(quote).toHaveText('53.50')
+  await basis.selectOption('adjusted')
+  await previous.click()
+  await expect(quote).toHaveText('17.833333')
+  await next.click()
+  await expect(quote).toHaveText('35.666667')
+  await next.click()
+  await expect(quote).toHaveText('54.00')
+  await page.setViewportSize({ width: 360, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360)
+  expect(await catalogContents(page)).toEqual(original)
+})
+
 test('validates a local corporate action file against the selected raw history', async ({
   page,
 }) => {
