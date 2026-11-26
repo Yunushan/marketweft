@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.35.0 · Rolling listing risk
+
+| Check | Observed result |
+| --- | --- |
+| Exact grid and coverage | A missing B close leaves the first three-interval window with one paired return. An off-grid close remains excluded. The late exact close increases coverage to three pairs at the next observation cutoff. |
+| Numerical and membership cases | With all three returns, per-interval volatility is approximately 5.773503% for both synthetic listings and correlation is −1. A constant series has zero volatility and undefined correlation. A late removal reduces the last window to one pair. |
+| Offline CSV | Chromium verifies explicit missing metrics, the shared knowledge cutoff, exact sample counts and an export that rewinds byte for byte. An off-grid end leaves the earlier accepted study intact. |
+| Regression suite | All 76 browser, six SDK and four launcher tests passed on Windows x64. All 81 native tests passed on Linux x64, all 31 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Rolling listing risk](listing-risk.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.34.0 · Observed volume and time-price profiles
 
 | Check | Observed result |
