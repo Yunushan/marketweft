@@ -10,6 +10,7 @@ import {
 import { DividendLedger } from './DividendLedger'
 import { UniverseReplay } from './UniverseReplay'
 import { FundamentalReplay } from './FundamentalReplay'
+import { MacroReplay } from './MacroReplay'
 import type { Asset } from './workspace'
 import { Chart } from './Chart'
 import { Icon, Mark } from './Icons'
@@ -57,7 +58,7 @@ type ReplayRun = {
   dividends?: { events: DividendEvent[]; shares: number }
 }
 
-type ReplayView = 'universe' | 'fundamentals'
+type ReplayView = 'universe' | 'fundamentals' | 'macro'
 
 export function HistoricalReplay({
   core,
@@ -74,6 +75,7 @@ export function HistoricalReplay({
   const [view, setView] = useState<ReplayView | null>(null)
   const universeButton = useRef<HTMLButtonElement>(null)
   const fundamentalsButton = useRef<HTMLButtonElement>(null)
+  const macroButton = useRef<HTMLButtonElement>(null)
   const returnFocus = useRef<ReplayView | null>(null)
   const [cursor, setCursor] = useState(-1)
   const [playing, setPlaying] = useState(false)
@@ -102,7 +104,8 @@ export function HistoricalReplay({
   }, [active])
   useEffect(() => {
     if (view === null && returnFocus.current) {
-      const button = returnFocus.current === 'universe' ? universeButton : fundamentalsButton
+      const buttons = { universe: universeButton, fundamentals: fundamentalsButton, macro: macroButton }
+      const button = buttons[returnFocus.current]
       returnFocus.current = null
       button.current?.focus()
     }
@@ -310,6 +313,8 @@ export function HistoricalReplay({
     )
   if (view === 'fundamentals')
     return <FundamentalReplay core={core} close={() => setView(null)} />
+  if (view === 'macro')
+    return <MacroReplay core={core} close={() => setView(null)} />
 
   return (
     <>
@@ -393,6 +398,17 @@ export function HistoricalReplay({
                     setView('fundamentals')
                   }}>
                   Open financial statements
+                </button>
+              </section>
+              <section className="side-card replay-panel">
+                <h2>Economic calendar</h2>
+                <p>Reconstruct release times, forecasts, published actuals and revisions.</p>
+                <button ref={macroButton} className="primary" disabled={busy}
+                  onClick={() => {
+                    returnFocus.current = 'macro'
+                    setView('macro')
+                  }}>
+                  Open economic calendar
                 </button>
               </section>
             </div>

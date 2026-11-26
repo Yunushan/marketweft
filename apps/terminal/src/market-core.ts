@@ -137,6 +137,25 @@ export interface Valuation {
   priceBook: Multiple;
 }
 
+export interface MacroRecord {
+  recordId: string;
+  publishedAt: number;
+  observedAt: number;
+  scheduledAt: number | null;
+  value: bigint | null;
+  supersedes: string | null;
+}
+
+export interface MacroRelease {
+  releaseId: string;
+  seriesId: string;
+  referenceDate: number;
+  unit: string;
+  schedule: MacroRecord | null;
+  forecast: MacroRecord | null;
+  actualHistory: MacroRecord[];
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -153,6 +172,8 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string): Heatmap;
   financialIndex(filings: string, caps: string): FinancialIssuer[];
   financialAsOf(filings: string, caps: string, issuer: string, at: string, known: string): Valuation;
+  macroIndex(csv: string): number;
+  macroAsOf(csv: string, published: string, known: string): MacroRelease[];
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -174,6 +195,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
   mw_financial_index(filingBytes: number): number;
   mw_financial_as_of(filingBytes: number): number;
+  mw_macro_index(): number;
+  mw_macro_as_of(): number;
 }
 
 const SCALE = 1_000_000;
@@ -397,6 +420,42 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const [priceEarnings, priceSales, priceBook] = multiples;
       if (multiples.length !== 3) throw new Error('Incomplete valuation from the calculation engine.');
       return { filing, marketCap, priceEarnings, priceSales, priceBook };
+    },
+    macroIndex(csv) {
+      textInput(csv);
+      return Number(decoder.decode(output(api.mw_macro_index())));
+    },
+    macroAsOf(csv, published, known) {
+      if ([published, known].some(value => value.length !== 20 || /[\n\r]/.test(value))) {
+        throw new Error('Calendar times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
+      }
+      textInput([published, known, csv].join('\n'));
+      const text = decoder.decode(output(api.mw_macro_as_of()));
+      const releases: MacroRelease[] = [];
+      if (!text) return releases;
+      for (const line of text.slice(0, -1).split('\n')) {
+        const [type, ...fields] = line.split('\t');
+        if (type === 'H') {
+          const [releaseId, seriesId, reference, unit] = fields;
+          releases.push({ releaseId, seriesId, referenceDate: Number(reference),
+            unit, schedule: null, forecast: null, actualHistory: [] });
+          continue;
+        }
+        const release = releases.at(-1);
+        if (!release) throw new Error('Missing macro release identity from the calculation engine.');
+        const [recordId, published, observed, scheduled, value, supersedes] = fields;
+        const record = { recordId, publishedAt: Number(published), observedAt: Number(observed),
+          scheduledAt: scheduled === '' ? null : Number(scheduled),
+          value: value === '' ? null : BigInt(value), supersedes: supersedes || null };
+        switch (type) {
+          case 'S': release.schedule = record; break;
+          case 'F': release.forecast = record; break;
+          case 'A':
+          case 'R': release.actualHistory.push(record); break;
+          default: throw new Error('Invalid macro record from the calculation engine.');
+        }
+      }
+      return releases;
     },
     splitBook(instrument, csv) {
       textInput(instrument + '\n' + csv);

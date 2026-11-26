@@ -102,6 +102,12 @@ pub(crate) fn exact_utc(text: &str) -> Option<i64> {
         .flatten()
 }
 
+pub(crate) fn exact_date(text: &str) -> Option<i64> {
+    (text.len() == 10 && text.as_bytes()[4] == b'-')
+        .then(|| timestamp(text))
+        .flatten()
+}
+
 /// Parse one instrument's UTC history. Blank lines are ignored. Order is never repaired silently.
 pub fn parse_csv(csv: &str) -> Result<Vec<Bar>, String> {
     if csv.len() > MAX_INPUT_BYTES {

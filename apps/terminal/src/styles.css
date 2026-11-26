@@ -212,6 +212,14 @@ main {
 .replay-results {
   margin-top: 16px;
 }
+.macro-results {
+  display: grid;
+  gap: 14px;
+}
+.macro-results > p,
+.macro-release h3 {
+  margin: 0;
+}
 .dividend-reports {
   display: grid;
   gap: 8px;

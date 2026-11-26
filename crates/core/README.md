@@ -50,3 +50,7 @@ Call `PriceBook::heatmap` with a sector CSV and the same three clocks to group s
 ## Financial statement vintages
 
 Use `FinancialBook::parse` with annual filings and capitalization CSVs. Query `as_of(issuer, valuation_at, known_at)` for a fiscal vintage, an exact-time capitalization and three typed multiples. Monetary values and ratio units are `i128` in native code and BigInt in the TypeScript wrapper. [Financial statement contract](../../docs/financial-statements.md).
+
+## Economic release calendar
+
+Parse `MacroCalendar` from one local CSV and call `as_of(published_through, known_at)` with inclusive UTC Unix seconds. Each snapshot includes the selected schedule and forecast and the contiguous known chain of actual and revision records. Wasm returns values in six-place fixed-point units. [Economic calendar contract](../../docs/macro-calendar.md).

@@ -63,6 +63,10 @@ Open Financial statements under Historical replay. Start financial demo,
 or import financial-filings.csv and financial-market-caps.csv. Compare the
 original filing, observed restatement and revised capitalization.
 
+Open Economic calendar under Historical replay, then Start calendar demo
+or import macro-calendar.csv. Check the forecast before release and review
+the first published actual and the two later revisions.
+
 The chart supports panning, zooming, a crosshair and moving-average overlays.
 This build has no broker connection or order entry. Press Ctrl+C in the
 launcher's terminal to stop serving the application.
@@ -93,6 +97,7 @@ def main():
     files["universe-sectors.csv"] = (fixture / "synthetic-universe-sectors.csv").read_bytes()
     files["financial-filings.csv"] = (fixture / "synthetic-financial-filings.csv").read_bytes()
     files["financial-market-caps.csv"] = (fixture / "synthetic-financial-market-caps.csv").read_bytes()
+    files["macro-calendar.csv"] = (fixture / "synthetic-macro-calendar.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
     inventory["components"] = [item for item in inventory["components"]
                                if any(p["value"] == "web-runtime" for p in item["properties"])]

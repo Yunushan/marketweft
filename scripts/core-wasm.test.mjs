@@ -9,6 +9,22 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('macro calendar Wasm preserves public and observed times and revision lineage', async () => {
+  const data = await readFile(new URL('../crates/core/tests/fixtures/synthetic-macro-calendar.csv', import.meta.url), 'utf8');
+  const iso = t => '2025-04-03T' + t + 'Z';
+  const asOf = (published, known) => core.macroAsOf(data, iso(published), iso(known));
+  assert.equal(core.macroIndex(data), Date.parse(iso('13:02:00')) / 1000);
+  assert.deepEqual(asOf('14:30:00', '14:31:59')[0].actualHistory, []);
+  assert.deepEqual(asOf('14:29:59', '14:52:00')[0].actualHistory, []);
+  assert.deepEqual(asOf('14:30:00', '14:32:00')[0].actualHistory.map(r => r.value), [2700000n]);
+  const revised = asOf('14:52:00', '14:52:00')[0];
+  assert.equal(revised.forecast.value, 2500000n);
+  assert.deepEqual(revised.actualHistory.map(r => [r.recordId, r.value, r.supersedes]), [
+    ['CPI-A0', 2700000n, null], ['CPI-A1', 2600000n, 'CPI-A0'], ['CPI-A2', 2800000n, 'CPI-A1'],
+  ]);
+  assert.throws(() => core.macroIndex(data.replace('2.8,CPI-A1', '2.8,CPI-A0')), /linear revision chain/);
+});
+
 test('financial Wasm bridge returns exact balances and revision-specific multiples', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-financial-' + name + '.csv', import.meta.url), 'utf8');
   const [filings, caps] = await Promise.all([fixture('filings'), fixture('market-caps')]);

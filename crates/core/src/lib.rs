@@ -5,6 +5,7 @@ mod dividend;
 mod fundamentals;
 mod history;
 mod indicator;
+mod macro_calendar;
 mod replay;
 mod screen;
 mod sector;
@@ -19,6 +20,7 @@ pub use dividend::{
 pub use fundamentals::{Filing, FinancialBook, MarketCap, Multiple, Valuation};
 pub use history::{parse_csv, Bar};
 pub use indicator::{indicator, Average};
+pub use macro_calendar::{MacroCalendar, ReleaseRecord, ReleaseSnapshot, ReportKind};
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use screen::{PriceBook, PriceObservation, ScreenRow};
 pub use sector::{Classification, Heatmap, HeatmapListing, SectorGroup};

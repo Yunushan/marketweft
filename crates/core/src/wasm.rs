@@ -1,6 +1,9 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
-use crate::{history::exact_utc, parse_universe, FinancialBook, Multiple, PriceBook};
+use crate::{
+    history::exact_utc, parse_universe, FinancialBook, MacroCalendar, Multiple, PriceBook,
+    ReportKind,
+};
 use crate::{
     indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
     Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
@@ -353,6 +356,65 @@ fn encode_bars(bars: Vec<Bar>) -> Vec<u8> {
         }
     }
     bytes
+}
+
+#[no_mangle]
+pub extern "C" fn mw_macro_index() -> u32 {
+    process(|input| {
+        let calendar = MacroCalendar::parse(utf8(input)?)?;
+        Ok(calendar.first_observation().to_string().into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_macro_as_of() -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(3, '\n');
+        let mut cutoff = || {
+            parts
+                .next()
+                .and_then(exact_utc)
+                .ok_or("Calendar times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+        };
+        let published = cutoff()?;
+        let known = cutoff()?;
+        let calendar = MacroCalendar::parse(parts.next().ok_or("Supply macro calendar reports.")?)?;
+        let mut text = String::new();
+        for snapshot in calendar.as_of(published, known) {
+            writeln!(
+                &mut text,
+                "H\t{}\t{}\t{}\t{}",
+                snapshot.release_id, snapshot.series_id, snapshot.reference_date, snapshot.unit
+            )
+            .unwrap();
+            for record in snapshot
+                .schedule
+                .into_iter()
+                .chain(snapshot.forecast)
+                .chain(snapshot.actual_history)
+            {
+                let kind = match record.kind {
+                    ReportKind::Schedule => "S",
+                    ReportKind::Forecast => "F",
+                    ReportKind::Actual => "A",
+                    ReportKind::Revision => "R",
+                };
+                writeln!(
+                    &mut text,
+                    "{kind}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    record.record_id,
+                    record.published_at,
+                    record.observed_at,
+                    optional_number(record.scheduled_at),
+                    optional_number(record.value),
+                    record.supersedes.as_deref().unwrap_or_default()
+                )
+                .unwrap();
+            }
+        }
+        Ok(text.into_bytes())
+    })
 }
 
 #[no_mangle]

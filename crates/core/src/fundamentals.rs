@@ -1,5 +1,5 @@
 use crate::{
-    history::{decimal_ticks, exact_utc, timestamp},
+    history::{decimal_ticks, exact_date, exact_utc},
     screen::rounded_div,
     universe::valid_id,
     SCALE,
@@ -79,8 +79,8 @@ impl FinancialBook {
             if !valid_id(issuer) || !valid_id(source) {
                 return Err(error("Use stable issuer and filing identifiers with 1–40 ASCII characters."));
             }
-            let fiscal_start = date(fiscal_start).ok_or_else(|| error("Use a YYYY-MM-DD fiscal start."))?;
-            let fiscal_end = date(fiscal_end).ok_or_else(|| error("Use a YYYY-MM-DD fiscal end."))?;
+            let fiscal_start = exact_date(fiscal_start).ok_or_else(|| error("Use a YYYY-MM-DD fiscal start."))?;
+            let fiscal_end = exact_date(fiscal_end).ok_or_else(|| error("Use a YYYY-MM-DD fiscal end."))?;
             if fiscal_start > fiscal_end {
                 return Err(error("Fiscal start must be at or before fiscal end."));
             }
@@ -240,12 +240,6 @@ impl FinancialBook {
             price_book: ratio(|f| f.common_equity),
         })
     }
-}
-
-fn date(text: &str) -> Option<i64> {
-    (text.len() == 10 && text.as_bytes()[4] == b'-')
-        .then(|| timestamp(text))
-        .flatten()
 }
 
 fn currency_code(text: &str) -> Option<String> {
