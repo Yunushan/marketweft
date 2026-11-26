@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.41.0 · Time-series formulas
+
+| Check | Observed result |
+| --- | --- |
+| Exact and causal evaluation | Native conformance tests cover every prefix of return, SMA, EMA, lowest and highest expressions. The fixtures preserve half-away rounding, divide-by-zero gaps, overflow gaps, exact fractional volume and conditional selection. |
+| Grammar and limits | The parser rejects unknown names, forward-looking or dynamic periods, excessive source size, nested expressions and node counts. The evaluator checks its separate expression-row budget. |
+| Offline terminal | Chromium imports the synthetic bars offline and verifies 14.5 at the earlier cutoff, 16.833333 after one additional row, unchanged accepted output on invalid input, a phone-width layout and byte-for-byte CSV rewind. |
+| Regression suite | All 82 browser, six SDK and four launcher tests passed on Windows x64. All 97 native tests passed on Linux x64, all 37 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Time-series language](time-series-language.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.40.0 · Cross-sectional walk-forward
 
 | Check | Observed result |

@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.40.0 selects cross-sectional ranking parameters in rolling training windows and verifies their results in disjoint tests. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.41.0 evaluates versioned, bounded time-series formulas in the offline terminal. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -43,16 +43,17 @@
 | Delivered · 0.38.0 | Paper corporate cash (MW-017, MW-020, MW-021) | Reconcile dividends by entitlement and currency, retire and restore historical positions, and post dated proceeds with receipt provenance. [Paper corporate cash](docs/paper-corporate-cash.md). |
 | Delivered · 0.39.0 | Recorded trade execution (MW-013, MW-020, MW-021) | Match paper orders against later recorded trades by capture order. Verify session eligibility, partial fills, exact receipts and separate execution and knowledge cutoffs. [Recorded trade execution](docs/recorded-trade-execution.md). |
 | Delivered · 0.40.0 | Cross-sectional walk-forward (MW-020, MW-025) | Rank candidates using information known at each training close. Freeze the winner, reset the paper account and report disjoint test coverage, equity and turnover. [Cross-sectional walk-forward](docs/cross-sectional-walk-forward.md). |
+| Delivered · 0.41.0 | Time-series formulas (MW-015, MW-016) | Compile independently specified OHLCV expressions, evaluate backward-looking windows with exact missing-value semantics and export the observed result. [Time-series language](docs/time-series-language.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Broaden reproducible strategy signals, portfolio-level optimization and execution inputs. |
-| P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Publish an independent time-series language spec, bounded interpreter and isolated Wasm execution. Test determinism, quotas and schema compatibility across SDKs. Start MCP with read-only research queries. |
+| P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Extend the time-series language to strategy signals and isolated plugins. Verify schema compatibility across SDKs and start MCP with read-only research queries. |
 | P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Add explicit webhook configuration, authenticated delivery, bounded retry and delivery receipts. Extend annual filings with quarterly/TTM aggregation, add options exercise and dividend models, and integrate authorized data sources. |
 | P2 | Order flow and specialized visualization (MW-012, MW-019) | Add authorized trade and depth streams, sequence recovery, trade-side classification and profiles. Benchmark Canvas against WebGL/wgpu with identical traces before adopting another renderer. |
 | P3 | Enterprise and authorized live execution (MW-022, MW-028, MW-030) | Introduce a headless Rust service, SQLite/DuckDB persistence, authenticated APIs and audited operations. Add external stores/queues only after load tests justify them. Prove quota enforcement and disaster recovery before a hosted rollout. Require explicit authorization and deterministic pre-trade risk for any live route. |
 
 ## Handoff for the next change
 
-The next scripting milestone adds an independently specified, bounded time-series expression evaluator for custom indicators. Verify missing-value propagation, lookback rules, resource limits and matching native and browser output.
+The next scripting milestone uses versioned formulas for entry and exit signals in the paper backtest. Verify prefix stability, missing-signal behavior, delayed fills and reproducible receipts.
 
