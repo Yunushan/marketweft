@@ -148,6 +148,10 @@ paper-events.csv. Step through reserves, partial fills, fees and the halt.
 Open Bar backtest under Historical replay and Start backtest demo, or load
 backtest-sessions.csv and backtest-bars.csv with a 60-second bar interval.
 Check how a missing interval delays the first partial fill.
+Expand Formula paper backtest to use the default entry and exit expressions.
+Hold effective time at 2025-04-03T14:11:00Z, then compare knowledge at
+14:05, 14:07 and 14:11 UTC. For exact trade receipts, select Recorded trades,
+load backtest-trades.csv and advance knowledge to 14:11:10 UTC.
 Expand Recorded trade execution and load backtest-trades.csv or use the
 sample execution trades. Set effective time to 2025-04-03T14:11:00Z.
 Compare knowledge at 14:05:29, 14:05:30 and 14:11:10 UTC, then export the

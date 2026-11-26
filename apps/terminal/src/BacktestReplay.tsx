@@ -4,6 +4,8 @@ import type { BacktestConfig, BacktestResult, MarketCore, PaperConfig, WalkForwa
 import { Mark } from './Icons'
 import { ScenarioReplay } from './ScenarioReplay'
 import { RecordedTradeReplay } from './RecordedTradeReplay'
+import { FormulaPaperReplay } from './FormulaPaperReplay'
+import type { BacktestBook } from './RecordedTradeReplay'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoCalendar from '../../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv?raw'
@@ -24,7 +26,7 @@ const paperFields: [keyof PaperConfig, string][] = [
   ['exposureLimit', 'Committed cost limit'], ['feePerShare', 'Fee per share'], ['feePerOrder', 'Fee per order'],
 ]
 
-type Book = { title: string; bars: string; calendar: string; interval: number; instrument: string; times: number[]; demo: boolean }
+type Book = BacktestBook
 type Query = { at: string; config: BacktestConfig }
 const money = (amount: bigint) => fixed(amount, 6)
 
@@ -352,6 +354,7 @@ export function BacktestReplay({ core, close }: { core: MarketCore; close: () =>
               </div>
             </section>
             <RecordedTradeReplay book={book} config={view.query.config} core={core} />
+            <FormulaPaperReplay book={book} config={view.query.config} core={core} />
             <WalkForward book={book} execution={view.query.config} core={core} />
             <ScenarioReplay source={book} execution={view.query.config} core={core} />
           </>

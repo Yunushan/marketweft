@@ -589,6 +589,7 @@ export interface FormulaBacktestQuery extends RecordedBacktestQuery {
 }
 
 export interface FormulaBacktestResult {
+  version: number;
   backtest: BacktestResult;
   evaluations: {
     at: number;
@@ -1784,7 +1785,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           exit: exitValue ? BigInt(exitValue) : null, decision: side || null });
         return false;
       }));
-      return { backtest, evaluations };
+      return { version: api.mw_formula_version(), backtest, evaluations };
     },
     walkForward(instrument, calendar, bars, interval, cutoff, execution, config) {
       validateInterval(interval);
