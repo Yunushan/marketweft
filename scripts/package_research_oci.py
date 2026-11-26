@@ -29,7 +29,7 @@ def build(context, archive, image, version, revision):
         "--file", str(DOCKERFILE), "--tag", image,
         "--label", f"org.opencontainers.image.version={version}",
         "--label", f"org.opencontainers.image.revision={revision}",
-        "--output", f"type=oci,dest={archive}", str(context),
+        "--output", f"type=docker,oci-mediatypes=true,dest={archive}", str(context),
     ]
     try:
         docker("buildx", "build", *parameters)
@@ -50,10 +50,15 @@ def build(context, archive, image, version, revision):
 
 def inspect(archive, version, revision):
     with tarfile.open(archive) as image:
-        def blob(descriptor):
+        def blob_path(descriptor):
             algorithm, digest = descriptor["digest"].split(":")
             assert algorithm == "sha256"
-            with image.extractfile(f"blobs/sha256/{digest}") as source:
+            return f"blobs/sha256/{digest}"
+
+        def blob(descriptor):
+            path = blob_path(descriptor)
+            digest = path.rsplit("/", 1)[-1]
+            with image.extractfile(path) as source:
                 content = source.read()
             assert len(content) == descriptor["size"], digest
             assert hashlib.sha256(content).hexdigest() == digest
@@ -65,6 +70,9 @@ def inspect(archive, version, revision):
         descriptor, = index["manifests"]
         assert descriptor["mediaType"] == "application/vnd.oci.image.manifest.v1+json"
         manifest = json.loads(blob(descriptor))
+        compatible, = json.load(image.extractfile("manifest.json"))
+        assert compatible["Config"] == blob_path(manifest["config"])
+        assert compatible["Layers"] == [blob_path(layer) for layer in manifest["layers"]]
         configuration = json.loads(blob(manifest["config"]))
         for layer in manifest["layers"]:
             blob(layer)
