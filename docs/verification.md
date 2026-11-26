@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.26.0 · OHLC bar chart
+
+| Check | Observed result |
+| --- | --- |
+| Asymmetric geometry | A bar with open 10, high 21, low 1 and close 15 draws a vertical high-to-low stem. The open tick extends left at 55% of the high-to-low span and the close tick extends right at 30%. The test inspects the chart's Canvas strokes. |
+| Range and linked cursor | Zooming and panning the comparison OHLC pane preserves the primary close-line range. The two panes link the hovered timestamp when both contain the same UTC bar. |
+| Workspace recovery | Reload and a version 6 backup preserve OHLC. Restoring a version 5 backup restores the earlier close line. A mixed workspace exports separate line and OHLC selections for its two panes. |
+| Regression suite | All 65 browser and six SDK tests passed on Windows x64, 63 native tests passed on Linux x64, 22 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Chart workspace](chart-workspace.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.25.0 · Close line chart
 
 | Check | Observed result |

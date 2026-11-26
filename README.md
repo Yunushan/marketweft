@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.25.0 · 0BSD**
+**0.26.0 · 0BSD**
 
 **Documentation languages**
 
@@ -15,14 +15,14 @@
 
 MarketWeft is a local-first research terminal for analysts, developers and operators who need inspectable historical market data. The browser opens authorized OHLCV files, renders interactive candles and volume, calculates fixed-point SMA and EMA, and saves the watchlist, selected instrument and overlays in IndexedDB. The application works offline after its assets are cached. Its bundled prices and volumes are synthetic and require no provider account.
 
-MarketWeft 0.25.0 adds a close line chart alongside candlesticks, with an independent chart type for each pane. MarketWeft 0.7.0 adds point-in-time universe screening by price return. Session-aware replay includes stock splits, cash dividends, membership and delistings. The repository also includes a read-only TypeScript observer for a separate trading-bot service and an experimental Tauri wrapper. Provider feeds, order entry, signed native installers and multi-user hosting remain roadmap work.
+MarketWeft 0.26.0 adds OHLC bars as an independent chart choice for each pane. MarketWeft 0.7.0 adds point-in-time universe screening by price return. Session-aware replay includes stock splits, cash dividends, membership and delistings. The repository also includes a read-only TypeScript observer for a separate trading-bot service and an experimental Tauri wrapper. Provider feeds, order entry, signed native installers and multi-user hosting remain roadmap work.
 
 [ROADMAP.md](ROADMAP.md) · [docs/coverage.md](docs/coverage.md)
 
 <!-- section:02 -->
 ## Start with the portable terminal
 
-Open a successful GitHub verification run and download its browser-terminal-attempt-N artifact. Extract the enclosed MarketWeft-browser-0.25.0.zip, keep dist/ beside serve-terminal.mjs and run the following command in that directory. Open http://127.0.0.1:4173/ in a current browser with WebAssembly, Canvas, BigInt and IndexedDB. Node.js 22.12 or later runs the launcher. The portable package needs no npm installation. Wait for Offline ready before disconnecting.
+Open a successful GitHub verification run and download its browser-terminal-attempt-N artifact. Extract the enclosed MarketWeft-browser-0.26.0.zip, keep dist/ beside serve-terminal.mjs and run the following command in that directory. Open http://127.0.0.1:4173/ in a current browser with WebAssembly, Canvas, BigInt and IndexedDB. Node.js 22.12 or later runs the launcher. The portable package needs no npm installation. Wait for Offline ready before disconnecting.
 
 ```sh
 node serve-terminal.mjs
@@ -147,6 +147,8 @@ Open Indicators and set the SMA and EMA periods in bars for each pane. The chart
 Open Export CSV beneath a chart. Download OHLCV bars for reimport or include provenance and the enabled moving averages for research. Averages remain blank until enough closes are available.
 
 Choose Close line in either pane's chart-type control. The line uses observed closes and keeps the volume chart and enabled indicators. An unobserved UTC bar has no linked crosshair. Workspace backups preserve the selected chart types.
+
+Choose OHLC bars to see the high and low on a vertical stem, the open on the left and the close on the right. Each pane keeps its own chart type, and the linked cursor still follows exact UTC bars.
 
 [docs/historical-replay.md](docs/historical-replay.md) · [replay-sessions.csv](crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](docs/corporate-actions.md) · [split-actions.csv](crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](docs/cash-dividends.md) · [cash-dividends.csv](crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](docs/universe-membership.md) · [universe-membership.csv](crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](docs/universe-screen.md) · [universe-prices.csv](crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](docs/sector-heatmap.md) · [universe-sectors.csv](crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](docs/financial-statements.md) · [financial-filings.csv](crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](docs/macro-calendar.md) · [macro-calendar.csv](crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](docs/option-chain.md) · [option-underlying.csv](crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](docs/replay-alerts.md) · [alert-rules.csv](crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](docs/paper-ledger.md) · [paper-events.csv](crates/core/tests/fixtures/synthetic-paper-events.csv) · [bar-backtest.md](docs/bar-backtest.md) · [backtest-sessions.csv](crates/core/tests/fixtures/synthetic-backtest-sessions.csv) · [backtest-bars.csv](crates/core/tests/fixtures/synthetic-backtest-bars.csv) · [walk-forward.md](docs/walk-forward.md) · [seeded-scenarios.md](docs/seeded-scenarios.md) · [delisting-proceeds.md](docs/delisting-proceeds.md) · [split-revisions.csv](crates/core/tests/fixtures/synthetic-split-revisions.csv) · [dividend-positions.csv](crates/core/tests/fixtures/synthetic-dividend-positions.csv) · [portfolio-replay.md](docs/portfolio-replay.md) · [portfolio-holdings.csv](crates/core/tests/fixtures/synthetic-portfolio-holdings.csv) · [chart-workspace.md](docs/chart-workspace.md)
 
