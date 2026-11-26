@@ -16,7 +16,7 @@ universe,listing_id,price_at,observed_at,sequence,price,shares
 
 Use the same universe as the membership and price reports. Each row supplies an effective price time, observation time, unique positive unsigned 64-bit sequence, positive price and whole available shares. Time fields use UTC. A fill can use a row only after its observation, with a price time strictly later than order submission and within the effective cutoff. Order limits and the participation cap apply to fills. Participation is rounded down to whole shares. At each decision time, visible liquidity is processed before the new orders are submitted.
 
-Use prices and cash on a common currency and adjustment basis. Ending equity is cash plus the value of open positions at exact closes. An unavailable mark, including for a delisted holding, leaves ending equity unavailable. Cash, reserved cash, fees, executed principal and known position values are still reported.
+Use prices and cash on a common currency and adjustment basis. Ending equity is cash plus the value of open positions at exact closes. An unavailable mark, including for a delisted holding, leaves ending equity unavailable. Cash, reserved cash, fees, executed principal and known position values are still reported. Enable [corporate cash in paper replay](paper-corporate-cash.md) to retire delisted holdings, value their claims and post dated payments.
 
 ## Verify the offline sample
 

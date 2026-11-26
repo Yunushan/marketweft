@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.38.0 · Paper corporate cash
+
+| Check | Observed result |
+| --- | --- |
+| Dividend entitlement | Two shares held before ex-time earn 4 USD. The same-second execution has zero impact on that entitlement. A later report reverses the USD payment and records 6 EUR separately. |
+| Delisting proceeds | Four shares retire when the effective delisting becomes known. Missing terms make equity incomplete. The 500 USD receivable moves to cash on the payment date, a revision adds 20 USD, and a cancellation reverses 520 USD and restores the original 463.4 cost basis. |
+| Cutoffs and offline export | Tests with different effective and known times withhold future payments. Chromium verifies exact CSV receipts, malformed import rejection, catalog preservation and a byte-for-byte rewind. |
+| Regression suite | All 79 browser, six SDK and four launcher tests passed on Windows x64. The native workspace suite passed on Linux x64, all 34 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Paper corporate cash](paper-corporate-cash.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.37.0 · Cross-sectional paper replay
 
 | Check | Observed result |

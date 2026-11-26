@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.37.0 replays historical universe rankings and executes selected positions through the paper ledger. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.38.0 posts observed corporate cash and delisting settlements to historical paper positions. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -40,8 +40,9 @@
 | Delivered · 0.35.0 | Rolling listing risk (MW-013, MW-025) | Calculate realized volatility and Pearson correlation across exact UTC price intervals. Report independent and paired sample coverage, undefined correlation and reproducible CSVs. [Rolling listing risk](docs/listing-risk.md). |
 | Delivered · 0.36.0 | Correlated portfolio scenarios (MW-021, MW-025) | Resample whole observed return vectors for selected listings and apply exact one-way rebalancing fees. Verify aligned coverage, path reproducibility and turnover costs. [Portfolio scenarios](docs/portfolio-scenarios.md). |
 | Delivered · 0.37.0 | Cross-sectional paper replay (MW-020, MW-021) | Rank historical members at each decision and execute against later observed liquidity. Verify missing closes, order reservations, execution delay, exact turnover and marked positions. [Cross-sectional paper replay](docs/cross-sectional-paper.md). |
+| Delivered · 0.38.0 | Paper corporate cash (MW-017, MW-020, MW-021) | Reconcile dividends by entitlement and currency, retire and restore historical positions, and post dated proceeds with receipt provenance. [Paper corporate cash](docs/paper-corporate-cash.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
-| P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Apply delisting proceeds and dividend entries in portfolio execution replay. Extend the source and rights model to live providers. |
+| P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Extend the paper event contract to recorded tick execution and out-of-sample cross-sectional strategy optimization. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Publish an independent time-series language spec, bounded interpreter and isolated Wasm execution. Test determinism, quotas and schema compatibility across SDKs. Start MCP with read-only research queries. |
@@ -51,5 +52,5 @@
 
 ## Handoff for the next change
 
-The next strategy milestone applies point-in-time cash dividends and delisting proceeds to the positions held by the paper replay. Verify entitlement, cash dates and receipt provenance at each cutoff.
+The next strategy milestone matches historical paper orders against recorded trade prints. Verify execution timing, tick sequence, available volume and reproducible partial fills.
 
