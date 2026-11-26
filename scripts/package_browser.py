@@ -52,6 +52,10 @@ fixed-duration UTC bucket. Research CSV includes observed and expected counts.
 Add a Session calendar CSV in Timeframe to anchor bars to exchange opens and
 clip the final bucket at each listed close. Try the supplied split-sessions.csv.
 
+Open Recorded tick bars with NASDAQ:NVDA selected and load tick-trades.csv.
+Use two trades per bar and compare cutoffs at 2025-06-02T14:00:00Z and
+2025-06-02T14:00:05Z. The complete first bar is identical at both cutoffs.
+
 Choose Historical replay and Start demo for the NYSE session example. Replay
 reveals each bar at its scheduled close and marks missing intervals in-session.
 To replay your own import, choose a matching UTC session calendar and bar
@@ -133,6 +137,7 @@ def main():
     fixture = ROOT / "crates/core/tests/fixtures"
     files["replay-sessions.csv"] = (fixture / "nyse-2025-replay-sessions.csv").read_bytes()
     files["replay-ohlcv.csv"] = (fixture / "nyse-2025-replay-ohlcv.csv").read_bytes()
+    files["tick-trades.csv"] = (fixture / "synthetic-tick-trades.csv").read_bytes()
     for kind in ("actions", "ohlcv", "sessions"):
         files[f"split-{kind}.csv"] = (fixture / f"synthetic-split-{kind}.csv").read_bytes()
     files["cash-dividends.csv"] = (fixture / "synthetic-cash-dividends.csv").read_bytes()

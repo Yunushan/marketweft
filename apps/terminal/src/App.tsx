@@ -12,6 +12,7 @@ import type { MarketCore, MeasuredDrawing } from './market-core'
 import { DEFAULT_INDICATOR_PERIODS } from './market-core'
 import { Spark } from './Chart'
 import { TimeframeChart } from './TimeframeChart'
+import { TickBarsResearch } from './TickBarsResearch'
 import { IndicatorPeriods } from './IndicatorPeriods'
 import { Icon, Mark } from './Icons'
 import { changeString, dateLabel, movement, price, volume } from './workspace'
@@ -312,14 +313,23 @@ export function App({
   )
   const [saved, setSaved] = useState(initial)
   const [replaying, setReplaying] = useState(false)
+  const [tickResearch, setTickResearch] = useState(false)
   const replayButton = useRef<HTMLButtonElement>(null)
+  const tickResearchButton = useRef<HTMLButtonElement>(null)
   const restoreReplayFocus = useRef(false)
+  const restoreTickResearchFocus = useRef(false)
   useLayoutEffect(() => {
     if (!replaying && restoreReplayFocus.current) {
       restoreReplayFocus.current = false
       replayButton.current?.focus()
     }
   }, [replaying])
+  useEffect(() => {
+    if (!tickResearch && restoreTickResearchFocus.current) {
+      restoreTickResearchFocus.current = false
+      tickResearchButton.current?.focus()
+    }
+  }, [tickResearch])
   const [pendingPrefs, setPendingPrefs] = useState<{
     revision: number
     prefs: Preferences
@@ -524,6 +534,12 @@ export function App({
   }
   const span = last.high - last.low,
     position = span === 0 ? 50 : ((last.close - last.low) / span) * 100
+  if (tickResearch) {
+    return <TickBarsResearch key={asset.id} core={core} asset={asset} close={() => {
+      restoreTickResearchFocus.current = true
+      setTickResearch(false)
+    }} />
+  }
   if (replaying) {
     return (
       <HistoricalReplay
@@ -579,6 +595,8 @@ export function App({
             >
               <Icon name="chart" /> Historical replay
             </button>
+            <button ref={tickResearchButton} className="outline" disabled={saving}
+              onClick={() => setTickResearch(true)}>Recorded tick bars</button>
           </div>
         </div>
         {(warning || saveError) && (

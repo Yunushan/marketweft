@@ -10,7 +10,7 @@ export type TimeframeView = { sourceSeconds: number; targetSeconds: number } & (
   { mode: 'session'; buckets: SessionTimeframeBar[]; calendarName: string }
 )
 
-function quoteText(text: string) {
+export function quoteText(text: string) {
   const safe = /^[\t\r\n]|^[\s\uFEFF]*[=+@-]/.test(text) ? "'" + text : text
   return '"' + safe.replaceAll('"', '""') + '"'
 }

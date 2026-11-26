@@ -19,6 +19,7 @@ mod replay;
 mod scenarios;
 mod screen;
 mod sector;
+mod tick_bars;
 mod timeframe;
 mod universe;
 mod walk_forward;
@@ -64,6 +65,7 @@ pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};
 pub use screen::{PriceBook, PriceObservation, ScreenRow};
 pub use sector::{Classification, Heatmap, HeatmapListing, SectorGroup};
+pub use tick_bars::{TickBar, TradeTape};
 pub use timeframe::{
     aggregate_session_timeframe, aggregate_timeframe, SessionTimeframeBar, TimeframeBar,
 };

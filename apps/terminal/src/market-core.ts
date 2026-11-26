@@ -13,6 +13,15 @@ export interface TimeframeBar {
   observedBars: number;
   expectedBars: number;
 }
+
+export interface TickBar {
+  bar: Bar;
+  availableAt: number;
+  firstSequence: bigint;
+  lastSequence: bigint;
+  observedTrades: number;
+  targetTrades: number;
+}
 export interface SessionTimeframeBar extends TimeframeBar {
   closeTime: number;
   sessionOpen: number;
@@ -412,6 +421,7 @@ export interface PortfolioSnapshot {
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
+  recordedTickBars(instrument: string, csv: string, targetTrades: number, knownAt?: string): TickBar[];
   aggregateTimeframe(bars: readonly Bar[], sourceSeconds: number, targetSeconds: number): TimeframeBar[];
   aggregateSessionTimeframe(calendar: string, bars: readonly Bar[], sourceSeconds: number,
     targetSeconds: number): SessionTimeframeBar[];
@@ -459,6 +469,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_output_len(): number;
   mw_instrument(): number;
   mw_parse(): number;
+  mw_tick_bars(targetTrades: number): number;
   mw_aggregate_timeframe(sourceSeconds: number, targetSeconds: number): number;
   mw_aggregate_session_timeframe(calendarBytes: number, sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
@@ -693,6 +704,25 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     parseCsv(csv) {
       textInput(csv);
       return decodeBars(output(api.mw_parse()));
+    },
+    recordedTickBars(instrument, csv, targetTrades, knownAt = '') {
+      if (!Number.isInteger(targetTrades) || targetTrades < 1 || targetTrades > 100_000) {
+        throw new Error('Use 1 to 100,000 trades per bar.');
+      }
+      if (/[\r\n]/.test(instrument + knownAt)) throw new Error('Use a single instrument and UTC cutoff.');
+      textInput([instrument, knownAt, csv].join('\n'));
+      const out = output(api.mw_tick_bars(targetTrades));
+      return Array.from({ length: out.byteLength / 80 }, (_, i) => {
+        const start = i * 80;
+        return {
+          bar: decodeBar(out, start),
+          availableAt: Number(out.getBigInt64(start + 48, true)),
+          firstSequence: out.getBigUint64(start + 56, true),
+          lastSequence: out.getBigUint64(start + 64, true),
+          observedTrades: out.getUint32(start + 72, true),
+          targetTrades: out.getUint32(start + 76, true),
+        };
+      });
     },
     aggregateTimeframe(bars, sourceSeconds, targetSeconds) {
       putTimeframeInput(bars, sourceSeconds, targetSeconds);

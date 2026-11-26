@@ -7,7 +7,7 @@ import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar, MarketCore, MeasuredDrawing } from './market-core'
+import type { Bar, MarketCore, MeasuredDrawing, TickBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 type View = { end: number; count: number }
@@ -344,6 +344,7 @@ export function Chart({
   exportOptions,
   type = 'candles',
   timeframe,
+  ticks,
 }: {
   asset: Asset
   sma: Series
@@ -355,6 +356,7 @@ export function Chart({
   exportOptions?: { metadata?: SeriesMetadata }
   type?: ChartType
   timeframe?: TimeframeView
+  ticks?: TickBar[]
 }) {
   const { bars } = asset,
     n = bars.length
@@ -379,6 +381,7 @@ export function Chart({
   const b = bars[readoutIndex]
   const coverage = timeframe?.buckets[readoutIndex]
   const session = timeframe?.mode === 'session' ? timeframe.buckets[readoutIndex] : undefined
+  const tick = ticks?.[readoutIndex]
   const indicatorValues = sma.length > 0 || ema.length > 0
   function stopEditing() {
     setDrawingFields(null)
@@ -512,6 +515,11 @@ export function Chart({
         </span>}
         {session && <span className="timeframe-coverage">
           Closes {timeLabel(session.closeTime)} UTC{session.earlyClose ? ' · Early session' : ''}
+        </span>}
+        {tick && <span className="timeframe-coverage">
+          {tick.observedTrades}/{tick.targetTrades} trades · {tick.observedTrades < tick.targetTrades ? 'Provisional' : 'Complete'}
+          {' · '}Observed through {timeLabel(tick.availableAt)} UTC
+          {' · '}Capture sequence {tick.firstSequence.toString()}–{tick.lastSequence.toString()}
         </span>}
       </div>
       {periods && (

@@ -1233,6 +1233,36 @@ pub extern "C" fn mw_parse() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_tick_bars(target_trades: u32) -> u32 {
+    process(|input| {
+        let (identity, payload) = utf8(input)?
+            .split_once('\n')
+            .ok_or("Missing trade input.")?;
+        let (venue, symbol) = identity
+            .split_once(':')
+            .ok_or("Missing trade instrument.")?;
+        let (cutoff, csv) = payload.split_once('\n').ok_or("Missing trade CSV.")?;
+        let cutoff = if cutoff.is_empty() {
+            None
+        } else {
+            Some(crate::history::timestamp(cutoff).ok_or("Use a UTC observation cutoff.")?)
+        };
+        let instrument = Instrument::new(venue, symbol)?;
+        let rolled = crate::TradeTape::parse(csv, &instrument)?.bars(target_trades, cutoff)?;
+        let mut bytes = Vec::with_capacity(80 * rolled.len());
+        for entry in rolled {
+            push_bar(&mut bytes, entry.bar);
+            bytes.extend_from_slice(&entry.available_at.to_le_bytes());
+            bytes.extend_from_slice(&entry.first_sequence.to_le_bytes());
+            bytes.extend_from_slice(&entry.last_sequence.to_le_bytes());
+            bytes.extend_from_slice(&entry.observed_trades.to_le_bytes());
+            bytes.extend_from_slice(&entry.target_trades.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_aggregate_timeframe(source_seconds: u32, target_seconds: u32) -> u32 {
     process(|input| {
         let bars = decode_bars(input)?;

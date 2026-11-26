@@ -9,6 +9,27 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('tick bars keep exact sequence identities and observation-time prefixes', () => {
+  const csv = [
+    'instrument,executed_at,observed_at,sequence,price,size',
+    'LOCAL:TICK,0,0,9007199254740993,5,0.000001',
+    'LOCAL:TICK,0,0,9007199254740994,-2,0.000002',
+    'LOCAL:TICK,-1,5,9007199254740995,7,0.1',
+  ].join('\n');
+  const prior = core.recordedTickBars('LOCAL:TICK', csv, 2, '0');
+  assert.deepEqual(prior, [{
+    bar: { time: 0, open: 5, high: 5, low: -2, close: -2, volume: 0.000003 },
+    availableAt: 0, firstSequence: 9007199254740993n, lastSequence: 9007199254740994n,
+    observedTrades: 2, targetTrades: 2,
+  }]);
+  const after = core.recordedTickBars('LOCAL:TICK', csv, 2, '5');
+  assert.deepEqual(after.slice(0, 1), prior);
+  assert.equal(after[1].bar.open, 7);
+  assert.equal(after[1].observedTrades, 1);
+  assert.equal(after[1].availableAt, 5);
+  assert.throws(() => core.recordedTickBars('LOCAL:OTHER', csv, 2), /Instrument must match/);
+});
+
 test('timeframe Wasm rolls exact signed OHLCV, omits empty buckets and reports coverage', () => {
   const source = core.parseCsv([
     'time,open,high,low,close,volume',
