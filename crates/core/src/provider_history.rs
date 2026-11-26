@@ -11,6 +11,13 @@ pub struct ProviderBar {
     pub observed_at: i64,
 }
 
+/// An observation, with no bar values when it withdraws the bar.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProviderObservation {
+    pub observed_at: i64,
+    pub bar: Option<Bar>,
+}
+
 /// Immutable OHLCV revisions for one provider and one instrument.
 #[derive(Clone, Debug)]
 pub struct ProviderHistory {
@@ -137,6 +144,35 @@ impl ProviderHistory {
                     Revision::Upsert(bar) => Some(ProviderBar { bar, observed_at }),
                     Revision::Withdraw => None,
                 }
+            })
+            .collect())
+    }
+
+    /// Return the observation history of an eligible bar, oldest observation first.
+    pub fn observations(
+        &self,
+        bar_at: i64,
+        effective_at: i64,
+        known_at: i64,
+    ) -> Result<Vec<ProviderObservation>, String> {
+        if ![bar_at, effective_at, known_at]
+            .into_iter()
+            .all(valid_second)
+        {
+            return Err("Use whole UTC bar and cutoff timestamps in the supported range.".into());
+        }
+        Ok(self
+            .by_effective
+            .get(&bar_at)
+            .filter(|_| bar_at <= effective_at)
+            .into_iter()
+            .flat_map(|revisions| revisions.range(..=known_at))
+            .map(|(&observed_at, &revision)| ProviderObservation {
+                observed_at,
+                bar: match revision {
+                    Revision::Upsert(bar) => Some(bar),
+                    Revision::Withdraw => None,
+                },
             })
             .collect())
     }

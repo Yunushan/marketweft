@@ -11,7 +11,9 @@ import demo from '../../../crates/core/tests/fixtures/synthetic-provider-withdra
 const DEMO = { csv: demo, name: 'Synthetic provider revisions' }
 const DEFAULT_EFFECTIVE = '2025-06-02T14:02:00Z'
 const DEFAULT_KNOWN = '2025-06-02T14:03:59Z'
+const DEFAULT_BAR = '2025-06-02T14:00:00Z'
 const PAGE_SIZE = 100
+const OHLCV = ['open', 'high', 'low', 'close', 'volume'] as const
 
 export function ProviderRevisionResearch({ core, policy, close }: {
   core: MarketCore; policy: ImportPolicy; close: () => void
@@ -23,8 +25,13 @@ export function ProviderRevisionResearch({ core, policy, close }: {
     ...core.providerHistoryAsOf(DEMO.csv, DEFAULT_EFFECTIVE, DEFAULT_KNOWN),
     effectiveAt: DEFAULT_EFFECTIVE,
     knownAt: DEFAULT_KNOWN,
+    barAt: DEFAULT_BAR,
+    observations: core.providerBarObservations(DEMO.csv, DEFAULT_BAR, DEFAULT_EFFECTIVE, DEFAULT_KNOWN),
   }))
   const [page, setPage] = useState(0)
+  const [barTime, setBarTime] = useState(DEFAULT_BAR)
+  const [observationPage, setObservationPage] = useState(0)
+  const [inspectionProblem, setInspectionProblem] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [problem, setProblem] = useState('')
@@ -50,9 +57,11 @@ export function ProviderRevisionResearch({ core, policy, close }: {
     const effectiveAt = effective.trim()
     const knownAt = known.trim()
     const snapshot = core.providerHistoryAsOf(history.csv, effectiveAt, knownAt)
+    const observations = core.providerBarObservations(history.csv, view.barAt, effectiveAt, knownAt)
     setSource(history)
-    setView({ ...snapshot, effectiveAt, knownAt })
+    setView({ ...snapshot, effectiveAt, knownAt, barAt: view.barAt, observations })
     setPage(0)
+    setObservationPage(0)
     setProblem('')
   }
 
@@ -82,8 +91,23 @@ export function ProviderRevisionResearch({ core, policy, close }: {
     }
   }
 
+  function inspect(event: FormEvent) {
+    event.preventDefault()
+    const barAt = barTime.trim()
+    try {
+      const observations = core.providerBarObservations(source.csv, barAt, view.effectiveAt, view.knownAt)
+      setView({ ...view, barAt, observations })
+      setObservationPage(0)
+      setInspectionProblem('')
+    } catch (error) {
+      setInspectionProblem(error instanceof Error ? error.message : 'Could not inspect this bar.')
+    }
+  }
+
   const totalPages = Math.ceil(view.bars.length / PAGE_SIZE)
   const bars = view.bars.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const observationPages = Math.ceil(view.observations.length / PAGE_SIZE)
+  const observations = view.observations.slice(observationPage * PAGE_SIZE, (observationPage + 1) * PAGE_SIZE)
   return <>
     <header className="app-header">
       <div className="app-brand"><Mark /><strong>MarketWeft</strong></div>
@@ -125,8 +149,7 @@ export function ProviderRevisionResearch({ core, policy, close }: {
                 <th scope="col" key={label}>{label}</th>)}</tr></thead>
               <tbody>{bars.map(bar => <tr key={bar.at}>
                 <th scope="row">{utc(bar.at)}</th><td>{utc(bar.observedAt)}</td>
-                {[bar.open, bar.high, bar.low, bar.close, bar.volume].map((value, index) =>
-                  <td key={index}>{fixed(value, 6)}</td>)}
+                {OHLCV.map(field => <td key={field}>{fixed(bar[field], 6)}</td>)}
               </tr>)}</tbody>
             </table>
           </div>
@@ -135,6 +158,37 @@ export function ProviderRevisionResearch({ core, policy, close }: {
           <button className="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous bars</button>
           <p>{page + 1} / {totalPages}</p>
           <button className="outline" disabled={page + 1 >= totalPages} onClick={() => setPage(page + 1)}>Next bars</button>
+        </div>}
+      </section>
+      <section className="side-card replay-panel" aria-labelledby="provider-observation-heading">
+        <h2 id="provider-observation-heading">Bar observation history</h2>
+        <form className="universe-query" onSubmit={inspect}>
+          <label>Bar timestamp (UTC)
+            <input required disabled={loading} value={barTime} onChange={event => setBarTime(event.target.value)} />
+          </label>
+          <button className="outline" disabled={loading}>Inspect bar</button>
+        </form>
+        {inspectionProblem && <p role="alert" className="warning">{inspectionProblem}</p>}
+        <p role="status">{view.observations.length} {view.observations.length === 1 ? 'observation' : 'observations'} for {view.barAt}</p>
+        {observations.length === 0 ? <p>No bar observations meet these cutoffs.</p> : (
+          <div className="replay-table-scroll" tabIndex={0} role="region" aria-label="Scrollable bar observations">
+            <table className="universe-table" aria-label="Provider bar observations">
+              <thead><tr>{['Observed UTC', 'Action', 'Open', 'High', 'Low', 'Close', 'Volume'].map(label =>
+                <th scope="col" key={label}>{label}</th>)}</tr></thead>
+              <tbody>{observations.map(({ observedAt, bar }) => <tr key={observedAt}>
+                <th scope="row">{utc(observedAt)}</th>
+                <td>{bar ? 'Upsert' : 'Withdraw'}</td>
+                {OHLCV.map(field => <td key={field}>{bar ? fixed(bar[field], 6) : '—'}</td>)}
+              </tr>)}</tbody>
+            </table>
+          </div>
+        )}
+        {observationPages > 1 && <div className="replay-controls">
+          <button className="outline" disabled={observationPage === 0}
+            onClick={() => setObservationPage(observationPage - 1)}>Previous observations</button>
+          <p>{observationPage + 1} / {observationPages}</p>
+          <button className="outline" disabled={observationPage + 1 >= observationPages}
+            onClick={() => setObservationPage(observationPage + 1)}>Next observations</button>
         </div>}
       </section>
     </main>

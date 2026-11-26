@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.83.0 · Bar observation history
+
+| Check | Observed result |
+| --- | --- |
+| Exact observation cutoff | Native Rust retained the original `10.000001` close, the `10.250001` correction, the 14:06 withdrawal and the `10.400001` replacement in order. Rewinding recovered the earlier history. |
+| Withdrawn bar inspection | Offline Chromium displayed the withdrawal even when the chart and replay table had no visible bar. The replacement preserved the earlier reports. |
+| Effective cutoff and validation | The 14:01 bar's observation was hidden until the effective cutoff included the bar. A nonexistent calendar date left the last successful inspection available. |
+
+[Bar observation history](provider-revisions.md#inspect-a-bars-observation-history) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.82.0 · Provider chart observation time
 
 | Check | Observed result |

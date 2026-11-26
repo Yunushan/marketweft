@@ -88,7 +88,7 @@ pub use portfolio::{
     PortfolioIncomeCurrency, PortfolioIncomeSnapshot, PortfolioRow, PortfolioSnapshot,
     PortfolioState,
 };
-pub use provider_history::{ProviderBar, ProviderHistory};
+pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};
 pub use screen::{

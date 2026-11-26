@@ -8,6 +8,37 @@ fn utc(time: &str) -> i64 {
 }
 
 #[test]
+fn bar_observation_history_preserves_all_known_versions_and_withdrawals() {
+    let book = ProviderHistory::parse(WITHDRAWALS).unwrap();
+    let time = utc("14:00:00");
+    let history = |knowledge| {
+        book.observations(time, time, utc(knowledge))
+            .unwrap()
+            .into_iter()
+            .map(|row| (row.observed_at, row.bar.map(|bar| bar.close)))
+            .collect::<Vec<_>>()
+    };
+    let original = (time, Some(10_000_001));
+    let correction = (utc("14:04:00"), Some(10_250_001));
+    let withdrawal = (utc("14:06:00"), None);
+    let replacement = (utc("14:07:00"), Some(10_400_001));
+    assert!(history("13:59:59").is_empty());
+    assert_eq!(history("14:03:59"), [original]);
+    assert_eq!(history("14:05:59"), [original, correction]);
+    assert_eq!(history("14:06:00"), [original, correction, withdrawal]);
+    assert_eq!(
+        history("14:07:00"),
+        [original, correction, withdrawal, replacement]
+    );
+    assert_eq!(history("14:03:59"), [original]);
+    assert!(book
+        .observations(time, utc("13:59:59"), utc("14:07:00"))
+        .unwrap()
+        .is_empty());
+    assert!(book.observations(i64::MAX, time, time).is_err());
+}
+
+#[test]
 fn withdrawal_and_replacement_apply_at_their_observation_times() {
     let book = ProviderHistory::parse(WITHDRAWALS).unwrap();
     let first = |known| book.as_of(utc("14:00:00"), utc(known)).unwrap();

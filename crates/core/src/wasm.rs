@@ -251,6 +251,38 @@ pub extern "C" fn mw_provider_history_as_of() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_provider_bar_observations(bar_at: i64) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(3, '\n');
+        let mut time = || {
+            parts
+                .next()
+                .and_then(exact_utc)
+                .ok_or("Both cutoffs require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+        };
+        let effective_at = time()?;
+        let known_at = time()?;
+        let book = crate::ProviderHistory::parse(
+            parts.next().ok_or("Missing provider history revisions.")?,
+        )?;
+        let mut text = String::new();
+        for row in book.observations(bar_at, effective_at, known_at)? {
+            match row.bar {
+                Some(bar) => writeln!(
+                    text,
+                    "{}\t{}\t{}\t{}\t{}\t{}",
+                    row.observed_at, bar.open, bar.high, bar.low, bar.close, bar.volume
+                ),
+                None => writeln!(text, "{}", row.observed_at),
+            }
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_delisting_as_of(membership_bytes: usize, shares: u32) -> u32 {
     use std::fmt::Write;
     process(|input| {

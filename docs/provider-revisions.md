@@ -41,3 +41,9 @@ An `upsert` after the withdrawal restores that same bar with its replacement val
 The candlestick and volume chart plots the same observed bars as the table. Move the crosshair over a candle to read its effective UTC time, provider observation time and OHLCV. When the crosshair is outside the plot, the readout shows the last visible candle. Use the range controls or drag the chart to inspect earlier bars. The table gives the observation time and full fixed-point values for each bar.
 
 Set the demo's effective cutoff to 14:00 UTC. The chart and table show the original close of 10.000001 before the 14:04 correction and 10.250001 afterward. Both are empty at the 14:06 withdrawal. At 14:07 the chart and table show the replacement close of 10.400001 and volume of 100.000003.
+
+## Inspect a bar's observation history
+
+Under **Bar observation history**, enter the bar's effective UTC timestamp and select **Inspect bar**. The history uses the cutoffs already applied to the replay. It lists observations in chronological order with their action and fixed-point values. A withdrawn bar stays inspectable by its effective timestamp. Withdrawal rows leave the price and volume cells empty.
+
+For the demo bar at 14:00 UTC, the history contains the original report at 14:00 and the correction at 14:04. The withdrawal joins the list at 14:06 and the replacement joins at 14:07. Moving the knowledge cutoff back hides observations that had yet to arrive.
