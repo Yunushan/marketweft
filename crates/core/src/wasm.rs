@@ -1,6 +1,6 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
-use crate::{history::timestamp, parse_universe};
+use crate::{history::exact_utc, parse_universe, PriceBook};
 use crate::{
     indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
     Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
@@ -119,8 +119,7 @@ pub extern "C" fn mw_universe_as_of() -> u32 {
         let mut cutoff = || {
             parts
                 .next()
-                .filter(|value| value.len() == 20 && value.ends_with('Z'))
-                .and_then(timestamp)
+                .and_then(exact_utc)
                 .ok_or("Both cutoffs require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
         };
         let effective_at = cutoff()?;
@@ -139,6 +138,51 @@ pub extern "C" fn mw_universe_as_of() -> u32 {
                 row.observed_at
             )
             .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_universe_screen(membership_bytes: usize) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(4, '\n');
+        let mut cutoff = || {
+            parts
+                .next()
+                .and_then(exact_utc)
+                .ok_or("Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+        };
+        let baseline_at = cutoff()?;
+        let effective_at = cutoff()?;
+        let known_at = cutoff()?;
+        let (membership, closes) = parts
+            .next()
+            .and_then(|csvs| csvs.split_at_checked(membership_bytes))
+            .ok_or("Supply both membership and price reports.")?;
+        let universe = parse_universe(membership)?;
+        let prices = PriceBook::parse(&universe, closes)?;
+        let mut text = String::new();
+        for row in prices.screen(baseline_at, effective_at, known_at)? {
+            write!(
+                &mut text,
+                "{}\t{}\t",
+                row.listing.listing_id, row.listing.instrument
+            )
+            .unwrap();
+            if let (Some(rank), Some(change)) = (row.rank, row.return_units) {
+                write!(&mut text, "{rank}\t{change}").unwrap();
+            } else {
+                text.push('\t');
+            }
+            for price in [row.baseline, row.current] {
+                text.push('\t');
+                if let Some(price) = price {
+                    write!(&mut text, "{},{}", price.ticks, price.observed_at).unwrap();
+                }
+            }
+            text.push('\n');
         }
         Ok(text.into_bytes())
     })

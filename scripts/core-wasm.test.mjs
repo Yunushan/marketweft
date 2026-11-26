@@ -9,6 +9,27 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('screen Wasm bridge retains missing ends, revisions and precise rank units', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-universe' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, prices] = await Promise.all([fixture(''), fixture('-prices')]);
+  const iso = t => '2025-06-02T' + t + 'Z';
+  const rows = (end, known) => core.universeScreen(membership, prices, iso('14:00:00'), iso(end), iso(known));
+  assert.deepEqual(rows('14:10:00', '14:11:59').map(r => [r.listingId, r.rank, r.returnUnits]), [
+    ['ALFA-001', 1, 20000n], ['BETA-001', null, null],
+  ]);
+  assert.deepEqual(rows('14:10:00', '14:12:00')[0], {
+    listingId: 'BETA-001', instrument: 'DEMO:BETA', rank: 1, returnUnits: 120000n,
+    baseline: { ticks: 50000000n, observedAt: Date.parse(iso('14:00:00')) / 1000 },
+    current: { ticks: 56000000n, observedAt: Date.parse(iso('14:12:00')) / 1000 },
+  });
+  assert.equal(rows('14:10:00', '14:16:00')[0].listingId, 'ALFA-001');
+  assert.equal(rows('14:20:00', '14:25:00').length, 1);
+  assert.deepEqual(rows('14:35:00', '14:35:00'), []);
+  assert.equal(rows('14:50:00', '14:50:00')[1].current, null);
+  assert.throws(() => core.universeScreen(membership, prices, iso('14:12:00'), iso('14:10:00'), iso('14:12:00')), /Baseline/);
+  assert.throws(() => core.universeScreen(membership, prices.replace('DEMO-BASKET', 'WRONG'), iso('14:00:00'), iso('14:10:00'), iso('14:16:00')), /IDs must match/);
+});
+
 test('Wasm universe queries gate each listing by knowledge and effective time', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-universe.csv', import.meta.url), 'utf8');
   const iso = t => '2025-06-02T' + t + 'Z';
