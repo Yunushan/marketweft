@@ -12,6 +12,11 @@ pub struct Bar {
 }
 
 pub(crate) fn decimal(text: &str) -> Option<i64> {
+    let ticks = decimal_ticks(text)?;
+    (ticks.abs() <= i128::from(MAX_TICKS)).then_some(ticks as i64)
+}
+
+pub(crate) fn decimal_ticks(text: &str) -> Option<i128> {
     let negative = text.starts_with('-');
     let unsigned = text.strip_prefix('-').unwrap_or(text);
     let (whole, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
@@ -23,12 +28,12 @@ pub(crate) fn decimal(text: &str) -> Option<i64> {
     {
         return None;
     }
-    let base = whole.parse::<i64>().ok()?.checked_mul(SCALE)?;
+    let base = whole.parse::<i128>().ok()?.checked_mul(i128::from(SCALE))?;
     let places = fraction
         .bytes()
-        .fold(0, |n, d| n * 10 + i64::from(d - b'0'));
-    let ticks = base.checked_add(places * 10_i64.pow(6 - fraction.len() as u32))?;
-    (ticks <= MAX_TICKS).then_some(if negative { -ticks } else { ticks })
+        .fold(0, |n, d| n * 10 + i128::from(d - b'0'));
+    let ticks = base.checked_add(places * 10_i128.pow(6 - fraction.len() as u32))?;
+    Some(if negative { -ticks } else { ticks })
 }
 
 const MIN_TIME: i64 = -62_135_596_800; // 0001-01-01T00:00:00Z

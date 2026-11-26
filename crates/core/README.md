@@ -46,3 +46,7 @@ Use `parse_universe` for one history, `UniverseBook::checkpoints` for replay and
 Use `PriceBook::parse` with the membership book and a matching close CSV, then call `screen(baseline_at, effective_at, known_at)` with integer UTC seconds. Return values carry exact price ticks, optional ranks and signed `i128` return units. The Wasm screen accepts three UTC timestamp lines followed by the two CSVs, with the first CSV's UTF-8 byte length passed to the export. The TypeScript wrapper decodes ticks and return units as BigInt. [Screen contract](../../docs/universe-screen.md).
 
 Call `PriceBook::heatmap` with a sector CSV and the same three clocks to group screened members and compute weight coverage and contribution. The Wasm heatmap receives the three concatenated CSVs after the timestamps, with the byte lengths of the membership and prices inputs passed to the export. [Heatmap contract](../../docs/sector-heatmap.md).
+
+## Financial statement vintages
+
+Use `FinancialBook::parse` with annual filings and capitalization CSVs. Query `as_of(issuer, valuation_at, known_at)` for a fiscal vintage, an exact-time capitalization and three typed multiples. Monetary values and ratio units are `i128` in native code and BigInt in the TypeScript wrapper. [Financial statement contract](../../docs/financial-statements.md).

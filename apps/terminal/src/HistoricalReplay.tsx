@@ -9,6 +9,7 @@ import {
 } from './dividend-events'
 import { DividendLedger } from './DividendLedger'
 import { UniverseReplay } from './UniverseReplay'
+import { FundamentalReplay } from './FundamentalReplay'
 import type { Asset } from './workspace'
 import { Chart } from './Chart'
 import { Icon, Mark } from './Icons'
@@ -56,6 +57,8 @@ type ReplayRun = {
   dividends?: { events: DividendEvent[]; shares: number }
 }
 
+type ReplayView = 'universe' | 'fundamentals'
+
 export function HistoricalReplay({
   core,
   assets,
@@ -68,9 +71,10 @@ export function HistoricalReplay({
   close: () => void
 }) {
   const [active, setActive] = useState<ReplayRun | null>(null)
-  const [showUniverse, setShowUniverse] = useState(false)
+  const [view, setView] = useState<ReplayView | null>(null)
   const universeButton = useRef<HTMLButtonElement>(null)
-  const returningFromUniverse = useRef(false)
+  const fundamentalsButton = useRef<HTMLButtonElement>(null)
+  const returnFocus = useRef<ReplayView | null>(null)
   const [cursor, setCursor] = useState(-1)
   const [playing, setPlaying] = useState(false)
   const [delay, setDelay] = useState(400)
@@ -97,11 +101,12 @@ export function HistoricalReplay({
     if (active) chart.current?.focus()
   }, [active])
   useEffect(() => {
-    if (!showUniverse && returningFromUniverse.current) {
-      returningFromUniverse.current = false
-      universeButton.current?.focus()
+    if (view === null && returnFocus.current) {
+      const button = returnFocus.current === 'universe' ? universeButton : fundamentalsButton
+      returnFocus.current = null
+      button.current?.focus()
     }
-  }, [showUniverse])
+  }, [view])
 
   function start(
     asset: Asset,
@@ -294,16 +299,17 @@ export function HistoricalReplay({
   const sma = useMemo(() => core.indicator('sma', 20, bars), [bars, core])
   const ema = useMemo(() => core.indicator('ema', 9, bars), [bars, core])
 
-  if (showUniverse)
+  if (view === 'universe')
     return (
       <UniverseReplay
         core={core}
         close={() => {
-          returningFromUniverse.current = true
-          setShowUniverse(false)
+          setView(null)
         }}
       />
     )
+  if (view === 'fundamentals')
+    return <FundamentalReplay core={core} close={() => setView(null)} />
 
   return (
     <>
@@ -369,10 +375,24 @@ export function HistoricalReplay({
                 <button
                   ref={universeButton}
                   className="primary"
-                  onClick={() => setShowUniverse(true)}
+                  onClick={() => {
+                    returnFocus.current = 'universe'
+                    setView('universe')
+                  }}
                   disabled={busy}
                 >
                   Open universe replay
+                </button>
+              </section>
+              <section className="side-card replay-panel">
+                <h2>Financial statements</h2>
+                <p>Compare annual filings, restatements and valuation at a historical cutoff.</p>
+                <button ref={fundamentalsButton} className="primary" disabled={busy}
+                  onClick={() => {
+                    returnFocus.current = 'fundamentals'
+                    setView('fundamentals')
+                  }}>
+                  Open financial statements
                 </button>
               </section>
             </div>

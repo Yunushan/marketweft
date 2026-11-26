@@ -59,6 +59,10 @@ Below the rankings, choose Load demo sectors or upload universe-sectors.csv
 with the matching membership and price reports. The Sector heatmap shows
 each listing's sector, weight, price return and observed contribution.
 
+Open Financial statements under Historical replay. Start financial demo,
+or import financial-filings.csv and financial-market-caps.csv. Compare the
+original filing, observed restatement and revised capitalization.
+
 The chart supports panning, zooming, a crosshair and moving-average overlays.
 This build has no broker connection or order entry. Press Ctrl+C in the
 launcher's terminal to stop serving the application.
@@ -87,6 +91,8 @@ def main():
     files["universe-membership.csv"] = (fixture / "synthetic-universe.csv").read_bytes()
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()
     files["universe-sectors.csv"] = (fixture / "synthetic-universe-sectors.csv").read_bytes()
+    files["financial-filings.csv"] = (fixture / "synthetic-financial-filings.csv").read_bytes()
+    files["financial-market-caps.csv"] = (fixture / "synthetic-financial-market-caps.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
     inventory["components"] = [item for item in inventory["components"]
                                if any(p["value"] == "web-runtime" for p in item["properties"])]
