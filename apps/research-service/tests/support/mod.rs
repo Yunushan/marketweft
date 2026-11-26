@@ -37,6 +37,8 @@ impl ResearchProcess {
             .env_remove("MARKETWEFT_RESEARCH_CREDENTIALS_DB")
             .env_remove("MARKETWEFT_RESEARCH_TLS_CERT")
             .env_remove("MARKETWEFT_RESEARCH_TLS_KEY")
+            .env_remove("MARKETWEFT_RESEARCH_BIND_IP")
+            .env_remove("MARKETWEFT_RESEARCH_AUTHORITY")
             .stdout(Stdio::piped());
         if let Some(path) = settings.audit {
             command.env("MARKETWEFT_RESEARCH_AUDIT_DB", path);

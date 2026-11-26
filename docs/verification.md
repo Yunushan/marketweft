@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.59.0 · Private-interface research
+
+| Check | Observed result |
+| --- | --- |
+| Separate client over TLS | A second Linux container reached a dedicated private address over an isolated Docker network. It trusted the test certificate and reproduced exact formula ticks and universe ranks before and after BETA’s late price. |
+| Access and revocation | The client rejected an untrusted certificate. The server rejected a mismatched authority, an HTTP Origin and the wrong scope. A credential revoked while the server ran failed on the next call. |
+| Startup and regression | The native tests reject non-private bindings, wildcard or mismatched authorities, static tokens on private interfaces and startup without TLS. All 27 research integration tests passed on Linux x64. |
+
+[Private-interface research](local-rest-research.md#private-interface-research) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.58.0 · Localhost research TLS
 
 | Check | Observed result |

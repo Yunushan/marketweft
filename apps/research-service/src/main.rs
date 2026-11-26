@@ -1,11 +1,12 @@
 use axum_server::tls_rustls::RustlsConfig;
 use marketweft_research_service::{
-    configured_research_router, configured_tls_research_router, copy_audit_database,
-    issue_research_credential, revoke_research_credential, Tokens, DEFAULT_RESEARCH_SLOTS,
+    configured_private_tls_research_router, configured_research_router,
+    configured_tls_research_router, copy_audit_database, issue_research_credential,
+    revoke_research_credential, Tokens, DEFAULT_RESEARCH_SLOTS,
 };
 use std::env::{self, VarError};
 use std::io;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::Path;
 use tokio::net::TcpListener;
 
@@ -58,6 +59,11 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
         .map(|value| value.parse::<u16>())
         .transpose()?
         .unwrap_or(4174);
+    let interface = setting("MARKETWEFT_RESEARCH_BIND_IP")?
+        .map(|value| value.parse::<Ipv4Addr>())
+        .transpose()?
+        .unwrap_or(Ipv4Addr::LOCALHOST);
+    let advertised = setting("MARKETWEFT_RESEARCH_AUTHORITY")?;
     let formula = setting("MARKETWEFT_FORMULA_TOKEN")?;
     let screen = setting("MARKETWEFT_SCREEN_TOKEN")?;
     let tokens = match env::var_os("MARKETWEFT_RESEARCH_CREDENTIALS_DB") {
@@ -66,24 +72,61 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
         }
         None => Tokens::new(formula.as_deref(), screen.as_deref()).map_err(io::Error::other)?,
     };
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await?;
-    let address = listener.local_addr()?;
     let slots = setting("MARKETWEFT_RESEARCH_SLOTS")?
         .map(|value| value.parse::<usize>())
         .transpose()?
         .unwrap_or(DEFAULT_RESEARCH_SLOTS);
     let audit_path = env::var_os("MARKETWEFT_RESEARCH_AUDIT_DB");
     let audit_path = audit_path.as_deref().map(Path::new);
+    if interface != Ipv4Addr::LOCALHOST {
+        let tls =
+            tls.ok_or_else(|| io::Error::other("Private-interface research requires TLS."))?;
+        let advertised =
+            advertised.ok_or_else(|| io::Error::other("Set the private research authority."))?;
+        let address = SocketAddr::from((interface, port));
+        let (endpoint, origin) = configured_private_tls_research_router(
+            address,
+            &advertised,
+            tokens,
+            audit_path,
+            slots,
+        )?;
+        let listener = TcpListener::bind(address).await?;
+        return serve_tls(listener, tls, endpoint, &origin).await;
+    }
+    if advertised.is_some() {
+        return Err(io::Error::other(
+            "Set a research authority only for a private-interface listener.",
+        )
+        .into());
+    }
+    let listener = TcpListener::bind((interface, port)).await?;
+    let address = listener.local_addr()?;
     if let Some(tls) = tls {
         let endpoint = configured_tls_research_router(address, tokens, audit_path, slots)?;
-        let server = axum_server::from_tcp_rustls(listener.into_std()?, tls)?;
-        println!("https://{address}");
-        server.serve(endpoint.into_make_service()).await?;
+        let origin = if address.port() == 443 {
+            format!("https://{}", address.ip())
+        } else {
+            format!("https://{address}")
+        };
+        return serve_tls(listener, tls, endpoint, &origin).await;
     } else {
         let endpoint = configured_research_router(address, tokens, audit_path, slots)?;
         println!("http://{address}");
         axum::serve(listener, endpoint).await?;
     }
+    Ok(())
+}
+
+async fn serve_tls(
+    listener: TcpListener,
+    tls: RustlsConfig,
+    endpoint: axum::Router,
+    origin: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let server = axum_server::from_tcp_rustls(listener.into_std()?, tls)?;
+    println!("{origin}");
+    server.serve(endpoint.into_make_service()).await?;
     Ok(())
 }
 

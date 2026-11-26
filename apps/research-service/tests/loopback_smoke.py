@@ -77,6 +77,8 @@ def main(executable):
     settings.pop("MARKETWEFT_RESEARCH_CREDENTIALS_DB", None)
     settings.pop("MARKETWEFT_RESEARCH_TLS_CERT", None)
     settings.pop("MARKETWEFT_RESEARCH_TLS_KEY", None)
+    settings.pop("MARKETWEFT_RESEARCH_BIND_IP", None)
+    settings.pop("MARKETWEFT_RESEARCH_AUTHORITY", None)
     with subprocess.Popen(
         [str(Path(executable).resolve())], env=settings, text=True, stdout=subprocess.PIPE,
     ) as process:

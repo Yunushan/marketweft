@@ -1,6 +1,6 @@
 # Local research service
 
-The Rust research service runs on IPv4 loopback and exposes read-only formula and universe screening endpoints over REST, WebSocket and gRPC. It uses the same core that powers the native executable and WebAssembly terminal.
+The Rust research service defaults to IPv4 loopback and exposes read-only formula and universe screening endpoints over REST, WebSocket and gRPC. It uses the same core that powers the native executable and WebAssembly terminal.
 
 For Ubuntu 24.04 on Linux x64, download the `research-service-linux-x64-attempt-N` artifact from a successful GitHub verification run and unpack its enclosed tar.gz archive. Extract the service with its notices. Start it with `./marketweft-research-service` after configuring its environment as shown below. To build from source, use the same settings from the repository root and run the Cargo command.
 
@@ -37,7 +37,7 @@ Send the query within five seconds. The message limit is 16 MiB and delivery has
 
 ## gRPC research
 
-Use a Protobuf client over plaintext HTTP/2 at the printed IPv4 loopback address. Generate the client from `apps/research-service/proto/research.proto` in the repository or `proto/research.proto` in the Linux archive.
+Use a Protobuf client over HTTP/2 at the printed service address. The default loopback listener uses plaintext HTTP/2. Generate the client from `apps/research-service/proto/research.proto` in the repository or `proto/research.proto` in the Linux archive.
 
 | Unary method in `marketweft.research.v1.Research` | Required scope |
 | --- | --- |
@@ -102,3 +102,11 @@ Expiration and revocation take effect on the next REST or gRPC call or WebSocket
 Set `MARKETWEFT_RESEARCH_TLS_CERT` to a PEM certificate chain and `MARKETWEFT_RESEARCH_TLS_KEY` to its matching PEM private key. Supply both paths before starting the service. Use a certificate valid for `127.0.0.1` and configure clients to trust its issuing CA.
 
 The service prints the HTTPS address it bound. Use that authority for REST and gRPC, and use `wss://` for WebSocket. Supply the HTTPS origin when a client sends an Origin header. The same scopes, admission limits and audit settings apply.
+
+## Private-interface research
+
+To serve a separate client on a private network, set `MARKETWEFT_RESEARCH_BIND_IP` to a specific private IPv4 address assigned to the server. Set `MARKETWEFT_RESEARCH_AUTHORITY` to the lower-case name or that same private address, with the configured research port. Use port 443 for the default HTTPS authority without a port suffix.
+
+Private-interface operation requires the TLS certificate and key and a managed credential database. The certificate must cover the advertised host, and each client must trust its issuing CA. Use managed credentials for the formula and screen scopes. Static environment tokens are for loopback listeners.
+
+The server prints the advertised HTTPS address and only listens on the selected interface. Clients must use its authority and scheme. Optional SQLite audit receipts record admitted research on the private listener.

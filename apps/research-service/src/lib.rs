@@ -19,14 +19,14 @@ use analytics::ResearchPage;
 use audit::{Outcome, Receipt, Trail, Transport};
 use axum::body::to_bytes;
 use axum::extract::{Request, State};
-use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode};
+use axum::http::{header, uri::Authority, HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use credentials::CredentialStore;
 use serde_json::json;
 use std::io;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -219,17 +219,99 @@ fn configured_router_for_transport(
     tls: bool,
 ) -> io::Result<Router> {
     validate_loopback(address).map_err(io::Error::other)?;
+    let trail = open_audit(audit_path, slots)?;
+    Ok(configure_router(address, tokens, trail, slots, tls))
+}
+
+/// Build the TLS-only private-interface router and return its advertised HTTPS origin.
+pub fn configured_private_tls_research_router(
+    address: SocketAddr,
+    advertised: &str,
+    tokens: Tokens,
+    audit_path: Option<&Path>,
+    slots: usize,
+) -> io::Result<(Router, String)> {
+    let (authority, default_port_alias) = private_authority(address, advertised)?;
+    if tokens.managed.is_none() || tokens.formula.is_some() || tokens.screen.is_some() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Private-interface research requires managed credentials only.",
+        ));
+    }
+    let trail = open_audit(audit_path, slots)?;
+    let origin = format!("https://{authority}");
+    let router = route_authority(
+        authority,
+        default_port_alias,
+        origin.clone(),
+        tokens,
+        trail,
+        slots,
+    );
+    Ok((router, origin))
+}
+
+fn open_audit(audit_path: Option<&Path>, slots: usize) -> io::Result<Option<Trail>> {
     if !(1..=MAX_RESEARCH_SLOTS).contains(&slots) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "Set between one and eight research slots.",
         ));
     }
-    let trail = audit_path
+    audit_path
         .map(Trail::open)
         .transpose()
-        .map_err(io::Error::other)?;
-    Ok(configure_router(address, tokens, trail, slots, tls))
+        .map_err(io::Error::other)
+}
+
+fn private_authority(
+    address: SocketAddr,
+    advertised: &str,
+) -> io::Result<(String, Option<String>)> {
+    let IpAddr::V4(address_ip) = address.ip() else {
+        return Err(io::Error::other("Select a private IPv4 interface."));
+    };
+    if !address_ip.is_private() || address.port() == 0 {
+        return Err(io::Error::other(
+            "Select a private IPv4 interface and nonzero port.",
+        ));
+    }
+    let invalid = || {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Advertise a lower-case DNS name or the bound private IPv4 address, with its port.",
+        )
+    };
+    let authority: Authority = advertised.parse().map_err(|_| invalid())?;
+    let host = authority.host();
+    let host_valid = if let Ok(ip) = host.parse::<Ipv4Addr>() {
+        ip == address_ip
+    } else {
+        host.len() <= 253
+            && host.bytes().any(|byte| byte.is_ascii_lowercase())
+            && host.split('.').all(|label| {
+                !label.is_empty()
+                    && label.len() <= 63
+                    && !label.starts_with('-')
+                    && !label.ends_with('-')
+                    && label.bytes().all(|byte| {
+                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
+                    })
+            })
+    };
+    let port = authority.port_u16();
+    if !host_valid
+        || authority.as_str().contains('@')
+        || (authority.as_str().contains(':') && port.is_none())
+        || port.unwrap_or(443) != address.port()
+    {
+        return Err(invalid());
+    }
+    if address.port() == 443 {
+        Ok((host.to_owned(), Some(format!("{host}:443"))))
+    } else {
+        Ok((format!("{host}:{}", address.port()), None))
+    }
 }
 
 fn validate_loopback(address: SocketAddr) -> Result<(), &'static str> {
@@ -253,6 +335,17 @@ fn configure_router(
         (address.to_string(), None)
     };
     let origin = format!("{scheme}://{authority}");
+    route_authority(authority, default_port_alias, origin, tokens, audit, slots)
+}
+
+fn route_authority(
+    authority: String,
+    default_port_alias: Option<String>,
+    origin: String,
+    tokens: Tokens,
+    audit: Option<Trail>,
+    slots: usize,
+) -> Router {
     let state = Arc::new(Server {
         authority,
         default_port_alias,
