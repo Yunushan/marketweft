@@ -11,7 +11,10 @@ import { MAX_FORMULA_LIBRARY_BYTES, parseFormulaLibrary } from './formula-librar
 import { utc } from './workspace'
 
 type Library = { name: string; bytes: ArrayBuffer; digest: string; manifest: ReturnType<typeof parseFormulaLibrary> }
-type Report = FormulaResult & { source: string; through: string; times: number[]; sourceLabel: string; library: Library | null }
+type Report = FormulaResult & {
+  source: string; through: string; times: number[]
+  sourceLabel: string; sourceRights?: SourceRights; library: Library | null
+}
 const PAGE_SIZE = 60
 
 function FormulaPlot({ values }: { values: (bigint | null)[] }) {
@@ -122,7 +125,7 @@ export function FormulaResearch({ core, asset, sourceLabel, sourceRights, close 
       const bars = after < 0 ? asset.bars : asset.bars.slice(0, after)
       const output = core.evaluateFormula(source.trim(), bars, library?.manifest.functions)
       setReport({ ...output, source: source.trim(), through: cutoff,
-        times: bars.map(bar => bar.time), sourceLabel, library })
+        times: bars.map(bar => bar.time), sourceLabel, sourceRights, library })
       setPage(Math.max(0, Math.ceil(output.values.length / PAGE_SIZE) - 1))
       setError('')
     } catch (cause) {
@@ -132,6 +135,13 @@ export function FormulaResearch({ core, asset, sourceLabel, sourceRights, close 
 
   function download() {
     if (!report) return
+    const restriction = sourcePermissionRestriction(report.sourceRights, 'redistribution')
+    if (restriction) {
+      setError(restriction === 'permission'
+        ? 'Formula CSV export requires a granted redistribution permission.'
+        : 'Formula CSV export is unavailable because the source grant has expired.')
+      return
+    }
     const prefix = [asset.id, report.sourceLabel, report.through, report.source].map(quoteText)
     const fields = report.library ? [quoteText(report.library.name), report.library.digest] : []
     const header = 'instrument,source,known_through_utc,formula,language_version,bar_utc,value'

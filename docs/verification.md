@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.72.0 · Formula CSV redistribution permission
+
+| Check | Observed result |
+| --- | --- |
+| Local calculation | A granted automated-use declaration produced an exact value of `1.000001` with each redistribution status. |
+| Download permission | Chromium blocked the formula CSV when redistribution was restricted or unconfirmed. An authorized CSV contained the exact time and value. |
+| UTC deadline | The displayed result remained visible when the UTC date advanced past the grant. The next download failed, and Chromium recorded exactly one successful CSV download across the test. |
+
+[Formula export permission](source-permissions.md#formula-csv-export) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.71.0 · Formula automated-use permission
 
 | Check | Observed result |

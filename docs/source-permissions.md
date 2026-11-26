@@ -18,6 +18,10 @@ For a structured grant, **Evaluate formula** requires **Granted** automated-use 
 
 The formula's observation cutoff controls which historical bars are available to the calculation. The grant check uses the current UTC date.
 
+## Formula CSV export
+
+**Download formula values** checks the redistribution permission recorded for the evaluated history. A structured grant requires **Granted** redistribution permission through the device's current UTC date. Expiration or insufficient permission produces an error and leaves the local results visible.
+
 ## Backup and restore
 
 Exports containing a structured grant use workspace backup version 7 and series descriptor version 2. The per-series checksum covers the structured grant and its underlying data. Restore validates the four permission statuses and any UTC expiry before preparing a replacement.

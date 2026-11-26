@@ -5,6 +5,43 @@ import { catalogContents, microCSV, openImport, submitImport } from './catalog-f
 
 const fixture = fileURLToPath(new URL('../../../crates/core/tests/fixtures/synthetic-formula-bars.csv', import.meta.url))
 
+test('formula CSV uses the evaluated history grant at download time', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2099-12-31T23:59:59.999Z'))
+  await page.goto('/')
+  const downloads = []
+  page.on('download', file => downloads.push(file.suggestedFilename()))
+  const results = page.getByRole('region', { name: 'Formula results' })
+  const exportValues = results.getByRole('button', { name: 'Download formula values' })
+  for (const redistribution of ['restricted', 'unconfirmed', 'granted']) {
+    const symbol = 'OUTPUT-' + redistribution.toUpperCase()
+    await openImport(page, symbol, microCSV)
+    const dialog = page.getByRole('dialog')
+    await dialog.getByText('Series details', { exact: true }).click()
+    await dialog.getByRole('combobox', { name: 'Automated use', exact: true }).selectOption('granted')
+    await dialog.getByRole('combobox', { name: 'Redistribution', exact: true }).selectOption(redistribution)
+    await dialog.getByLabel('Grant expiration in UTC').fill('2099-12-31')
+    await submitImport(page, symbol)
+    await page.getByRole('button', { name: 'Time-series formulas', exact: true }).click()
+    await page.getByRole('textbox', { name: 'Formula', exact: true }).fill('close')
+    await page.getByRole('button', { name: 'Evaluate formula' }).click()
+    await expect(results.getByRole('table').locator('tbody tr').last()).toContainText('1.000001')
+    if (redistribution === 'granted') break
+    await exportValues.click()
+    await expect(page.getByRole('alert')).toHaveText('Formula CSV export requires a granted redistribution permission.')
+    await expect(results).toBeVisible()
+    await page.getByRole('button', { name: 'Return to workspace' }).click()
+  }
+  expect(downloads).toEqual([])
+  const pending = page.waitForEvent('download')
+  await exportValues.click()
+  expect(await readFile(await (await pending).path(), 'utf8')).toContain('2024-03-01T00:00:00Z,1.000001')
+  await page.clock.setFixedTime(new Date('2100-01-01T00:00:00.000Z'))
+  await exportValues.click()
+  await expect(page.getByRole('alert')).toHaveText('Formula CSV export is unavailable because the source grant has expired.')
+  await expect(results).toBeVisible()
+  expect(downloads).toEqual(['time-series-formula.csv'])
+})
+
 test('formula evaluation checks automated-use permission and UTC expiry on the selected history', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2099-12-31T23:59:59.999Z'))
   await page.goto('/')
