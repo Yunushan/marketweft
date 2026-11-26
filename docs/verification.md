@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.76.0 · Provider verification provenance
+
+| Check | Observed result |
+| --- | --- |
+| Exact provenance | Chromium showed a public key fingerprint that matched the independent SHA-256 of its DER bytes and the exact fixture CSV digest. |
+| Versioned restore | A version 8 workspace backup restored both digests in a separate profile and reproduced the exact backup on export. |
+| Altered content | Restore rejected a changed close price even after the workspace and series checksums were recomputed. The original catalog stayed intact because the CSV differed from its recorded provider digest. |
+
+[Provider verification records](provider-history-fixture.md#provider-verification-records) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.75.0 · Signed provider history fixtures
 
 | Check | Observed result |

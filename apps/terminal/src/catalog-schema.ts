@@ -1,7 +1,7 @@
 import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core'
 import { validIndicatorPeriod } from './market-core'
 import type { Asset, SavedImport } from './workspace'
-import { sha256Text } from './sha256'
+import { isSha256, sha256Text } from './sha256'
 import { verifyProviderSignature } from './provider-signature'
 
 export type Preferences = {
@@ -30,6 +30,7 @@ export const SOURCE_RIGHTS = ['display', 'storage', 'redistribution', 'automated
 export type SourceRight = (typeof SOURCE_RIGHTS)[number]
 export type SourceRightStatus = 'unconfirmed' | 'granted' | 'restricted'
 export type SourceRights = Record<SourceRight, SourceRightStatus> & { expiresOn?: string }
+export type ProviderVerification = { keySha256: string; csvSha256: string }
 
 export function sourcePermissionRestriction(
   rights: SourceRights | undefined, action: SourceRight,
@@ -50,7 +51,9 @@ type SeriesProvenance = {
 }
 
 export type SeriesDescriptor = SeriesProvenance & (
-  { version: 1; sourceRights?: never } | { version: 2; sourceRights: SourceRights }
+  { version: 1; sourceRights?: never; providerVerification?: never }
+  | { version: 2; sourceRights: SourceRights; providerVerification?: never }
+  | { version: 3; sourceRights: SourceRights; providerVerification: ProviderVerification }
 )
 
 export type History = {
@@ -68,7 +71,7 @@ export type CatalogSnapshot = CatalogData & {
 export type SeriesMetadata = Pick<
   SeriesProvenance,
   'barInterval' | 'source' | 'usageGrant' | 'adjustmentPolicy'
-> & { sourceRights?: SourceRights }
+> & { sourceRights?: SourceRights; providerVerification?: ProviderVerification }
 
 function fields(
   value: unknown,
@@ -204,6 +207,11 @@ function sourceRights(value: unknown): SourceRights {
   return result
 }
 
+function validProvider(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 64 &&
+    /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(value)
+}
+
 export async function parseProviderHistoryFixture(text: string, filename: string, verificationKey?: string): Promise<{
   item: SavedImport; metadata: SeriesMetadata
 }> {
@@ -230,8 +238,7 @@ export async function parseProviderHistoryFixture(text: string, filename: string
   if (version < 3 && verificationKey !== undefined)
     throw Error('A provider verification key requires a signed version 3 fixture.')
   const provider = payload.provider
-  if (typeof provider !== 'string' || provider.length > 64 ||
-      !/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(provider))
+  if (!validProvider(provider))
     throw Error('Supply a lowercase provider identifier.')
   const permissions = sourceRights(payload.permissions)
   if (!permissions.expiresOn)
@@ -239,17 +246,20 @@ export async function parseProviderHistoryFixture(text: string, filename: string
   if (permissions.display !== 'granted' || permissions.storage !== 'granted')
     throw Error('A provider history fixture requires granted display and storage permissions.')
   const csv = requiredText(payload.csv, 'OHLCV CSV')
+  let providerVerification: ProviderVerification | undefined
   if (version >= 2) {
-    if (typeof payload.csvSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(payload.csvSha256))
+    const csvSha256 = payload.csvSha256
+    if (!isSha256(csvSha256))
       throw Error('Supply the provider CSV SHA-256 as 64 lowercase hexadecimal characters.')
     if (!globalThis.crypto?.subtle)
       throw Error('Provider CSV verification needs HTTPS or localhost.')
-    if (await sha256Text(csv) !== payload.csvSha256)
+    if (await sha256Text(csv) !== csvSha256)
       throw Error('The provider CSV SHA-256 does not match the fixture.')
-  }
-  if (version === 3 && verificationKey !== undefined) {
-    const manifest = Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'csv' && key !== 'signature'))
-    await verifyProviderSignature(verificationKey, payload.signature, manifest)
+    if (verificationKey !== undefined) {
+      const manifest = Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'csv' && key !== 'signature'))
+      const keySha256 = await verifyProviderSignature(verificationKey, payload.signature, manifest)
+      providerVerification = { keySha256, csvSha256 }
+    }
   }
   if (sourcePermissionRestriction(permissions, 'display') === 'expired')
     throw Error('The provider history fixture grant has expired.')
@@ -266,12 +276,15 @@ export async function parseProviderHistoryFixture(text: string, filename: string
       barInterval: requiredText(payload.barInterval, 'bar interval'),
       adjustmentPolicy: requiredText(payload.adjustmentPolicy, 'adjustment policy'),
       sourceRights: permissions,
+      ...(providerVerification ? { providerVerification } : {}),
     },
   }
 }
 
 function descriptor(value: unknown, core: MarketCore): SeriesDescriptor {
   const hasRights = Boolean(value && typeof value === 'object' && Object.hasOwn(value, 'sourceRights'))
+  const hasVerification = Boolean(value && typeof value === 'object' && Object.hasOwn(value, 'providerVerification'))
+  const version = hasVerification ? 3 : hasRights ? 2 : 1
   fields(
     value,
     [
@@ -283,13 +296,14 @@ function descriptor(value: unknown, core: MarketCore): SeriesDescriptor {
       'usageGrant',
       'adjustmentPolicy',
       ...(hasRights ? ['sourceRights'] : []),
+      ...(hasVerification ? ['providerVerification'] : []),
     ],
     'series descriptor',
   )
   const venue = requiredText(value.venue, 'venue')
   const symbol = requiredText(value.symbol, 'symbol')
   if (
-    value.version !== (hasRights ? 2 : 1) ||
+    value.version !== version || (hasVerification && !hasRights) ||
     core.instrument(venue, symbol) !== venue + ':' + symbol
   ) {
     throw Error('Invalid series descriptor version or instrument identity.')
@@ -306,7 +320,15 @@ function descriptor(value: unknown, core: MarketCore): SeriesDescriptor {
   const rights = sourceRights(value.sourceRights)
   if (rights.storage === 'restricted' || rights.display === 'restricted')
     throw Error('Local chart import requires permission to store and display this history.')
-  return { version: 2, ...provenance, sourceRights: rights }
+  if (!hasVerification) return { version: 2, ...provenance, sourceRights: rights }
+  const verified = value.providerVerification
+  fields(verified, ['keySha256', 'csvSha256'], 'provider verification')
+  if (!validProvider(provenance.source) || !isSha256(verified.keySha256) || !isSha256(verified.csvSha256))
+    throw Error('Invalid verified provider identifier or SHA-256 digest.')
+  return {
+    version: 3, ...provenance, sourceRights: rights,
+    providerVerification: { keySha256: verified.keySha256, csvSha256: verified.csvSha256 },
+  }
 }
 
 export function createHistory(
@@ -316,10 +338,10 @@ export function createHistory(
 ): History {
   const id = core.instrument(item.venue, item.symbol)
   const [venue, symbol] = id.split(':')
-  const { sourceRights, ...details } = metadata
+  const { sourceRights, providerVerification, ...details } = metadata
   const desc = descriptor(
     {
-      version: sourceRights ? 2 : 1,
+      version: providerVerification ? 3 : sourceRights ? 2 : 1,
       venue,
       symbol,
       source: item.filename.trim() ? item.filename : 'unspecified',
@@ -328,6 +350,7 @@ export function createHistory(
       adjustmentPolicy: 'unspecified',
       ...details,
       ...(sourceRights ? { sourceRights } : {}),
+      ...(providerVerification ? { providerVerification } : {}),
     },
     core,
   )

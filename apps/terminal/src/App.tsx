@@ -459,6 +459,7 @@ export function App({
     (item) => item.id === asset.id,
   )?.descriptor
   const sourceRights = descriptor?.sourceRights
+  const providerVerification = descriptor?.providerVerification
   const comparisonDescriptor = other && saved.series.find((item) => item.id === other.id)?.descriptor
   function accept(next: CatalogSnapshot) {
     setSaved((previous) =>
@@ -969,6 +970,16 @@ export function App({
                 <dd><time dateTime={sourceRights.expiresOn}>{sourceRights.expiresOn}</time></dd>
               </div>
             )}
+            {providerVerification && <>
+              <div>
+                <dt>Provider key SHA-256</dt>
+                <dd>{providerVerification.keySha256}</dd>
+              </div>
+              <div>
+                <dt>Provider CSV SHA-256</dt>
+                <dd>{providerVerification.csvSha256}</dd>
+              </div>
+            </>}
           </dl>
         )}
         <footer>

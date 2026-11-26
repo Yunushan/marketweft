@@ -2,7 +2,7 @@ import { validateCatalogData } from './catalog'
 import type { CatalogData, History } from './catalog'
 import type { MarketCore } from './market-core'
 import type { Asset } from './workspace'
-import { sha256Text } from './sha256'
+import { isSha256, sha256Text } from './sha256'
 import { canonicalJson } from './canonical-json'
 
 const FORMAT = 'marketweft-workspace'
@@ -13,9 +13,11 @@ const INDICATOR_PERIODS_BACKUP_VERSION = 4
 const CHART_TYPES_BACKUP_VERSION = 5
 const OHLC_BARS_BACKUP_VERSION = 6
 const STRUCTURED_GRANT_BACKUP_VERSION = 7
+const VERIFIED_PROVIDER_BACKUP_VERSION = 8
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
+  if (series.some(({ descriptor }) => descriptor.version === 3)) return VERIFIED_PROVIDER_BACKUP_VERSION
   if (series.some(({ descriptor }) => descriptor.version === 2)) return STRUCTURED_GRANT_BACKUP_VERSION
   if (Object.values(preferences.chartTypes ?? {}).includes('ohlc')) return OHLC_BARS_BACKUP_VERSION
   if (preferences.chartTypes) return CHART_TYPES_BACKUP_VERSION
@@ -62,10 +64,6 @@ function fields(value: unknown, required: string[]): Record<string, unknown> {
     )
   }
   return value as Record<string, unknown>
-}
-
-function checksum(value: unknown): value is string {
-  return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
 }
 
 export async function exportWorkspace(
@@ -115,6 +113,7 @@ export async function verifyWorkspaceBackup(
     SINGLE_PANE_BACKUP_VERSION, COMPARISON_BACKUP_VERSION, DRAWING_BACKUP_VERSION,
     INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
     STRUCTURED_GRANT_BACKUP_VERSION,
+    VERIFIED_PROVIDER_BACKUP_VERSION,
   ].includes(file.version))
     throw Error('This workspace backup version is unsupported.')
   const manifest = fields(file.manifest, [
@@ -124,7 +123,7 @@ export async function verifyWorkspaceBackup(
     'barCount',
     'series',
   ])
-  if (!checksum(file.sha256) || (await digest(manifest)) !== file.sha256)
+  if (!isSha256(file.sha256) || (await digest(manifest)) !== file.sha256)
     throw Error('Workspace checksum mismatch. Choose an intact backup.')
   const sampleSet = fields(manifest.sampleSet, ['version', 'sha256'])
   if (
@@ -146,7 +145,7 @@ export async function verifyWorkspaceBackup(
       'barCount',
       'sha256',
     ])
-    if (!checksum(sha256) || (await digest(history)) !== sha256)
+    if (!isSha256(sha256) || (await digest(history)) !== sha256)
       throw Error('A historical series checksum does not match its contents.')
     series.push(history)
   }
@@ -158,6 +157,11 @@ export async function verifyWorkspaceBackup(
   )
   if (backupVersion(data) !== file.version) {
     throw Error('The backup version does not match its contents.')
+  }
+  for (const history of data.series) {
+    const verification = history.descriptor.providerVerification
+    if (verification && await sha256Text(history.csv) !== verification.csvSha256)
+      throw Error('A verified provider CSV does not match its recorded digest.')
   }
   if (
     data.series.reduce(

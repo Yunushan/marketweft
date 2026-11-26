@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.75.0 verifies signed provider history fixtures against a supplied P-256 public key. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.76.0 preserves verified provider key fingerprints and CSV digests in catalog provenance and workspace backups. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -78,6 +78,7 @@
 | Delivered · 0.73.0 | Provider history fixture preflight (MW-013, MW-029) | Verify provider identity, a grant reference, local-use permissions and the exact UTC expiration before storing fixture history. [Provider history fixtures](docs/provider-history-fixture.md). |
 | Delivered · 0.74.0 | Provider history CSV integrity (MW-013, MW-029) | Bind version 2 packets to the exact UTF-8 bytes of their embedded OHLCV CSV. Check changed prices and line endings before any catalog write. [Provider CSV verification](docs/provider-history-fixture.md#verify-the-embedded-csv). |
 | Delivered · 0.75.0 | Signed provider history fixtures (MW-013, MW-029) | Verify the provider and grant against a supplied P-256 public key. Reject substituted metadata, the wrong key and unsigned packets in a keyed import. [Provider signature verification](docs/provider-history-fixture.md#verify-a-signed-provider-fixture). |
+| Delivered · 0.76.0 | Provider verification provenance (MW-013, MW-029) | Preserve the verified key fingerprint and exact CSV digest through versioned backups. Verify recovery and reject altered CSV with updated outer checksums. [Provider verification records](docs/provider-history-fixture.md#provider-verification-records). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -89,5 +90,5 @@
 
 ## Handoff for the next change
 
-Preserve a signed fixture's verified key fingerprint and CSV digest in catalog provenance and workspace backups.
+Support an operator-supplied provider key registry that selects authorized public keys by provider and verifies key rotation without weakening signed import checks.
 

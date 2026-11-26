@@ -1,4 +1,5 @@
 import { canonicalJson } from './canonical-json'
+import { sha256Bytes } from './sha256'
 
 export const MAX_PROVIDER_KEY_BYTES = 4096
 
@@ -10,10 +11,12 @@ export async function verifyProviderSignature(verificationKey: string, signature
   const pem = /^-----BEGIN PUBLIC KEY-----\r?\n([A-Za-z0-9+/=\r\n]+)\r?\n-----END PUBLIC KEY-----$/
     .exec(verificationKey.trim())
   let key: CryptoKey
+  let keySha256: string
   try {
     if (!pem) throw Error('Invalid public key PEM.')
     const der = Uint8Array.from(atob(pem[1].replace(/[\r\n]/g, '')), character => character.charCodeAt(0))
     key = await crypto.subtle.importKey('spki', der, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
+    keySha256 = await sha256Bytes(der)
   } catch {
     throw Error('Choose a PEM-encoded P-256 provider public key.')
   }
@@ -22,4 +25,5 @@ export async function verifyProviderSignature(verificationKey: string, signature
     character => character.charCodeAt(0))
   if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, bytes, signed))
     throw Error('The provider history signature does not match the supplied key and manifest.')
+  return keySha256
 }

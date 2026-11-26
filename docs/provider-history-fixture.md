@@ -44,3 +44,9 @@ Use packet version 3 when you have a provider public key from a trusted source. 
 The signed message is the UTF-8 encoding of the packet's JSON fields except `csv` and `signature`. Sort object keys recursively in UTF-16 code-unit order and preserve array order. Serialize with JSON string escaping and without insignificant whitespace. The signed `csvSha256` field binds the message to the decoded CSV bytes. Use ECDSA with P-256 and SHA-256 and encode the concatenated 32-byte `r` and 32-byte `s` values as unpadded base64url in `signature`. [Web Cryptography ECDSA specification](https://www.w3.org/TR/webcrypto/#ecdsa).
 
 Selecting a public key requires a signed version 3 packet. The importer checks the key, provider, grant, signature and CSV digest before a catalog write.
+
+## Provider verification records
+
+The catalog shows the SHA-256 fingerprint of the verified public key's DER SubjectPublicKeyInfo and the digest of the verified CSV. Both digests travel with the source rights in series descriptor version 3 and workspace backup version 8.
+
+Restore checks the archived CSV against its recorded provider digest before preparing the workspace replacement. The key fingerprint records which public key verified the fixture at import.

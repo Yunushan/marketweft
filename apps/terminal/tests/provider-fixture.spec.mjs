@@ -1,6 +1,6 @@
 import { createHash, generateKeyPairSync, sign } from 'node:crypto'
 import { expect, test } from './fixtures.mjs'
-import { catalogContents, downloadWorkspace, microCSV, submitImport } from './catalog-fixtures.mjs'
+import { catalogContents, downloadWorkspace, microCSV, selectBackup, submitImport } from './catalog-fixtures.mjs'
 
 const fixture = {
   format: 'marketweft-provider-history',
@@ -18,8 +18,11 @@ const fixture = {
   csv: microCSV,
 }
 
-test('a supplied public key authenticates the provider, rights and exact CSV digest', async ({ page }) => {
+test('a supplied key verifies provider rights and preserves its fingerprint and CSV digest on restore', async ({
+  page, browser, baseURL,
+}) => {
   function canonical(value) {
+    if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']'
     if (value !== null && typeof value === 'object')
       return '{' + Object.keys(value).sort().map(key =>
         JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}'
@@ -69,10 +72,47 @@ test('a supplied public key authenticates the provider, rights and exact CSV dig
 
   await select(signed)
   await submitImport(page, 'LICENSED')
+  const keySha256 = createHash('sha256').update(trusted.publicKey.export({ type: 'spki', format: 'der' })).digest('hex')
+  const verification = { keySha256, csvSha256: manifest.csvSha256 }
   expect((await catalogContents(page)).series[0]).toMatchObject({
     csv,
-    descriptor: { source: fixture.provider, usageGrant: fixture.grant, sourceRights: fixture.permissions },
+    descriptor: {
+      version: 3, source: fixture.provider, usageGrant: fixture.grant,
+      sourceRights: fixture.permissions, providerVerification: verification,
+    },
   })
+  await expect(page.locator('.series-provenance').getByText(keySha256, { exact: true })).toBeVisible()
+  await expect(page.locator('.series-provenance').getByText(manifest.csvSha256, { exact: true })).toBeVisible()
+  const backup = await downloadWorkspace(page)
+  expect(backup.version).toBe(8)
+  expect(backup.manifest.series[0].descriptor.providerVerification).toEqual(verification)
+
+  const isolated = await browser.newContext({ baseURL })
+  try {
+    const clean = await isolated.newPage()
+    await clean.goto('/')
+    await expect(clean.getByRole('heading', { name: 'NVDA', exact: true })).toBeVisible()
+    const original = await catalogContents(clean)
+    await clean.getByRole('button', { name: 'Workspace backup', exact: true }).click()
+    const corrupted = structuredClone(backup)
+    const entry = corrupted.manifest.series[0]
+    entry.csv = entry.csv.replace(',1.000001,19.000009', ',1,19.000009')
+    delete entry.sha256
+    entry.sha256 = createHash('sha256').update(canonical(entry)).digest('hex')
+    corrupted.sha256 = createHash('sha256').update(canonical(corrupted.manifest)).digest('hex')
+    await selectBackup(clean, corrupted)
+    await expect(clean.getByRole('alert')).toHaveText('A verified provider CSV does not match its recorded digest.')
+    expect(await catalogContents(clean)).toEqual(original)
+    await selectBackup(clean, backup)
+    const restore = clean.getByRole('button', { name: 'Restore workspace', exact: true })
+    await expect(restore).toBeEnabled()
+    await restore.click()
+    await expect(clean.getByRole('heading', { name: 'LICENSED', exact: true })).toBeVisible()
+    expect((await catalogContents(clean)).series[0].descriptor.providerVerification).toEqual(verification)
+    expect(await downloadWorkspace(clean)).toEqual(backup)
+  } finally {
+    await isolated.close()
+  }
 })
 
 test('version 2 provider fixtures verify exact embedded CSV bytes before catalog writes', async ({ page }) => {
