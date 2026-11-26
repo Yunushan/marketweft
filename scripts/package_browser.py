@@ -45,6 +45,7 @@ readout shows the results at the selected bar when enough closes are available.
 Open Export CSV beneath either pane to download visible or all bars. The
 research format also includes provenance and enabled moving averages.
 Choose Close line to plot observed closing prices, or Candles for OHLC.
+Choose OHLC bars for a high-low stem with left-open and right-close ticks.
 Choose a chart type independently in each pane.
 
 Choose Historical replay and Start demo for the NYSE session example. Replay

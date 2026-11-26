@@ -10,9 +10,11 @@ const COMPARISON_BACKUP_VERSION = 2
 const DRAWING_BACKUP_VERSION = 3
 const INDICATOR_PERIODS_BACKUP_VERSION = 4
 const CHART_TYPES_BACKUP_VERSION = 5
+const OHLC_BARS_BACKUP_VERSION = 6
 const SAMPLE_VERSION = 1
 
 function backupVersion(preferences: Preferences) {
+  if (Object.values(preferences.chartTypes ?? {}).includes('ohlc')) return OHLC_BARS_BACKUP_VERSION
   if (preferences.chartTypes) return CHART_TYPES_BACKUP_VERSION
   if (preferences.overlayPeriods) return INDICATOR_PERIODS_BACKUP_VERSION
   if (preferences.drawings) return DRAWING_BACKUP_VERSION
@@ -133,7 +135,7 @@ export async function verifyWorkspaceBackup(
     throw Error('Choose a MarketWeft workspace backup.')
   if (typeof file.version !== 'number' || ![
     SINGLE_PANE_BACKUP_VERSION, COMPARISON_BACKUP_VERSION, DRAWING_BACKUP_VERSION,
-    INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION,
+    INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
   ].includes(file.version))
     throw Error('This workspace backup version is unsupported.')
   const manifest = fields(file.manifest, [

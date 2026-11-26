@@ -31,6 +31,11 @@ import { checkImportRows, type ImportPolicy } from './import-policy'
 
 declare const __MARKETWEFT_IMPORT_POLICY__: ImportPolicy
 const importPolicy = __MARKETWEFT_IMPORT_POLICY__
+const chartTypeLabels: Record<ChartType, string> = {
+  candles: 'Candles',
+  line: 'Close line',
+  ohlc: 'OHLC bars',
+}
 
 function Dialog({
   title,
@@ -490,8 +495,8 @@ export function App({
   function setChartType(pane: ChartPane, type: ChartType) {
     const { chartTypes: current, ...preferences } = ws
     const chartTypes = { ...current }
-    if (type === 'line') chartTypes[pane] = 'line'
-    else delete chartTypes[pane]
+    if (type === 'candles') delete chartTypes[pane]
+    else chartTypes[pane] = type
     update(Object.keys(chartTypes).length ? { ...preferences, chartTypes } : preferences)
   }
   function drawingTools(id: string) {
@@ -629,9 +634,9 @@ export function App({
                 <Icon name="chart" />
                 <select aria-label="Primary chart type" value={ws.chartTypes?.primary ?? 'candles'}
                   disabled={saving}
-                  onChange={event => setChartType('primary', event.target.value === 'line' ? 'line' : 'candles')}>
-                  <option value="candles">Candles</option>
-                  <option value="line">Close line</option>
+                  onChange={event => setChartType('primary', event.target.value as ChartType)}>
+                  {Object.entries(chartTypeLabels).map(([type, label]) =>
+                    <option key={type} value={type}>{label}</option>)}
                 </select>
                 <i />
                 {asset.source === 'sample' ? 'Daily bars' : 'Source bars'}
@@ -677,9 +682,9 @@ export function App({
                 <label>
                   Comparison chart type
                   <select value={ws.chartTypes?.comparison ?? 'candles'} disabled={saving}
-                    onChange={event => setChartType('comparison', event.target.value === 'line' ? 'line' : 'candles')}>
-                    <option value="candles">Candles</option>
-                    <option value="line">Close line</option>
+                    onChange={event => setChartType('comparison', event.target.value as ChartType)}>
+                    {Object.entries(chartTypeLabels).map(([type, label]) =>
+                      <option key={type} value={type}>{label}</option>)}
                   </select>
                 </label>
                 <div className="comparison-toggles">

@@ -23,6 +23,11 @@ const UP = '#68d7b1',
   GOLD = '#e8ba70',
   LILAC = '#b59be6',
   CLOSE_LINE = '#55b5ee'
+const chartNames: Record<ChartType, string> = {
+  candles: 'candlestick',
+  line: 'close line',
+  ohlc: 'OHLC bar',
+}
 const defaultView = (n: number) => ({ end: n, count: Math.min(n, 60) })
 const clamp = (x: number, min: number, max: number) =>
   Math.min(max, Math.max(min, x))
@@ -194,14 +199,16 @@ function draw(
       w = Math.max(1, dx * (b.last - b.first + 1) * 0.68)
     const col = b.close >= b.open ? UP : DOWN
     ctx.fillStyle = col
-    if (type === 'candles') {
+    if (type !== 'line') {
       line(axis, y(b.high), axis, y(b.low), col)
-      ctx.fillRect(
-        axis - w / 2,
-        Math.min(y(b.open), y(b.close)),
-        w,
-        Math.max(1.2, Math.abs(y(b.open) - y(b.close))),
-      )
+      const open = y(b.open), close = y(b.close)
+      if (type === 'ohlc') {
+        line(axis - w / 2, open, axis, open, col)
+        line(axis, close, axis + w / 2, close, col)
+      } else {
+        ctx.fillRect(axis - w / 2, Math.min(open, close), w,
+          Math.max(1.2, Math.abs(open - close)))
+      }
     }
     const h = maxVol > 0 ? (b.volume / maxVol) * (bottom - volTop) : 0
     ctx.globalAlpha = 0.46
@@ -511,9 +518,7 @@ export function Chart({
       <div ref={zone} className={picking ? 'canvas-zone picking-endpoint' : 'canvas-zone'}>
         <canvas
           tabIndex={0}
-          aria-label={
-            asset.symbol + (type === 'line' ? ' interactive close line' : ' interactive candlestick') + ' and volume chart'
-          }
+          aria-label={asset.symbol + ' interactive ' + chartNames[type] + ' and volume chart'}
           ref={ref}
           onPointerDown={(e) => {
             if (e.button !== 0) return
