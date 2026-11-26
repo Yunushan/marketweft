@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.46.0 · Portable strategy function scopes
+
+| Check | Observed result |
+| --- | --- |
+| Portable replay | A version 2 strategy replay imported in a clean offline browser profile reproduces the original package and ledger CSV byte for byte. The sample ends with 957.8 in cash. |
+| Independent candidate scopes | Two walk-forward candidates call the same function name with different definitions. The first training window reports 997.8 and 1,003.4 in equity. The ledger export identifies both definitions by candidate ID. |
+| Execution and compatibility | Wasm verifies the exact last recorded-trade receipt, rejects a function that accesses an ambient bar field, and runs the supported CSV sizes together with multiple libraries. Version 1 packages retain their exact export. |
+| Regression suite | All 87 browser, six SDK and four launcher tests passed on Windows x64. All 105 native tests passed on Linux x64, all 42 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Formula strategy packages](formula-strategy-packages.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.45.0 · Custom formula functions
 
 | Check | Observed result |

@@ -10,6 +10,50 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('paper replay and each walk-forward candidate compile in their own formula function scope', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');
+  const [calendar, bars, trades] = await Promise.all([fixture('sessions'), fixture('bars'), fixture('trades')]);
+  const config = {
+    paper: { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' },
+    fastWindow: '2', slowWindow: '3', targetShares: '6', participation: '1000',
+    slippage: '0', limitBuffer: '2000', maxWait: '3',
+  };
+  const cutoffs = { effective: '2025-04-03T14:11:10Z', known: '2025-04-03T14:11:10Z', config };
+  const functions = [{ name: 'gate', parameters: ['x'], body: 'x >= 13' }];
+  const query = { ...cutoffs, entry: 'gate(close)', exit: 'close <= 10', functions };
+  const replay = (source, tape) => core.formulaBacktest('DEMO:SMA', calendar, bars, tape, 60, source);
+  core.validateFormulaStrategy(1, query.entry, query.exit, config, functions);
+  assert.throws(() => core.validateFormulaStrategy(1, query.entry, query.exit, config), /Unknown formula field or function/);
+  const packageText = serializeFormulaStrategy({ languageVersion: 1, source: 'bars', ...query });
+  assert.equal(JSON.parse(packageText).packageVersion, 2);
+  assert.equal(serializeFormulaStrategy(parseFormulaStrategy(packageText, core)), packageText);
+  const invalidPackage = JSON.parse(packageText);
+  invalidPackage.functions[0].body = 'x + close';
+  assert.throws(() => parseFormulaStrategy(JSON.stringify(invalidPackage), core), /explicit parameter/);
+  assert.equal(replay(query, trades).backtest.ledger.receipts.at(-1).sourceId, 'TRADE-9007199254741000');
+  assert.deepEqual(replay(query, ''), replay({ ...query, functions: undefined, entry: 'close >= 13' }, ''));
+
+  const folds = core.formulaWalk('DEMO:SMA', calendar, bars, '', 60, { ...cutoffs,
+    trainingBars: 6, testBars: 2, candidates: [
+      { id: 'Late', entry: query.entry, exit: query.exit, functions },
+      { id: 'Rising', entry: query.entry, exit: query.exit,
+        functions: [{ name: 'gate', parameters: ['x'], body: 'x >\n lag(x, 1)' }] },
+    ] });
+  assert.deepEqual(folds[0].scores.map(score => [score.id, score.equity]), [['Rising', 1003400000n], ['Late', 997800000n]]);
+  assert.equal(folds[0].testScore.equity, 997400000n);
+
+  const boundedLibrary = Array.from({ length: 16 }, (_, index) => ({
+    name: 'f' + index, parameters: ['x'], body: 'x'.padEnd(2048),
+  }));
+  const large = core.formulaWalk('DEMO:SMA', calendar.trimEnd().concat('\n').padEnd(1024 * 1024),
+    bars.trimEnd().concat('\n').padEnd(8 * 1024 * 1024), trades.trimEnd().concat('\n').padEnd(8 * 1024 * 1024), 60, {
+      ...cutoffs, trainingBars: 6, testBars: 2, candidates: Array.from({ length: 5 }, (_, index) => ({
+        id: 'large-' + index, entry: 'f0(close) >= 13', exit: 'close <= 10', functions: boundedLibrary,
+      })),
+    });
+  assert.equal(large[0].scores.length, 5);
+});
+
 test('custom formula functions run across the Wasm boundary in the supplied scope only', async () => {
   const fixture = await readFile(new URL('../crates/core/tests/fixtures/synthetic-formula-bars.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(fixture);

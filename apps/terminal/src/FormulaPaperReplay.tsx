@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { BacktestConfig, FormulaBacktestQuery, FormulaBacktestResult, MarketCore } from './market-core'
+import type { BacktestConfig, FormulaBacktestQuery, FormulaBacktestResult, FormulaFunction, MarketCore } from './market-core'
 import { BacktestReceiptTable, backtestEvidenceRows } from './RecordedTradeReplay'
 import type { BacktestBook } from './RecordedTradeReplay'
 import { quoteText } from './chart-export'
@@ -8,6 +8,7 @@ import { downloadFile } from './download'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import { MAX_STRATEGY_PACKAGE_BYTES, parseFormulaStrategy, serializeFormulaStrategy } from './formula-strategy'
+import { MAX_FORMULA_LIBRARY_BYTES, parseFormulaLibrary } from './formula-library'
 import sampleTrades from '../../../crates/core/tests/fixtures/synthetic-backtest-trades.csv?raw'
 
 type TradeSource = { name: string; csv: string }
@@ -21,11 +22,13 @@ function exportReplay(book: BacktestBook, replay: Replay) {
     query.entry, query.exit, book.interval, targetShares, participation, slippage, limitBuffer, maxWait,
     paper.startingCash, paper.positionLimit, paper.exposureLimit, paper.feePerShare, paper.feePerOrder]
     .map(value => quoteText(String(value)))
+  const library = query.functions?.length ? quoteText(JSON.stringify(query.functions)) : ''
   const header = 'history_source,execution_source,instrument,effective_through_utc,known_through_utc,language_version,entry_formula,exit_formula,interval_seconds,target_shares,participation_bps,slippage_bps,limit_buffer_bps,max_wait_bars,starting_cash,position_limit,committed_cost_limit,fee_per_share,fee_per_order,row,observed_utc,event_id,order_id,source_id,execution_utc,action,status,shares,price,fee,cash_change,cash,reserved,equity,drawdown,bar_index,entry_value,exit_value,decision'
   const evaluations = report.evaluations.map(row => ['evaluation', utc(row.at), ...Array<string>(14).fill(''),
     row.barIndex, money(row.entry), money(row.exit), row.decision ?? ''])
   const rows = [...backtestEvidenceRows(report.backtest).map(row => [...row, '', '', '', '']), ...evaluations]
-  const csv = [header, ...rows.map(row => [...fields, ...row].join(','))].join('\r\n') + '\r\n'
+  const csv = [header + (library ? ',function_library_json' : ''), ...rows.map((row, index) =>
+    [...fields, ...row, ...(library ? [index === 0 ? library : ''] : [])].join(','))].join('\r\n') + '\r\n'
   downloadFile('formula-paper-backtest.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }))
 }
 
@@ -40,6 +43,9 @@ export function FormulaPaperReplay({ book, config, core }: { book: BacktestBook;
   const [file, setFile] = useState<File | null>(null)
   const [packageFile, setPackageFile] = useState<File | null>(null)
   const packageInput = useRef<HTMLInputElement>(null)
+  const [libraryFile, setLibraryFile] = useState<File | null>(null)
+  const libraryInput = useRef<HTMLInputElement>(null)
+  const [library, setLibrary] = useState<{ name: string; functions: readonly FormulaFunction[] } | null>(null)
   const [activePackage, setActivePackage] = useState<{ name: string; config: BacktestConfig } | null>(null)
   const [replay, setReplay] = useState<Replay | null>(null)
   const [busy, setBusy] = useState(false)
@@ -63,7 +69,7 @@ export function FormulaPaperReplay({ book, config, core }: { book: BacktestBook;
       const tape = recorded ? next : null
       if (recorded && !tape) throw new Error('Supply recorded trades for trade execution.')
       const query = { effective: effective.trim(), known: known.trim(), config: activePackage?.config ?? config,
-        entry: entry.trim(), exit: exit.trim() }
+        entry: entry.trim(), exit: exit.trim(), functions: library?.functions }
       const report = core.formulaBacktest(book.instrument, book.calendar, book.bars,
         tape?.csv ?? '', book.interval, query)
       setReplay({ source: tape?.name ?? 'Bar volume', mode: recorded ? 'trades' : 'bars', query, report })
@@ -83,7 +89,7 @@ export function FormulaPaperReplay({ book, config, core }: { book: BacktestBook;
     if (!packageFile) return
     setBusy(true)
     try {
-      if (packageFile.size > MAX_STRATEGY_PACKAGE_BYTES) throw new Error('Formula strategy package exceeds 32 KiB.')
+      if (packageFile.size > MAX_STRATEGY_PACKAGE_BYTES) throw new Error('Formula strategy package exceeds 64 KiB.')
       const text = new TextDecoder('utf-8', { fatal: true }).decode(await packageFile.arrayBuffer())
       const strategy = parseFormulaStrategy(text, core)
       setEntry(strategy.entry)
@@ -92,6 +98,7 @@ export function FormulaPaperReplay({ book, config, core }: { book: BacktestBook;
       setSource(null)
       setFile(null)
       setActivePackage({ name: packageFile.name, config: strategy.config })
+      setLibrary(strategy.functions ? { name: packageFile.name, functions: strategy.functions } : null)
       setPackageFile(null)
       if (packageInput.current) packageInput.current.value = ''
       setError('')
@@ -102,11 +109,28 @@ export function FormulaPaperReplay({ book, config, core }: { book: BacktestBook;
     }
   }
 
+  async function loadLibrary() {
+    if (!libraryFile) return
+    setBusy(true)
+    try {
+      if (libraryFile.size > MAX_FORMULA_LIBRARY_BYTES) throw new Error('Formula function library exceeds 48 KiB.')
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(await libraryFile.arrayBuffer())
+      setLibrary({ name: libraryFile.name, functions: parseFormulaLibrary(text, core).functions })
+      setLibraryFile(null)
+      if (libraryInput.current) libraryInput.current.value = ''
+      setError('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not load the formula function library.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function downloadPackage(accepted: Replay) {
     try {
       const text = serializeFormulaStrategy({
         languageVersion: accepted.report.version, entry: accepted.query.entry, exit: accepted.query.exit,
-        source: accepted.mode, config: accepted.query.config,
+        source: accepted.mode, config: accepted.query.config, functions: accepted.query.functions,
       })
       downloadFile('formula-strategy.mwstrategy.json', new Blob([text], { type: 'application/json;charset=utf-8' }))
       setError('')
@@ -132,6 +156,20 @@ export function FormulaPaperReplay({ book, config, core }: { book: BacktestBook;
         <button type="button" className="outline" disabled={busy}
           onClick={() => setActivePackage(null)}>Use current backtest settings</button>
       </div>}
+      <details className="research-details">
+        <summary>Backtest formula functions</summary>
+        <div className="universe-query">
+          <label>Backtest function library
+            <input ref={libraryInput} type="file" accept=".json,application/json" disabled={busy}
+              onChange={event => setLibraryFile(event.target.files?.[0] ?? null)} />
+          </label>
+          <button type="button" className="outline" disabled={busy || !libraryFile}
+            onClick={loadLibrary}>Load backtest function library</button>
+          {library && <button type="button" className="outline" disabled={busy}
+            onClick={() => { setLibrary(null); setError('') }}>Clear backtest function library</button>}
+        </div>
+      </details>
+      {library && <p className="formula-source">Functions from {library.name} · {library.functions.map(item => item.name).join(', ')}</p>}
       <form className="formula-form" onSubmit={run}>
         <label>Entry formula<textarea rows={2} maxLength={2048} value={entry} required spellCheck={false} disabled={busy}
           onChange={event => setEntry(event.target.value)} /></label>

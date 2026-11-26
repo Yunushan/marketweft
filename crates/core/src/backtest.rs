@@ -104,10 +104,15 @@ pub struct FormulaBacktestReport {
 pub(crate) fn compile_formula_signals(
     entry: &str,
     exit: &str,
+    library: Option<&crate::FormulaLibrary>,
 ) -> Result<(Formula, Formula), String> {
+    let compile = |source| match library {
+        Some(library) => library.compile(source),
+        None => Formula::compile(source),
+    };
     Ok((
-        Formula::compile(entry).map_err(|cause| format!("Entry formula: {cause}"))?,
-        Formula::compile(exit).map_err(|cause| format!("Exit formula: {cause}"))?,
+        compile(entry).map_err(|cause| format!("Entry formula: {cause}"))?,
+        compile(exit).map_err(|cause| format!("Exit formula: {cause}"))?,
     ))
 }
 
@@ -118,10 +123,21 @@ pub fn validate_formula_strategy(
     exit: &str,
     config: BacktestConfig,
 ) -> Result<(), String> {
+    validate_formula_strategy_with_library(language_version, entry, exit, config, None)
+}
+
+/// Validate a portable strategy in the supplied formula function scope.
+pub fn validate_formula_strategy_with_library(
+    language_version: u32,
+    entry: &str,
+    exit: &str,
+    config: BacktestConfig,
+    library: Option<&crate::FormulaLibrary>,
+) -> Result<(), String> {
     if language_version != crate::FORMULA_VERSION {
         return Err("Unsupported formula language version.".into());
     }
-    compile_formula_signals(entry, exit)?;
+    compile_formula_signals(entry, exit, library)?;
     config.account(false)?;
     Ok(())
 }

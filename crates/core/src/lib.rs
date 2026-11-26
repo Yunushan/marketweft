@@ -40,8 +40,9 @@ pub use alerts::{
 };
 pub use backtest::{
     backtest, backtest_with_formulas, backtest_with_trades, validate_formula_strategy,
-    BacktestConfig, BacktestMark, BacktestReport, BacktestSignal, FormulaBacktestConfig,
-    FormulaBacktestReport, FormulaBacktestSignal, RecordedBacktestCutoffs,
+    validate_formula_strategy_with_library, BacktestConfig, BacktestMark, BacktestReport,
+    BacktestSignal, FormulaBacktestConfig, FormulaBacktestReport, FormulaBacktestSignal,
+    RecordedBacktestCutoffs,
 };
 pub use cross_section::{
     CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,

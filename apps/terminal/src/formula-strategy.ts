@@ -1,15 +1,17 @@
-import type { BacktestConfig, MarketCore, PaperConfig } from './market-core'
+import type { BacktestConfig, FormulaFunction, MarketCore, PaperConfig } from './market-core'
+import { parseFormulaFunctionDefinitions } from './formula-library.ts'
 
 type Execution = 'bars' | 'trades'
 type FormatExecution = Omit<BacktestConfig, 'paper' | 'fastWindow' | 'slowWindow'> & { source: Execution }
 
 type StrategyPackage = {
   format: 'marketweft.formula-strategy'
-  packageVersion: 1
+  packageVersion: 1 | 2
   languageVersion: number
   formulas: { entry: string; exit: string }
   execution: FormatExecution
   account: PaperConfig
+  functions?: readonly FormulaFunction[]
 }
 
 export type FormulaStrategy = {
@@ -18,9 +20,12 @@ export type FormulaStrategy = {
   exit: string
   source: Execution
   config: BacktestConfig
+  functions?: readonly FormulaFunction[]
 }
 
-export const MAX_STRATEGY_PACKAGE_BYTES = 32 * 1024
+const MAX_V1_BYTES = 32 * 1024
+export const MAX_STRATEGY_PACKAGE_BYTES = 64 * 1024
+const packageFields = ['format', 'packageVersion', 'languageVersion', 'formulas', 'execution', 'account']
 const executionFields = ['targetShares', 'participation', 'slippage', 'limitBuffer', 'maxWait'] as const
 const accountFields = ['startingCash', 'positionLimit', 'exposureLimit', 'feePerShare', 'feePerOrder'] as const
 
@@ -44,37 +49,41 @@ function numericFields<Key extends string>(input: Record<string, unknown>, names
 }
 
 export function serializeFormulaStrategy(strategy: FormulaStrategy) {
-  const { languageVersion, entry, exit, source, config } = strategy
+  const { languageVersion, entry, exit, source, config, functions } = strategy
+  const version = functions?.length ? 2 : 1
   const { targetShares, participation, slippage, limitBuffer, maxWait } = config
   const { startingCash, positionLimit, exposureLimit, feePerShare, feePerOrder } = config.paper
   const value: StrategyPackage = {
     format: 'marketweft.formula-strategy',
-    packageVersion: 1,
+    packageVersion: version,
     languageVersion,
     formulas: { entry, exit },
     execution: { source, targetShares, participation, slippage, limitBuffer, maxWait },
     account: { startingCash, positionLimit, exposureLimit, feePerShare, feePerOrder },
+    ...(version === 2 ? { functions } : {}),
   }
   const text = JSON.stringify(value, null, 2) + '\n'
-  checkPackageSize(text)
+  checkPackageSize(text, version === 1 ? MAX_V1_BYTES : MAX_STRATEGY_PACKAGE_BYTES)
   return text
 }
 
-function checkPackageSize(text: string) {
-  if (text.length > MAX_STRATEGY_PACKAGE_BYTES ||
-      new TextEncoder().encode(text).byteLength > MAX_STRATEGY_PACKAGE_BYTES) {
-    throw new Error('Formula strategy package exceeds 32 KiB.')
+function checkPackageSize(text: string, limit: number) {
+  if (text.length > limit || new TextEncoder().encode(text).byteLength > limit) {
+    throw new Error('Formula strategy package exceeds ' + limit / 1024 + ' KiB.')
   }
 }
 
 export function parseFormulaStrategy(text: string, core: Pick<MarketCore, 'validateFormulaStrategy'>): FormulaStrategy {
-  checkPackageSize(text)
+  checkPackageSize(text, MAX_STRATEGY_PACKAGE_BYTES)
   let value: unknown
   try { value = JSON.parse(text) } catch { throw new Error('Invalid formula strategy JSON.') }
-  checkFields(value, 'formula strategy package', ['format', 'packageVersion', 'languageVersion', 'formulas', 'execution', 'account'])
-  if (value.format !== 'marketweft.formula-strategy' || value.packageVersion !== 1) {
+  const version2 = !!value && typeof value === 'object' && 'packageVersion' in value &&
+    value.packageVersion === 2 && Object.hasOwn(value, 'functions')
+  checkFields(value, 'formula strategy package', version2 ? [...packageFields, 'functions'] : packageFields)
+  if (value.format !== 'marketweft.formula-strategy' || value.packageVersion !== (version2 ? 2 : 1)) {
     throw new Error('Unsupported formula strategy package version.')
   }
+  if (!version2) checkPackageSize(text, MAX_V1_BYTES)
   const { languageVersion, formulas, execution, account } = value
   if (typeof languageVersion !== 'number') throw new Error('Invalid formula language version.')
   checkFields(formulas, 'formula', ['entry', 'exit'])
@@ -89,6 +98,7 @@ export function parseFormulaStrategy(text: string, core: Pick<MarketCore, 'valid
     ...numericFields(execution, executionFields),
     paper: numericFields(account, accountFields),
   }
-  core.validateFormulaStrategy(languageVersion, entry, exit, config)
-  return { languageVersion, entry, exit, source, config }
+  const functions = version2 ? parseFormulaFunctionDefinitions(value.functions) : undefined
+  core.validateFormulaStrategy(languageVersion, entry, exit, config, functions)
+  return { languageVersion, entry, exit, source, config, ...(functions ? { functions } : {}) }
 }

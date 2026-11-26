@@ -33,6 +33,8 @@ function exportSearch(book: BacktestBook, { source, query, folds }: Search) {
     targetShares, participation, slippage, limitBuffer, maxWait, paper.startingCash, paper.positionLimit,
     paper.exposureLimit, paper.feePerShare, paper.feePerOrder].map(value => quoteText(String(value)))
   const formulas = new Map(candidates.map(candidate => [candidate.id, candidate]))
+  const hasLibraries = candidates.some(candidate => candidate.functions?.length)
+  const libraryColumn = hasLibraries ? [''] : []
   const blank = (size: number) => Array<string>(size).fill('')
   const header = 'history_source,execution_source,instrument,effective_through_utc,known_through_utc,interval_seconds,training_bars,test_bars,target_shares,participation_bps,slippage_bps,limit_buffer_bps,max_wait_bars,starting_cash,position_limit,committed_cost_limit,fee_per_share,fee_per_order,fold,training_start_utc,training_end_utc,test_start_utc,test_end_utc,language_version,row,strategy_id,entry_formula,exit_formula,score_equity,score_drawdown,turnover,fees,accepted_fills,unavailable_conditions,ledger_row,observed_utc,event_id,order_id,source_id,execution_utc,action,status,shares,price,fee,cash_change,cash,reserved,equity,drawdown,bar_index,entry_value,exit_value,decision'
   const rows = folds.flatMap((fold, index) => {
@@ -44,15 +46,20 @@ function exportSearch(book: BacktestBook, { source, query, folds }: Search) {
     }
     const winner = strategy(fold.testScore.id)
     return [
-      ...fold.scores.map(score => [...prefix, 'training', ...strategy(score.id), ...scoreFields(score), ...blank(20)]),
-      [...prefix, 'test', ...winner, ...scoreFields(fold.testScore), ...blank(20)],
-      ...backtestEvidenceRows(fold.report.backtest).map(row => [...prefix, 'ledger', ...winner, ...blank(6), ...row, ...blank(4)]),
+      ...fold.scores.map(score => {
+        const functions = index === 0 ? formulas.get(score.id)?.functions : undefined
+        const evidence = functions?.length ? [quoteText(JSON.stringify(functions))] : libraryColumn
+        return [...prefix, 'training', ...strategy(score.id), ...scoreFields(score), ...blank(20), ...evidence]
+      }),
+      [...prefix, 'test', ...winner, ...scoreFields(fold.testScore), ...blank(20), ...libraryColumn],
+      ...backtestEvidenceRows(fold.report.backtest).map(row =>
+        [...prefix, 'ledger', ...winner, ...blank(6), ...row, ...blank(4), ...libraryColumn]),
       ...fold.report.evaluations.map(row => [...prefix, 'evaluation', ...winner, ...blank(6), '', utc(row.at),
         ...blank(14), row.barIndex, row.entry === null ? '' : money(row.entry), row.exit === null ? '' : money(row.exit),
-        row.decision ?? '']),
+        row.decision ?? '', ...libraryColumn]),
     ]
   })
-  const csv = [header, ...rows.map(row => row.join(','))].join('\r\n') + '\r\n'
+  const csv = [header + (hasLibraries ? ',function_library_json' : ''), ...rows.map(row => row.join(','))].join('\r\n') + '\r\n'
   downloadFile('formula-walk-forward.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }))
 }
 
@@ -74,7 +81,7 @@ export function FormulaStrategyWalk({ core, book, config }: { core: MarketCore; 
   const [error, setError] = useState('')
   const fold = search?.folds[selected]
 
-  function append(formulas: Pick<DraftCandidate, 'entry' | 'exit' | 'packageName'>[]) {
+  function append(formulas: Pick<DraftCandidate, 'entry' | 'exit' | 'functions' | 'packageName'>[]) {
     const ids = new Set(candidates.map(row => row.id.trim()))
     let next = sequence
     const added = formulas.map(item => {
@@ -92,9 +99,9 @@ export function FormulaStrategyWalk({ core, book, config }: { core: MarketCore; 
       if (candidates.length + packageFiles.length > limit) throw new Error('Supply at most 16 formula candidates.')
       const decoder = new TextDecoder('utf-8', { fatal: true })
       const formulas = await Promise.all(packageFiles.map(async file => {
-        if (file.size > MAX_STRATEGY_PACKAGE_BYTES) throw new Error('Formula strategy package exceeds 32 KiB.')
-        const { entry, exit } = parseFormulaStrategy(decoder.decode(await file.arrayBuffer()), core)
-        return { entry, exit, packageName: file.name }
+        if (file.size > MAX_STRATEGY_PACKAGE_BYTES) throw new Error('Formula strategy package exceeds 64 KiB.')
+        const { entry, exit, functions } = parseFormulaStrategy(decoder.decode(await file.arrayBuffer()), core)
+        return { entry, exit, functions, packageName: file.name }
       }))
       append(formulas)
       setPackageFiles([])
@@ -121,8 +128,8 @@ export function FormulaStrategyWalk({ core, book, config }: { core: MarketCore; 
       }
       if (recorded && !source?.csv.trim()) throw new Error('Supply recorded trades for trade execution.')
       const query = { effective: effective.trim(), known: known.trim(), trainingBars: Number(trainingBars),
-        testBars: Number(testBars), config, candidates: candidates.map(({ id, entry, exit }) =>
-          ({ id: id.trim(), entry: entry.trim(), exit: exit.trim() })) }
+        testBars: Number(testBars), config, candidates: candidates.map(({ id, entry, exit, functions }) =>
+          ({ id: id.trim(), entry: entry.trim(), exit: exit.trim(), functions })) }
       const folds = core.formulaWalk(book.instrument, book.calendar, book.bars, source?.csv ?? '', book.interval, query)
       setSearch({ query, source: source?.name ?? 'Bar volume', folds })
       setSelected(0)
@@ -150,10 +157,11 @@ export function FormulaStrategyWalk({ core, book, config }: { core: MarketCore; 
         <button type="button" className="outline" disabled={busy || !packageFiles.length || candidates.length >= limit}
           onClick={addPackages}>Add strategy packages</button>
       </div>
-      <p>Packages supply candidate formulas. All candidates use the active backtest settings and the execution source below.</p>
+      <p>Packages supply candidate formulas and their functions. All candidates use the active backtest settings and the execution source below.</p>
       <form className="formula-form" onSubmit={run}>
         {candidates.map((row, index) => <fieldset key={row.key} disabled={busy} className="formula-form">
           <legend>Candidate {index + 1}{row.packageName && ' · ' + row.packageName}</legend>
+          {row.functions?.length && <p className="formula-source">Functions {row.functions.map(item => item.name).join(', ')}</p>}
           <label>Strategy ID
             <input required maxLength={40} value={row.id} onChange={event => change(row.key, 'id', event.target.value)} />
           </label>

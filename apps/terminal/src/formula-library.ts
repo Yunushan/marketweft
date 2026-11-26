@@ -28,10 +28,16 @@ export function parseFormulaLibrary(text: string, core: Pick<MarketCore, 'evalua
   if (typeof languageVersion !== 'number' || languageVersion !== core.evaluateFormula('0', []).version) {
     throw new Error('Unsupported formula language version.')
   }
+  const parsed = parseFormulaFunctionDefinitions(functions)
+  core.evaluateFormula('0', [], parsed)
+  return { format: 'marketweft.formula-library', libraryVersion: 1, languageVersion, functions: parsed }
+}
+
+export function parseFormulaFunctionDefinitions(functions: unknown): FormulaFunction[] {
   if (!Array.isArray(functions) || functions.length < 1 || functions.length > 16) {
     throw new Error('Supply 1–16 custom formula functions.')
   }
-  const parsed = functions.map((definition): FormulaFunction => {
+  return functions.map(definition => {
     if (!record(definition, ['name', 'parameters', 'body']) || typeof definition.name !== 'string' ||
         !Array.isArray(definition.parameters) || !definition.parameters.every(name => typeof name === 'string') ||
         typeof definition.body !== 'string') {
@@ -39,6 +45,4 @@ export function parseFormulaLibrary(text: string, core: Pick<MarketCore, 'evalua
     }
     return { name: definition.name, parameters: definition.parameters, body: definition.body }
   })
-  core.evaluateFormula('0', [], parsed)
-  return { format: 'marketweft.formula-library', libraryVersion: 1, languageVersion, functions: parsed }
 }

@@ -158,6 +158,9 @@ strategy package after replay to reproduce the validated settings elsewhere.
 Import formula-bars.csv in the workspace and open Time-series formulas.
 Load formula-library.mwformula.json under Custom formula functions and
 evaluate smooth(close) for exact values and an exportable library checksum.
+To use that library for paper signals, load it under Backtest formula
+functions and evaluate gap(close) >= 13 as the entry. Download the
+strategy package to carry the definitions into another workspace.
 Expand Recorded trade execution and load backtest-trades.csv or use the
 sample execution trades. Set effective time to 2025-04-03T14:11:00Z.
 Compare knowledge at 14:05:29, 14:05:30 and 14:11:10 UTC, then export the

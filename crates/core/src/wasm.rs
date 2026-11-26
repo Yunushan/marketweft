@@ -20,6 +20,8 @@ use crate::{parse_split_revisions, ShareRatio, SplitRevision, SplitRevisionBook}
 use crate::{ModelError, OptionBook, OptionSide, QuoteStatus};
 use std::cell::RefCell;
 
+const MAX_FORMULA_LIBRARY_BYTES: usize = 40 * 1024;
+
 thread_local! {
     static INPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
     static OUTPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
@@ -109,7 +111,10 @@ pub extern "C" fn mw_input(len: usize) -> *mut u8 {
 
 #[no_mangle]
 pub extern "C" fn mw_recorded_backtest_input(len: usize) -> *mut u8 {
-    allocate_input(len, 2 * MAX_INPUT_BYTES + 1024 * 1024 + 128 * 1024)
+    allocate_input(
+        len,
+        2 * MAX_INPUT_BYTES + 1024 * 1024 + 128 * 1024 + 16 * MAX_FORMULA_LIBRARY_BYTES,
+    )
 }
 
 fn allocate_input(len: usize, limit: usize) -> *mut u8 {
@@ -1422,6 +1427,15 @@ fn parse_backtest_settings(paper: &str, settings: &str) -> Result<crate::Backtes
 
 #[no_mangle]
 pub extern "C" fn mw_validate_formula_strategy(language_version: u32, entry_bytes: usize) -> u32 {
+    mw_validate_formula_strategy_library(language_version, entry_bytes, 0)
+}
+
+#[no_mangle]
+pub extern "C" fn mw_validate_formula_strategy_library(
+    language_version: u32,
+    entry_bytes: usize,
+    library_bytes: usize,
+) -> u32 {
     process(|input| {
         let mut parts = utf8(input)?.splitn(3, '\n');
         let (paper, settings, source) = (
@@ -1429,14 +1443,16 @@ pub extern "C" fn mw_validate_formula_strategy(language_version: u32, entry_byte
             parts.next().ok_or("Supply backtest strategy settings.")?,
             parts.next().ok_or("Supply entry and exit formulas.")?,
         );
+        let (library, source) = split_formula_library(source, library_bytes)?;
         let (entry, exit) = source
             .split_at_checked(entry_bytes)
             .ok_or("Invalid entry source length.")?;
-        crate::validate_formula_strategy(
+        crate::validate_formula_strategy_with_library(
             language_version,
             entry,
             exit,
             parse_backtest_settings(paper, settings)?,
+            library.as_ref(),
         )?;
         Ok(Vec::new())
     })
@@ -1524,6 +1540,25 @@ pub extern "C" fn mw_formula_backtest(
     exit_bytes: usize,
     interval: u32,
 ) -> u32 {
+    mw_formula_backtest_library(
+        calendar_bytes,
+        bar_bytes,
+        entry_bytes,
+        exit_bytes,
+        0,
+        interval,
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn mw_formula_backtest_library(
+    calendar_bytes: usize,
+    bar_bytes: usize,
+    entry_bytes: usize,
+    exit_bytes: usize,
+    library_bytes: usize,
+    interval: u32,
+) -> u32 {
     process(|input| {
         let (instrument, known_at, execution, remainder) = backtest_request(utf8(input)?)?;
         let (effective, payload) = remainder
@@ -1536,7 +1571,9 @@ pub extern "C" fn mw_formula_backtest(
         let (exit, payload) = payload
             .split_at_checked(exit_bytes)
             .ok_or("Invalid exit source length.")?;
-        let (entry, exit) = crate::backtest::compile_formula_signals(entry, exit)?;
+        let (library, payload) = split_formula_library(payload, library_bytes)?;
+        let (entry, exit) =
+            crate::backtest::compile_formula_signals(entry, exit, library.as_ref())?;
         let (calendar, payload) = payload
             .split_at_checked(calendar_bytes)
             .ok_or("Invalid session data.")?;
@@ -1608,12 +1645,19 @@ pub extern "C" fn mw_formula_walk(
             let (header, source) = candidate_data
                 .split_once('\n')
                 .ok_or("Supply formula strategy settings.")?;
-            let [id, entry_bytes, exit_bytes] =
-                header
-                    .split('\t')
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .map_err(|_| "Supply a strategy ID and the two source lengths.")?;
+            let fields: Vec<_> = header.splitn(4, '\t').collect();
+            let (id, entry_bytes, exit_bytes, library_bytes) = match fields.as_slice() {
+                [id, entry, exit] => (*id, *entry, *exit, 0),
+                [id, entry, exit, library] => (
+                    *id,
+                    *entry,
+                    *exit,
+                    library
+                        .parse()
+                        .map_err(|_| "Invalid formula function library length.")?,
+                ),
+                _ => return Err("Supply a strategy ID and the two source lengths.".into()),
+            };
             if !crate::universe::valid_id(id) {
                 return Err("Use a valid ASCII strategy ID.".into());
             }
@@ -1627,8 +1671,11 @@ pub extern "C" fn mw_formula_walk(
                 .ok()
                 .and_then(|size| rest.split_at_checked(size))
                 .ok_or("Invalid exit source length.")?;
-            let (entry, exit) = crate::backtest::compile_formula_signals(entry, exit)
+            let (library, rest) = split_formula_library(rest, library_bytes)
                 .map_err(|cause| format!("Strategy {id}: {cause}"))?;
+            let (entry, exit) =
+                crate::backtest::compile_formula_signals(entry, exit, library.as_ref())
+                    .map_err(|cause| format!("Strategy {id}: {cause}"))?;
             programs.push((id, entry, exit));
             candidate_data = rest;
         }
@@ -2591,45 +2638,63 @@ pub extern "C" fn mw_evaluate_formula_library(source_bytes: usize, library_bytes
             .ok_or("Invalid formula source length.")?;
         let (functions, bars) = rest
             .split_at_checked(library_bytes)
-            .filter(|(functions, _)| functions.len() <= 40 * 1024)
             .ok_or("Invalid formula function library length.")?;
-        let mut remaining = utf8(functions)?;
-        let mut definitions = Vec::new();
-        while !remaining.is_empty() {
-            if definitions.len() == 16 {
-                return Err("Supply at most 16 custom formula functions.".into());
-            }
-            let (header, body) = remaining
-                .split_once('\n')
-                .ok_or("Supply formula function settings.")?;
-            let (name, signature) = header
-                .split_once('\t')
-                .ok_or("Supply a function name and signature.")?;
-            let (params, length) = signature
-                .split_once('\t')
-                .ok_or("Supply the parameters and function body length.")?;
-            let (body, rest) = length
-                .parse::<usize>()
-                .ok()
-                .and_then(|size| body.split_at_checked(size))
-                .ok_or("Invalid formula function body length.")?;
-            let parameters: Vec<_> = params.splitn(5, ',').collect();
-            definitions.push((name, parameters, body));
-            remaining = rest;
-        }
-        let definitions: Vec<_> = definitions
-            .iter()
-            .map(
-                |(name, parameters, body)| crate::FormulaFunctionDefinition {
-                    name,
-                    parameters,
-                    body,
-                },
-            )
-            .collect();
-        let formula = crate::FormulaLibrary::new(&definitions)?.compile(utf8(source)?)?;
+        let formula = decode_formula_library(utf8(functions)?)?.compile(utf8(source)?)?;
         encode_formula_values(&formula, bars)
     })
+}
+
+fn split_formula_library(
+    input: &str,
+    bytes: usize,
+) -> Result<(Option<crate::FormulaLibrary>, &str), String> {
+    let (library, rest) = input
+        .split_at_checked(bytes)
+        .ok_or("Invalid formula function library length.")?;
+    let library = (!library.is_empty())
+        .then(|| decode_formula_library(library))
+        .transpose()?;
+    Ok((library, rest))
+}
+
+fn decode_formula_library(mut remaining: &str) -> Result<crate::FormulaLibrary, String> {
+    if remaining.len() > MAX_FORMULA_LIBRARY_BYTES {
+        return Err("Invalid formula function library length.".into());
+    }
+    let mut definitions = Vec::new();
+    while !remaining.is_empty() {
+        if definitions.len() == 16 {
+            return Err("Supply at most 16 custom formula functions.".into());
+        }
+        let (header, body) = remaining
+            .split_once('\n')
+            .ok_or("Supply formula function settings.")?;
+        let (name, signature) = header
+            .split_once('\t')
+            .ok_or("Supply a function name and signature.")?;
+        let (params, length) = signature
+            .split_once('\t')
+            .ok_or("Supply the parameters and function body length.")?;
+        let (body, rest) = length
+            .parse::<usize>()
+            .ok()
+            .and_then(|size| body.split_at_checked(size))
+            .ok_or("Invalid formula function body length.")?;
+        let parameters: Vec<_> = params.splitn(5, ',').collect();
+        definitions.push((name, parameters, body));
+        remaining = rest;
+    }
+    let definitions: Vec<_> = definitions
+        .iter()
+        .map(
+            |(name, parameters, body)| crate::FormulaFunctionDefinition {
+                name,
+                parameters,
+                body,
+            },
+        )
+        .collect();
+    crate::FormulaLibrary::new(&definitions)
 }
 
 fn encode_formula_values(formula: &crate::Formula, bars: &[u8]) -> Result<Vec<u8>, String> {

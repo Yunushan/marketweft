@@ -592,6 +592,7 @@ export interface RecordedBacktestQuery {
 export interface FormulaBacktestQuery extends RecordedBacktestQuery {
   entry: string;
   exit: string;
+  functions?: readonly FormulaFunction[];
 }
 
 export interface FormulaBacktestResult {
@@ -609,7 +610,7 @@ export interface FormulaBacktestResult {
 export interface FormulaWalkQuery extends RecordedBacktestQuery {
   trainingBars: number;
   testBars: number;
-  candidates: { id: string; entry: string; exit: string }[];
+  candidates: { id: string; entry: string; exit: string; functions?: readonly FormulaFunction[] }[];
 }
 
 export interface FormulaWalkScore {
@@ -784,7 +785,8 @@ export interface MarketCore {
     interval: number, query: FormulaBacktestQuery): FormulaBacktestResult;
   formulaWalk(instrument: string, calendar: string, bars: string, trades: string,
     interval: number, query: FormulaWalkQuery): FormulaWalkFold[];
-  validateFormulaStrategy(languageVersion: number, entry: string, exit: string, config: BacktestConfig): void;
+  validateFormulaStrategy(languageVersion: number, entry: string, exit: string, config: BacktestConfig,
+    functions?: readonly FormulaFunction[]): void;
   walkForward(instrument: string, calendar: string, bars: string, interval: number,
     cutoff: string, execution: BacktestConfig, config: WalkForwardConfig): WalkForwardFold[];
   scenarios(instrument: string, calendar: string, bars: string, interval: number,
@@ -847,8 +849,11 @@ interface MarketExports extends WebAssembly.Exports {
   mw_recorded_backtest(calendarBytes: number, barBytes: number, interval: number): number;
   mw_recorded_backtest_input(bytes: number): number;
   mw_formula_backtest(calendarBytes: number, barBytes: number, entryBytes: number, exitBytes: number, interval: number): number;
+  mw_formula_backtest_library(calendarBytes: number, barBytes: number, entryBytes: number, exitBytes: number,
+    libraryBytes: number, interval: number): number;
   mw_formula_walk(calendarBytes: number, barBytes: number, candidateBytes: number, interval: number): number;
   mw_validate_formula_strategy(languageVersion: number, entryBytes: number): number;
+  mw_validate_formula_strategy_library(languageVersion: number, entryBytes: number, libraryBytes: number): number;
   mw_walk_forward(calendarBytes: number, interval: number): number;
   mw_run_scenarios(calendarBytes: number, interval: number): number;
 }
@@ -1100,6 +1105,20 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     return { calendarBytes: sessionBytes.length, barBytes: barBytes.length };
   }
 
+  function encodeFormulaFunctions(functions: readonly FormulaFunction[] = []) {
+    if (functions.length > 16) throw new Error('Supply at most 16 custom formula functions.');
+    const identifier = /^[A-Za-z_][A-Za-z0-9_]{0,31}$/;
+    const chunks = functions.flatMap(({ name, parameters, body }) => {
+      if (parameters.length < 1 || parameters.length > 4 || ![name, ...parameters].every(value => identifier.test(value))) {
+        throw new Error('Use ASCII function names and one to four ASCII parameters.');
+      }
+      const expression = encoder.encode(body);
+      if (expression.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
+      return [encoder.encode(name + '\t' + parameters.join(',') + '\t' + expression.length + '\n'), expression];
+    });
+    return { chunks, bytes: chunks.reduce((length, part) => length + part.length, 0) };
+  }
+
   function timedBacktestHeader(instrument: string, { effective, known, config }: RecordedBacktestQuery) {
     if (effective.length !== 20 || /[\r\n]/.test(effective)) {
       throw new Error('Use a YYYY-MM-DDTHH:MM:SSZ effective cutoff.');
@@ -1125,33 +1144,23 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
   }
 
   return {
-    evaluateFormula(source, bars, functions = []) {
+    evaluateFormula(source, bars, functions) {
       const sourceBytes = encoder.encode(source);
       if (sourceBytes.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
       if (bars.length > 100_000) throw new Error('Formula histories support at most 100,000 bars.');
-      if (functions.length > 16) throw new Error('Supply at most 16 custom formula functions.');
-      const identifier = /^[A-Za-z_][A-Za-z0-9_]{0,31}$/;
-      const library = functions.flatMap(({ name, parameters, body }) => {
-        if (parameters.length < 1 || parameters.length > 4 || ![name, ...parameters].every(value => identifier.test(value))) {
-          throw new Error('Use ASCII function names and one to four ASCII parameters.');
-        }
-        const expression = encoder.encode(body);
-        if (expression.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
-        return [encoder.encode(name + '\t' + parameters.join(',') + '\t' + expression.length + '\n'), expression];
-      });
-      const libraryBytes = library.reduce((length, part) => length + part.length, 0);
-      const historyOffset = sourceBytes.length + libraryBytes;
+      const library = encodeFormulaFunctions(functions);
+      const historyOffset = sourceBytes.length + library.bytes;
       const dest = input(historyOffset + bars.length * 48);
       const payload = new Uint8Array(dest.buffer, dest.byteOffset, historyOffset);
       let offset = 0;
-      for (const part of [sourceBytes, ...library]) {
+      for (const part of [sourceBytes, ...library.chunks]) {
         payload.set(part, offset);
         offset += part.length;
       }
       for (const [index, bar] of bars.entries()) {
         putBar(dest, historyOffset + index * 48, bar, 'Formula evaluation');
       }
-      const values = output(libraryBytes ? api.mw_evaluate_formula_library(sourceBytes.length, libraryBytes)
+      const values = output(library.bytes ? api.mw_evaluate_formula_library(sourceBytes.length, library.bytes)
         : api.mw_evaluate_formula(sourceBytes.length));
       return { version: api.mw_formula_version(), values: Array.from({ length: bars.length }, (_, index) => {
         const value = values.getBigInt64(index * 8, true);
@@ -1847,8 +1856,11 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const [entry, exit] = sources.map(source => encoder.encode(source));
       if (entry.length > 2048 || exit.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
       const header = timedBacktestHeader(instrument, query);
-      const files = putBacktestInput(calendar, bars, trades, [header, entry, exit]);
-      const bytes = output(api.mw_formula_backtest(files.calendarBytes, files.barBytes, entry.length, exit.length, interval));
+      const library = encodeFormulaFunctions(query.functions);
+      const files = putBacktestInput(calendar, bars, trades, [header, entry, exit, ...library.chunks]);
+      const bytes = output(library.bytes
+        ? api.mw_formula_backtest_library(files.calendarBytes, files.barBytes, entry.length, exit.length, library.bytes, interval)
+        : api.mw_formula_backtest(files.calendarBytes, files.barBytes, entry.length, exit.length, interval));
       return decodeFormulaBacktest(decoder.decode(bytes).slice(0, -1).split('\n'), api.mw_formula_version());
     },
     formulaWalk(instrument, calendar, bars, trades, interval, query) {
@@ -1862,12 +1874,14 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         throw new Error('Supply 2–16 candidates with unique ASCII strategy IDs.');
       }
       const formulas: Uint8Array[] = [];
-      for (const { id, entry, exit } of candidates) {
+      for (const { id, entry, exit, functions } of candidates) {
         if (entry.length > 2048 || exit.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
         const enter = encoder.encode(entry);
         const leave = encoder.encode(exit);
         if (enter.length > 2048 || leave.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
-        formulas.push(encoder.encode([id, enter.length, leave.length].join('\t') + '\n'), enter, leave);
+        const library = encodeFormulaFunctions(functions);
+        const sizes = library.bytes ? [id, enter.length, leave.length, library.bytes] : [id, enter.length, leave.length];
+        formulas.push(encoder.encode(sizes.join('\t') + '\n'), enter, leave, ...library.chunks);
       }
       const header = timedBacktestHeader(instrument, query);
       const settings = encoder.encode(trainingBars + ',' + testBars + '\n');
@@ -1895,15 +1909,29 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           report: decodeFormulaBacktest(lines.slice(body), version) };
       });
     },
-    validateFormulaStrategy(languageVersion, entry, exit, config) {
+    validateFormulaStrategy(languageVersion, entry, exit, config, functions) {
       if (!Number.isInteger(languageVersion) || languageVersion < 1 || languageVersion > 0xffffffff) {
         throw new Error('Unsupported formula language version.');
       }
       if (entry.length > 2048 || exit.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
       const entryBytes = encoder.encode(entry).length;
       if (entryBytes > 2048 || encoder.encode(exit).length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
-      textInput([...backtestSettings(config), entry + exit].join('\n'));
-      output(api.mw_validate_formula_strategy(languageVersion, entryBytes));
+      const library = encodeFormulaFunctions(functions);
+      if (!library.bytes) {
+        textInput([...backtestSettings(config), entry + exit].join('\n'));
+        output(api.mw_validate_formula_strategy(languageVersion, entryBytes));
+      } else {
+        const header = encoder.encode([...backtestSettings(config), ''].join('\n'));
+        const formulas = encoder.encode(entry + exit);
+        const dest = input(header.length + library.bytes + formulas.length);
+        const payload = new Uint8Array(dest.buffer, dest.byteOffset, dest.byteLength);
+        let offset = 0;
+        for (const chunk of [header, ...library.chunks, formulas]) {
+          payload.set(chunk, offset);
+          offset += chunk.length;
+        }
+        output(api.mw_validate_formula_strategy_library(languageVersion, entryBytes, library.bytes));
+      }
     },
     walkForward(instrument, calendar, bars, interval, cutoff, execution, config) {
       validateInterval(interval);
