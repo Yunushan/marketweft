@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.32.0 reconstructs recorded bids and asks from snapshots and sequence-checked updates. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.33.0 computes a recorded footprint and cumulative volume delta from captured aggressor trades. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -35,6 +35,7 @@
 | Delivered · 0.30.0 | Multi-listing dividend income (MW-017, MW-025) | Compute gross entitlement from dated holdings before ex, settle at pay time, and reconcile later quantity, terms and currency revisions at independent cutoffs. [Portfolio replay](docs/portfolio-replay.md). |
 | Delivered · 0.31.0 | Aligned relative returns (MW-013, MW-018) | Compare two stable listing IDs on exact UTC closes. Reconstruct membership and quote revisions at the same cutoff and export the full window with observation timestamps. [Relative returns](docs/relative-returns.md). |
 | Delivered · 0.32.0 | Recorded depth replay (MW-012, MW-019) | Rebuild a local book from complete snapshots and atomic level updates. Withhold stale levels through sequence gaps and crossed frames. Verify recovery and exact CSV after a new snapshot. [Recorded market depth](docs/recorded-depth.md). |
+| Delivered · 0.33.0 | Historical footprint and cumulative delta (MW-012, MW-019) | Replay supplied aggressor trades by exact execution and observation cutoffs. Verify signed price bins, unknown volume, late trades and wide fixed-point sums. [Recorded footprint](docs/recorded-footprint.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Apply delisting proceeds and dividend entries in portfolio execution replay. Extend the source and rights model to live providers. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -46,5 +47,5 @@
 
 ## Handoff for the next change
 
-The next order-flow milestone reconstructs historical footprint and cumulative volume delta from supplied trades with aggressor-side evidence. Verify prefix invariance, price-bin totals and explicit unknown-side coverage.
+The next order-flow milestone adds volume and time-price opportunity profiles for a selected execution window. Verify price-bin volume, distinct bracket occupancy and observation-cutoff replay against historical trade fixtures.
 

@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.33.0 · Recorded footprint and cumulative delta
+
+| Check | Observed result |
+| --- | --- |
+| Exact bins | A trade at −0.01 enters the inclusive bin from −0.5 to 0. A trade at 100.5 enters the bin beginning at 100.5. An in-bin sum of 13.000001 includes 3 units of unknown volume and preserves exact millionths. |
+| Cutoff replay | The execution window ends at 00:01:00 UTC. Advancing knowledge by one second adds two late observations to earlier buckets and changes the final cumulative delta from −1 to 8.900001. A trade executed after the window stays excluded. Rewinding reproduces the earlier CSV byte for byte. |
+| Exact export and range | Native tests preserve a fixed-point volume of 10,000,000,000,000,000,000 ticks. Offline Chromium verifies price-bin totals, exact capture sequences and observation times. An invalid increment leaves the previous result and catalog intact. |
+| Regression suite | All 74 browser, six SDK and four launcher tests passed on Windows x64. All 76 native tests passed on Linux x64, all 29 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Recorded footprint](recorded-footprint.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.32.0 · Recorded market depth
 
 | Check | Observed result |
