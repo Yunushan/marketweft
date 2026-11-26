@@ -69,8 +69,8 @@ pub use formula_walk::{
     FormulaWalkScore,
 };
 pub use fundamentals::{
-    Filing, FinancialBook, MarketCap, Multiple, QuarterlyFinancials, TrailingFourQuarters,
-    Valuation,
+    Filing, FinancialBook, MarketCap, Multiple, QuarterlyFinancials, QuarterlyValuation,
+    TrailingFourQuarters, Valuation,
 };
 pub use history::{exact_utc as parse_exact_utc, parse_csv, Bar};
 pub use indicator::{indicator, Average};

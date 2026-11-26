@@ -1,9 +1,49 @@
-use marketweft_core::{parse_exact_utc, FinancialBook, Multiple, TrailingFourQuarters};
+use marketweft_core::{
+    parse_exact_utc, FinancialBook, Multiple, QuarterlyValuation, TrailingFourQuarters,
+};
 
 const FILINGS: &str = include_str!("fixtures/synthetic-financial-filings.csv");
 const MARKET_CAPS: &str = include_str!("fixtures/synthetic-financial-market-caps.csv");
 const PERIODS: &str = include_str!("fixtures/synthetic-financial-periods.csv");
 const AT: i64 = 1_743_688_800; // 2025-04-03T14:00:00Z
+
+#[test]
+fn trailing_valuation_uses_flows_and_the_latest_quarter_end_equity() {
+    let book = FinancialBook::parse(PERIODS, MARKET_CAPS).unwrap();
+    let valuation = |book: &FinancialBook, at, known| {
+        let cap = book.as_of("DEMO-ALFA", at, known).unwrap().market_cap;
+        book.quarterly_as_of("DEMO-ALFA", at, known)
+            .unwrap()
+            .valuation(cap)
+    };
+    let early = valuation(&book, AT, AT + 60);
+    assert_eq!(
+        early,
+        QuarterlyValuation {
+            price_earnings: None,
+            price_sales: None,
+            price_book: Multiple::Value(4_000_000),
+        }
+    );
+    let complete = valuation(&book, AT, AT + 300);
+    assert_eq!(complete.price_earnings, Some(Multiple::Value(10_000_000)));
+    assert_eq!(complete.price_sales, Some(Multiple::Value(2_000_000)));
+    assert_eq!(complete.price_book, early.price_book);
+    let revised = valuation(&book, AT, AT + 22 * 60);
+    assert_eq!(revised.price_earnings, Some(Multiple::MissingDenominator));
+    assert_eq!(revised.price_sales, Some(Multiple::Value(1_500_000)));
+    assert_eq!(revised.price_book, Multiple::MissingDenominator);
+    assert_eq!(valuation(&book, AT, AT + 300), complete);
+    let mismatch = valuation(&book, AT + 30 * 60, AT + 30 * 60);
+    assert_eq!(mismatch.price_sales, Some(Multiple::CurrencyMismatch));
+    assert_eq!(mismatch.price_book, Multiple::CurrencyMismatch);
+    let mixed = FinancialBook::parse(
+        &PERIODS.replace("14:05:00Z,USD", "14:05:00Z,EUR"),
+        MARKET_CAPS,
+    )
+    .unwrap();
+    assert_eq!(valuation(&mixed, AT, AT + 300), early);
+}
 
 #[test]
 fn trailing_flows_require_four_available_quarters_and_replay_restatements() {

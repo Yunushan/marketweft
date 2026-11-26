@@ -73,4 +73,5 @@ test('the public TypeScript SDK reads quarterly evidence from its packaged engin
   assert.equal(result.quarters[3].sourceId, 'ALFA-Q4-A1')
   assert.equal(result.trailing.revenue, 8000000000000010n)
   assert.equal(result.trailing.commonNetIncome, null)
+  assert.deepEqual(result.quarterlyValuation.priceSales, { kind: 'value', units: 1500000n })
 })

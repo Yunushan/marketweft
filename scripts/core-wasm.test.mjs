@@ -693,14 +693,23 @@ test('quarterly Wasm replay keeps publication vintages and exact trailing amount
   const early = snapshot('14:04:59');
   assert.deepEqual(early.quarters.map(row => row.sourceId), ['ALFA-Q1', 'ALFA-Q3', 'ALFA-Q4']);
   assert.deepEqual(early.trailing, { kind: 'insufficient-quarters' });
+  assert.deepEqual(early.quarterlyValuation, {
+    priceEarnings: null, priceSales: null, priceBook: { kind: 'value', units: 4000000n },
+  });
   const complete = snapshot('14:05:00');
   assert.deepEqual(complete.trailing, { kind: 'available', currency: 'USD',
     revenue: 6000000000000010n, commonNetIncome: 1200000000000010n, operatingCashFlow: 700000000000003n });
+  assert.deepEqual(complete.quarterlyValuation.priceEarnings, { kind: 'value', units: 10000000n });
   const revised = snapshot('14:22:00');
   assert.equal(revised.filing.sourceId, 'ALFA-FY24-A1');
   assert.equal(revised.quarters[3].sourceId, 'ALFA-Q4-A1');
   assert.deepEqual(revised.trailing, { kind: 'available', currency: 'USD',
     revenue: 8000000000000010n, commonNetIncome: null, operatingCashFlow: -250000000000005n });
+  assert.deepEqual(revised.quarterlyValuation, {
+    priceEarnings: { kind: 'missing-denominator' },
+    priceSales: { kind: 'value', units: 1500000n },
+    priceBook: { kind: 'missing-denominator' },
+  });
   assert.deepEqual(snapshot('14:05:00').trailing, complete.trailing);
   assert.equal(snapshot('14:05:00', filings.replace('14:05:00Z,USD', '14:05:00Z,EUR')).trailing.kind, 'currency');
   assert.equal(snapshot('14:05:00', filings.replace('2024-04-01,2024-06-30', '2024-04-02,2024-06-30')).trailing.kind, 'noncontiguous');

@@ -2,7 +2,7 @@ import { instantiateMarketCore } from './core.js'
 import type { Bar, FormulaFunction, FormulaResult, MarketCore } from './core.js'
 
 export type {
-  Bar, Filing, FinancialIssuer, FinancialSnapshot, FormulaFunction, FormulaResult, ScreenPrice,
+  Bar, Filing, FinancialIssuer, FinancialSnapshot, FormulaFunction, FormulaResult, QuarterlyValuation, ScreenPrice,
   ScreenRow, TrailingFourQuarters,
 } from './core.js'
 

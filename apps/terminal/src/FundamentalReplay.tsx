@@ -51,6 +51,7 @@ export function FundamentalReplay({ core, close }: { core: MarketCore; close: ()
   const [inputs, setInputs] = useState<FinancialInputs | null>(null)
   const [draft, setDraft] = useState<Query>({ issuer: '', at: '', known: '' })
   const [result, setResult] = useState<{ query: Query; valuation: FinancialSnapshot } | null>(null)
+  const [basis, setBasis] = useState<'annual' | 'trailing'>('annual')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => { heading.current?.focus() }, [])
@@ -67,6 +68,7 @@ export function FundamentalReplay({ core, close }: { core: MarketCore; close: ()
     const at = utc(issuers[0].suggestedAt)
     run(book, { issuer: issuers[0].id, at, known: at })
     setInputs(book)
+    setBasis('annual')
   }
 
   function openDemo() {
@@ -191,11 +193,13 @@ export function FundamentalReplay({ core, close }: { core: MarketCore; close: ()
             <section className="side-card replay-panel replay-results" aria-labelledby="valuation-results">
               <h2 id="valuation-results">Valuation results</h2>
               <p role="status">{result.query.issuer} · Valuation {result.query.at} · Known through {result.query.known}</p>
-              <dl className="replay-times">
-                <div><dt>Price / earnings</dt><dd>{multiple(result.valuation.priceEarnings)}</dd></div>
-                <div><dt>Price / sales</dt><dd>{multiple(result.valuation.priceSales)}</dd></div>
-                <div><dt>Price / book</dt><dd>{multiple(result.valuation.priceBook)}</dd></div>
-              </dl>
+              <label>Valuation basis
+                <select value={basis} onChange={event => setBasis(event.target.value === 'trailing' ? 'trailing' : 'annual')}>
+                  <option value="annual">Annual filing</option>
+                  <option value="trailing">Trailing twelve months</option>
+                </select>
+              </label>
+              <ValuationMultiples valuation={result.valuation} basis={basis} />
               <h3>Annual financial filing</h3>
               {filing ? (
                 <dl className="replay-times">
@@ -227,6 +231,29 @@ export function FundamentalReplay({ core, close }: { core: MarketCore; close: ()
       </main>
     </>
   )
+}
+
+function ValuationMultiples({ valuation, basis }: {
+  valuation: FinancialSnapshot
+  basis: 'annual' | 'trailing'
+}) {
+  const useTrailing = basis === 'trailing'
+  const values = useTrailing ? valuation.quarterlyValuation : valuation
+  const coverage = valuation.trailing.kind
+  const flowMultiple = (value: Multiple | null) => {
+    if (value) return multiple(value)
+    if (coverage === 'insufficient-quarters') return 'Four known fiscal quarters required'
+    return coverage === 'available' ? 'Missing trailing flow' : trailingUnavailable[coverage]
+  }
+  const latestQuarter = valuation.quarters.at(-1)
+  return <>
+    <dl className="replay-times">
+      <div><dt>Price / earnings</dt><dd>{flowMultiple(values.priceEarnings)}</dd></div>
+      <div><dt>Price / sales</dt><dd>{flowMultiple(values.priceSales)}</dd></div>
+      <div><dt>Price / book</dt><dd>{multiple(values.priceBook)}</dd></div>
+    </dl>
+    {useTrailing && latestQuarter && <p>Quarter-end book value from {latestQuarter.sourceId}</p>}
+  </>
 }
 
 function QuarterlyResults({ valuation }: { valuation: FinancialSnapshot }) {

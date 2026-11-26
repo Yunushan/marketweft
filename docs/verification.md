@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.87.0 · Trailing valuation multiples
+
+| Check | Observed result |
+| --- | --- |
+| Partial quarter coverage | Before the late second quarter arrives, trailing P/E and P/S are unavailable. The latest known common equity already gives 4× P/B. |
+| Exact cutoffs and source vintage | The complete quarter set yields 10× P/E, 2× P/S and 4× P/B. The fourth-quarter restatement leaves P/E and P/B unavailable and yields 1.5× P/S. Offline Chromium confirms source IDs and restores the earlier multiples on rewind. |
+| Currency and compatibility | The Rust fixtures distinguish mixed quarter currencies from a capitalization currency mismatch. Annual analysis, the Wasm bridge and the public TypeScript SDK preserve the existing annual values. |
+
+[Valuation basis](financial-statements.md#choose-a-valuation-basis) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.86.0 · Quarterly financial replay
 
 | Check | Observed result |

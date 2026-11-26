@@ -358,9 +358,16 @@ export type TrailingFourQuarters =
       operatingCashFlow: bigint | null }
   | { kind: 'insufficient-quarters' | 'noncontiguous' | 'currency' };
 
+export interface QuarterlyValuation {
+  priceEarnings: Multiple | null;
+  priceSales: Multiple | null;
+  priceBook: Multiple;
+}
+
 export interface FinancialSnapshot extends Valuation {
   quarters: Filing[];
   trailing: TrailingFourQuarters;
+  quarterlyValuation: QuarterlyValuation;
 }
 
 export interface MacroRecord {
@@ -1080,6 +1087,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     let trailing: TrailingFourQuarters | null = null;
     const quarters: Filing[] = [];
     const multiples: Multiple[] = [];
+    const quarterlyMultiples: (Multiple | null)[] = [];
     const amount = (value: string) => value === '' ? null : BigInt(value);
     for (const line of text.slice(0, -1).split('\n')) {
       const [type, ...fields] = line.split('\t');
@@ -1093,17 +1101,21 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       } else if (type === 'C') {
         const [sourceId, time, obs, currency, cap] = fields;
         marketCap = { sourceId, at: Number(time), observedAt: Number(obs), currency, ticks: BigInt(cap) };
-      } else if (type === 'R') {
+      } else if (type === 'R' || type === 'U') {
         const [kind, value] = fields;
+        let multiple: Multiple | null;
         switch (kind) {
-          case 'value': multiples.push({ kind, units: BigInt(value) }); break;
+          case 'value': multiple = { kind, units: BigInt(value) }; break;
           case 'missing-filing':
           case 'missing-cap':
           case 'currency':
           case 'missing-denominator':
-          case 'nonpositive-denominator': multiples.push({ kind }); break;
+          case 'nonpositive-denominator': multiple = { kind }; break;
+          case 'missing-quarters': multiple = null; break;
           default: throw new Error('Invalid valuation multiple from the calculation engine.');
         }
+        if (type === 'U') quarterlyMultiples.push(multiple);
+        else if (multiple) multiples.push(multiple);
       } else if (type === 'T') {
         const [kind, currency, revenue, income, cash] = fields;
         switch (kind) {
@@ -1118,7 +1130,8 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     }
     const [priceEarnings, priceSales, priceBook] = multiples;
     if (multiples.length !== 3) throw new Error('Incomplete valuation from the calculation engine.');
-    return { valuation: { filing, marketCap, priceEarnings, priceSales, priceBook }, quarters, trailing };
+    return { valuation: { filing, marketCap, priceEarnings, priceSales, priceBook },
+      quarters, trailing, quarterlyMultiples };
   }
 
   function screenInput(times: string[], ...files: string[]) {
@@ -1800,9 +1813,11 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return financialQuery(filings, caps, issuer, at, known, false).valuation;
     },
     financialSnapshot(filings, caps, issuer, at, known) {
-      const { valuation, quarters, trailing } = financialQuery(filings, caps, issuer, at, known, true);
-      if (!trailing) throw new Error('Incomplete quarterly coverage from the calculation engine.');
-      return { ...valuation, quarters, trailing };
+      const { valuation, quarters, trailing, quarterlyMultiples } = financialQuery(filings, caps, issuer, at, known, true);
+      const [priceEarnings, priceSales, priceBook] = quarterlyMultiples;
+      if (!trailing || quarterlyMultiples.length !== 3 || !priceBook)
+        throw new Error('Incomplete quarterly coverage from the calculation engine.');
+      return { ...valuation, quarters, trailing, quarterlyValuation: { priceEarnings, priceSales, priceBook } };
     },
     macroIndex(csv) {
       textInput(csv);

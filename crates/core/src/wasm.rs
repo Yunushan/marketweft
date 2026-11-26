@@ -1173,6 +1173,23 @@ fn write_financial_filing(text: &mut String, tag: char, filing: &Filing) {
     .unwrap();
 }
 
+fn write_financial_multiple(text: &mut String, tag: char, multiple: Option<Multiple>) {
+    use std::fmt::Write;
+    let code = match multiple {
+        None => "missing-quarters",
+        Some(Multiple::Value(value)) => {
+            writeln!(text, "{tag}\tvalue\t{value}").unwrap();
+            return;
+        }
+        Some(Multiple::MissingFiling) => "missing-filing",
+        Some(Multiple::MissingMarketCap) => "missing-cap",
+        Some(Multiple::CurrencyMismatch) => "currency",
+        Some(Multiple::MissingDenominator) => "missing-denominator",
+        Some(Multiple::NonPositiveDenominator) => "nonpositive-denominator",
+    };
+    writeln!(text, "{tag}\t{code}").unwrap();
+}
+
 fn financial_as_of(filing_bytes: usize, include_quarters: bool) -> u32 {
     use std::fmt::Write;
     process(|input| {
@@ -1208,21 +1225,11 @@ fn financial_as_of(filing_bytes: usize, include_quarters: bool) -> u32 {
             valuation.price_sales,
             valuation.price_book,
         ] {
-            let code = match multiple {
-                Multiple::Value(value) => {
-                    writeln!(&mut text, "R\tvalue\t{value}").unwrap();
-                    continue;
-                }
-                Multiple::MissingFiling => "missing-filing",
-                Multiple::MissingMarketCap => "missing-cap",
-                Multiple::CurrencyMismatch => "currency",
-                Multiple::MissingDenominator => "missing-denominator",
-                Multiple::NonPositiveDenominator => "nonpositive-denominator",
-            };
-            writeln!(&mut text, "R\t{code}").unwrap();
+            write_financial_multiple(&mut text, 'R', Some(multiple));
         }
         if include_quarters {
             let quarterly = book.quarterly_as_of(issuer, at, known)?;
+            let trailing_valuation = quarterly.valuation(valuation.market_cap);
             for quarter in quarterly.quarters {
                 write_financial_filing(&mut text, 'Q', quarter);
             }
@@ -1246,6 +1253,13 @@ fn financial_as_of(filing_bytes: usize, include_quarters: bool) -> u32 {
                 TrailingFourQuarters::CurrencyMismatch => writeln!(text, "T\tcurrency"),
             }
             .unwrap();
+            for multiple in [
+                trailing_valuation.price_earnings,
+                trailing_valuation.price_sales,
+                Some(trailing_valuation.price_book),
+            ] {
+                write_financial_multiple(&mut text, 'U', multiple);
+            }
         }
         Ok(text.into_bytes())
     })

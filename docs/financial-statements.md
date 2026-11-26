@@ -15,7 +15,7 @@ Use **Original filing** to return to the earlier view. The annual statement disp
 
 ## Local input
 
-Upload **Financial filings CSV**. Supply **Capitalization CSV** to calculate annual multiples. These inputs use a stable issuer ID and an immutable source filing or observation ID. The portable build includes synthetic filings and capitalization. [Annual filing fixture](../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [Capitalization fixture](../crates/core/tests/fixtures/synthetic-financial-market-caps.csv).
+Upload **Financial filings CSV**. Supply **Capitalization CSV** to calculate valuation multiples. These inputs use a stable issuer ID and an immutable source filing or observation ID. The portable build includes synthetic filings and capitalization. [Annual filing fixture](../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [Capitalization fixture](../crates/core/tests/fixtures/synthetic-financial-market-caps.csv).
 
 ```csv
 issuer_id,filing_id,fiscal_start,fiscal_end,published_at,observed_at,currency,revenue,common_net_income,common_equity,operating_cash_flow
@@ -45,4 +45,8 @@ The **Quarterly financial results** panel shows up to four eligible quarters in 
 
 At 14:04:59 UTC in the demo, three quarters are known. The late second quarter arrives at 14:05:00 UTC, so trailing revenue becomes USD 6,000,000,000.00001. At 14:22:00 UTC a fourth-quarter restatement raises revenue to USD 8,000,000,000.00001 and leaves trailing net income unavailable. Choose **Four quarters known** to rewind. [Quarterly and annual fixture](../crates/core/tests/fixtures/synthetic-financial-periods.csv).
 
-The existing valuation multiples use the annual filing and exact capitalization observation. [Architecture decision](adr/0009-financial-vintages.md).
+## Choose a valuation basis
+
+In **Valuation results**, choose **Annual filing** or **Trailing twelve months**. Both bases use the same exact capitalization observation and applied UTC cutoffs. The annual basis uses fields from the selected annual filing. The trailing basis uses the four-quarter net income and revenue for P/E and P/S, and common equity from the latest eligible quarter for P/B. The latest quarterly filing ID appears beneath the multiples.
+
+Before the fourth required quarter arrives, trailing P/E and P/S show the coverage reason. Quarterly P/B can appear as soon as the latest quarter and matching capitalization are available. At 14:05 UTC in the demo, trailing P/E, P/S and P/B are 10×, 2× and 4×. At 14:22 UTC the revised quarter leaves P/E and P/B unavailable and changes P/S to 1.5×. Rewind to restore all three original values. [Architecture decision](adr/0009-financial-vintages.md).

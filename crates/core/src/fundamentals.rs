@@ -65,6 +65,45 @@ pub struct QuarterlyFinancials<'a> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct QuarterlyValuation {
+    /// Flow multiples are absent until trailing coverage is available.
+    pub price_earnings: Option<Multiple>,
+    pub price_sales: Option<Multiple>,
+    pub price_book: Multiple,
+}
+
+impl QuarterlyFinancials<'_> {
+    pub fn valuation(&self, market_cap: Option<&MarketCap>) -> QuarterlyValuation {
+        let (price_earnings, price_sales) = match self.trailing {
+            TrailingFourQuarters::Available {
+                currency,
+                revenue,
+                common_net_income,
+                ..
+            } => (
+                Some(valuation_multiple(
+                    market_cap,
+                    Some((currency, common_net_income)),
+                )),
+                Some(valuation_multiple(market_cap, Some((currency, revenue)))),
+            ),
+            _ => (None, None),
+        };
+        let price_book = valuation_multiple(
+            market_cap,
+            self.quarters
+                .last()
+                .map(|filing| (filing.currency.as_str(), filing.common_equity)),
+        );
+        QuarterlyValuation {
+            price_earnings,
+            price_sales,
+            price_book,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TrailingFourQuarters<'a> {
     InsufficientQuarters,
     Noncontiguous,
@@ -284,19 +323,10 @@ impl FinancialBook {
             .and_then(|series| series.get(&valuation_at))
             .and_then(|versions| versions.range(..=known_at).next_back().map(|(_, cap)| cap));
         let ratio = |denominator: fn(&Filing) -> Option<i128>| {
-            let (filing, cap) = match (filing, market_cap) {
-                (None, _) => return Multiple::MissingFiling,
-                (_, None) => return Multiple::MissingMarketCap,
-                (Some(filing), Some(cap)) => (filing, cap),
-            };
-            if filing.currency != cap.currency {
-                return Multiple::CurrencyMismatch;
-            }
-            match denominator(filing) {
-                None => Multiple::MissingDenominator,
-                Some(amount) if amount <= 0 => Multiple::NonPositiveDenominator,
-                Some(amount) => Multiple::Value(rounded_div(cap.ticks * i128::from(SCALE), amount)),
-            }
+            valuation_multiple(
+                market_cap,
+                filing.map(|filing| (filing.currency.as_str(), denominator(filing))),
+            )
         };
         Ok(Valuation {
             filing,
@@ -348,6 +378,26 @@ impl FinancialBook {
             _ => TrailingFourQuarters::InsufficientQuarters,
         };
         Ok(QuarterlyFinancials { quarters, trailing })
+    }
+}
+
+fn valuation_multiple(
+    market_cap: Option<&MarketCap>,
+    denominator: Option<(&str, Option<i128>)>,
+) -> Multiple {
+    let Some((currency, amount)) = denominator else {
+        return Multiple::MissingFiling;
+    };
+    let Some(cap) = market_cap else {
+        return Multiple::MissingMarketCap;
+    };
+    if currency != cap.currency {
+        return Multiple::CurrencyMismatch;
+    }
+    match amount {
+        None => Multiple::MissingDenominator,
+        Some(amount) if amount <= 0 => Multiple::NonPositiveDenominator,
+        Some(amount) => Multiple::Value(rounded_div(cap.ticks * i128::from(SCALE), amount)),
     }
 }
 

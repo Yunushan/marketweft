@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.86.0 replays quarterly filings and totals trailing twelve-month flows from four known quarters. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.87.0 compares annual and trailing twelve-month valuation multiples at the same replay cutoffs. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -89,16 +89,17 @@
 | Delivered · 0.84.0 | Signed provider revision fixture (MW-013, MW-029) | Verify signature, exact CSV bytes, identity and display permissions before replay. Check expiry during the session. [Signed provider revisions](docs/provider-revisions.md#load-a-signed-provider-revision-fixture). |
 | Delivered · 0.85.0 | Provider replay provenance and CSV (MW-013, MW-029) | Verify source and signer hashes, grant-gated export, exact replay cutoffs and snapshot reimport. [Provider replay CSV](docs/provider-revisions.md#verify-the-source-and-download-the-replay). |
 | Delivered · 0.86.0 | Quarterly financial replay (MW-023) | Verify four contiguous known quarters, signed cash-flow totals, separate annual and quarterly restatements, and exact packaged SDK results. [Quarterly financial filings](docs/financial-statements.md#quarterly-filings-and-trailing-twelve-months). |
+| Delivered · 0.87.0 | Trailing valuation multiples (MW-023) | Reconcile trailing P/E and P/S and the latest known quarterly P/B with the same capitalization and UTC cutoffs as the annual basis. [Valuation basis](docs/financial-statements.md#choose-a-valuation-basis). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Broaden reproducible strategy signals, portfolio-level optimization and execution inputs. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Support isolated executable plugins and independent formula SDK conformance. Verify schema compatibility across SDKs and extend the read-only MCP research tools. |
-| P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Add valuation on the trailing-four-quarter basis, explicit webhook configuration, authenticated delivery, bounded retry, delivery receipts, options exercise and dividend models, and authorized data sources. |
+| P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Serve financial snapshots through the native research CLI and Python SDK. Add explicit webhook configuration, authenticated delivery, bounded retry, delivery receipts, options exercise and dividend models, and authorized data sources. |
 | P2 | Order flow and specialized visualization (MW-012, MW-019) | Add authorized trade and depth streams, sequence recovery, trade-side classification and profiles. Benchmark Canvas against WebGL/wgpu with identical traces before adopting another renderer. |
 | P3 | Enterprise and authorized live execution (MW-022, MW-028, MW-030) | Extend the headless Rust service with SQLite/DuckDB persistence, remote authentication and audited operations. Add external stores/queues only after load tests justify them. Prove quota enforcement and disaster recovery before a hosted rollout. Require explicit authorization and deterministic pre-trade risk for any live route. |
 
 ## Handoff for the next change
 
-Add a valuation basis selector for annual and trailing twelve-month flows. Use the latest known quarterly common equity for trailing price-to-book and verify missing periods, currency mismatches, and restatements.
+Expose the same annual and quarterly financial snapshots through the native research CLI and Python SDK. Verify exact values and status codes against the Rust and TypeScript fixtures.
 
