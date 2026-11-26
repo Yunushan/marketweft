@@ -14,6 +14,7 @@ export const dividendName = {
   report: 'Dividend report observed',
   ex: 'Dividend ex-date',
   pay: 'Dividend pay date',
+  entitlement: 'Dividend entitlement revised',
 } as const
 
 export function dividendTimeline(

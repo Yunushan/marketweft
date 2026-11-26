@@ -1,10 +1,11 @@
 use marketweft_core::{
-    parse_csv, parse_dividends, parse_sessions, replay, Dividend, DividendBook, DividendKind,
-    Instrument,
+    parse_csv, parse_dividend_positions, parse_dividends, parse_sessions, replay, Dividend,
+    DividendBook, DividendKind, DividendPositions, Instrument, PositionObservation,
 };
 use std::collections::BTreeMap;
 
 const REPORTS: &str = include_str!("fixtures/synthetic-cash-dividends.csv");
+const POSITIONS: &str = include_str!("fixtures/synthetic-dividend-positions.csv");
 const BARS: &str = include_str!("fixtures/synthetic-split-ohlcv.csv");
 const CALENDAR: &str = include_str!("fixtures/synthetic-split-sessions.csv");
 
@@ -17,6 +18,126 @@ fn utc(time: &str) -> i64 {
     ))
     .unwrap()[0]
         .time
+}
+
+#[test]
+fn per_distribution_shares_respect_ex_cutoffs_and_adjust_only_at_late_observation() {
+    let instrument = instrument();
+    let book = parse_dividends(REPORTS, &instrument).unwrap();
+    let positions = parse_dividend_positions(POSITIONS, &instrument).unwrap();
+    let events = book.position_ledger(&positions).unwrap();
+    assert_eq!(events[0].entitled_shares, None);
+    let ex = events
+        .iter()
+        .find(|event| event.kind == DividendKind::Ex)
+        .unwrap();
+    assert_eq!(ex.entitled_shares, Some(100));
+    assert_eq!(ex.movements[0].receivable, 25_000_000);
+    let beta = events
+        .iter()
+        .find(|event| event.revision.id == "BETA")
+        .unwrap();
+    assert_eq!(beta.entitled_shares, Some(40));
+    assert_eq!(beta.movements[0].cash, 4_000_000);
+    let positions: Vec<_> = events
+        .iter()
+        .filter(|event| event.kind == DividendKind::Entitlement)
+        .map(|event| {
+            (
+                event.at,
+                event.entitled_shares,
+                event.movements[0].receivable_delta,
+                event.movements[0].cash_delta,
+            )
+        })
+        .collect();
+    assert_eq!(
+        positions,
+        [
+            (utc("2025-06-03T14:40:00Z"), Some(120), 5_000_000, 0),
+            (utc("2025-06-04T14:30:00Z"), Some(110), 0, -3_000_000),
+        ]
+    );
+    let pay = events
+        .iter()
+        .find(|event| event.kind == DividendKind::Pay)
+        .unwrap();
+    assert_eq!(
+        (pay.entitled_shares, pay.movements[0].cash),
+        (Some(120), 36_000_000)
+    );
+    assert_eq!(events.last().unwrap().movements[0].cash, 30_800_000);
+}
+
+#[test]
+fn zero_positions_are_known_and_report_validation_fails_closed() {
+    let instrument = instrument();
+    let book = parse_dividends(REPORTS, &instrument).unwrap();
+    let late_zero = "instrument,effective_at,observed_at,shares\nDEMO:DIVIDEND,2025-06-03T13:59:00Z,2025-06-03T14:10:00Z,0\n";
+    let holdings = parse_dividend_positions(late_zero, &instrument).unwrap();
+    let ledger = book.position_ledger(&holdings).unwrap();
+    assert_eq!(ledger[1].entitled_shares, None);
+    assert_eq!(ledger[1].kind, DividendKind::Ex);
+    assert_eq!(ledger[2].entitled_shares, Some(0));
+    assert_eq!(ledger[2].kind, DividendKind::Entitlement);
+    assert!(ledger[2].movements.is_empty());
+    let mismatch = parse_dividend_positions(
+        &late_zero.replace("DEMO:DIVIDEND", "DEMO:SPLIT"),
+        &Instrument::new("DEMO", "SPLIT").unwrap(),
+    )
+    .unwrap();
+    assert!(book.position_ledger(&mismatch).is_err());
+    for invalid in [
+        late_zero.replace("T14:10:00Z", "T13:58:00Z"),
+        late_zero.replace(",0\n", ",1000001\n"),
+        format!("{late_zero}{}", late_zero.lines().nth(1).unwrap()),
+    ] {
+        assert!(parse_dividend_positions(&invalid, &instrument).is_err());
+    }
+}
+
+#[test]
+fn ex_date_correction_reselects_holdings_and_uses_all_observations_at_the_cutoff() {
+    let original = Dividend {
+        id: "fixed".into(),
+        announced_at: 0,
+        observed_at: 1,
+        ex_at: 20,
+        pay_at: 30,
+        currency: "USD".into(),
+        amount_per_share: 1_000_000,
+    };
+    let moved = Dividend {
+        observed_at: 24,
+        ex_at: 10,
+        ..original.clone()
+    };
+    let instrument = instrument();
+    let book = DividendBook::for_instrument(instrument.clone(), vec![original, moved]).unwrap();
+    let positions = [(5, 5, 2), (15, 15, 5), (20, 20, 9), (5, 24, 3)]
+        .into_iter()
+        .map(|(effective_at, observed_at, shares)| PositionObservation {
+            effective_at,
+            observed_at,
+            shares,
+        })
+        .collect();
+    let positions = DividendPositions::new(instrument, positions).unwrap();
+    let result = book.position_ledger(&positions).unwrap();
+    assert_eq!(
+        result
+            .iter()
+            .map(|event| (event.at, event.kind, event.entitled_shares))
+            .collect::<Vec<_>>(),
+        [
+            (1, DividendKind::Report, None),
+            (20, DividendKind::Ex, Some(5)),
+            (24, DividendKind::Report, Some(3)),
+            (30, DividendKind::Pay, Some(3)),
+        ]
+    );
+    assert_eq!(result[2].movements[0].receivable_delta, -2_000_000);
+    assert_eq!(result[3].movements[0].cash, 3_000_000);
 }
 
 #[test]

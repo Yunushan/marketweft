@@ -26,6 +26,7 @@ import splitBars from '../../../crates/core/tests/fixtures/synthetic-split-ohlcv
 import splitActions from '../../../crates/core/tests/fixtures/synthetic-split-actions.csv?raw'
 import splitRevisions from '../../../crates/core/tests/fixtures/synthetic-split-revisions.csv?raw'
 import dividendActions from '../../../crates/core/tests/fixtures/synthetic-cash-dividends.csv?raw'
+import demoDividendPositions from '../../../crates/core/tests/fixtures/synthetic-dividend-positions.csv?raw'
 
 const eventNames = {
   open: 'Session opened',
@@ -62,8 +63,10 @@ type ReplayRun = {
   events: TimelineEvent[]
   counts: Uint32Array
   splits: Split[]
-  dividends?: { events: DividendEvent[]; shares: number }
+  dividends?: { events: DividendEvent[]; shares: number | null }
 }
+
+type DividendInput = { csv: string } & ({ shares: number } | { positions: string })
 
 type ReplayView = 'universe' | 'fundamentals' | 'macro' | 'options' | 'alerts' | 'paper' | 'backtest'
 
@@ -102,6 +105,7 @@ export function HistoricalReplay({
   const [calendarFile, setCalendarFile] = useState<File | null>(null)
   const [actionsFile, setActionsFile] = useState<File | null>(null)
   const [dividendFile, setDividendFile] = useState<File | null>(null)
+  const [positionFile, setPositionFile] = useState<File | null>(null)
   const [entitledShares, setEntitledShares] = useState('100')
   const [rawConfirmed, setRawConfirmed] = useState(false)
   const [basis, setBasis] = useState<'raw' | 'adjusted'>('raw')
@@ -135,20 +139,16 @@ export function HistoricalReplay({
     calendar: string,
     seconds: number,
     calendarName: string,
-    inputs?: { splits?: string; dividends?: { csv: string; shares: number } },
+    inputs?: { splits?: string; dividends?: DividendInput },
   ) {
     const splits =
       inputs?.splits === undefined
         ? []
         : core.splitBook(asset.id, inputs.splits)
-    const dividends = inputs?.dividends && {
-      events: core.dividendLedger(
-        asset.id,
-        inputs.dividends.csv,
-        inputs.dividends.shares,
-      ),
-      shares: inputs.dividends.shares,
-    }
+    const cash = inputs?.dividends
+    const dividends = cash && ('positions' in cash
+      ? { events: core.dividendPositionLedger(asset.id, cash.csv, cash.positions), shares: null }
+      : { events: core.dividendLedger(asset.id, cash.csv, cash.shares), shares: cash.shares })
     const events = dividendTimeline(
       splitTimeline(core.replay(calendar, seconds, asset.bars), splits),
       dividends?.events ?? [],
@@ -189,7 +189,7 @@ export function HistoricalReplay({
     }
   }
 
-  function dividendDemo() {
+  function dividendDemo(usePositions = false) {
     setError('')
     try {
       start(
@@ -203,8 +203,9 @@ export function HistoricalReplay({
         },
         splitCalendar,
         600,
-        'Synthetic market · 100 entitled shares',
-        { dividends: { csv: dividendActions, shares: 100 } },
+        usePositions ? 'Synthetic market · Dated positions' : 'Synthetic market · 100 entitled shares',
+        { dividends: usePositions
+          ? { csv: dividendActions, positions: demoDividendPositions } : { csv: dividendActions, shares: 100 } },
       )
     } catch (cause) {
       setError(
@@ -253,17 +254,20 @@ export function HistoricalReplay({
         )
       if (dividendFile && dividendFile.size > 1024 * 1024)
         throw Error('Cash dividends CSV exceeds 1 MiB.')
+      if (dividendFile && positionFile && positionFile.size > 1024 * 1024)
+        throw Error('Dividend positions CSV exceeds 1 MiB.')
       const decoder = new TextDecoder('utf-8', { fatal: true })
       const calendar = decoder.decode(await calendarFile.arrayBuffer())
       const actions = actionsFile
         ? decoder.decode(await actionsFile.arrayBuffer())
         : undefined
-      const dividends = dividendFile
-        ? {
-            csv: decoder.decode(await dividendFile.arrayBuffer()),
-            shares: Number(entitledShares),
-          }
-        : undefined
+      let dividends: DividendInput | undefined
+      if (dividendFile) {
+        const csv = decoder.decode(await dividendFile.arrayBuffer())
+        dividends = positionFile
+          ? { csv, positions: decoder.decode(await positionFile.arrayBuffer()) }
+          : { csv, shares: Number(entitledShares) }
+      }
       start(asset, calendar, Number(interval), calendarFile.name, {
         splits: actions,
         dividends,
@@ -395,13 +399,14 @@ export function HistoricalReplay({
                   Follow receivables and cash through an ex-date, a changed pay
                   date and late reports in two currencies.
                 </p>
-                <button
-                  className="primary"
-                  onClick={dividendDemo}
-                  disabled={busy}
-                >
-                  Start dividend demo
-                </button>
+                <div className="replay-controls">
+                  <button className="primary" onClick={() => dividendDemo()} disabled={busy}>
+                    Start dividend demo
+                  </button>
+                  <button className="outline" onClick={() => dividendDemo(true)} disabled={busy}>
+                    Start dividend entitlement demo
+                  </button>
+                </div>
               </section>
               <section className="side-card replay-panel">
                 <h2>Universe membership</h2>
@@ -595,12 +600,25 @@ export function HistoricalReplay({
                   type="file"
                   accept=".csv,text/csv"
                   disabled={busy}
-                  onChange={(event) =>
-                    setDividendFile(event.target.files?.[0] ?? null)
-                  }
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null
+                    setDividendFile(file)
+                    if (!file) setPositionFile(null)
+                  }}
                 />
               </label>
               {dividendFile && (
+                <label>
+                  Dividend positions CSV (optional)
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    disabled={busy}
+                    onChange={(event) => setPositionFile(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+              )}
+              {dividendFile && !positionFile && (
                 <label>
                   Entitled shares per distribution
                   <input

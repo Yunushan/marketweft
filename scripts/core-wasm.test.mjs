@@ -275,6 +275,30 @@ test('delisting Wasm separates the two cutoffs and preserves exact cash reversal
   assert.equal(value('15:05', '15:05', 'BETA-002').state, 'shares');
 });
 
+test('dated dividend entitlement Wasm preserves unknown, zero and revised cash', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
+  const [dividends, positions] = await Promise.all([fixture('cash-dividends'), fixture('dividend-positions')]);
+  const ledger = core.dividendPositionLedger('DEMO:DIVIDEND', dividends, positions);
+  assert.equal(ledger[0].entitledShares, null);
+  assert.equal(ledger[1].entitledShares, 100);
+  assert.equal(ledger[1].movements[0].receivable, 25000000n);
+  const exposure = ledger.filter(event => event.kind === 'entitlement');
+  assert.deepEqual(exposure.map(event => [event.entitledShares, event.movements[0].receivableDelta, event.movements[0].cashDelta]), [
+    [120, 5000000n, 0n], [110, 0n, -3000000n],
+  ]);
+  const beta = ledger.find(event => event.id === 'BETA');
+  assert.equal(beta.entitledShares, 40);
+  assert.equal(beta.movements[0].cash, 4000000n);
+  assert.equal(ledger.at(-1).movements[0].cash, 30800000n);
+  const zero = 'instrument,effective_at,observed_at,shares\nDEMO:DIVIDEND,2025-06-03T13:59:00Z,2025-06-03T14:10:00Z,0\n';
+  const missing = core.dividendPositionLedger('DEMO:DIVIDEND', dividends, zero);
+  assert.deepEqual(missing.slice(0, 3).map(event => [event.kind, event.entitledShares]), [
+    ['report', null], ['ex', null], ['entitlement', 0],
+  ]);
+  assert.throws(() => core.dividendPositionLedger('DEMO:DIVIDEND', dividends,
+    positions.replace('DEMO:DIVIDEND', 'DEMO:WRONG')), /Invalid instrument/);
+});
+
 test('Wasm dividend events and cash balances survive the bridge without losing precision', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-cash-dividends.csv', import.meta.url), 'utf8');
   const events = core.dividendLedger('DEMO:DIVIDEND', csv, 100);

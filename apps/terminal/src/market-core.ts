@@ -29,7 +29,7 @@ export interface Split {
   oldShares: number;
 }
 
-const dividendKinds = ['report', 'ex', 'pay'] as const;
+const dividendKinds = ['report', 'ex', 'pay', 'entitlement'] as const;
 export interface DividendMovement {
   currency: string;
   receivableDelta: bigint;
@@ -47,6 +47,7 @@ export interface DividendEvent {
   observedAt: number;
   currency: string;
   amountPerShare: bigint;
+  entitledShares?: number | null;
   movements: DividendMovement[];
 }
 
@@ -368,6 +369,7 @@ export interface MarketCore {
   splitBook(instrument: string, csv: string): Split[];
   adjustSplits(bars: readonly Bar[], splits: readonly Split[], asOf: number): Bar[];
   dividendLedger(instrument: string, csv: string, entitledShares: number): DividendEvent[];
+  dividendPositionLedger(instrument: string, dividends: string, positions: string): DividendEvent[];
   universeIndex(csv: string): { name: string; checkpoints: number[] };
   universeAsOf(csv: string, effectiveAt: string, knownAt: string): UniverseListing[];
   delistingAsOf(membership: string, terms: string, listing: string, shares: number,
@@ -410,6 +412,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_adjust_splits(records: number): number;
   mw_adjust_split_revisions(records: number): number;
   mw_dividend_ledger(shares: number): number;
+  mw_dividend_position_ledger(dividendBytes: number): number;
   mw_universe_index(): number;
   mw_universe_as_of(): number;
   mw_delisting_as_of(membershipBytes: number, shares: number): number;
@@ -437,6 +440,24 @@ const LIMIT = 8 * 1024 * 1024;
 const LEGACY_SPLIT_BYTES = 32;
 const SPLIT_ID_BYTES = 40;
 const REVISED_SPLIT_BYTES = LEGACY_SPLIT_BYTES + SPLIT_ID_BYTES;
+
+function decodeDividendEvents(text: string, withPositions = false): DividendEvent[] {
+  return text.slice(0, -1).split('\n').map(line => {
+    const [at, kind, id, announcedAt, exAt, payAt, observedAt, currency, perShare, ...fields] = line.split('\t');
+    const event: DividendEvent = {
+      at: Number(at), kind: dividendKinds[Number(kind)], id,
+      announcedAt: Number(announcedAt), exAt: Number(exAt), payAt: Number(payAt),
+      observedAt: Number(observedAt), currency, amountPerShare: BigInt(perShare),
+      movements: (withPositions ? fields.slice(1) : fields).map(change => {
+        const [currency, receivableDelta, cashDelta, receivable, cash] = change.split(',');
+        return { currency, receivableDelta: BigInt(receivableDelta), cashDelta: BigInt(cashDelta),
+          receivable: BigInt(receivable), cash: BigInt(cash) };
+      }),
+    };
+    if (withPositions) event.entitledShares = fields[0] === '' ? null : Number(fields[0]);
+    return event;
+  });
+}
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -969,20 +990,11 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         throw new Error('Supply 0–1,000,000 whole entitled shares.');
       }
       textInput(instrument + '\n' + csv);
-      const data = decoder.decode(output(api.mw_dividend_ledger(entitledShares)));
-      return data.trimEnd().split('\n').map(line => {
-        const [at, kind, id, announcedAt, exAt, payAt, observedAt, currency, perShare, ...changes] = line.split('\t');
-        return {
-          at: Number(at), kind: dividendKinds[Number(kind)], id,
-          announcedAt: Number(announcedAt), exAt: Number(exAt), payAt: Number(payAt),
-          observedAt: Number(observedAt), currency, amountPerShare: BigInt(perShare),
-          movements: changes.map(change => {
-            const [currency, receivableDelta, cashDelta, receivable, cash] = change.split(',');
-            return { currency, receivableDelta: BigInt(receivableDelta), cashDelta: BigInt(cashDelta),
-              receivable: BigInt(receivable), cash: BigInt(cash) };
-          }),
-        };
-      });
+      return decodeDividendEvents(decoder.decode(output(api.mw_dividend_ledger(entitledShares))));
+    },
+    dividendPositionLedger(instrument, dividends, positions) {
+      textInput(instrument + '\n' + dividends + positions);
+      return decodeDividendEvents(decoder.decode(output(api.mw_dividend_position_ledger(encoder.encode(dividends).length))), true);
     },
     adjustSplits(bars, splits, asOf) {
       if (bars.length > 100_000 || splits.length > 1_000) throw new Error('Split-adjustment input is too large.');

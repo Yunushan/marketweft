@@ -24,7 +24,6 @@ thread_local! {
 
 #[no_mangle]
 pub extern "C" fn mw_dividend_ledger(shares: u32) -> u32 {
-    use std::fmt::Write;
     process(|input| {
         let (identity, csv) = utf8(input)?
             .split_once('\n')
@@ -33,39 +32,66 @@ pub extern "C" fn mw_dividend_ledger(shares: u32) -> u32 {
             .split_once(':')
             .ok_or("Missing replay instrument.")?;
         let book = parse_dividends(csv, &Instrument::new(venue, symbol)?)?;
-        let mut text = String::new();
-        for event in book.ledger(shares)? {
-            let row = event.revision;
+        Ok(encode_dividend_ledger(book.ledger(shares)?, false))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_dividend_position_ledger(dividend_bytes: usize) -> u32 {
+    process(|input| {
+        let (instrument, csv) = action_source(input)?;
+        let (dividends, positions) = csv
+            .split_at_checked(dividend_bytes)
+            .ok_or("Supply a dividend and a position history CSV.")?;
+        let book = parse_dividends(dividends, &instrument)?;
+        let positions = crate::parse_dividend_positions(positions, &instrument)?;
+        Ok(encode_dividend_ledger(
+            book.position_ledger(&positions)?,
+            true,
+        ))
+    })
+}
+
+fn encode_dividend_ledger(events: Vec<crate::DividendEvent>, include_positions: bool) -> Vec<u8> {
+    use std::fmt::Write;
+    let mut text = String::new();
+    for event in events {
+        let row = event.revision;
+        write!(
+            &mut text,
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            event.at,
+            event.kind as u8,
+            row.id,
+            row.announced_at,
+            row.ex_at,
+            row.pay_at,
+            row.observed_at,
+            row.currency,
+            row.amount_per_share
+        )
+        .unwrap();
+        if include_positions {
+            text.push('\t');
+            if let Some(shares) = event.entitled_shares {
+                write!(&mut text, "{shares}").unwrap();
+            }
+        }
+        for movement in event.movements {
             write!(
                 &mut text,
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                event.at,
-                event.kind as u8,
-                row.id,
-                row.announced_at,
-                row.ex_at,
-                row.pay_at,
-                row.observed_at,
-                row.currency,
-                row.amount_per_share
+                "\t{},{},{},{},{}",
+                movement.currency,
+                movement.receivable_delta,
+                movement.cash_delta,
+                movement.receivable,
+                movement.cash
             )
             .unwrap();
-            for movement in event.movements {
-                write!(
-                    &mut text,
-                    "\t{},{},{},{},{}",
-                    movement.currency,
-                    movement.receivable_delta,
-                    movement.cash_delta,
-                    movement.receivable,
-                    movement.cash
-                )
-                .unwrap();
-            }
-            text.push('\n');
         }
-        Ok(text.into_bytes())
-    })
+        text.push('\n');
+    }
+    text.into_bytes()
 }
 
 #[no_mangle]

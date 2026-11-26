@@ -34,13 +34,14 @@ export function DividendLedger({
   current,
 }: {
   events: DividendEvent[]
-  shares: number
+  shares: number | null
   cutoff: number
   current: readonly DividendEvent[]
 }) {
   const visible = through(events, cutoff)
-  const { balances, postings } = useMemo(() => {
+  const { balances, postings, entitlements } = useMemo(() => {
     const balances = new Map<string, DividendMovement>()
+    const entitlements = new Map<string, DividendEvent>()
     const postings: {
       at: number
       id: string
@@ -48,6 +49,7 @@ export function DividendLedger({
       delta: bigint
     }[] = []
     for (const event of events.slice(0, visible)) {
+      if (shares === null) entitlements.set(event.id, event)
       for (const movement of event.movements) {
         balances.set(movement.currency, movement)
         if (movement.cashDelta !== 0n) {
@@ -65,8 +67,9 @@ export function DividendLedger({
         a.currency.localeCompare(b.currency),
       ),
       postings: postings.reverse(),
+      entitlements: Array.from(entitlements.values()).sort((a, b) => a.id.localeCompare(b.id)),
     }
-  }, [events, visible])
+  }, [events, shares, visible])
 
   return (
     <section
@@ -75,7 +78,7 @@ export function DividendLedger({
     >
       <div className="replay-heading">
         <h2 id="dividend-ledger-heading">Dividend ledger</h2>
-        <p>{integer.format(shares)} entitled shares per distribution</p>
+        <p>{shares === null ? 'Entitlement from dated positions' : integer.format(shares) + ' entitled shares per distribution'}</p>
       </div>
       {current.length > 0 && (
         <div className="dividend-reports">
@@ -111,6 +114,22 @@ export function DividendLedger({
               </div>
             </dl>
           ))}
+        </div>
+      )}
+      {entitlements.length > 0 && (
+        <div className="replay-table-scroll">
+          <table aria-label="Dividend entitlements">
+            <thead><tr><th scope="col">Distribution</th><th scope="col">Ex-date (UTC)</th>
+              <th scope="col">Entitled shares</th></tr></thead>
+            <tbody>{entitlements.map(row => (
+              <tr key={row.id}>
+                <th scope="row">{row.id}</th><td>{utc(row.exAt)}</td>
+                <td>{row.entitledShares == null
+                  ? cutoff < row.exAt ? 'Pending ex-date' : 'Unavailable'
+                  : integer.format(row.entitledShares)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
         </div>
       )}
       {balances.length > 0 ? (

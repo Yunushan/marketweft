@@ -50,6 +50,8 @@ a rescheduled split, two IDs sharing an effective time, and a cancellation.
 Choose Start dividend demo to follow receivables and cash at each cutoff.
 The cash-dividends.csv file uses DEMO:DIVIDEND with split-ohlcv.csv and
 split-sessions.csv, a 600-second interval and 100 entitled shares.
+Choose Start dividend entitlement demo or upload dividend-positions.csv to
+derive each distribution's share entitlement from dated position reports.
 
 Open Universe replay under Historical replay to step through an addition,
 late removal and delisting. Upload universe-membership.csv to exercise the
@@ -116,6 +118,7 @@ def main():
     for kind in ("actions", "ohlcv", "sessions"):
         files[f"split-{kind}.csv"] = (fixture / f"synthetic-split-{kind}.csv").read_bytes()
     files["cash-dividends.csv"] = (fixture / "synthetic-cash-dividends.csv").read_bytes()
+    files["dividend-positions.csv"] = (fixture / "synthetic-dividend-positions.csv").read_bytes()
     files["universe-membership.csv"] = (fixture / "synthetic-universe.csv").read_bytes()
     files["delisting-terms.csv"] = (fixture / "synthetic-delisting-terms.csv").read_bytes()
     files["split-revisions.csv"] = (fixture / "synthetic-split-revisions.csv").read_bytes()

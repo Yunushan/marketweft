@@ -35,7 +35,8 @@ pub use delisting::{
     DelistingTerms, DelistingValuation, ReferenceClose,
 };
 pub use dividend::{
-    parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind, DividendMovement,
+    parse_dividend_positions, parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind,
+    DividendMovement, DividendPositions, PositionObservation,
 };
 pub use fundamentals::{Filing, FinancialBook, MarketCap, Multiple, Valuation};
 pub use history::{parse_csv, Bar};

@@ -81,6 +81,51 @@ test('offline dividend replay reconciles every cutoff and rewinds cash correctio
   )
 })
 
+test('offline dated positions give each dividend its own entitlement and apply late corrections', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Historical replay' }).click()
+  await page.getByRole('button', { name: 'Start dividend entitlement demo' }).click()
+  const next = page.getByRole('button', { name: 'Next event' })
+  const previous = page.getByRole('button', { name: 'Previous event' })
+  const status = page.locator('.replay-state')
+  const entitlement = page.getByRole('table', { name: 'Dividend entitlements' })
+  const balances = page.getByRole('table', { name: 'Dividend balances' })
+  const shares = id => entitlement.getByRole('row', { name: new RegExp('^' + id) }).getByRole('cell').last()
+  const account = currency => balances.getByRole('row', { name: new RegExp('^' + currency) }).getByRole('cell')
+  async function through(kind, at) {
+    for (let i = 0; i < 45; i++) {
+      const text = await status.innerText()
+      if (text.includes(kind) && text.includes(at)) return
+      await next.click()
+    }
+    throw new Error('Missing dividend event ' + kind + ' ' + at)
+  }
+  await through('Dividend report observed', '2025-06-02T14:05:00Z')
+  await expect(shares('ALPHA')).toHaveText('Pending ex-date')
+  await through('Dividend ex-date', '2025-06-03T14:00:00Z')
+  await expect(shares('ALPHA')).toHaveText('100')
+  await expect(account('USD')).toHaveText(['25.00', '0.00'])
+  await through('Dividend entitlement revised', '2025-06-03T14:40:00Z')
+  await expect(shares('ALPHA')).toHaveText('120')
+  await expect(account('USD')).toHaveText(['30.00', '0.00'])
+  await previous.click()
+  await expect(shares('ALPHA')).toHaveText('100')
+  await expect(account('USD')).toHaveText(['25.00', '0.00'])
+  await through('Dividend report observed', '2025-06-04T13:30:00Z')
+  await expect(shares('BETA')).toHaveText('40')
+  await expect(account('EUR')).toHaveText(['0.00', '4.00'])
+  await through('Dividend pay date', '2025-06-04T14:00:00Z')
+  await expect(account('USD')).toHaveText(['0.00', '36.00'])
+  await through('Dividend entitlement revised', '2025-06-04T14:30:00Z')
+  await expect(shares('ALPHA')).toHaveText('110')
+  await expect(account('USD')).toHaveText(['0.00', '33.00'])
+  await through('Dividend report observed', '2025-06-04T15:00:00Z')
+  await expect(account('USD')).toHaveText(['0.00', '30.80'])
+})
+
 test('custom dividend replay validates currency, scales entitlement, and preserves split views and source history', async ({
   page,
 }) => {

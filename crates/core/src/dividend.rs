@@ -1,11 +1,14 @@
 use crate::{
-    history::{decimal, timestamp},
+    history::{decimal, exact_utc, timestamp},
     Instrument, MAX_TICKS,
 };
 use std::collections::BTreeMap;
 
 const MAX_ROWS: usize = 1_000;
 const MAX_SHARES: u32 = 1_000_000;
+const MAX_POSITIONS: usize = 5_000;
+const MAX_ENTITLEMENT_CHECKS: usize = 2_000_000;
+const MAX_LEDGER_EVENTS: usize = 50_000;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Dividend {
@@ -24,6 +27,7 @@ pub enum DividendKind {
     Report = 0,
     Ex = 1,
     Pay = 2,
+    Entitlement = 3,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -40,14 +44,77 @@ pub struct DividendEvent {
     pub at: i64,
     pub kind: DividendKind,
     pub revision: Dividend,
+    pub entitled_shares: Option<u32>,
     pub movements: Vec<DividendMovement>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PositionObservation {
+    pub effective_at: i64,
+    pub observed_at: i64,
+    pub shares: u32,
+}
+
 #[derive(Clone, Debug)]
-pub struct DividendBook(Vec<Dividend>);
+pub struct DividendPositions {
+    instrument: Instrument,
+    rows: Vec<PositionObservation>,
+}
+
+impl DividendPositions {
+    pub fn new(instrument: Instrument, mut rows: Vec<PositionObservation>) -> Result<Self, String> {
+        if rows.len() > MAX_POSITIONS {
+            return Err("Supply at most 5,000 position observations.".into());
+        }
+        if rows
+            .iter()
+            .any(|row| row.effective_at > row.observed_at || row.shares > MAX_SHARES)
+        {
+            return Err(
+                "Use positions observed at or after effect and 0–1,000,000 whole shares.".into(),
+            );
+        }
+        rows.sort_unstable_by_key(|row| (row.observed_at, row.effective_at));
+        if rows
+            .windows(2)
+            .any(|w| w[0].observed_at == w[1].observed_at && w[0].effective_at == w[1].effective_at)
+        {
+            return Err(
+                "Position revisions need distinct observation times for one effective time.".into(),
+            );
+        }
+        Ok(Self { instrument, rows })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct DividendBook {
+    instrument: Option<Instrument>,
+    rows: Vec<Dividend>,
+}
+
+struct DividendSchedule<'a> {
+    at: i64,
+    kind: DividendKind,
+    row: &'a Dividend,
+}
+
+struct DividendState<'a> {
+    row: &'a Dividend,
+    previous: Option<(&'a str, Amounts)>,
+    shares: Option<u32>,
+}
 
 impl DividendBook {
-    pub fn new(mut rows: Vec<Dividend>) -> Result<Self, String> {
+    pub fn new(rows: Vec<Dividend>) -> Result<Self, String> {
+        Self::validated(None, rows)
+    }
+
+    pub fn for_instrument(instrument: Instrument, rows: Vec<Dividend>) -> Result<Self, String> {
+        Self::validated(Some(instrument), rows)
+    }
+
+    fn validated(instrument: Option<Instrument>, mut rows: Vec<Dividend>) -> Result<Self, String> {
         if rows.is_empty() || rows.len() > MAX_ROWS {
             return Err("Supply 1–1,000 dividend reports.".into());
         }
@@ -61,7 +128,7 @@ impl DividendBook {
         {
             return Err("Dividend revisions need distinct observation times for one ID.".into());
         }
-        Ok(Self(rows))
+        Ok(Self { instrument, rows })
     }
 
     /// Gross cash events for a supplied whole-share entitlement per distribution.
@@ -71,51 +138,26 @@ impl DividendBook {
             return Err("Supply 0–1,000,000 whole entitled shares.".into());
         }
 
-        let mut events = Vec::new();
-        for revisions in self.0.chunk_by(|a, b| a.id == b.id) {
-            let mut previous: Option<(&str, Amounts)> = None;
+        self.ledger_with(&[], Some(entitled_shares))
+    }
+
+    /// Evaluate positions effective strictly before each ex-date using only observations known at each event.
+    pub fn position_ledger(
+        &self,
+        positions: &DividendPositions,
+    ) -> Result<Vec<DividendEvent>, String> {
+        if self.instrument.as_ref() != Some(&positions.instrument) {
+            return Err("Dividend and position reports must describe the same instrument.".into());
+        }
+        self.ledger_with(&positions.rows, None)
+    }
+
+    fn schedule(&self) -> Vec<DividendSchedule<'_>> {
+        let mut schedule = Vec::new();
+        for revisions in self.rows.chunk_by(|a, b| a.id == b.id) {
             for (i, row) in revisions.iter().enumerate() {
                 let next = revisions.get(i + 1).map(|r| r.observed_at);
-                let gross = i128::from(row.amount_per_share) * i128::from(entitled_shares);
-                let mut append = |at: i64, kind| {
-                    let target = if at >= row.pay_at {
-                        Amounts {
-                            receivable: 0,
-                            cash: gross,
-                        }
-                    } else if at >= row.ex_at {
-                        Amounts {
-                            receivable: gross,
-                            cash: 0,
-                        }
-                    } else {
-                        Amounts::default()
-                    };
-
-                    let mut deltas = Vec::new();
-                    match previous {
-                        Some((currency, old)) if currency == row.currency => {
-                            push_movement(&mut deltas, currency, target.minus(old));
-                        }
-                        old => {
-                            if let Some((currency, amount)) = old {
-                                push_movement(
-                                    &mut deltas,
-                                    currency,
-                                    Amounts::default().minus(amount),
-                                );
-                            }
-                            push_movement(&mut deltas, &row.currency, target);
-                        }
-                    }
-                    previous = Some((&row.currency, target));
-                    events.push(DividendEvent {
-                        at,
-                        kind,
-                        revision: row.clone(),
-                        movements: deltas,
-                    });
-                };
+                let mut append = |at, kind| schedule.push(DividendSchedule { at, kind, row });
                 append(row.observed_at, DividendKind::Report);
                 // A scheduled transition belongs only to the revision visible at that time.
                 // At a tie the new report replaces the earlier schedule.
@@ -132,7 +174,81 @@ impl DividendBook {
                 }
             }
         }
+        schedule.sort_unstable_by(|a, b| (a.at, &a.row.id).cmp(&(b.at, &b.row.id)));
+        schedule
+    }
 
+    fn ledger_with(
+        &self,
+        positions: &[PositionObservation],
+        constant: Option<u32>,
+    ) -> Result<Vec<DividendEvent>, String> {
+        let mut events = Vec::new();
+        let mut active = BTreeMap::<&str, DividendState<'_>>::new();
+        let mut holdings = BTreeMap::new();
+        let mut positions = positions.iter().peekable();
+        let mut schedule = self.schedule().into_iter().peekable();
+        let mut checks = 0;
+        while let Some(at) = positions
+            .peek()
+            .map(|p| p.observed_at)
+            .into_iter()
+            .chain(schedule.peek().map(|row| row.at))
+            .min()
+        {
+            let mut earliest_change: Option<i64> = None;
+            while let Some(row) = positions.next_if(|p| p.observed_at == at) {
+                if holdings.insert(row.effective_at, row.shares) != Some(row.shares) {
+                    earliest_change = Some(
+                        earliest_change
+                            .map_or(row.effective_at, |prior| prior.min(row.effective_at)),
+                    );
+                }
+            }
+            let shares_for = |ex| {
+                constant.or_else(|| {
+                    (at >= ex)
+                        .then(|| holdings.range(..ex).next_back().map(|(_, &shares)| shares))
+                        .flatten()
+                })
+            };
+            while let Some(DividendSchedule { kind, row, .. }) =
+                schedule.next_if(|event| event.at == at)
+            {
+                let state = active.entry(&row.id).or_insert(DividendState {
+                    row,
+                    previous: None,
+                    shares: None,
+                });
+                state.row = row;
+                events.push(state.post(at, kind, shares_for(row.ex_at)));
+            }
+            if let Some(effective) = earliest_change {
+                for state in active.values_mut().filter(|state| {
+                    effective < state.row.ex_at
+                        && state.row.ex_at <= at
+                        && state.row.amount_per_share > 0
+                }) {
+                    checks += 1;
+                    if checks > MAX_ENTITLEMENT_CHECKS {
+                        return Err(
+                            "Dividend entitlement replay exceeds two million position checks."
+                                .into(),
+                        );
+                    }
+                    let shares = shares_for(state.row.ex_at);
+                    if state.shares != shares {
+                        events.push(state.post(at, DividendKind::Entitlement, shares));
+                    }
+                }
+            }
+            if events.len() > MAX_LEDGER_EVENTS {
+                return Err(
+                    "Dividend position replay exceeds 50,000 ledger events. Narrow the history."
+                        .into(),
+                );
+            }
+        }
         events.sort_unstable_by(|a, b| (a.at, &a.revision.id).cmp(&(b.at, &b.revision.id)));
         let mut totals = BTreeMap::<String, Amounts>::new();
         for event in &mut events {
@@ -145,6 +261,47 @@ impl DividendBook {
             }
         }
         Ok(events)
+    }
+}
+
+impl<'a> DividendState<'a> {
+    fn post(&mut self, at: i64, kind: DividendKind, shares: Option<u32>) -> DividendEvent {
+        let row = self.row;
+        let gross = i128::from(row.amount_per_share) * i128::from(shares.unwrap_or_default());
+        let target = if at >= row.pay_at {
+            Amounts {
+                receivable: 0,
+                cash: gross,
+            }
+        } else if at >= row.ex_at {
+            Amounts {
+                receivable: gross,
+                cash: 0,
+            }
+        } else {
+            Amounts::default()
+        };
+        let mut movements = Vec::new();
+        match self.previous {
+            Some((currency, old)) if currency == row.currency => {
+                push_movement(&mut movements, currency, target.minus(old));
+            }
+            old => {
+                if let Some((currency, amount)) = old {
+                    push_movement(&mut movements, currency, Amounts::default().minus(amount));
+                }
+                push_movement(&mut movements, &row.currency, target);
+            }
+        }
+        self.previous = Some((&row.currency, target));
+        self.shares = shares;
+        DividendEvent {
+            at,
+            kind,
+            revision: row.clone(),
+            entitled_shares: shares,
+            movements,
+        }
     }
 }
 
@@ -255,5 +412,51 @@ pub fn parse_dividends(csv: &str, instrument: &Instrument) -> Result<DividendBoo
         validate(&row).map_err(error)?;
         rows.push(row);
     }
-    DividendBook::new(rows)
+    DividendBook::for_instrument(instrument.clone(), rows)
+}
+
+pub fn parse_dividend_positions(
+    csv: &str,
+    instrument: &Instrument,
+) -> Result<DividendPositions, String> {
+    if csv.len() > 1024 * 1024 {
+        return Err("Dividend positions CSV exceeds 1 MiB.".into());
+    }
+    let mut lines = csv
+        .trim_start_matches('\u{feff}')
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.trim().is_empty());
+    const HEADER: &str = "instrument,effective_at,observed_at,shares";
+    if lines.next().map(|(_, line)| line.trim()) != Some(HEADER) {
+        return Err(format!("Expected dividend positions header {HEADER}."));
+    }
+    let expected = instrument.to_string();
+    let mut rows = Vec::new();
+    for (line, row) in lines {
+        let invalid = || {
+            format!(
+                "Invalid instrument, UTC time or whole share count on position line {}.",
+                line + 1
+            )
+        };
+        if rows.len() == MAX_POSITIONS {
+            return Err("Supply at most 5,000 position observations.".into());
+        }
+        let mut fields = row.splitn(5, ',').map(str::trim);
+        let [Some(identity), Some(effective), Some(observed), Some(shares), None] =
+            std::array::from_fn(|_| fields.next())
+        else {
+            return Err(invalid());
+        };
+        if identity != expected || !shares.bytes().all(|digit| digit.is_ascii_digit()) {
+            return Err(invalid());
+        }
+        rows.push(PositionObservation {
+            effective_at: exact_utc(effective).ok_or_else(invalid)?,
+            observed_at: exact_utc(observed).ok_or_else(invalid)?,
+            shares: shares.parse().map_err(|_| invalid())?,
+        });
+    }
+    DividendPositions::new(instrument.clone(), rows)
 }
