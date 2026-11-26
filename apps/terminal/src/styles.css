@@ -209,6 +209,37 @@ main {
   display: grid;
   gap: 16px;
 }
+.dividend-ledger {
+  margin-top: 16px;
+}
+.dividend-reports {
+  display: grid;
+  gap: 8px;
+}
+.dividend-report {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  overflow-wrap: anywhere;
+}
+.dividend-ledger table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: start;
+  font: 13px var(--mono);
+}
+.dividend-ledger th,
+.dividend-ledger td {
+  text-align: start;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.dividend-balances,
+.dividend-postings {
+  overflow: auto;
+}
+.dividend-postings {
+  max-height: 24rem;
+}
 .replay-panel {
   display: grid;
   align-content: start;

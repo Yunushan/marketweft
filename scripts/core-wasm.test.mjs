@@ -9,6 +9,25 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('Wasm dividend events and cash balances survive the bridge without losing precision', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-cash-dividends.csv', import.meta.url), 'utf8');
+  const events = core.dividendLedger('DEMO:DIVIDEND', csv, 100);
+  assert.deepEqual(events.map(e => [e.kind, e.id]), [
+    ['report', 'ALPHA'], ['ex', 'ALPHA'], ['report', 'ALPHA'], ['report', 'ALPHA'],
+    ['report', 'BETA'], ['pay', 'ALPHA'], ['report', 'ALPHA'],
+  ]);
+  assert.deepEqual(events[1].movements[0], { currency: 'USD', receivableDelta: 25000000n, cashDelta: 0n, receivable: 25000000n, cash: 0n });
+  assert.equal(events[3].movements.length, 0);
+  assert.equal(events[3].payAt, Date.parse('2025-06-04T14:00:00Z') / 1000);
+  assert.deepEqual(events.slice(-3).map(e => [e.currency, e.movements[0].cashDelta, e.movements[0].cash]), [
+    ['EUR', 10000000n, 10000000n], ['USD', 30000000n, 30000000n], ['USD', -2000000n, 28000000n],
+  ]);
+  const large = csv.split('\n').slice(0, 2).join('\n').replace('0.250000', '1999999999.999999');
+  assert.equal(core.dividendLedger('DEMO:DIVIDEND', large, 1000000).at(-1).movements[0].cash, 1999999999999999000000n);
+  assert.throws(() => core.dividendLedger('DEMO:DIVIDEND', csv, -1), /whole entitled shares/);
+  assert.throws(() => core.dividendLedger('DEMO:WRONG', csv, 100), /selected VENUE:SYMBOL/);
+});
+
 test('Wasm split snapshots gate all fields and revisions by replay observation time', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-split-' + name + '.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(await fixture('ohlcv'));

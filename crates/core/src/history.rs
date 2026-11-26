@@ -11,7 +11,7 @@ pub struct Bar {
     pub volume: i64,
 }
 
-fn decimal(text: &str) -> Option<i64> {
+pub(crate) fn decimal(text: &str) -> Option<i64> {
     let negative = text.starts_with('-');
     let unsigned = text.strip_prefix('-').unwrap_or(text);
     let (whole, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));

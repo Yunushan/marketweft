@@ -1,14 +1,60 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
 use crate::{
-    indicator, parse_csv, parse_sessions, parse_splits, replay, Average, Bar, Instrument, Split,
-    SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
+    indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
+    Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
 };
 use std::cell::RefCell;
 
 thread_local! {
     static INPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
     static OUTPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+}
+
+#[no_mangle]
+pub extern "C" fn mw_dividend_ledger(shares: u32) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let (identity, csv) = utf8(input)?
+            .split_once('\n')
+            .ok_or("Missing cash dividend data.")?;
+        let (venue, symbol) = identity
+            .split_once(':')
+            .ok_or("Missing replay instrument.")?;
+        let book = parse_dividends(csv, &Instrument::new(venue, symbol)?)?;
+        let mut text = String::new();
+        for event in book.ledger(shares)? {
+            let row = event.revision;
+            write!(
+                &mut text,
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                event.at,
+                event.kind as u8,
+                row.id,
+                row.announced_at,
+                row.ex_at,
+                row.pay_at,
+                row.observed_at,
+                row.currency,
+                row.amount_per_share
+            )
+            .unwrap();
+            for movement in event.movements {
+                write!(
+                    &mut text,
+                    "\t{},{},{},{},{}",
+                    movement.currency,
+                    movement.receivable_delta,
+                    movement.cash_delta,
+                    movement.receivable,
+                    movement.cash
+                )
+                .unwrap();
+            }
+            text.push('\n');
+        }
+        Ok(text.into_bytes())
+    })
 }
 
 #[no_mangle]

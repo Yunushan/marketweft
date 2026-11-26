@@ -27,6 +27,27 @@ export interface Split {
   oldShares: number;
 }
 
+const dividendKinds = ['report', 'ex', 'pay'] as const;
+export interface DividendMovement {
+  currency: string;
+  receivableDelta: bigint;
+  cashDelta: bigint;
+  receivable: bigint;
+  cash: bigint;
+}
+export interface DividendEvent {
+  at: number;
+  kind: typeof dividendKinds[number];
+  id: string;
+  announcedAt: number;
+  exAt: number;
+  payAt: number;
+  observedAt: number;
+  currency: string;
+  amountPerShare: bigint;
+  movements: DividendMovement[];
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -34,6 +55,7 @@ export interface MarketCore {
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
   splitBook(instrument: string, csv: string): Split[];
   adjustSplits(bars: readonly Bar[], splits: readonly Split[], asOf: number): Bar[];
+  dividendLedger(instrument: string, csv: string, entitledShares: number): DividendEvent[];
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -48,6 +70,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
   mw_split_book(): number;
   mw_adjust_splits(records: number): number;
+  mw_dividend_ledger(shares: number): number;
 }
 
 const SCALE = 1_000_000;
@@ -166,6 +189,26 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         });
       }
       return records;
+    },
+    dividendLedger(instrument, csv, entitledShares) {
+      if (!Number.isInteger(entitledShares) || entitledShares < 0 || entitledShares > 1_000_000) {
+        throw new Error('Supply 0–1,000,000 whole entitled shares.');
+      }
+      textInput(instrument + '\n' + csv);
+      const data = decoder.decode(output(api.mw_dividend_ledger(entitledShares)));
+      return data.trimEnd().split('\n').map(line => {
+        const [at, kind, id, announcedAt, exAt, payAt, observedAt, currency, perShare, ...changes] = line.split('\t');
+        return {
+          at: Number(at), kind: dividendKinds[Number(kind)], id,
+          announcedAt: Number(announcedAt), exAt: Number(exAt), payAt: Number(payAt),
+          observedAt: Number(observedAt), currency, amountPerShare: BigInt(perShare),
+          movements: changes.map(change => {
+            const [currency, receivableDelta, cashDelta, receivable, cash] = change.split(',');
+            return { currency, receivableDelta: BigInt(receivableDelta), cashDelta: BigInt(cashDelta),
+              receivable: BigInt(receivable), cash: BigInt(cash) };
+          }),
+        };
+      });
     },
     adjustSplits(bars, splits, asOf) {
       if (bars.length > 100_000 || splits.length > 1_000) throw new Error('Split-adjustment input is too large.');
