@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.21.0 · 0BSD**
+**0.22.0 · 0BSD**
 
 **Bahasa dokumentasi**
 
@@ -15,14 +15,14 @@
 
 MarketWeft adalah terminal riset lokal untuk analis, pengembang, dan operator. Terminal membuka OHLCV yang diizinkan, menampilkan kandil dan volume, menghitung SMA dan EMA dengan titik tetap, dan menyimpan daftar pantauan, instrumen, serta indikator di IndexedDB. Aplikasi berjalan luring setelah aset tersimpan. Harga dan volume bawaan bersifat sintetis dan tidak memerlukan akun penyedia.
 
-MarketWeft 0.21.0 menambah panel grafik yang tersimpan dan tautan garis silang dengan waktu UTC yang tepat. MarketWeft 0.7.0 menambah pemeringkatan anggota semesta berdasarkan imbal hasil harga yang diketahui pada waktu kueri. Pemutaran ulang berbasis sesi mencakup pemecahan saham, dividen tunai, keanggotaan, dan penghapusan pencatatan. Repositori juga menyediakan pengamat TypeScript hanya-baca untuk layanan trading-bot terpisah dan pembungkus Tauri eksperimental. Umpan penyedia, pesanan, penginstal bertanda tangan, dan hosting multipengguna masih dalam peta jalan.
+MarketWeft 0.22.0 menambah pengukuran grafik yang bisa diedit, dengan acuan bar UTC dan nilai harga presisi. MarketWeft 0.7.0 menambah pemeringkatan anggota semesta berdasarkan imbal hasil harga yang diketahui pada waktu kueri. Pemutaran ulang berbasis sesi mencakup pemecahan saham, dividen tunai, keanggotaan, dan penghapusan pencatatan. Repositori juga menyediakan pengamat TypeScript hanya-baca untuk layanan trading-bot terpisah dan pembungkus Tauri eksperimental. Umpan penyedia, pesanan, penginstal bertanda tangan, dan hosting multipengguna masih dalam peta jalan.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Memulai terminal portabel
 
-Unduh browser-terminal-attempt-N dari verifikasi GitHub yang berhasil. Ekstrak MarketWeft-browser-0.21.0.zip. Simpan dist/ di samping serve-terminal.mjs lalu jalankan perintah di folder itu. Buka http://127.0.0.1:4173/ dengan peramban yang mendukung WebAssembly, Canvas, BigInt, dan IndexedDB. Pakai Node.js 22.12 atau lebih baru. Instalasi npm tidak diperlukan. Tunggu Offline ready sebelum memutus koneksi.
+Unduh browser-terminal-attempt-N dari verifikasi GitHub yang berhasil. Ekstrak MarketWeft-browser-0.22.0.zip. Simpan dist/ di samping serve-terminal.mjs lalu jalankan perintah di folder itu. Buka http://127.0.0.1:4173/ dengan peramban yang mendukung WebAssembly, Canvas, BigInt, dan IndexedDB. Pakai Node.js 22.12 atau lebih baru. Instalasi npm tidak diperlukan. Tunggu Offline ready sebelum memutus koneksi.
 
 ```sh
 node serve-terminal.mjs
@@ -139,6 +139,8 @@ Buka Start dividend entitlement demo. ALPHA mulai dengan 100 saham berhak dan na
 Dalam demo semesta, muat Portfolio replay. Harga penutupan BETA-001 pukul 14:10 UTC baru terlihat pada batas pengetahuan 14:12. Pukul 14:45, piutang 70 USD terpisah dari nilai saham BETA-002 sebesar 225 EUR. Pukul 14:50, nilai saham dan kas delisting berjumlah 284 USD.
 
 Pilih Compare charts lalu pilih instrumen pembanding. Link by UTC menyorot waktu tampak yang sama di kedua panel. Perbesar setiap panel secara terpisah. Cadangan ruang kerja menyimpan instrumen, indikator, dan pengaturan tautan.
+
+Pilih Draw measurement lalu tentukan bar UTC yang tersedia dan harga untuk setiap ujung. Garis tersimpan digambar ulang saat grafik diperbesar atau digeser. Cadangan ruang kerja menyimpan koordinatnya. Aplikasi menampilkan selisih waktu dalam detik serta perubahan harga dan persentasenya.
 
 [docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](../../docs/replay-alerts.md) · [alert-rules.csv](../../crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](../../crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](../../docs/paper-ledger.md) · [paper-events.csv](../../crates/core/tests/fixtures/synthetic-paper-events.csv) · [bar-backtest.md](../../docs/bar-backtest.md) · [backtest-sessions.csv](../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv) · [backtest-bars.csv](../../crates/core/tests/fixtures/synthetic-backtest-bars.csv) · [walk-forward.md](../../docs/walk-forward.md) · [seeded-scenarios.md](../../docs/seeded-scenarios.md) · [delisting-proceeds.md](../../docs/delisting-proceeds.md) · [split-revisions.csv](../../crates/core/tests/fixtures/synthetic-split-revisions.csv) · [dividend-positions.csv](../../crates/core/tests/fixtures/synthetic-dividend-positions.csv) · [portfolio-replay.md](../../docs/portfolio-replay.md) · [portfolio-holdings.csv](../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv) · [chart-workspace.md](../../docs/chart-workspace.md)
 

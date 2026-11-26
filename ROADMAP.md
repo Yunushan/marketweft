@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.21.0 adds two workspace chart panes with independent series and a shared UTC crosshair. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.22.0 adds editable chart measurements anchored to UTC bars and integer price ticks. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -24,9 +24,10 @@
 | Delivered · 0.19.0 | Dividend entitlement from dated positions (MW-017) | Select holdings before each ex-date and preserve missing versus explicit zero. Reconcile cash corrections from late holdings reports and rescheduled ex-dates. [Cash dividends](docs/cash-dividends.md). |
 | Delivered · 0.20.0 | Point-in-time portfolio replay (MW-017, MW-025) | Reconcile known share values, delisting receivables and settled proceeds per currency. Verify unknown prices, dated quantities and reused listing symbols at exact cutoffs. [Portfolio replay](docs/portfolio-replay.md). |
 | Delivered · 0.21.0 | Persistent chart panes and linked UTC crosshairs (MW-006, MW-012) | Select each series independently, link crosshairs only at an exact visible timestamp, and restore the instrument and overlay settings for both panes. [Chart workspace](docs/chart-workspace.md). |
+| Delivered · 0.22.0 | Editable chart measurements (MW-006, MW-014) | Save two UTC and price endpoints per instrument, reproject the line on zoom or pan, and recover exact coordinates on reload or restore. [Chart workspace](docs/chart-workspace.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Apply delisting proceeds and dividend entries in portfolio execution replay. Extend the source and rights model to live providers. |
-| P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Persist measured drawings in data coordinates, reusable indicator parameters and CSV export. Validate new chart types against fixtures and restore exact settings after migrations. |
+| P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Persist reusable indicator parameters and add CSV export. Validate new chart types against fixtures and restore exact settings after migrations. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Add cross-sectional survivorship treatment, correlated portfolio scenarios and tick-level execution. Verify all no-lookahead invariants through the same paper event contract. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Publish an independent time-series language spec, bounded interpreter and isolated Wasm execution. Test determinism, quotas and schema compatibility across SDKs. Start MCP with read-only research queries. |
 | P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Add explicit webhook configuration, authenticated delivery, bounded retry and delivery receipts. Extend annual filings with quarterly/TTM aggregation, add options exercise and dividend models, and integrate authorized data sources. |
@@ -35,5 +36,5 @@
 
 ## Handoff for the next change
 
-The next workspace milestone persists a measured drawing in data coordinates. Verify endpoint editing, time and price measurements across zoom and pan, and exact reload and backup restoration.
+The next workspace milestone adds reusable indicator parameters. Verify that separate pane settings recalculate the exact fixture prefixes and survive reload and backup restoration.
 

@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.22.0 · Editable chart measurements
+
+| Check | Observed result |
+| --- | --- |
+| Exact endpoints | On the two-bar import, a one-second span from −0.000001 to 1.000001 reports a 1.000002 price change and 100000200%. Changing the start to zero leaves the percentage unavailable. An endpoint with no matching UTC bar is rejected. |
+| Plot projection and concurrent edits | Cursor selection records both times and prices. Zooming and panning move the rendered line within the plot while the readout and exported endpoint values stay identical. Both panes share a drawing when they display the same instrument. An older open editor cannot overwrite a newer save. |
+| Offline persistence | Reload and a version 3 backup restore recover the drawing and linked-chart preferences. Removing the last line returns the two-pane export to version 2. Restoring a version 2 backup recovers its settings and catalog. The imported CSV remains byte-identical. |
+| Regression suite | All 59 browser and six SDK tests passed on Windows x64, 63 native tests passed on Linux x64, 22 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Chart workspace](chart-workspace.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.21.0 · Linked chart panes
 
 | Check | Observed result |

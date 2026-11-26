@@ -10,13 +10,15 @@ A backup contains plain JSON, including the contents of imported CSV files. Keep
 
 ## Format versions
 
-A single-pane backup uses version 1. A two-pane backup uses version 2 and adds a `comparison` object under `manifest.preferences`. Its `selected` field identifies a sample or imported series, and its `sma`, `ema` and `linked` fields use Boolean values. MarketWeft validates both formats. Opening or restoring a single-pane workspace keeps the comparison pane closed until enabled.
+With no drawings, a single-pane backup uses version 1 and a two-pane backup uses version 2. A backup with drawings uses version 3. MarketWeft validates and restores all three formats. The comparison pane opens on restore when the backup contains its settings.
 
 | Field | Contents |
 | --- | --- |
-| `format`, `version` | The string `marketweft-workspace` and integer `1` or `2`. |
+| `format`, `version` | The string `marketweft-workspace` and integer `1`, `2` or `3`. |
 | `manifest.sampleSet` | The built-in sample version and SHA-256 digest of the ordered sample identities, names and OHLCV values. |
-| `manifest.preferences` | `selected`, `watchlist`, `sma` and `ema`, plus `comparison` for version 2. Watchlist entries must be unique catalog or sample IDs. The primary selection must be on the watchlist. |
+| `manifest.preferences` | `selected`, `watchlist`, `sma` and `ema`. Watchlist entries must be unique catalog or sample IDs. The primary selection must be on the watchlist. |
+| `manifest.preferences.comparison` | Required in version 2 and optional in version 3. `selected` identifies an instrument. `sma`, `ema` and `linked` are Booleans. |
+| `manifest.preferences.drawings` | Required in version 3. Maps known instrument IDs to `start` and `end` objects. Each endpoint contains integer `time` in UTC Unix seconds and signed integer `ticks` in millionths. |
 | `manifest.series` | Imported history records. A record contains `id`, `descriptor`, `csv`, `barCount` and `sha256`. Each ID must match its canonical `VENUE:SYMBOL` and be unique across imported and built-in instruments. |
 | `descriptor` | Version `1` plus the strings `venue`, `symbol`, `barInterval`, `source`, `usageGrant` and `adjustmentPolicy`. Older imports use their filename as source. Unknown legacy metadata is recorded as `unspecified`. |
 | `manifest.seriesCount`, `manifest.barCount` | Number of imported histories and total number of data rows parsed by the Rust financial core. |

@@ -11,7 +11,7 @@ LANGUAGES = (
 MARKER = re.compile(r"^<!-- section:(\d{2}) -->\n## (.+)$", re.MULTILINE)
 FENCE = re.compile(r"^```([a-z]+)\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 LINK = re.compile(r"\]\(([^)\s]+)\)")
-PARAGRAPHS = (2, 1, 20, 3, 2, 2, 2, 1, 2, 2, 2)
+PARAGRAPHS = (2, 1, 21, 3, 2, 2, 2, 1, 2, 2, 2)
 
 
 def path_for(tag):
