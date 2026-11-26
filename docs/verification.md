@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.74.0 · Provider CSV integrity
+
+| Check | Observed result |
+| --- | --- |
+| Independent digest | Chromium accepted a version 2 fixture using SHA-256 calculated independently by Node. Its persisted CSV matched the decoded packet exactly. |
+| Corrupted transfer | A malformed digest, one altered closing price and changed line endings each failed before the catalog changed. |
+| Compatibility | The version 1 fixture and earlier workspace recovery tests continued to pass. |
+
+[Provider CSV verification](provider-history-fixture.md#verify-the-embedded-csv) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.73.0 · Provider history fixture preflight
 
 | Check | Observed result |

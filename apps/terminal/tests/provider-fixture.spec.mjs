@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { expect, test } from './fixtures.mjs'
 import { catalogContents, downloadWorkspace, microCSV, submitImport } from './catalog-fixtures.mjs'
 
@@ -16,6 +17,44 @@ const fixture = {
   },
   csv: microCSV,
 }
+
+test('version 2 provider fixtures verify exact embedded CSV bytes before catalog writes', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2099-12-31T23:59:59.999Z'))
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'NVDA', exact: true })).toBeVisible()
+  const before = await catalogContents(page)
+  const packet = {
+    ...fixture,
+    version: 2,
+    csvSha256: createHash('sha256').update(fixture.csv, 'utf8').digest('hex'),
+  }
+  const dialog = page.getByRole('dialog')
+  await page.getByRole('button', { name: 'Import CSV', exact: true }).click()
+  await dialog.getByRole('combobox', { name: 'Input format', exact: true }).selectOption('provider')
+  async function select(value) {
+    await dialog.locator('input[type=file]').setInputFiles({
+      name: 'verified.provider.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(value)),
+    })
+  }
+  async function reject(value, message) {
+    await select(value)
+    await dialog.getByRole('button', { name: 'Import to watchlist' }).click()
+    await expect(dialog.getByRole('alert')).toHaveText(message)
+  }
+  await reject({ ...packet, csvSha256: 'short' },
+    'Supply the provider CSV SHA-256 as 64 lowercase hexadecimal characters.')
+  const edited = fixture.csv.replace(',1.000001,19.000009', ',1,19.000009')
+  expect(edited).not.toBe(fixture.csv)
+  await reject({ ...packet, csv: edited }, 'The provider CSV SHA-256 does not match the fixture.')
+  await reject({ ...packet, csv: fixture.csv.replaceAll('\r\n', '\n') },
+    'The provider CSV SHA-256 does not match the fixture.')
+  expect(await catalogContents(page)).toEqual(before)
+  await select(packet)
+  await submitImport(page, 'LICENSED')
+  expect((await catalogContents(page)).series[0].csv).toBe(fixture.csv)
+})
 
 test('provider fixture preflight checks identity, permissions and UTC expiry before catalog writes', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2099-12-31T23:59:59.999Z'))

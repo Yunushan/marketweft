@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.73.0 checks provider history fixtures and source grants before importing data. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.74.0 verifies the embedded CSV digest in version 2 provider history fixtures. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -76,6 +76,7 @@
 | Delivered · 0.71.0 | Formula automated-use permission (MW-029) | Check the selected history at evaluation time and verify that its UTC expiration blocks a retry and clears the earlier result. [Formula use permission](docs/source-permissions.md#time-series-formulas). |
 | Delivered · 0.72.0 | Formula CSV redistribution permission (MW-029) | Enforce the evaluated history's grant at download time. Verify a permitted local result remains visible across denied or expired CSV requests. [Formula export permission](docs/source-permissions.md#formula-csv-export). |
 | Delivered · 0.73.0 | Provider history fixture preflight (MW-013, MW-029) | Verify provider identity, a grant reference, local-use permissions and the exact UTC expiration before storing fixture history. [Provider history fixtures](docs/provider-history-fixture.md). |
+| Delivered · 0.74.0 | Provider history CSV integrity (MW-013, MW-029) | Bind version 2 packets to the exact UTF-8 bytes of their embedded OHLCV CSV. Check changed prices and line endings before any catalog write. [Provider CSV verification](docs/provider-history-fixture.md#verify-the-embedded-csv). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -87,5 +88,5 @@
 
 ## Handoff for the next change
 
-Bind provider history fixture packets to the SHA-256 of the embedded OHLCV CSV. Verify tampered bars fail before the catalog changes.
+Verify a signed provider history fixture against an explicitly supplied provider public key. Bind the provider identifier, grant and CSV digest to the signature.
 

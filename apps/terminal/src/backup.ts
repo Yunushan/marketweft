@@ -2,6 +2,7 @@ import { validateCatalogData } from './catalog'
 import type { CatalogData, History } from './catalog'
 import type { MarketCore } from './market-core'
 import type { Asset } from './workspace'
+import { sha256Text } from './sha256'
 
 const FORMAT = 'marketweft-workspace'
 const SINGLE_PANE_BACKUP_VERSION = 1
@@ -48,11 +49,7 @@ async function digest(value: unknown): Promise<string> {
     throw Error(
       'Backup verification needs a secure origin. Open MarketWeft over HTTPS or localhost.',
     )
-  const bytes = new TextEncoder().encode(canonical(value))
-  const result = await crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(result), (byte) =>
-    byte.toString(16).padStart(2, '0'),
-  ).join('')
+  return sha256Text(canonical(value))
 }
 
 // Samples are embedded in the terminal. Pin their identities, ordering and all

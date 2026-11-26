@@ -158,7 +158,7 @@ function ImportForm({
     try {
       const text = await file.text()
       if (providerFixture) {
-        const { item, metadata } = parseProviderHistoryFixture(text, file.name)
+        const { item, metadata } = await parseProviderHistoryFixture(text, file.name)
         checkImportRows(item.csv, importPolicy)
         await save(item, metadata)
         return
