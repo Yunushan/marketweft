@@ -441,6 +441,34 @@ export interface CrossSectionActions {
   delistings: string;
 }
 
+export interface CrossSectionWalkConfig {
+  trainingDecisions: string;
+  testDecisions: string;
+  candidates: string;
+}
+
+export interface CrossSectionScore {
+  lookbackSeconds: number;
+  topListings: number;
+  equity: bigint | null;
+  cash: bigint;
+  turnover: bigint;
+  fees: bigint;
+  acceptedFills: number;
+  decisions: number;
+  ranked: number;
+  missing: number;
+}
+
+export interface CrossSectionFold {
+  trainingFrom: number;
+  trainingThrough: number;
+  testFrom: number;
+  testThrough: number;
+  trainingScores: CrossSectionScore[];
+  testScore: CrossSectionScore | null;
+}
+
 export interface CrossSectionDividendPosting {
   listingId: string;
   dividendId: string;
@@ -675,6 +703,9 @@ export interface MarketCore {
   listingRisk(membership: string, prices: string, leftId: string, rightId: string, query: ListingRiskQuery): ListingRiskPoint[];
   crossSectionReplay(membership: string, prices: string, liquidity: string, from: string,
     through: string, known: string, config: CrossSectionConfig, actions?: CrossSectionActions): CrossSectionReport;
+  crossSectionWalk(membership: string, prices: string, liquidity: string, from: string,
+    through: string, known: string, config: CrossSectionConfig, walk: CrossSectionWalkConfig,
+    actions?: CrossSectionActions): CrossSectionFold[];
   portfolioScenarios(membership: string, prices: string, allocations: ScenarioAllocation[],
     query: JointScenarioQuery): JointScenarioReport;
   sectorHeatmap(membership: string, prices: string, sectors: string, baselineAt: string,
@@ -747,6 +778,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_paper_replay(): number;
   mw_cross_section_replay(membershipBytes: number, priceBytes: number): number;
   mw_cross_section_actions(membershipBytes: number, priceBytes: number, liquidityBytes: number, dividendBytes: number): number;
+  mw_cross_section_walk(membershipBytes: number, priceBytes: number, liquidityBytes: number, dividendBytes: number): number;
   mw_backtest_index(calendarBytes: number, interval: number): number;
   mw_backtest(calendarBytes: number, interval: number): number;
   mw_recorded_backtest(calendarBytes: number, barBytes: number, interval: number): number;
@@ -853,6 +885,15 @@ function decodePaperReceipt(fields: string[]): PaperReceipt {
     priceAt: effective === '' ? null : Number(effective), shares: shares === '' ? null : BigInt(shares),
     price: price === '' ? null : BigInt(price), status, cashDelta: BigInt(cashDelta),
     fee: BigInt(fee), realizedDelta: BigInt(realizedDelta) };
+}
+
+function crossSectionSettings(config: CrossSectionConfig): string {
+  const settings = [config.decisionSeconds, config.lookbackSeconds, config.topListings,
+    config.targetShares, config.limitBuffer, config.participation];
+  if (settings.some(value => !/^\d+$/.test(value))) {
+    throw new Error('Use whole numbers for ranking settings.');
+  }
+  return settings.join(',') + '\n' + paperSettings(config.paper) + '\n';
 }
 
 function paperSettings(config: PaperConfig): string {
@@ -1318,24 +1359,19 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       });
     },
     crossSectionReplay(membership, prices, liquidity, from, through, known, config, actions) {
-      const settings = [config.decisionSeconds, config.lookbackSeconds, config.topListings,
-        config.targetShares, config.limitBuffer, config.participation];
-      if (settings.some(value => !/^\d+$/.test(value))) {
-        throw new Error('Use whole numbers for ranking settings.');
-      }
+      const settings = crossSectionSettings(config);
       const membershipBytes = encoder.encode(membership).length;
       const priceBytes = encoder.encode(prices).length;
       let bytes: DataView;
       if (actions) {
         const { accountCurrency, dividends, delistings } = actions;
         if (!/^[A-Z]{3}$/.test(accountCurrency)) throw new Error('Use a three-letter uppercase paper account currency.');
-        screenInput([from, through, known], settings.join(','), '\n', paperSettings(config.paper), '\n',
+        screenInput([from, through, known], settings,
           accountCurrency, '\n', membership, prices, liquidity, dividends, delistings);
         bytes = output(api.mw_cross_section_actions(membershipBytes, priceBytes,
           encoder.encode(liquidity).length, encoder.encode(dividends).length));
       } else {
-        screenInput([from, through, known], settings.join(','), '\n', paperSettings(config.paper),
-          '\n', membership, prices, liquidity);
+        screenInput([from, through, known], settings, membership, prices, liquidity);
         bytes = output(api.mw_cross_section_replay(membershipBytes, priceBytes));
       }
       const text = decoder.decode(bytes);
@@ -1371,6 +1407,41 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         else throw new Error('Invalid cross-sectional replay row.');
       }
       return report;
+    },
+    crossSectionWalk(membership, prices, liquidity, from, through, known, config, walk, actions) {
+      const training = walk.trainingDecisions.trim();
+      const test = walk.testDecisions.trim();
+      const candidates = walk.candidates.split(',').map(candidate => candidate.trim());
+      if (!/^\d+$/.test(training) || !/^\d+$/.test(test) ||
+          candidates.length < 2 || candidates.length > 16 || candidates.some(candidate => !/^\d+:\d+$/.test(candidate))) {
+        throw new Error('Use whole decision counts and 2–16 lookback:top-listings candidates.');
+      }
+      const currency = actions?.accountCurrency ?? '';
+      if (actions && !/^[A-Z]{3}$/.test(currency)) throw new Error('Use a three-letter uppercase paper account currency.');
+      const dividends = actions?.dividends ?? '';
+      screenInput([from, through, known], crossSectionSettings(config), currency, '\n',
+        [training, test, ...candidates].join(','), '\n', membership, prices, liquidity, dividends,
+        actions?.delistings ?? '');
+      const result = decoder.decode(output(api.mw_cross_section_walk(encoder.encode(membership).length,
+        encoder.encode(prices).length, encoder.encode(liquidity).length, encoder.encode(dividends).length)));
+      const folds: CrossSectionFold[] = [];
+      for (const row of result.trimEnd().split('\n').filter(Boolean)) {
+        const [tag, ...fields] = row.split('\t');
+        if (tag === 'F') {
+          const [trainingFrom, trainingThrough, testFrom, testThrough] = fields.map(Number);
+          folds.push({ trainingFrom, trainingThrough, testFrom, testThrough, trainingScores: [], testScore: null });
+          continue;
+        }
+        const fold = folds.at(-1);
+        if (!fold || (tag !== 'T' && tag !== 'O')) throw new Error('Invalid cross-sectional walk-forward row.');
+        const [lookback, top, equity, cash, turnover, fees, fills, decisions, ranked, missing] = fields;
+        const score = { lookbackSeconds: Number(lookback), topListings: Number(top), equity: equity ? BigInt(equity) : null,
+          cash: BigInt(cash), turnover: BigInt(turnover), fees: BigInt(fees), acceptedFills: Number(fills),
+          decisions: Number(decisions), ranked: Number(ranked), missing: Number(missing) };
+        if (tag === 'T') fold.trainingScores.push(score);
+        else fold.testScore = score;
+      }
+      return folds;
     },
     portfolioScenarios(membership, prices, allocations, query) {
       const { from, through, known, intervalSeconds, startingValue, feeBasisPoints, seed, paths, horizon } = query;

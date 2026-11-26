@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { MarketCore, ScreenPrice, UniverseListing } from './market-core'
 import { utc } from './workspace'
@@ -6,8 +6,12 @@ import { fixed } from './fixed-point'
 import { SectorHeatmap } from './SectorHeatmap'
 import { RelativeReturns } from './RelativeReturns'
 import { JointScenarios } from './JointScenarios'
-import { CrossSectionReplay } from './CrossSectionReplay'
 import demoPrices from '../../../crates/core/tests/fixtures/synthetic-universe-prices.csv?raw'
+
+const CrossSectionReplay = lazy(async () => {
+  const module = await import('./CrossSectionReplay')
+  return { default: module.CrossSectionReplay }
+})
 
 function PriceCell({ price }: { price: ScreenPrice | null }) {
   return price === null ? 'Missing' : (
@@ -169,9 +173,11 @@ export function UniverseScreen({
       {prices && <JointScenarios core={core} membership={membership} membershipSource={membershipSource}
         prices={prices.csv} priceSource={prices.source} listings={listings} firstCutoff={firstCutoff}
         effective={effective} known={known} />}
-      {prices && <CrossSectionReplay core={core} membership={membership} membershipSource={membershipSource}
-        prices={prices.csv} priceSource={prices.source} firstCutoff={firstCutoff}
-        effective={effective} known={known} demo={initialPrices !== undefined} corporateDemo={corporateDemo} />}
+      {prices && <Suspense fallback={<p>Loading paper replay…</p>}>
+        <CrossSectionReplay core={core} membership={membership} membershipSource={membershipSource}
+          prices={prices.csv} priceSource={prices.source} firstCutoff={firstCutoff}
+          effective={effective} known={known} demo={initialPrices !== undefined} corporateDemo={corporateDemo} />
+      </Suspense>}
       {prices && <SectorHeatmap core={core} membership={membership} prices={prices.csv}
         baseline={baseline} effective={effective} known={known} demo={demo} />}
     </section>

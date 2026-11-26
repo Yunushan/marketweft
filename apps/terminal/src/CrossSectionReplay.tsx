@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { CrossSectionConfig, CrossSectionReport, MarketCore, PaperConfig, PaperReceipt } from './market-core'
+import type { CrossSectionConfig, CrossSectionReport, CrossSectionWalkConfig, MarketCore, PaperConfig, PaperReceipt } from './market-core'
+import { CrossSectionWalk } from './CrossSectionWalk'
 import { quoteText } from './chart-export'
 import { downloadFile } from './download'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoLiquidity from '../../../crates/core/tests/fixtures/synthetic-cross-section-liquidity.csv?raw'
+import demoWalkLiquidity from '../../../crates/core/tests/fixtures/synthetic-cross-section-walk-liquidity.csv?raw'
 import demoDividends from '../../../crates/core/tests/fixtures/synthetic-cross-section-dividends.csv?raw'
 import demoDelistings from '../../../crates/core/tests/fixtures/synthetic-cross-section-delisting.csv?raw'
 
@@ -185,6 +187,11 @@ export function CrossSectionReplay(props: ReplayProps) {
   const [run, setRun] = useState<Run | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const calculateWalk = useCallback((settings: CrossSectionWalkConfig) => {
+    if (!run) return []
+    return core.crossSectionWalk(membership, prices, run.liquidity.csv, run.from, effective, known,
+      run.config, settings, calculationInputs(run.corporate))
+  }, [core, membership, prices, run, effective, known])
   const state = useMemo(() => {
     if (!run) return null
     try {
@@ -243,6 +250,11 @@ export function CrossSectionReplay(props: ReplayProps) {
             setFile(null)
             setError('')
           }}>Use sample liquidity</button>}
+          {demo && <button type="button" className="outline" disabled={busy} onClick={() => {
+            setSource({ csv: demoWalkLiquidity, name: 'Synthetic walk-forward liquidity' })
+            setFile(null)
+            setError('')
+          }}>Use walk-forward sample liquidity</button>}
           <label>First decision (UTC)
             <input required value={from} onChange={event => setFrom(event.target.value)}
               autoComplete="off" spellCheck={false} />
@@ -325,6 +337,17 @@ export function CrossSectionReplay(props: ReplayProps) {
         {run.corporate && <CorporateCash report={report} run={run.corporate} props={props} />}
         <button type="button" className="outline" onClick={() => downloadReplay(report, run, props)}>Download paper replay</button>
       </>}
+      {run && <CrossSectionWalk calculate={calculateWalk} metadata={[
+        ['membership_source', props.membershipSource], ['price_source', props.priceSource],
+        ['liquidity_source', run.liquidity.name], ['dividend_source', run.corporate?.dividends?.name ?? ''],
+        ['delisting_source', run.corporate?.delistings?.name ?? ''], ['account_currency', run.corporate?.accountCurrency ?? ''],
+        ['from_utc', run.from], ['effective_through_utc', effective], ['known_through_utc', known],
+        ['decision_seconds', run.config.decisionSeconds], ['target_shares', run.config.targetShares],
+        ['limit_buffer_bps', run.config.limitBuffer], ['participation_bps', run.config.participation],
+        ['starting_cash', run.config.paper.startingCash], ['position_limit', run.config.paper.positionLimit],
+        ['committed_cost_limit', run.config.paper.exposureLimit], ['fee_per_share', run.config.paper.feePerShare],
+        ['fee_per_order', run.config.paper.feePerOrder],
+      ]} />}
     </section>
   </details>
 }

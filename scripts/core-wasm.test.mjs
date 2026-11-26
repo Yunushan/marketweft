@@ -9,6 +9,42 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('cross-sectional walk-forward freezes candidates and isolates corporate test replay', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, actionMembership, prices, liquidity, dividends, delistings] = await Promise.all([
+    fixture('synthetic-listing-risk-membership'), fixture('synthetic-cross-section-membership'),
+    fixture('synthetic-listing-risk-prices'), fixture('synthetic-cross-section-walk-liquidity'),
+    fixture('synthetic-cross-section-dividends'), fixture('synthetic-cross-section-delisting'),
+  ]);
+  const utc = minute => '2025-06-02T14:0' + minute + ':00Z';
+  const config = {
+    paper: { startingCash: '1000', positionLimit: '10', exposureLimit: '1000', feePerShare: '0.1', feePerOrder: '0.5' },
+    decisionSeconds: '60', lookbackSeconds: '60', topListings: '1', targetShares: '4', limitBuffer: '1000', participation: '10000',
+  };
+  const params = { trainingDecisions: '2', testDecisions: '2', candidates: '60:2,60:1' };
+  const run = (known, marks = prices) => core.crossSectionWalk(membership, marks, liquidity,
+    utc(1), utc(6), utc(known), config, params);
+  assert.deepEqual(run(3), []);
+  const folds = run(6);
+  assert.equal(folds.length, 2);
+  assert.deepEqual(run(4), folds.slice(0, 1));
+  assert.deepEqual(run(7), folds);
+  const [first] = folds;
+  assert.deepEqual(first.trainingScores.map(row => [row.topListings, row.equity]), [[1, 999300000n], [2, null]]);
+  assert.equal(first.testScore.equity, 999100000n);
+  assert.equal(first.testScore.turnover, 484000000n);
+  const revised = prices.replace('14:04:00Z,2025-06-02T14:04:00Z,121', '14:04:00Z,2025-06-02T14:04:00Z,127');
+  const firstRevised = run(6, revised)[0];
+  assert.deepEqual(firstRevised.trainingScores, first.trainingScores);
+  assert.equal(firstRevised.testScore.equity, 1023100000n);
+  const actions = core.crossSectionWalk(actionMembership, prices, liquidity,
+    utc(1), utc(6), utc(8), config, { ...params, trainingDecisions: '3', testDecisions: '3' },
+    { accountCurrency: 'USD', dividends, delistings });
+  assert.equal(actions[0].testScore.equity, 1015100000n);
+  assert.throws(() => core.crossSectionWalk(membership, prices, liquidity, utc(1), utc(6), utc(6),
+    config, { ...params, candidates: '60:1,60:1' }), /distinct ranking candidates/);
+});
+
 test('recorded execution keeps exact trade sequence and late cutoff fills in Wasm', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');
   const [calendar, bars, trades] = await Promise.all([fixture('sessions'), fixture('bars'), fixture('trades')]);

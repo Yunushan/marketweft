@@ -661,7 +661,7 @@ pub extern "C" fn mw_portfolio_scenarios(membership_bytes: usize) -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_cross_section_replay(membership_bytes: usize, price_bytes: usize) -> u32 {
-    process(|input| cross_section_input(input, membership_bytes, price_bytes, None))
+    process(|input| cross_section_input(input, membership_bytes, price_bytes, None, false))
 }
 
 #[no_mangle]
@@ -677,6 +677,25 @@ pub extern "C" fn mw_cross_section_actions(
             membership_bytes,
             price_bytes,
             Some((liquidity_bytes, dividend_bytes)),
+            false,
+        )
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_cross_section_walk(
+    membership_bytes: usize,
+    price_bytes: usize,
+    liquidity_bytes: usize,
+    dividend_bytes: usize,
+) -> u32 {
+    process(|input| {
+        cross_section_input(
+            input,
+            membership_bytes,
+            price_bytes,
+            Some((liquidity_bytes, dividend_bytes)),
+            true,
         )
     })
 }
@@ -686,6 +705,7 @@ fn cross_section_input(
     membership_bytes: usize,
     price_bytes: usize,
     reports: Option<(usize, usize)>,
+    walk: bool,
 ) -> Result<Vec<u8>, String> {
     let ([from_at, through_at, known_at], rest) = screen_inputs(input)?;
     let mut fields = rest.splitn(3, '\n');
@@ -699,6 +719,14 @@ fn cross_section_input(
             .ok_or("Supply the paper account currency.")?
     } else {
         ("", csvs)
+    };
+    let (fold_settings, csvs) = if walk {
+        let (settings, csvs) = csvs
+            .split_once('\n')
+            .ok_or("Supply walk-forward settings.")?;
+        (Some(settings), csvs)
+    } else {
+        (None, csvs)
     };
     let (membership, rest) = csvs
         .split_at_checked(membership_bytes)
@@ -734,12 +762,87 @@ fn cross_section_input(
             .split_at_checked(dividend_bytes)
             .ok_or("Invalid dividend data.")?;
         let tape = crate::LiquidityTape::parse(&universe, liquidity)?;
+        if let Some(settings) = fold_settings {
+            let [training, test, candidates] = settings
+                .splitn(3, ',')
+                .collect::<Vec<_>>()
+                .try_into()
+                .map_err(|_| "Supply training and test sizes and ranking candidates.")?;
+            let mut parsed = Vec::new();
+            for row in candidates.split(',') {
+                if parsed.len() == 16 {
+                    return Err("Supply at most 16 ranking candidates.".into());
+                }
+                let (lookback, top) = row
+                    .split_once(':')
+                    .ok_or("Use lookback:top-listings candidates.")?;
+                parsed.push(crate::CrossSectionCandidate {
+                    lookback_seconds: lookback.parse().map_err(error)?,
+                    top_listings: top.parse().map_err(error)?,
+                });
+            }
+            if currency.is_empty() && (!dividends.is_empty() || !delistings.is_empty()) {
+                return Err("Supply the paper account currency for corporate reports.".into());
+            }
+            let corporate = (!currency.is_empty()).then_some(crate::CrossSectionActionSources {
+                dividends,
+                delistings,
+                account_currency: currency,
+            });
+            let folds = book.cross_section_walk_forward(
+                &tape,
+                crate::CrossSectionWalkConfig {
+                    replay: query,
+                    training_decisions: training.parse().map_err(error)?,
+                    test_decisions: test.parse().map_err(error)?,
+                    candidates: &parsed,
+                    corporate,
+                },
+            )?;
+            return Ok(encode_cross_section_walk(&folds).into_bytes());
+        }
         book.cross_section_with_actions(&tape, query, dividends, delistings, currency)?
     } else {
         let tape = crate::LiquidityTape::parse(&universe, rest)?;
         book.cross_section_replay(&tape, query)?
     };
     Ok(encode_cross_section(report).into_bytes())
+}
+
+fn encode_cross_section_walk(folds: &[crate::CrossSectionFold]) -> String {
+    use std::fmt::Write;
+    let mut text = String::new();
+    for fold in folds {
+        writeln!(
+            &mut text,
+            "F\t{}\t{}\t{}\t{}",
+            fold.training_from, fold.training_through, fold.test_from, fold.test_through
+        )
+        .unwrap();
+        for (tag, score) in fold
+            .training_scores
+            .iter()
+            .map(|score| ("T", score))
+            .chain(fold.test_score.iter().map(|score| ("O", score)))
+        {
+            writeln!(
+                &mut text,
+                "{tag}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                score.candidate.lookback_seconds,
+                score.candidate.top_listings,
+                optional_number(score.equity),
+                score.cash,
+                score.turnover,
+                score.fees,
+                score.accepted_fills,
+                score.decisions,
+                score.ranked_observations,
+                score.missing_observations
+            )
+            .unwrap();
+        }
+    }
+    text
 }
 
 fn encode_cross_section(report: crate::CrossSectionReport) -> String {

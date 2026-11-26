@@ -93,6 +93,11 @@ for one move with a 100-basis-point rebalance fee to reconcile net value.
 Open Cross-sectional paper replay and use the sample liquidity, or load
 cross-section-liquidity.csv with the listing risk membership and prices.
 Rewind knowledge from 14:06 to 14:01 UTC to compare reserved cash and fills.
+For walk-forward optimization, choose Use walk-forward sample liquidity
+or load cross-section-walk-liquidity.csv with the listing risk inputs.
+Run the ranking replay, then expand Cross-sectional walk-forward. Hold
+effective time at 14:06 and compare knowledge at 14:03, 14:04 and 14:06 UTC
+to see zero, one and two completed test windows.
 Start corporate cash demo to load the matching membership and prices. Add
 sample liquidity and sample corporate reports in Cross-sectional paper replay.
 Keep effective time at 2025-06-02T14:06:00Z, then advance knowledge from
@@ -190,6 +195,7 @@ def main():
     files["listing-risk-membership.csv"] = (fixture / "synthetic-listing-risk-membership.csv").read_bytes()
     files["listing-risk-prices.csv"] = (fixture / "synthetic-listing-risk-prices.csv").read_bytes()
     files["cross-section-liquidity.csv"] = (fixture / "synthetic-cross-section-liquidity.csv").read_bytes()
+    files["cross-section-walk-liquidity.csv"] = (fixture / "synthetic-cross-section-walk-liquidity.csv").read_bytes()
     files["cross-section-membership.csv"] = (fixture / "synthetic-cross-section-membership.csv").read_bytes()
     files["cross-section-dividends.csv"] = (fixture / "synthetic-cross-section-dividends.csv").read_bytes()
     files["cross-section-delisting.csv"] = (fixture / "synthetic-cross-section-delisting.csv").read_bytes()
