@@ -181,6 +181,27 @@ export interface ScreenPrice {
   observedAt: number;
 }
 
+export interface ListingRiskQuery {
+  from: string;
+  through: string;
+  known: string;
+  intervalSeconds: number;
+  windowPeriods: number;
+  volatilityPeriods: number;
+}
+
+export interface ListingRiskPoint {
+  fromAt: number;
+  throughAt: number;
+  expectedReturns: number;
+  leftReturns: number;
+  rightReturns: number;
+  pairedReturns: number;
+  leftVolatility: number | null;
+  rightVolatility: number | null;
+  correlation: number | null;
+}
+
 export interface RelativeLegPoint {
   membership: UniverseListing['status'] | null;
   close: ScreenPrice | null;
@@ -548,6 +569,7 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string): ScreenRow[];
   relativeSeries(membership: string, prices: string, leftId: string, rightId: string,
     baselineAt: string, effectiveAt: string, knownAt: string): RelativePoint[];
+  listingRisk(membership: string, prices: string, leftId: string, rightId: string, query: ListingRiskQuery): ListingRiskPoint[];
   sectorHeatmap(membership: string, prices: string, sectors: string, baselineAt: string,
     effectiveAt: string, knownAt: string): Heatmap;
   financialIndex(filings: string, caps: string): FinancialIssuer[];
@@ -601,6 +623,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_income_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number, termsBytes: number): number;
   mw_universe_screen(membershipBytes: number): number;
   mw_relative_series(membershipBytes: number): number;
+  mw_listing_risk(membershipBytes: number, intervalSeconds: number, windowPeriods: number, volatilityPeriods: number): number;
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
   mw_financial_index(filingBytes: number): number;
   mw_financial_as_of(filingBytes: number): number;
@@ -765,6 +788,13 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       throw new Error('Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
     }
     textInput([...times, files.join('')].join('\n'));
+  }
+
+  function putPairInput(membership: string, prices: string, leftId: string, rightId: string, times: string[]) {
+    if ([leftId, rightId].some(id => id.length < 1 || id.length > 40 || /[^a-zA-Z0-9._-]/.test(id))) {
+      throw new Error('Use two valid listing IDs.');
+    }
+    screenInput(times, leftId, '\n', rightId, '\n', membership, prices);
   }
 
   function putFootprintInput(instrument: string, csv: string, { bucketSeconds, priceWidth, from, through, known }: FootprintQuery) {
@@ -1131,10 +1161,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       });
     },
     relativeSeries(membership, prices, leftId, rightId, baselineAt, effectiveAt, knownAt) {
-      if ([leftId, rightId].some(id => id.length < 1 || id.length > 40 || /[^a-zA-Z0-9._-]/.test(id))) {
-        throw new Error('Use two valid listing IDs.');
-      }
-      screenInput([baselineAt, effectiveAt, knownAt], leftId, '\n', rightId, '\n', membership, prices);
+      putPairInput(membership, prices, leftId, rightId, [baselineAt, effectiveAt, knownAt]);
       const text = decoder.decode(output(api.mw_relative_series(encoder.encode(membership).length)));
       const leg = (state: string, close: string, change: string): RelativeLegPoint => ({
         membership: state === '' ? null : universeStatuses[Number(state)],
@@ -1145,6 +1172,27 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         const [at, leftState, leftClose, leftReturn, rightState, rightClose, rightReturn, spread] = line.split('\t');
         return { effectiveAt: Number(at), left: leg(leftState, leftClose, leftReturn),
           right: leg(rightState, rightClose, rightReturn), spreadUnits: spread === '' ? null : BigInt(spread) };
+      });
+    },
+    listingRisk(membership, prices, leftId, rightId, { from, through, known, intervalSeconds, windowPeriods, volatilityPeriods }) {
+      if ([intervalSeconds, windowPeriods, volatilityPeriods].some(value =>
+        !Number.isInteger(value) || value < 1 || value > 0xffffffff)) {
+        throw new Error('Use positive whole numbers for the risk window, interval and volatility scale.');
+      }
+      putPairInput(membership, prices, leftId, rightId, [from, through, known]);
+      const out = output(api.mw_listing_risk(encoder.encode(membership).length, intervalSeconds, windowPeriods, volatilityPeriods));
+      return Array.from({ length: out.byteLength / 56 }, (_, index) => {
+        const start = index * 56;
+        const metric = (offset: number) => {
+          const value = out.getFloat64(start + offset, true);
+          return Number.isFinite(value) ? value : null;
+        };
+        return {
+          fromAt: Number(out.getBigInt64(start, true)), throughAt: Number(out.getBigInt64(start + 8, true)),
+          expectedReturns: out.getUint32(start + 16, true), leftReturns: out.getUint32(start + 20, true),
+          rightReturns: out.getUint32(start + 24, true), pairedReturns: out.getUint32(start + 28, true),
+          leftVolatility: metric(32), rightVolatility: metric(40), correlation: metric(48),
+        };
       });
     },
     sectorHeatmap(membership, prices, sectors, baselineAt, effectiveAt, knownAt) {

@@ -477,12 +477,12 @@ pub extern "C" fn mw_universe_screen(membership_bytes: usize) -> u32 {
 pub extern "C" fn mw_relative_series(membership_bytes: usize) -> u32 {
     use std::fmt::Write;
     process(|input| {
-        let ([baseline_at, effective_at, known_at], rest) = screen_inputs(input)?;
-        let (left, rest) = rest.split_once('\n').ok_or("Supply a left listing ID.")?;
-        let (right, csvs) = rest.split_once('\n').ok_or("Supply a right listing ID.")?;
-        let (membership, closes) = csvs
-            .split_at_checked(membership_bytes)
-            .ok_or("Supply both membership and price reports.")?;
+        let PairInputs {
+            times: [baseline_at, effective_at, known_at],
+            listing_ids: [left, right],
+            membership,
+            closes,
+        } = pair_inputs(input, membership_bytes)?;
         let universe = parse_universe(membership)?;
         let prices = PriceBook::parse(&universe, closes)?;
         let mut text = String::new();
@@ -503,6 +503,78 @@ pub extern "C" fn mw_relative_series(membership_bytes: usize) -> u32 {
             writeln!(&mut text, "\t{}", optional_number(point.spread_units)).unwrap();
         }
         Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_listing_risk(
+    membership_bytes: usize,
+    interval_seconds: u32,
+    window_periods: u32,
+    volatility_periods: u32,
+) -> u32 {
+    process(|input| {
+        let PairInputs {
+            times: [from_at, through_at, known_at],
+            listing_ids: [left, right],
+            membership,
+            closes,
+        } = pair_inputs(input, membership_bytes)?;
+        let universe = parse_universe(membership)?;
+        let prices = PriceBook::parse(&universe, closes)?;
+        let query = crate::ListingRiskQuery {
+            from_at,
+            through_at,
+            known_at,
+            interval_seconds,
+            window_periods,
+            volatility_periods,
+        };
+        let points = prices.listing_risk(left, right, query)?;
+        let mut bytes = Vec::with_capacity(56 * points.len());
+        for point in points {
+            for time in [point.from_at, point.through_at] {
+                bytes.extend_from_slice(&time.to_le_bytes());
+            }
+            for count in [
+                point.expected_returns,
+                point.left_returns,
+                point.right_returns,
+                point.paired_returns,
+            ] {
+                bytes.extend_from_slice(&count.to_le_bytes());
+            }
+            for value in [
+                point.left_volatility,
+                point.right_volatility,
+                point.correlation,
+            ] {
+                bytes.extend_from_slice(&value.unwrap_or(f64::NAN).to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+struct PairInputs<'a> {
+    times: [i64; 3],
+    listing_ids: [&'a str; 2],
+    membership: &'a str,
+    closes: &'a str,
+}
+
+fn pair_inputs(input: &[u8], membership_bytes: usize) -> Result<PairInputs<'_>, String> {
+    let (times, rest) = screen_inputs(input)?;
+    let (left, rest) = rest.split_once('\n').ok_or("Supply a left listing ID.")?;
+    let (right, csvs) = rest.split_once('\n').ok_or("Supply a right listing ID.")?;
+    let (membership, closes) = csvs
+        .split_at_checked(membership_bytes)
+        .ok_or("Supply both membership and price reports.")?;
+    Ok(PairInputs {
+        times,
+        listing_ids: [left, right],
+        membership,
+        closes,
     })
 }
 

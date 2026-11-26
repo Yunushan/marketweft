@@ -83,6 +83,10 @@ Expand Relative returns to compare two listing IDs. Select ALFA-001 and
 BETA-001 at an effective and known time of 14:20 UTC. Use 14:10 UTC as
 the comparison baseline and advance knowledge to 14:25 UTC to see the
 gap caused by the removal. Download relative returns for the full window.
+Start listing risk demo under Universe replay, or open the matching
+listing-risk-membership.csv and listing-risk-prices.csv files. Compare A
+and B, then expand Rolling risk. Use an effective time of 14:06 UTC and
+compare knowledge at 14:06, 14:07 and 14:08 to inspect paired coverage.
 
 Select the NVDA chart and open Recorded market depth. Choose Load depth demo
 or open depth.csv. Inspect the sequence gap at 14:00:05 UTC and the recovered
@@ -167,6 +171,8 @@ def main():
     files["portfolio-dividends.csv"] = (fixture / "synthetic-portfolio-dividends.csv").read_bytes()
     files["split-revisions.csv"] = (fixture / "synthetic-split-revisions.csv").read_bytes()
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()
+    files["listing-risk-membership.csv"] = (fixture / "synthetic-listing-risk-membership.csv").read_bytes()
+    files["listing-risk-prices.csv"] = (fixture / "synthetic-listing-risk-prices.csv").read_bytes()
     files["universe-sectors.csv"] = (fixture / "synthetic-universe-sectors.csv").read_bytes()
     files["financial-filings.csv"] = (fixture / "synthetic-financial-filings.csv").read_bytes()
     files["financial-market-caps.csv"] = (fixture / "synthetic-financial-market-caps.csv").read_bytes()

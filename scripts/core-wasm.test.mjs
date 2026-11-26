@@ -9,6 +9,28 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('listing risk pairs exact adjacent intervals and preserves missing and zero-variance values', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, prices] = await Promise.all([fixture('membership'), fixture('prices')]);
+  const utc = minute => '2025-06-02T14:0' + minute + ':00Z';
+  const at = (known, source = prices) => core.listingRisk(membership, source, 'A', 'B', {
+    from: utc(0), through: utc(6), known: utc(known), intervalSeconds: 60, windowPeriods: 3, volatilityPeriods: 1,
+  });
+  const early = at(6);
+  assert.equal(early[0].expectedReturns, 3);
+  assert.equal(early[0].pairedReturns, 1);
+  assert.equal(early[0].rightVolatility, null);
+  assert.equal(early[0].correlation, null);
+  assert.deepEqual(early.map(row => row.pairedReturns), [1, 1, 2, 3]);
+  const observed = at(7);
+  assert.ok(observed.every(row => row.pairedReturns === 3 && Math.abs(row.correlation + 1) < 1e-14));
+  assert.ok(Math.abs(observed[0].leftVolatility - 0.1 / Math.sqrt(3)) < 1e-14);
+  assert.equal(at(8).at(-1).leftVolatility, null);
+  assert.deepEqual(at(6), early);
+  const constant = prices.replace(/^RISK,A,(.*),[^,\r\n]+$/gm, 'RISK,A,$1,100');
+  assert.ok(at(7, constant).every(row => row.leftVolatility === 0 && row.correlation === null));
+});
+
 test('observed price profiles preserve distinct TPO brackets and exact volume value areas', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-footprint.csv', import.meta.url), 'utf8');
   const instrument = 'NASDAQ:NVDA';

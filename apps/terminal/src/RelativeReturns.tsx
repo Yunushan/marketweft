@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { quoteText } from './chart-export'
 import { downloadFile } from './download'
 import { fixed } from './fixed-point'
+import { ListingRisk } from './ListingRisk'
 import type { MarketCore, RelativeLegPoint, RelativePoint, UniverseListing } from './market-core'
 import { utc } from './workspace'
 
@@ -232,6 +233,8 @@ export function RelativeReturns({
               const csv = relativeCsv({ ...pair, effective, known }, membershipSource, priceSource, rows)
               downloadFile('relative-returns.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }))
             }}>Download relative returns</button>
+            <ListingRisk core={core} pair={pair} membership={membership} membershipSource={membershipSource}
+              prices={prices} priceSource={priceSource} effective={effective} known={known} />
           </>
         )}
       </section>

@@ -67,7 +67,10 @@ pub use portfolio::{
 };
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};
-pub use screen::{PriceBook, PriceObservation, RelativeLegPoint, RelativePoint, ScreenRow};
+pub use screen::{
+    ListingRiskPoint, ListingRiskQuery, PriceBook, PriceObservation, RelativeLegPoint,
+    RelativePoint, ScreenRow,
+};
 pub use sector::{Classification, Heatmap, HeatmapListing, SectorGroup};
 pub use tick_bars::{
     FlowVolume, FootprintBar, FootprintLevel, PriceProfile, ProfileArea, ProfileLevel, TickBar,

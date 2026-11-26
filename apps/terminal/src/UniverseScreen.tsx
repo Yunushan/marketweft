@@ -18,7 +18,7 @@ function PriceCell({ price }: { price: ScreenPrice | null }) {
 }
 
 export function UniverseScreen({
-  core, membership, membershipSource, listings, demo, firstCutoff, effective, known,
+  core, membership, membershipSource, listings, demo, firstCutoff, effective, known, initialPrices,
 }: {
   core: MarketCore
   membership: string
@@ -28,8 +28,9 @@ export function UniverseScreen({
   firstCutoff: string
   effective: string
   known: string
+  initialPrices?: { csv: string; source: string }
 }) {
-  const [prices, setPrices] = useState<{ csv: string; source: string } | null>(null)
+  const [prices, setPrices] = useState<{ csv: string; source: string } | null>(initialPrices ?? null)
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [baseline, setBaseline] = useState(firstCutoff)

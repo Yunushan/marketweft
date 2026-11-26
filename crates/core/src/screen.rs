@@ -7,6 +7,9 @@ use std::{cmp::Ordering, collections::BTreeMap};
 #[path = "relative.rs"]
 mod relative;
 pub use relative::{RelativeLegPoint, RelativePoint};
+#[path = "listing_risk.rs"]
+mod listing_risk;
+pub use listing_risk::{ListingRiskPoint, ListingRiskQuery};
 
 const MAX_PRICE_ROWS: usize = 20_000;
 const MAX_PRICE_BYTES: usize = 2 * 1024 * 1024;
