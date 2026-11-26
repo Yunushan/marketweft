@@ -52,6 +52,8 @@ export function timeLabel(t: number) {
   const iso = new Date(t * 1000).toISOString()
   return iso.slice(0, 10) + (t % 86400 === 0 ? '' : ' ' + iso.slice(11, 19))
 }
+export const utc = (time: number) =>
+  new Date(time * 1000).toISOString().replace('.000Z', 'Z')
 export function movement(bars: Bar[]) {
   if (bars.length < 2) return { delta: null, pct: null }
   const before = bars.at(-2)!.close

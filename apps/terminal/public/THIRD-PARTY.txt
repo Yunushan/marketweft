@@ -1,4 +1,4 @@
-MarketWeft 0.5.0 · Third-party notices
+MarketWeft 0.6.0 · Third-party notices
 
 
 react 19.3.1

@@ -9,6 +9,27 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('Wasm universe queries gate each listing by knowledge and effective time', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-universe.csv', import.meta.url), 'utf8');
+  const iso = t => '2025-06-02T' + t + 'Z';
+  const state = (end, known) => core.universeAsOf(csv, iso(end), iso(known))
+    .map(row => [row.listingId, row.status, row.changeId]);
+  const book = core.universeIndex(csv);
+  assert.equal(book.name, 'DEMO-BASKET');
+  assert.equal(book.checkpoints.length, 11);
+  assert.deepEqual(state('13:59:59', '15:20:00'), []);
+  assert.deepEqual(state('14:10:00', '14:04:59'), [['ALFA-001', 'member', 'ALFA-BASE']]);
+  assert.deepEqual(state('14:10:00', '14:05:00'), [['ALFA-001', 'member', 'ALFA-BASE'], ['BETA-001', 'member', 'BETA-JOIN']]);
+  assert.deepEqual(state('14:20:00', '14:25:00')[0], ['ALFA-001', 'removed', 'ALFA-REMOVE']);
+  const delisted = core.universeAsOf(csv, iso('14:30:00'), iso('14:35:00')).at(-1);
+  assert.deepEqual(delisted, { listingId: 'BETA-001', instrument: 'DEMO:BETA', status: 'delisted', changeId: 'BETA-DELIST',
+    effectiveAt: Date.parse(iso('14:30:00')) / 1000, observedAt: Date.parse(iso('14:35:00')) / 1000 });
+  assert.deepEqual(state('14:45:00', '14:45:00').at(-1), ['BETA-002', 'member', 'BETA-NEW']);
+  assert.deepEqual(state('15:20:00', '15:04:59')[0], ['ALFA-001', 'removed', 'ALFA-PLANNED']);
+  assert.deepEqual(state('15:20:00', '15:05:00')[0], ['ALFA-001', 'member', 'ALFA-RETURN']);
+  assert.throws(() => core.universeAsOf(csv, '2025-06-31T14:00:00Z', iso('14:35:00')), /UTC timestamps/);
+});
+
 test('Wasm dividend events and cash balances survive the bridge without losing precision', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-cash-dividends.csv', import.meta.url), 'utf8');
   const events = core.dividendLedger('DEMO:DIVIDEND', csv, 100);

@@ -1,5 +1,6 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
+use crate::{history::timestamp, parse_universe};
 use crate::{
     indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
     Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
@@ -95,6 +96,52 @@ fn process(f: impl FnOnce(&[u8]) -> Result<Vec<u8>, String>) -> u32 {
 
 fn utf8(bytes: &[u8]) -> Result<&str, String> {
     std::str::from_utf8(bytes).map_err(|_| "Input must be UTF-8.".into())
+}
+
+#[no_mangle]
+pub extern "C" fn mw_universe_index() -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let book = parse_universe(utf8(input)?)?;
+        let mut text = String::from(book.name());
+        for cutoff in book.checkpoints() {
+            write!(&mut text, "\n{cutoff}").unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_universe_as_of() -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(3, '\n');
+        let mut cutoff = || {
+            parts
+                .next()
+                .filter(|value| value.len() == 20 && value.ends_with('Z'))
+                .and_then(timestamp)
+                .ok_or("Both cutoffs require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+        };
+        let effective_at = cutoff()?;
+        let known_at = cutoff()?;
+        let book = parse_universe(parts.next().ok_or("Missing universe reports.")?)?;
+        let mut text = String::new();
+        for row in book.as_of(effective_at, known_at) {
+            writeln!(
+                &mut text,
+                "{}\t{}\t{}\t{}\t{}\t{}",
+                row.listing_id,
+                row.instrument,
+                row.action as u8,
+                row.change_id,
+                row.effective_at,
+                row.observed_at
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
 }
 
 fn encode_bars(bars: Vec<Bar>) -> Vec<u8> {

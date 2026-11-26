@@ -49,6 +49,10 @@ Choose Start dividend demo to follow receivables and cash at each cutoff.
 The cash-dividends.csv file uses DEMO:DIVIDEND with split-ohlcv.csv and
 split-sessions.csv, a 600-second interval and 100 entitled shares.
 
+Open Universe replay under Historical replay to step through an addition,
+late removal and delisting. Upload universe-membership.csv to exercise the
+same file path and query independent effective and known times.
+
 The chart supports panning, zooming, a crosshair and moving-average overlays.
 This build has no broker connection or order entry. Press Ctrl+C in the
 launcher's terminal to stop serving the application.
@@ -74,6 +78,7 @@ def main():
     for kind in ("actions", "ohlcv", "sessions"):
         files[f"split-{kind}.csv"] = (fixture / f"synthetic-split-{kind}.csv").read_bytes()
     files["cash-dividends.csv"] = (fixture / "synthetic-cash-dividends.csv").read_bytes()
+    files["universe-membership.csv"] = (fixture / "synthetic-universe.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
     inventory["components"] = [item for item in inventory["components"]
                                if any(p["value"] == "web-runtime" for p in item["properties"])]

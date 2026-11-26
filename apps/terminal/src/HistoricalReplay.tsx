@@ -5,14 +5,14 @@ import { splitTimeline } from './split-events'
 import {
   dividendName,
   dividendTimeline,
-  utc,
   type TimelineEvent,
 } from './dividend-events'
 import { DividendLedger } from './DividendLedger'
+import { UniverseReplay } from './UniverseReplay'
 import type { Asset } from './workspace'
 import { Chart } from './Chart'
 import { Icon, Mark } from './Icons'
-import { price } from './workspace'
+import { price, utc } from './workspace'
 import demoCalendar from '../../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv?raw'
 import demoBars from '../../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv?raw'
 import splitCalendar from '../../../crates/core/tests/fixtures/synthetic-split-sessions.csv?raw'
@@ -68,6 +68,9 @@ export function HistoricalReplay({
   close: () => void
 }) {
   const [active, setActive] = useState<ReplayRun | null>(null)
+  const [showUniverse, setShowUniverse] = useState(false)
+  const universeButton = useRef<HTMLButtonElement>(null)
+  const returningFromUniverse = useRef(false)
   const [cursor, setCursor] = useState(-1)
   const [playing, setPlaying] = useState(false)
   const [delay, setDelay] = useState(400)
@@ -93,6 +96,12 @@ export function HistoricalReplay({
   useEffect(() => {
     if (active) chart.current?.focus()
   }, [active])
+  useEffect(() => {
+    if (!showUniverse && returningFromUniverse.current) {
+      returningFromUniverse.current = false
+      universeButton.current?.focus()
+    }
+  }, [showUniverse])
 
   function start(
     asset: Asset,
@@ -285,6 +294,17 @@ export function HistoricalReplay({
   const sma = useMemo(() => core.indicator('sma', 20, bars), [bars, core])
   const ema = useMemo(() => core.indicator('ema', 9, bars), [bars, core])
 
+  if (showUniverse)
+    return (
+      <UniverseReplay
+        core={core}
+        close={() => {
+          returningFromUniverse.current = true
+          setShowUniverse(false)
+        }}
+      />
+    )
+
   return (
     <>
       <header className="app-header">
@@ -338,6 +358,21 @@ export function HistoricalReplay({
                   disabled={busy}
                 >
                   Start dividend demo
+                </button>
+              </section>
+              <section className="side-card replay-panel">
+                <h2>Universe membership</h2>
+                <p>
+                  Inspect members and excluded listings at separate effective
+                  and observation cutoffs.
+                </p>
+                <button
+                  ref={universeButton}
+                  className="primary"
+                  onClick={() => setShowUniverse(true)}
+                  disabled={busy}
+                >
+                  Open universe replay
                 </button>
               </section>
             </div>

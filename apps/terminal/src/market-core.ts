@@ -48,6 +48,16 @@ export interface DividendEvent {
   movements: DividendMovement[];
 }
 
+const universeStatuses = ['member', 'removed', 'delisted'] as const;
+export interface UniverseListing {
+  listingId: string;
+  instrument: string;
+  status: typeof universeStatuses[number];
+  changeId: string;
+  effectiveAt: number;
+  observedAt: number;
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -56,6 +66,8 @@ export interface MarketCore {
   splitBook(instrument: string, csv: string): Split[];
   adjustSplits(bars: readonly Bar[], splits: readonly Split[], asOf: number): Bar[];
   dividendLedger(instrument: string, csv: string, entitledShares: number): DividendEvent[];
+  universeIndex(csv: string): { name: string; checkpoints: number[] };
+  universeAsOf(csv: string, effectiveAt: string, knownAt: string): UniverseListing[];
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -71,6 +83,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_split_book(): number;
   mw_adjust_splits(records: number): number;
   mw_dividend_ledger(shares: number): number;
+  mw_universe_index(): number;
+  mw_universe_as_of(): number;
 }
 
 const SCALE = 1_000_000;
@@ -174,6 +188,24 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         });
       }
       return events;
+    },
+    universeIndex(csv) {
+      textInput(csv);
+      const [name, ...checkpoints] = decoder.decode(output(api.mw_universe_index())).split('\n');
+      return { name, checkpoints: checkpoints.map(Number) };
+    },
+    universeAsOf(csv, effectiveAt, knownAt) {
+      if ([effectiveAt, knownAt].some(value => value.length !== 20 || /[\n\r]/.test(value))) {
+        throw new Error('Both cutoffs require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
+      }
+      textInput(effectiveAt + '\n' + knownAt + '\n' + csv);
+      const text = decoder.decode(output(api.mw_universe_as_of())).trimEnd();
+      if (!text) return [];
+      return text.split('\n').map(line => {
+        const [listingId, instrument, status, changeId, effectiveAt, observedAt] = line.split('\t');
+        return { listingId, instrument, status: universeStatuses[Number(status)], changeId,
+          effectiveAt: Number(effectiveAt), observedAt: Number(observedAt) };
+      });
     },
     splitBook(instrument, csv) {
       textInput(instrument + '\n' + csv);
