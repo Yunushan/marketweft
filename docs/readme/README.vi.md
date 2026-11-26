@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **Ngôn ngữ tài liệu**
 
@@ -15,14 +15,14 @@
 
 MarketWeft là terminal nghiên cứu ưu tiên chạy cục bộ cho nhà phân tích, lập trình viên và người vận hành. Terminal mở OHLCV được cấp quyền, vẽ nến và khối lượng, tính SMA và EMA bằng số dấu phẩy cố định, lưu danh sách theo dõi, tài sản và chỉ báo vào IndexedDB. Sau khi lưu tài nguyên vào bộ đệm, ứng dụng chạy ngoại tuyến. Giá và khối lượng đi kèm là dữ liệu tổng hợp và không cần tài khoản.
 
-Bản 0.3.0 phát lại một chuỗi lịch sử bất biến theo phiên. Kho mã còn có SDK TypeScript chỉ đọc cho trading-bot độc lập và khung Tauri thử nghiệm. Sự kiện doanh nghiệp, nguồn cấp, lệnh, máy chủ nhiều người dùng và trình cài đặt có chữ ký nằm trong lộ trình.
+MarketWeft 0.4.0 thêm tách cổ phiếu theo thông tin sẵn có tại từng thời điểm vào phát lại theo phiên của lịch sử bất biến. Kho mã cũng có SDK TypeScript chỉ đọc cho trading-bot riêng và host Tauri thử nghiệm. Cổ tức tiền mặt, chia tách doanh nghiệp, nguồn cấp, lệnh, hosting nhiều người dùng và trình cài đặt có chữ ký nằm trong lộ trình.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Khởi động terminal di động
 
-Tải browser-terminal-attempt-N từ lần kiểm chứng GitHub thành công. Giải nén MarketWeft-browser-0.3.0.zip, giữ dist/ cùng thư mục với serve-terminal.mjs và chạy lệnh tại đó. Mở http://127.0.0.1:4173/ trên trình duyệt hỗ trợ WebAssembly, Canvas, BigInt và IndexedDB. Dùng Node.js 22.12 trở lên. Không phải cài npm. Chờ Offline ready trước khi ngắt mạng.
+Tải browser-terminal-attempt-N từ lần kiểm chứng GitHub thành công. Giải nén MarketWeft-browser-0.4.0.zip, giữ dist/ cùng thư mục với serve-terminal.mjs và chạy lệnh tại đó. Mở http://127.0.0.1:4173/ trên trình duyệt hỗ trợ WebAssembly, Canvas, BigInt và IndexedDB. Dùng Node.js 22.12 trở lên. Không phải cài npm. Chờ Offline ready trước khi ngắt mạng.
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ Trong Historical replay chọn Start demo. Next event tiến, Previous event lù
 
 Ngày 31/10/2025 mở cửa 13:30 UTC (UTC−04:00), ngày 3/11 là 14:30 UTC (UTC−05:00). Khoảng thiếu lúc 15:00 ngày 3/11 chỉ được báo lúc 15:30. Lễ Tạ ơn không có khoảng giao dịch. Ngày 28/11 đóng sớm lúc 18:00 UTC sau bảy nến 30 phút. Ví dụ có 20 phiên, 253 nến, 294 sự kiện, giá tổng hợp và lịch công bố của NYSE.
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+Mở Historical replay → Start split demo và đổi Price basis giữa Raw và Split-adjusted ở cùng sự kiện. Tách 2 đổi 1 được công bố và quan sát trước khi có hiệu lực. Hai chế độ giống nhau cho đến lúc đó. Khi có hiệu lực, giá đóng cuối trước khi tách chuyển từ 106.50 gốc sang 53.25 đã chỉnh, khối lượng tăng gấp đôi. Nến đầu sau tách vẫn 53.00. Với dữ liệu của bạn, tải Corporate actions CSV cho mã đã chọn, xác nhận OHLCV thô và cung cấp lịch phiên. Tỷ lệ quan sát mới nhất áp dụng khi có hiệu lực. Tin tới muộn và đính chính chỉ đổi cách hiển thị từ lúc quan sát. Lịch sử nguồn được giữ nguyên.
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## Nhập và phát dữ liệu của bạn

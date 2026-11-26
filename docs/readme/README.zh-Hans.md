@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **文档语言**
 
@@ -15,14 +15,14 @@
 
 MarketWeft 是面向分析师、开发人员和运维人员的本地优先研究终端。它读取有权使用的 OHLCV 文件，绘制交互式蜡烛图与成交量，用定点数计算 SMA 和 EMA，并把自选列表、选中标的和指标保存在 IndexedDB。应用资源缓存后即可离线使用。内置价格与成交量均为合成数据，无需行情商账户。
 
-0.3.0 支持按交易时段回放一条不可变历史序列。仓库另有适用于 trading-bot 服务的独立 TypeScript 只读客户端，以及实验性的 Tauri 桌面壳。公司行为、联网行情、订单、多用户托管和签名安装包仍在路线图中。
+MarketWeft 0.4.0 在不可变历史的分时段回放中加入时点股票拆分。仓库还包括用于独立 trading-bot 服务的 TypeScript 只读客户端，以及实验性 Tauri 桌面壳。现金股息、分拆、联网行情、订单、多用户托管和签名安装包仍在路线图中。
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## 启动便携终端
 
-从 GitHub 成功的验证运行中下载 browser-terminal-attempt-N，解压其中的 MarketWeft-browser-0.3.0.zip。让 dist/ 与 serve-terminal.mjs 位于同一目录，在该目录运行下列命令。使用支持 WebAssembly、Canvas、BigInt 和 IndexedDB 的新版浏览器打开 http://127.0.0.1:4173/。启动器需要 Node.js 22.12 或更高版本，无需通过 npm 安装。断网前等待显示 Offline ready。
+从 GitHub 成功的验证运行中下载 browser-terminal-attempt-N，解压其中的 MarketWeft-browser-0.4.0.zip。让 dist/ 与 serve-terminal.mjs 位于同一目录，在该目录运行下列命令。使用支持 WebAssembly、Canvas、BigInt 和 IndexedDB 的新版浏览器打开 http://127.0.0.1:4173/。启动器需要 Node.js 22.12 或更高版本，无需通过 npm 安装。断网前等待显示 Offline ready。
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ node serve-terminal.mjs
 
 2025 年 10 月 31 日的开盘是 13:30 UTC（UTC−04:00），11 月 3 日改为 14:30 UTC（UTC−05:00）。11 月 3 日 15:00 的缺失区间在 15:30 报告。感恩节当天没有时间槽，11 月 28 日在七根 30 分钟蜡烛后提前于 18:00 UTC 收盘。示例有 20 个交易日、253 根蜡烛和 294 个事件，采用合成行情与公开的 NYSE 核心交易时间。
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+要查看公司行为，打开 Historical replay → Start split demo，在同一事件下切换 Price basis 中的 Raw 与 Split-adjusted。2 比 1 拆股先公布并被观测，生效前两种视图一致。生效时，拆股前最后一根蜡烛的收盘价由原始 106.50 调为 53.25，成交量翻倍。拆股后第一根蜡烛的收盘价保持 53.00。用自有数据时，上传所选标的的 Corporate actions CSV，确认 OHLCV 未经调整，并提供交易时段日历。生效后采用当时已观测的最新比例。迟到报告和更正从各自的观测时刻起改变视图。原始历史保持完整。
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## 导入并回放自己的数据

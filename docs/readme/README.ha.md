@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **Harsunan wannan jagora**
 
@@ -15,14 +15,14 @@
 
 MarketWeft tashar bincike ce da ke aiki a na’urar mai amfani. Tana buɗe OHLCV da aka ba da izini, tana nuna sandunan farashi da ƙarar ciniki, tana lissafin SMA da EMA da tsayayyun guraben goma, kuma tana ajiye jerin sa ido, kadara da alamomi a IndexedDB. Bayan an adana kayan aiki za ta yi aiki ba tare da intanet ba. Farashi da ƙarar da ke tare da ita na kwaikwayo ne, ba sai an buɗe asusun mai bayarwa ba.
 
-Sigar 0.3.0 tana sake kunna jerin tarihi guda ɗaya da ba a sauya ba bisa zaman kasuwa. Ma’ajiyar tana da SDK na TypeScript na karantawa kawai ga trading-bot mai zaman kansa da garkuwar Tauri ta gwaji. Ayyukan kamfani, ciyarwar bayanai, umarni, masaukin masu amfani da yawa da masu girkawa masu sa hannu suna cikin shirin gaba.
+MarketWeft 0.4.0 yana ƙara raba hannun jari bisa bayanan da aka sani a kowane lokaci yayin sake kunna tarihin da ba a sauya ba ta zaman kasuwa. Akwai SDK na TypeScript mai karanta trading-bot mai zaman kansa da garkuwar Tauri ta gwaji. Rabon riba da kuɗi, ware kamfani, ciyarwar bayanai, umarni, masaukin mutane da yawa da masu girkawa masu sa hannu suna cikin shirin gaba.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Kunna tashar ɗaukuwa
 
-Sauke browser-terminal-attempt-N daga gwajin GitHub da ya yi nasara. Cire MarketWeft-browser-0.3.0.zip, bar dist/ kusa da serve-terminal.mjs sannan gudanar da umarnin a can. Buɗe http://127.0.0.1:4173/ a burauza mai WebAssembly, Canvas, BigInt da IndexedDB. Ana buƙatar Node.js 22.12 ko sabo. Ba a buƙatar shigar da npm. Jira Offline ready kafin katse intanet.
+Sauke browser-terminal-attempt-N daga gwajin GitHub da ya yi nasara. Cire MarketWeft-browser-0.4.0.zip, bar dist/ kusa da serve-terminal.mjs sannan gudanar da umarnin a can. Buɗe http://127.0.0.1:4173/ a burauza mai WebAssembly, Canvas, BigInt da IndexedDB. Ana buƙatar Node.js 22.12 ko sabo. Ba a buƙatar shigar da npm. Jira Offline ready kafin katse intanet.
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ A Historical replay zaɓi Start demo. Next event yana gaba, Previous event yana 
 
 31 Oktoba 2025 an buɗe 13:30 UTC (UTC−04:00), 3 Nuwamba 14:30 UTC (UTC−05:00). Ana gane gibin 15:00 na 3 Nuwamba da 15:30. Thanksgiving ba shi da lokutan ciniki. 28 Nuwamba an rufe da wuri 18:00 UTC bayan sanduna bakwai na minti 30. Akwai zama 20, sanduna 253 da al’amura 294, da farashin kwaikwayo bisa lokutan NYSE da aka wallafa.
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+Buɗe Historical replay → Start split demo sannan canza Price basis tsakanin Raw da Split-adjusted a al’amari ɗaya. Ana sanar da rabon 2 ga 1 kuma ana ganinsa kafin ya fara aiki. Ra’ayoyin biyu suna daidai har zuwa lokacin. Bayan fara aiki, farashin rufewa na ƙarshe kafin rabon ya koma 53.25 daga ɗanyen 106.50. Ƙarar ciniki ta ninka. Sandar farko bayan rabon tana 53.00. Don bayananka, loda Corporate actions CSV na kadarar da kalanda, sannan ka tabbatar da ɗanyen OHLCV. Ana amfani da ƙimar da aka gani ta ƙarshe idan ta fara aiki. Rahoton da ya makara da gyara suna aiki daga lokacin ganinsu. Asalin tarihin yana nan.
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## Shigo da bayananka ka sake kunna su

@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **Bahasa dokumentasi**
 
@@ -15,14 +15,14 @@
 
 MarketWeft adalah terminal riset lokal untuk analis, pengembang, dan operator. Terminal membuka OHLCV yang diizinkan, menampilkan kandil dan volume, menghitung SMA dan EMA dengan titik tetap, dan menyimpan daftar pantauan, instrumen, serta indikator di IndexedDB. Aplikasi berjalan luring setelah aset tersimpan. Harga dan volume bawaan bersifat sintetis dan tidak memerlukan akun penyedia.
 
-Versi 0.3.0 memutar ulang satu rangkaian historis yang tidak diubah sesuai sesi. Repositori menyediakan SDK TypeScript hanya baca untuk trading-bot terpisah dan wadah Tauri eksperimental. Aksi korporasi, umpan data, order, hosting multi-pengguna, dan installer bertanda tangan ada dalam peta jalan.
+MarketWeft 0.4.0 menambahkan pemecahan saham berdasarkan informasi yang tersedia pada tiap waktu ke pemutaran ulang sesi atas riwayat tetap. Repositori juga menyediakan SDK TypeScript hanya baca untuk trading-bot independen dan host Tauri eksperimental. Dividen tunai, pemisahan perusahaan, umpan data, order, hosting multi-pengguna, dan installer bertanda tangan ada dalam peta jalan.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Memulai terminal portabel
 
-Unduh browser-terminal-attempt-N dari verifikasi GitHub yang berhasil. Ekstrak MarketWeft-browser-0.3.0.zip. Simpan dist/ di samping serve-terminal.mjs lalu jalankan perintah di folder itu. Buka http://127.0.0.1:4173/ dengan peramban yang mendukung WebAssembly, Canvas, BigInt, dan IndexedDB. Pakai Node.js 22.12 atau lebih baru. Instalasi npm tidak diperlukan. Tunggu Offline ready sebelum memutus koneksi.
+Unduh browser-terminal-attempt-N dari verifikasi GitHub yang berhasil. Ekstrak MarketWeft-browser-0.4.0.zip. Simpan dist/ di samping serve-terminal.mjs lalu jalankan perintah di folder itu. Buka http://127.0.0.1:4173/ dengan peramban yang mendukung WebAssembly, Canvas, BigInt, dan IndexedDB. Pakai Node.js 22.12 atau lebih baru. Instalasi npm tidak diperlukan. Tunggu Offline ready sebelum memutus koneksi.
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ Di Historical replay pilih Start demo. Next event maju, Previous event mundur, P
 
 Pembukaan bergeser dari 13:30 UTC (UTC−04:00) pada 31 Oktober 2025 ke 14:30 UTC (UTC−05:00) pada 3 November. Interval 15:00 yang hilang dilaporkan pukul 15:30. Hari Thanksgiving tidak memiliki slot. Pada 28 November sesi tutup lebih awal pukul 18:00 UTC setelah tujuh kandil 30 menit. Contoh memuat 20 sesi, 253 kandil, dan 294 peristiwa, dengan data sintetis dan jam publik NYSE.
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+Buka Historical replay → Start split demo lalu ganti Price basis antara Raw dan Split-adjusted pada peristiwa yang sama. Pemecahan 2 banding 1 diumumkan dan diamati sebelum berlaku. Kedua tampilan setara hingga saat itu. Saat berlaku, penutupan terakhir sebelumnya berubah dari 106.50 mentah menjadi 53.25 setelah penyesuaian dan volumenya dua kali lipat. Kandil berikutnya tetap 53.00. Untuk data sendiri, unggah Corporate actions CSV instrumen terpilih, konfirmasi OHLCV mentah, dan masukkan kalender sesi. Rasio terakhir yang teramati diterapkan setelah berlaku. Laporan terlambat dan koreksi mengubah tampilan mulai saat teramati. Riwayat sumber tetap utuh.
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## Mengimpor dan memutar ulang data sendiri

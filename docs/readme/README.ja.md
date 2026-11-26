@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **ドキュメントの言語**
 
@@ -15,14 +15,14 @@
 
 MarketWeft はアナリスト、開発者、運用者向けのローカル優先の調査端末です。利用権がある OHLCV を開き、ローソク足と出来高を表示し、固定小数点で SMA と EMA を計算します。ウォッチリスト、選択銘柄、指標を IndexedDB に保存します。資材のキャッシュ後はオフラインで使えます。同梱の価格と出来高は合成データです。プロバイダーの口座は不要です。
 
-0.3.0 では変更されない一つの時系列を取引セッションに沿って再生できます。別途稼働する trading-bot 用の読み取り専用 TypeScript SDK と、実験段階の Tauri ホストもあります。企業行動、外部フィード、注文、マルチユーザー運用、署名付きインストーラーは計画段階です。
+MarketWeft 0.4.0 では、変更されない履歴のセッション再生に、各時点で判明していた株式分割が加わります。別途稼働する trading-bot 用の読み取り専用 TypeScript SDK と実験段階の Tauri ホストも提供します。現金配当、スピンオフ、データフィード、注文、複数利用者向けホスト、署名付きインストーラーは計画段階です。
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## ポータブル端末を起動
 
-成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.3.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
+成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.4.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ Historical replay で Start demo を選びます。Next event は進む、Previo
 
 2025 年 10 月 31 日の 13:30 UTC（UTC−04:00）と 11 月 3 日の 14:30 UTC（UTC−05:00）の寄り付きを比較できます。欠測は 11 月 3 日の 15:00 に始まり 15:30 に判明します。感謝祭に枠はなく、11 月 28 日は 30 分足七本の後、18:00 UTC に早引けします。20 セッション、253 本、294 イベントです。価格と出来高は合成し、取引時間は NYSE の公開情報に基づきます。
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+Historical replay → Start split demo を開き、同じイベントで Price basis の Raw と Split-adjusted を切り替えます。2 対 1 の分割は発効前に公表され、観測されます。それまでは両方の表示が一致します。発効すると直前の終値が未調整の 106.50 から調整後の 53.25 に変わり、出来高は倍になります。発効後の最初の足は 53.00 のままです。独自データでは銘柄の Corporate actions CSV とカレンダーを選び、OHLCV が未調整であると確認します。発効後、観測済みの最新比率を適用します。遅れて届いた報告や訂正の反映は観測時からです。元の履歴は保持されます。
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## 独自データを取り込み再生

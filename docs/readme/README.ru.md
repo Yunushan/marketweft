@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **Языки документации**
 
@@ -15,14 +15,14 @@
 
 MarketWeft — локальный исследовательский терминал для аналитиков, разработчиков и операторов. Он открывает разрешённые файлы OHLCV, показывает свечи и объёмы, рассчитывает SMA и EMA с фиксированной точкой и сохраняет список наблюдения, инструмент и индикаторы в IndexedDB. После кэширования работает офлайн. Встроенные цены и объёмы синтетические, учётная запись поставщика не нужна.
 
-В версии 0.3.0 доступно воспроизведение одной неизменяемой истории по сессиям. В репозитории также есть независимый TypeScript SDK для чтения данных trading-bot и экспериментальная оболочка Tauri. Корпоративные действия, каналы данных, заявки, многопользовательский режим и подписанные установщики остаются в плане.
+MarketWeft 0.4.0 добавляет дробления акций с учётом информации, доступной на каждый момент сессионного воспроизведения неизменяемой истории. Доступны независимый TypeScript SDK для чтения trading-bot и экспериментальная оболочка Tauri. Денежные дивиденды, выделения компаний, каналы данных, заявки, многопользовательский режим и подписанные установщики остаются в плане.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Запуск переносимого терминала
 
-Откройте успешный запуск GitHub, скачайте browser-terminal-attempt-N и извлеките MarketWeft-browser-0.3.0.zip. Оставьте dist/ рядом с serve-terminal.mjs и выполните команду в этой папке. Откройте http://127.0.0.1:4173/ в актуальном браузере с WebAssembly, Canvas, BigInt и IndexedDB. Нужен Node.js 22.12 или новее. Установка npm не нужна. Перед отключением дождитесь Offline ready.
+Откройте успешный запуск GitHub, скачайте browser-terminal-attempt-N и извлеките MarketWeft-browser-0.4.0.zip. Оставьте dist/ рядом с serve-terminal.mjs и выполните команду в этой папке. Откройте http://127.0.0.1:4173/ в актуальном браузере с WebAssembly, Canvas, BigInt и IndexedDB. Нужен Node.js 22.12 или новее. Установка npm не нужна. Перед отключением дождитесь Offline ready.
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ node serve-terminal.mjs
 
 Открытие 31 октября 2025 года в 13:30 UTC (UTC−04:00) сменяется открытием 3 ноября в 14:30 UTC (UTC−05:00). Отсутствие свечи с 15:00 видно в 15:30. В День благодарения интервалов нет. 28 ноября сессия заканчивается в 18:00 UTC после семи получасовых свечей. Пример содержит 20 сессий, 253 свечи и 294 события, синтетические данные и опубликованные часы NYSE.
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+Откройте Historical replay → Start split demo и переключите Price basis между Raw и Split-adjusted на одном событии. Дробление 2 к 1 объявлено и наблюдается до вступления в силу. До этого виды совпадают. В момент вступления последнее закрытие до дробления меняется с 106.50 в исходном виде на 53.25 в скорректированном, а объём удваивается. Первая свеча после остаётся 53.00. Для своих данных загрузите Corporate actions CSV выбранного инструмента и календарь сессий, подтвердите исходный OHLCV. После вступления применяется последний наблюдаемый коэффициент. Поздние сообщения и исправления меняют вид с момента наблюдения. Исходная история сохраняется.
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## Импорт и воспроизведение своих данных
