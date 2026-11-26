@@ -89,6 +89,13 @@ async fn formulas_keep_exact_ticks_and_independent_cutoffs_over_http() {
     ))
     .await;
     assert_eq!(unknown.0, StatusCode::BAD_REQUEST);
+    let null_limit = send(request(
+        "/v1/formula",
+        Some(FORMULA_TOKEN),
+        json!({"formula": "close", "history_csv": HISTORY, "limit": null}),
+    ))
+    .await;
+    assert_eq!(null_limit.0, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]

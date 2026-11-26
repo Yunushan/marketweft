@@ -11,6 +11,24 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "apps/research-service/Cargo.toml"
 
 
+def tonic_workspace_license(package, packages):
+    # The two codec crates use the repository license, distributed by tonic itself.
+    if package["name"] not in ("tonic-prost", "tonic-prost-build"):
+        return []
+    tonic = packages["tonic", package["version"]]
+    if (package["repository"], package["license"]) != (tonic["repository"], tonic["license"]):
+        raise ValueError(f"Review workspace license for {package['name']}")
+    source = Path(package["manifest_path"]).parent
+    sibling = Path(tonic["manifest_path"]).parent
+    commits = [
+        json.loads((path / ".cargo_vcs_info.json").read_text(encoding="utf-8"))["git"]["sha1"]
+        for path in (source, sibling)
+    ]
+    if commits[0] != commits[1]:
+        raise ValueError(f"Mismatched workspace license provenance for {package['name']}")
+    return [sibling / "LICENSE"]
+
+
 def create_archive(binary, directory):
     metadata = json.loads(subprocess.check_output([
         "cargo", "metadata", "--locked", "--offline", "--format-version", "1",
@@ -22,18 +40,22 @@ def create_archive(binary, directory):
     notices = {
         "LICENSE": ROOT / "LICENSE",
         "README.md": ROOT / "docs/local-rest-research.md",
+        "proto/research.proto": ROOT / "apps/research-service/proto/research.proto",
         "notices/rust-library.html": rust_root / "share/doc/rust/COPYRIGHT-library.html",
         "notices/dependencies.cdx.json": ROOT / "docs/dependencies.cdx.json",
     }
-    for package in metadata["packages"]:
-        if package["source"] is None:
-            continue
+    packages = {
+        (package["name"], package["version"]): package
+        for package in metadata["packages"] if package["source"] is not None
+    }
+    for package in packages.values():
         name = f'{package["name"]}-{package["version"]}'
         source = Path(package["manifest_path"]).parent
         licenses = sorted(
             path for path in source.iterdir()
             if path.is_file() and path.name.upper().startswith(("LICENSE", "COPYRIGHT", "NOTICE", "UNLICENSE"))
         )
+        licenses = licenses or tonic_workspace_license(package, packages)
         if not licenses:
             raise ValueError(f"Missing upstream notices for {name}")
         for path in licenses:

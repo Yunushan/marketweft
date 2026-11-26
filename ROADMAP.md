@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.52.0 streams resumable historical formula and point-in-time universe pages over local WebSocket. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.53.0 exposes exact historical formula and point-in-time universe pages through a versioned localhost gRPC API. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -55,6 +55,7 @@
 | Delivered · 0.50.0 | Universe screening for research clients (MW-018, MW-028) | Preserve exact ranks, membership and price revision cutoffs, unavailable endpoints and stable listing identity across Python, TypeScript and MCP. [Research screen](docs/research-universe-screen.md). |
 | Delivered · 0.51.0 | Local REST research service (MW-028) | Evaluate exact formulas and screen the effective universe at an independent knowledge cutoff. Verify loopback binding, scoped access and bounded pages. [Local REST research](docs/local-rest-research.md). |
 | Delivered · 0.52.0 | Local WebSocket research (MW-028) | Stream exact research pages from a single query. Reconnect at the next offset and reproduce nulls, ranks and observation provenance. [WebSocket research](docs/local-rest-research.md#websocket-streaming). |
+| Delivered · 0.53.0 | Local gRPC research (MW-028) | Publish a Protobuf contract for exact formulas and ranked universes, preserve absent values and enforce the existing research scopes over HTTP/2. [gRPC research](docs/local-rest-research.md#grpc-research). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -66,5 +67,5 @@
 
 ## Handoff for the next change
 
-Define the versioned gRPC research contract and prove that a loopback client reproduces exact formula and universe pages across independent cutoffs.
+Add an opt-in local SQLite audit trail for research calls. Verify durable scoped receipts across restarts and keep imported datasets and bearer tokens out of the ledger.
 

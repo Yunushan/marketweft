@@ -1,11 +1,7 @@
+mod support;
+
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use std::env;
-use std::io::{BufRead, BufReader};
-use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
-use std::thread;
-use std::time::Duration;
 use tokio::time::timeout;
 use tokio_tungstenite::{
     connect_async,
@@ -13,60 +9,30 @@ use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream,
 };
 
-const FORMULA_TOKEN: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-const SCREEN_TOKEN: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+use support::{ResearchProcess, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
+
 const HISTORY: &str =
     include_str!("../../../crates/core/tests/fixtures/synthetic-formula-bars.csv");
 const MEMBERSHIP: &str = include_str!("../../../crates/core/tests/fixtures/synthetic-universe.csv");
 const PRICES: &str =
     include_str!("../../../crates/core/tests/fixtures/synthetic-universe-prices.csv");
-const IO_DEADLINE: Duration = Duration::from_secs(5);
 
 type Client = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
-struct Server {
-    authority: String,
-    process: Child,
-}
-
-impl Server {
-    fn start() -> Self {
-        let executable = env::var_os("MARKETWEFT_TEST_BINARY")
-            .unwrap_or_else(|| env!("CARGO_BIN_EXE_marketweft-research-service").into());
-        let process = Command::new(executable)
-            .env("MARKETWEFT_FORMULA_TOKEN", FORMULA_TOKEN)
-            .env("MARKETWEFT_SCREEN_TOKEN", SCREEN_TOKEN)
-            .env("MARKETWEFT_RESEARCH_PORT", "0")
-            .stdout(Stdio::piped())
-            .spawn()
-            .unwrap();
-        let mut server = Self {
-            authority: String::new(),
-            process,
-        };
-        let output = server.process.stdout.take().unwrap();
-        let (sender, ready) = mpsc::channel();
-        thread::spawn(move || {
-            let address = BufReader::new(output).lines().next();
-            let _ = sender.send(address);
-        });
-        let address = ready.recv_timeout(IO_DEADLINE).unwrap().unwrap().unwrap();
-        server.authority = address
-            .strip_prefix("http://127.0.0.1:")
-            .map(|port| format!("127.0.0.1:{port}"))
-            .expect("research executable must bind IPv4 loopback");
-        server
-    }
-
+impl ResearchProcess {
     async fn connect(
         &self,
         path: &str,
         token: Option<&str>,
         origin: Option<&str>,
     ) -> Result<Client, Error> {
-        let mut request = format!("ws://{}{}", self.authority, path)
-            .into_client_request()
-            .unwrap();
+        let mut request = format!(
+            "ws://{}{}",
+            self.origin.strip_prefix("http://").unwrap(),
+            path
+        )
+        .into_client_request()
+        .unwrap();
         if let Some(token) = token {
             request
                 .headers_mut()
@@ -81,13 +47,6 @@ impl Server {
             .await
             .unwrap()
             .map(|(client, _)| client)
-    }
-}
-
-impl Drop for Server {
-    fn drop(&mut self) {
-        let _ = self.process.kill();
-        let _ = self.process.wait();
     }
 }
 
@@ -119,7 +78,7 @@ fn assert_http_error(result: Result<Client, Error>, expected: StatusCode) {
 
 #[tokio::test]
 async fn authenticates_the_upgrade_and_bounds_concurrent_streams() {
-    let server = Server::start();
+    let server = ResearchProcess::start();
     let route = "/v1/formula/stream";
     assert_http_error(
         server.connect(route, None, None).await,
@@ -151,7 +110,7 @@ async fn authenticates_the_upgrade_and_bounds_concurrent_streams() {
 
 #[tokio::test]
 async fn reconnects_at_the_next_formula_offset_with_exact_nulls_and_ticks() {
-    let server = Server::start();
+    let server = ResearchProcess::start();
     let route = "/v1/formula/stream";
     let mut query = json!({
         "formula": "ema(if(close == 11, close / 0, close), 2)",
@@ -185,7 +144,7 @@ async fn reconnects_at_the_next_formula_offset_with_exact_nulls_and_ticks() {
 
 #[tokio::test]
 async fn streams_ranked_universe_pages_at_independent_knowledge_cutoffs() {
-    let server = Server::start();
+    let server = ResearchProcess::start();
     let route = "/v1/universe/screen/stream";
     for (known, first, second, unavailable) in [
         ("2025-06-02T14:10:00Z", "ALFA-001", "BETA-001", true),
@@ -222,7 +181,7 @@ async fn streams_ranked_universe_pages_at_independent_knowledge_cutoffs() {
 
 #[tokio::test]
 async fn invalid_query_returns_one_error_frame_and_closes() {
-    let server = Server::start();
+    let server = ResearchProcess::start();
     let mut client = server
         .connect("/v1/formula/stream", Some(FORMULA_TOKEN), None)
         .await

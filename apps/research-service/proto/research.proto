@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package marketweft.research.v1;
+
+// Read-only historical research over local HTTP/2.
+service Research {
+  rpc EvaluateFormula(FormulaQuery) returns (FormulaPage);
+  rpc ScreenUniverse(ScreenQuery) returns (ScreenPage);
+}
+
+message FormulaFunction {
+  string name = 1;
+  repeated string parameters = 2;
+  string body = 3;
+}
+
+message FormulaQuery {
+  string formula = 1;
+  string history_csv = 2;
+  optional int64 observed_through = 3;
+  repeated FormulaFunction functions = 4;
+  optional uint64 offset = 5;
+  optional uint64 limit = 6;
+}
+
+message FormulaRow {
+  int64 observed_at = 1;
+  // Exact six-place ticks. Absence means the value is unavailable.
+  optional string value_ticks = 2;
+}
+
+message FormulaPage {
+  uint32 language_version = 1;
+  uint32 total_rows = 2;
+  uint32 offset = 3;
+  optional uint32 next_offset = 4;
+  repeated FormulaRow rows = 5;
+}
+
+message ScreenQuery {
+  string membership_csv = 1;
+  string prices_csv = 2;
+  string baseline_at = 3;
+  string effective_at = 4;
+  string known_at = 5;
+  optional uint64 offset = 6;
+  optional uint64 limit = 7;
+}
+
+message Close {
+  string ticks = 1;
+  int64 observed_at = 2;
+}
+
+message ScreenRow {
+  string listing_id = 1;
+  string instrument = 2;
+  string membership_change_id = 3;
+  int64 membership_effective_at = 4;
+  int64 membership_observed_at = 5;
+  optional uint32 rank = 6;
+  // Exact 0.0001 percentage-point units, including values beyond int64.
+  optional string return_units = 7;
+  Close baseline = 8;
+  Close current = 9;
+}
+
+message ScreenPage {
+  string universe = 1;
+  uint32 total_rows = 2;
+  uint32 offset = 3;
+  optional uint32 next_offset = 4;
+  repeated ScreenRow rows = 5;
+}

@@ -1,54 +1,43 @@
-use crate::ApiError;
+use crate::{
+    proto::{Close, FormulaPage, FormulaQuery, FormulaRow, ScreenPage, ScreenQuery, ScreenRow},
+    ApiError,
+};
 use axum::http::StatusCode;
 use marketweft_core::{
     parse_csv, parse_exact_utc, parse_universe, Formula, FormulaFunctionDefinition, FormulaLibrary,
     PriceBook, PriceObservation, FORMULA_VERSION,
 };
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
-use serde_json::{json, Value};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::ops::Range;
 
-const MAX_RESULTS: usize = 1000;
+const MAX_RESULTS: u64 = 1000;
 
-fn default_limit() -> usize {
-    200
+#[derive(Serialize)]
+#[serde(untagged)]
+pub(crate) enum ResearchPage {
+    Formula(FormulaPage),
+    Screen(ScreenPage),
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Function {
-    name: String,
-    parameters: Vec<String>,
-    body: String,
+pub(crate) fn present_u64<'de, D: Deserializer<'de>>(input: D) -> Result<Option<u64>, D::Error> {
+    u64::deserialize(input).map(Some)
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct FormulaRequest {
-    formula: String,
-    history_csv: String,
-    observed_through: Option<i64>,
-    #[serde(default)]
-    functions: Vec<Function>,
-    #[serde(default)]
-    offset: usize,
-    #[serde(default = "default_limit")]
-    limit: usize,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ScreenRequest {
-    membership_csv: String,
-    prices_csv: String,
-    baseline_at: String,
-    effective_at: String,
-    known_at: String,
-    #[serde(default)]
-    offset: usize,
-    #[serde(default = "default_limit")]
-    limit: usize,
+pub(crate) fn first_page<T>(
+    run: impl FnOnce(&mut dyn FnMut(T) -> bool) -> Result<(), ApiError>,
+) -> Result<T, ApiError> {
+    let mut page = None;
+    run(&mut |value| {
+        page = Some(value);
+        false
+    })?;
+    page.ok_or_else(|| {
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Research returned no page.",
+        )
+    })
 }
 
 fn request<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, ApiError> {
@@ -64,14 +53,20 @@ fn analytical_error(message: String) -> ApiError {
     ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, message)
 }
 
-fn page(offset: usize, limit: usize, max_offset: usize) -> Result<(), ApiError> {
+fn pagination(
+    offset: Option<u64>,
+    limit: Option<u64>,
+    max_offset: u64,
+) -> Result<(usize, usize), ApiError> {
+    let offset = offset.unwrap_or(0);
+    let limit = limit.unwrap_or(200);
     if offset > max_offset || !(1..=MAX_RESULTS).contains(&limit) {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "Offset or page size is outside the supported range.",
         ));
     }
-    Ok(())
+    Ok((offset as usize, limit as usize))
 }
 
 fn bounds(offset: usize, limit: usize, total: usize) -> (Range<usize>, Option<usize>) {
@@ -80,17 +75,17 @@ fn bounds(offset: usize, limit: usize, total: usize) -> (Range<usize>, Option<us
     (start..end, (end < total).then_some(end))
 }
 
-fn pages(
+fn pages<T>(
     offset: usize,
     limit: usize,
     total: usize,
-    emit: &mut dyn FnMut(Value) -> bool,
-    render: impl Fn(usize, Range<usize>, Option<usize>) -> Value,
+    emit: &mut dyn FnMut(T) -> bool,
+    render: impl Fn(u32, Range<usize>, Option<u32>) -> T,
 ) {
     let mut offset = offset;
     loop {
         let (range, next) = bounds(offset, limit, total);
-        if !emit(render(offset, range, next)) {
+        if !emit(render(offset as u32, range, next.map(|value| value as u32))) {
             break;
         }
         let Some(next) = next else { break };
@@ -98,9 +93,20 @@ fn pages(
     }
 }
 
-pub(crate) fn formula(bytes: &[u8], emit: &mut dyn FnMut(Value) -> bool) -> Result<(), ApiError> {
-    let params: FormulaRequest = request(bytes)?;
-    page(params.offset, params.limit, 100_000)?;
+pub(crate) fn formula(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_formula(request(bytes)?, &mut |page| {
+        emit(ResearchPage::Formula(page))
+    })
+}
+
+pub(crate) fn evaluate_formula(
+    params: FormulaQuery,
+    emit: &mut dyn FnMut(FormulaPage) -> bool,
+) -> Result<(), ApiError> {
+    let (offset, limit) = pagination(params.offset, params.limit, 100_000)?;
     if params.functions.len() > 16 {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
@@ -134,31 +140,46 @@ pub(crate) fn formula(bytes: &[u8], emit: &mut dyn FnMut(Value) -> bool) -> Resu
     });
     let visible = &bars[..end];
     let values = compiled.evaluate(visible).map_err(analytical_error)?;
-    pages(
-        params.offset,
-        params.limit,
-        end,
-        emit,
-        |offset, range, next| {
-            let rows: Vec<_> = visible[range.clone()].iter().zip(&values[range]).map(|(bar, value)| {
-            json!({"observed_at": bar.time, "value_ticks": value.map(|number| number.to_string())})
-        }).collect();
-            json!({
-                "language_version": FORMULA_VERSION, "total_rows": end,
-                "offset": offset, "next_offset": next, "rows": rows,
-            })
-        },
-    );
+    pages(offset, limit, end, emit, |offset, range, next_offset| {
+        FormulaPage {
+            language_version: FORMULA_VERSION,
+            total_rows: end as u32,
+            offset,
+            next_offset,
+            rows: visible[range.clone()]
+                .iter()
+                .zip(&values[range])
+                .map(|(bar, value)| FormulaRow {
+                    observed_at: bar.time,
+                    value_ticks: value.map(|number| number.to_string()),
+                })
+                .collect(),
+        }
+    });
     Ok(())
 }
 
-fn close(price: Option<PriceObservation>) -> Option<Value> {
-    price.map(|price| json!({"ticks": price.ticks.to_string(), "observed_at": price.observed_at}))
+fn close(price: Option<PriceObservation>) -> Option<Close> {
+    price.map(|price| Close {
+        ticks: price.ticks.to_string(),
+        observed_at: price.observed_at,
+    })
 }
 
-pub(crate) fn screen(bytes: &[u8], emit: &mut dyn FnMut(Value) -> bool) -> Result<(), ApiError> {
-    let params: ScreenRequest = request(bytes)?;
-    page(params.offset, params.limit, 5000)?;
+pub(crate) fn screen(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_screen(request(bytes)?, &mut |page| {
+        emit(ResearchPage::Screen(page))
+    })
+}
+
+pub(crate) fn evaluate_screen(
+    params: ScreenQuery,
+    emit: &mut dyn FnMut(ScreenPage) -> bool,
+) -> Result<(), ApiError> {
+    let (offset, limit) = pagination(params.offset, params.limit, 5000)?;
     let (Some(baseline), Some(effective), Some(known)) = (
         parse_exact_utc(&params.baseline_at),
         parse_exact_utc(&params.effective_at),
@@ -175,31 +196,29 @@ pub(crate) fn screen(bytes: &[u8], emit: &mut dyn FnMut(Value) -> bool) -> Resul
         .screen(baseline, effective, known)
         .map_err(analytical_error)?;
     pages(
-        params.offset,
-        params.limit,
+        offset,
+        limit,
         ranked.len(),
         emit,
-        |offset, range, next| {
-            let rows: Vec<_> = ranked[range]
+        |offset, range, next_offset| ScreenPage {
+            universe: universe.name().to_owned(),
+            total_rows: ranked.len() as u32,
+            offset,
+            next_offset,
+            rows: ranked[range]
                 .iter()
-                .map(|row| {
-                    json!({
-                        "listing_id": row.listing.listing_id,
-                        "instrument": row.listing.instrument.to_string(),
-                        "membership_change_id": row.listing.change_id,
-                        "membership_effective_at": row.listing.effective_at,
-                        "membership_observed_at": row.listing.observed_at,
-                        "rank": row.rank,
-                        "return_units": row.return_units.map(|value| value.to_string()),
-                        "baseline": close(row.baseline),
-                        "current": close(row.current),
-                    })
+                .map(|row| ScreenRow {
+                    listing_id: row.listing.listing_id.clone(),
+                    instrument: row.listing.instrument.to_string(),
+                    membership_change_id: row.listing.change_id.clone(),
+                    membership_effective_at: row.listing.effective_at,
+                    membership_observed_at: row.listing.observed_at,
+                    rank: row.rank.map(|rank| rank as u32),
+                    return_units: row.return_units.map(|value| value.to_string()),
+                    baseline: close(row.baseline),
+                    current: close(row.current),
                 })
-                .collect();
-            json!({
-                "universe": universe.name(), "total_rows": ranked.len(),
-                "offset": offset, "next_offset": next, "rows": rows,
-            })
+                .collect(),
         },
     );
     Ok(())

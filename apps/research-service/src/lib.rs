@@ -1,15 +1,22 @@
 //! Loopback-only, read-only access to the shared research engine.
 
 mod analytics;
+mod grpc;
 mod websocket;
 
+/// Versioned Protobuf messages and client generated from the published schema.
+pub mod proto {
+    tonic::include_proto!("marketweft.research.v1");
+}
+
+use analytics::ResearchPage;
 use axum::body::to_bytes;
 use axum::extract::{Request, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
@@ -122,12 +129,14 @@ pub fn research_router(address: SocketAddr, tokens: Tokens) -> Result<Router, &'
         tokens,
         slots: Arc::new(Semaphore::new(2)),
     });
+    let grpc_routes = grpc::routes(Arc::clone(&state));
     Ok(Router::new()
         .route("/v1/formula", post(formula))
         .route("/v1/universe/screen", post(screen))
         .route("/v1/formula/stream", get(websocket::formula))
         .route("/v1/universe/screen/stream", get(websocket::screen))
-        .with_state(state))
+        .with_state(state)
+        .merge(grpc_routes))
 }
 
 fn header_value(headers: &HeaderMap, name: HeaderName) -> Option<&str> {
@@ -143,8 +152,19 @@ impl Server {
             .map_err(|_| ApiError::new(StatusCode::TOO_MANY_REQUESTS, "Research workers are busy."))
     }
 
-    fn authorize(&self, headers: &HeaderMap, scope: Scope) -> Result<(), ApiError> {
-        if header_value(headers, header::HOST) != Some(self.authority.as_str())
+    fn authorize(
+        &self,
+        headers: &HeaderMap,
+        authority: Option<&str>,
+        scope: Scope,
+    ) -> Result<(), ApiError> {
+        let host = header_value(headers, header::HOST);
+        let matches_authority = |value| {
+            value == Some(self.authority.as_str())
+                || (self.authority == "127.0.0.1" && value == Some("127.0.0.1:80"))
+        };
+        if !matches_authority(authority.or(host))
+            || (headers.contains_key(header::HOST) && !matches_authority(host))
             || (headers.contains_key(header::ORIGIN)
                 && header_value(headers, header::ORIGIN) != Some(self.origin.as_str()))
         {
@@ -189,15 +209,15 @@ impl Server {
     }
 }
 
-type Operation = fn(&[u8], &mut dyn FnMut(Value) -> bool) -> Result<(), ApiError>;
+type Operation = fn(&[u8], &mut dyn FnMut(ResearchPage) -> bool) -> Result<(), ApiError>;
 
 async fn execute(
     state: Arc<Server>,
     request: Request,
     scope: Scope,
     operation: Operation,
-) -> Result<Json<Value>, ApiError> {
-    state.authorize(request.headers(), scope)?;
+) -> Result<Json<ResearchPage>, ApiError> {
+    state.authorize(request.headers(), None, scope)?;
     let media_type = header_value(request.headers(), header::CONTENT_TYPE)
         .and_then(|value| value.split(';').next())
         .map(str::trim);
@@ -219,17 +239,7 @@ async fn execute(
         })?;
     tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        let mut page = None;
-        operation(&bytes, &mut |value| {
-            page = Some(value);
-            false
-        })?;
-        page.ok_or_else(|| {
-            ApiError::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Research returned no page.",
-            )
-        })
+        analytics::first_page(|emit| operation(&bytes, emit))
     })
     .await
     .map_err(|_| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Research worker failed."))?
@@ -239,13 +249,13 @@ async fn execute(
 async fn formula(
     State(state): State<Arc<Server>>,
     request: Request,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<ResearchPage>, ApiError> {
     execute(state, request, Scope::Formula, analytics::formula).await
 }
 
 async fn screen(
     State(state): State<Arc<Server>>,
     request: Request,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<ResearchPage>, ApiError> {
     execute(state, request, Scope::Screen, analytics::screen).await
 }

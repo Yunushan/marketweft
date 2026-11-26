@@ -1,6 +1,6 @@
-# Local REST and WebSocket research service
+# Local research service
 
-The Rust research service runs on IPv4 loopback and exposes read-only formula and universe screening endpoints over REST and WebSocket. It uses the same core that powers the native executable and WebAssembly terminal.
+The Rust research service runs on IPv4 loopback and exposes read-only formula and universe screening endpoints over REST, WebSocket and gRPC. It uses the same core that powers the native executable and WebAssembly terminal.
 
 For Ubuntu 24.04 on Linux x64, download the `research-service-linux-x64-attempt-N` artifact from a successful GitHub verification run and unpack its enclosed tar.gz archive. Extract the service with its notices. Start it with `./marketweft-research-service` after configuring its environment as shown below. To build from source, use the same settings from the repository root and run the Cargo command.
 
@@ -34,3 +34,14 @@ Send one JSON text message using the corresponding REST request fields. The serv
 Keep the `next_offset` from the last fully received and accepted page. If the connection ends before the terminal page, reconnect with the same query, CSV data and cutoffs. Set `offset` to that saved `next_offset`. The new connection recomputes the results from those inputs. A null `next_offset` marks completion.
 
 Send the query within five seconds. The message limit is 16 MiB and delivery has a 30-second deadline after the query arrives. The same two research slots are shared by REST requests and WebSocket connections.
+
+## gRPC research
+
+Use a Protobuf client over plaintext HTTP/2 at the printed IPv4 loopback address. Generate the client from `apps/research-service/proto/research.proto` in the repository or `proto/research.proto` in the Linux archive.
+
+| Unary method in `marketweft.research.v1.Research` | Required scope |
+| --- | --- |
+| `EvaluateFormula` | `MARKETWEFT_FORMULA_TOKEN` |
+| `ScreenUniverse` | `MARKETWEFT_SCREEN_TOKEN` |
+
+Send the bearer token as `authorization` metadata. Reuse the same query and its data and cutoffs with `offset` set to the previous page’s `next_offset`. An absent `next_offset` marks the last page. The schema uses optional fields for unavailable formula values, ranks and close observations, and strings for exact ticks and returns. The server shares the two research slots with REST and WebSocket, caps each Protobuf message at 16 MiB and applies a 15-second deadline to each call.

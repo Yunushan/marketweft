@@ -36,7 +36,7 @@ fn upgrade(
     scope: Scope,
     operation: Operation,
 ) -> Result<Response, ApiError> {
-    state.authorize(headers, scope)?;
+    state.authorize(headers, None, scope)?;
     let permit = state.acquire()?;
     Ok(ws
         .max_message_size(BODY_LIMIT)

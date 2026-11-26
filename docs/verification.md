@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.53.0 · Local gRPC research
+
+| Check | Observed result |
+| --- | --- |
+| Historical formula over HTTP/2 | A generated Protobuf client paged the observed formula prefix. The last two values remained absent and exactly `14500000` ticks, respectively. |
+| Point-in-time screen | The client reproduced ALFA alone before BETA joined, the missing BETA close at the addition, BETA first after the late report and ALFA’s removal once it became known. |
+| Exact wide result | A one-tick baseline and the maximum supported close produced the intact decimal string `1999999999999999000000`, above the signed 64-bit range. Missing closes remained absent. |
+| Limits and parity | Twelve Linux loopback integration tests passed across gRPC, WebSocket and REST. The gRPC tests reject missing credentials, the wrong scope and a foreign Origin. The existing REST JSON contract retained its null and pagination behavior. |
+
+[gRPC research](local-rest-research.md#grpc-research) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.52.0 · Local WebSocket research
 
 | Check | Observed result |
