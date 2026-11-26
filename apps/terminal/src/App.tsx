@@ -13,6 +13,7 @@ import { DEFAULT_INDICATOR_PERIODS } from './market-core'
 import { Spark } from './Chart'
 import { TimeframeChart } from './TimeframeChart'
 import { TickBarsResearch } from './TickBarsResearch'
+import { DepthResearch } from './DepthResearch'
 import { IndicatorPeriods } from './IndicatorPeriods'
 import { Icon, Mark } from './Icons'
 import { changeString, dateLabel, movement, price, volume } from './workspace'
@@ -313,11 +314,12 @@ export function App({
   )
   const [saved, setSaved] = useState(initial)
   const [replaying, setReplaying] = useState(false)
-  const [tickResearch, setTickResearch] = useState(false)
+  const [marketResearch, setMarketResearch] = useState<'tick-bars' | 'depth' | null>(null)
   const replayButton = useRef<HTMLButtonElement>(null)
   const tickResearchButton = useRef<HTMLButtonElement>(null)
+  const depthResearchButton = useRef<HTMLButtonElement>(null)
   const restoreReplayFocus = useRef(false)
-  const restoreTickResearchFocus = useRef(false)
+  const restoreResearchFocus = useRef<typeof marketResearch>(null)
   useLayoutEffect(() => {
     if (!replaying && restoreReplayFocus.current) {
       restoreReplayFocus.current = false
@@ -325,11 +327,12 @@ export function App({
     }
   }, [replaying])
   useEffect(() => {
-    if (!tickResearch && restoreTickResearchFocus.current) {
-      restoreTickResearchFocus.current = false
-      tickResearchButton.current?.focus()
+    if (!marketResearch && restoreResearchFocus.current) {
+      const button = restoreResearchFocus.current === 'tick-bars' ? tickResearchButton : depthResearchButton
+      restoreResearchFocus.current = null
+      button.current?.focus()
     }
-  }, [tickResearch])
+  }, [marketResearch])
   const [pendingPrefs, setPendingPrefs] = useState<{
     revision: number
     prefs: Preferences
@@ -534,10 +537,11 @@ export function App({
   }
   const span = last.high - last.low,
     position = span === 0 ? 50 : ((last.close - last.low) / span) * 100
-  if (tickResearch) {
-    return <TickBarsResearch key={asset.id} core={core} asset={asset} close={() => {
-      restoreTickResearchFocus.current = true
-      setTickResearch(false)
+  if (marketResearch) {
+    const Research = marketResearch === 'tick-bars' ? TickBarsResearch : DepthResearch
+    return <Research key={asset.id} core={core} asset={asset} close={() => {
+      restoreResearchFocus.current = marketResearch
+      setMarketResearch(null)
     }} />
   }
   if (replaying) {
@@ -596,7 +600,9 @@ export function App({
               <Icon name="chart" /> Historical replay
             </button>
             <button ref={tickResearchButton} className="outline" disabled={saving}
-              onClick={() => setTickResearch(true)}>Recorded tick bars</button>
+              onClick={() => setMarketResearch('tick-bars')}>Recorded tick bars</button>
+            <button ref={depthResearchButton} className="outline" disabled={saving}
+              onClick={() => setMarketResearch('depth')}>Recorded market depth</button>
           </div>
         </div>
         {(warning || saveError) && (

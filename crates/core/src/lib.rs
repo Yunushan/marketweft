@@ -4,6 +4,7 @@ mod actions;
 mod alerts;
 mod backtest;
 mod delisting;
+mod depth;
 mod dividend;
 mod drawing;
 mod fundamentals;
@@ -38,6 +39,7 @@ pub use delisting::{
     parse_delistings, CashOffer, DelistingBook, DelistingCashPosting, DelistingState,
     DelistingTerms, DelistingValuation, ReferenceClose,
 };
+pub use depth::{DepthLevel, DepthStamp, DepthStatus, DepthTape, DepthView};
 pub use dividend::{
     parse_dividend_positions, parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind,
     DividendMovement, DividendPositions, PositionObservation,

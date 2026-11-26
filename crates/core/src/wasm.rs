@@ -1365,6 +1365,66 @@ pub extern "C" fn mw_tick_bars(target_trades: u32) -> u32 {
     })
 }
 
+fn depth_source(input: &[u8]) -> Result<(Instrument, &str), String> {
+    let (id, rest) = utf8(input)?
+        .split_once('\n')
+        .ok_or("Missing depth reports.")?;
+    let (venue, symbol) = id
+        .split_once(':')
+        .ok_or("Use a canonical depth instrument.")?;
+    Ok((Instrument::new(venue, symbol)?, rest))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_depth_checkpoints() -> u32 {
+    process(|input| {
+        let (instrument, csv) = depth_source(input)?;
+        Ok(crate::DepthTape::parse(csv, &instrument)?
+            .checkpoints()
+            .into_iter()
+            .flat_map(i64::to_le_bytes)
+            .collect())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_recorded_depth() -> u32 {
+    use crate::DepthStatus;
+    use std::fmt::Write;
+    process(|input| {
+        let (instrument, rest) = depth_source(input)?;
+        let (cutoff, csv) = rest.split_once('\n').ok_or("Missing depth CSV.")?;
+        let known_at = exact_utc(cutoff).ok_or("Use an exact UTC observation cutoff.")?;
+        let view = crate::DepthTape::parse(csv, &instrument)?.as_of(known_at)?;
+        let mut text = match view.status {
+            DepthStatus::NoObservation => String::from("no-observation"),
+            DepthStatus::AwaitingSnapshot => String::from("awaiting-snapshot"),
+            DepthStatus::Synchronized => String::from("synchronized"),
+            DepthStatus::SequenceGap { expected, received } => {
+                format!("sequence-gap\t{expected}\t{received}")
+            }
+            DepthStatus::Crossed { sequence } => format!("crossed\t{sequence}"),
+        };
+        text.push('\n');
+        for (tag, stamp) in [('R', view.received), ('S', view.snapshot)] {
+            if let Some(stamp) = stamp {
+                writeln!(
+                    &mut text,
+                    "{tag}\t{}\t{}\t{}",
+                    stamp.sequence, stamp.event_at, stamp.observed_at
+                )
+                .unwrap();
+            }
+        }
+        for (tag, levels) in [('B', view.bids), ('A', view.asks)] {
+            for level in levels {
+                writeln!(&mut text, "{tag}\t{}\t{}", level.price, level.size).unwrap();
+            }
+        }
+        Ok(text.into_bytes())
+    })
+}
+
 #[no_mangle]
 pub extern "C" fn mw_aggregate_timeframe(source_seconds: u32, target_seconds: u32) -> u32 {
     process(|input| {

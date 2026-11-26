@@ -9,6 +9,32 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('recorded depth verifies atomic frames, exact sequences and recovery at the known cutoff', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-depth.csv', import.meta.url), 'utf8');
+  const instrument = 'NASDAQ:NVDA';
+  const at = seconds => '2025-06-02T14:00:' + String(seconds).padStart(2, '0') + 'Z';
+  const timeline = core.depthCheckpoints(instrument, csv);
+  assert.deepEqual(timeline, [0, 2, 3, 5, 6, 9, 10, 11, 12].map(value => Date.parse(at(value)) / 1000));
+  const query = seconds => core.recordedDepth(instrument, csv, at(seconds));
+  assert.deepEqual(query(0).status, { kind: 'awaiting-snapshot' });
+  const first = query(2);
+  assert.deepEqual(first.snapshot, { sequence: 9007199254740993n, eventAt: timeline[0] + 1, observedAt: timeline[1] });
+  assert.deepEqual(first.bids[0], { priceTicks: 99125000n, sizeTicks: 10000001n });
+  assert.deepEqual(query(4).bids[0], { priceTicks: 99500000n, sizeTicks: 4000000n });
+  assert.deepEqual(query(6).status, { kind: 'sequence-gap', expected: 9007199254740995n, received: 9007199254740996n });
+  assert.deepEqual(query(6).bids, []);
+  const recovered = query(9);
+  assert.equal(recovered.snapshot.sequence, 9007199254741000n);
+  assert.equal(recovered.received.sequence, 9007199254741001n);
+  assert.deepEqual(recovered.bids[0], { priceTicks: -4000000n, sizeTicks: 1n });
+  assert.deepEqual(query(11).status, { kind: 'crossed', sequence: 9007199254741002n });
+  assert.deepEqual(query(12).status, { kind: 'synchronized' });
+  assert.deepEqual(query(12).asks, []);
+  assert.deepEqual(query(2), first);
+  assert.throws(() => core.depthCheckpoints('NASDAQ:MSFT', csv), /Instrument must match/);
+  assert.throws(() => core.recordedDepth(instrument, csv, '2025-06-02'), /exact UTC observation cutoff/);
+});
+
 test('tick bars keep exact sequence identities and observation-time prefixes', () => {
   const csv = [
     'instrument,executed_at,observed_at,sequence,price,size',

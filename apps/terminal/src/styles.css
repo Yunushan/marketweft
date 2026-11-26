@@ -342,6 +342,25 @@ main {
   width: 100%;
   height: 140px;
 }
+.depth-ladders {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 18px;
+}
+.depth-ladder { min-width: 0; }
+.depth-ladder h3 { margin: 0 0 6px; }
+.depth-ladder table { width: 100%; }
+.depth-ladder .replay-table-scroll { max-height: 24rem; }
+.depth-size { position: relative; width: 55%; }
+.depth-size span {
+  position: absolute;
+  inset: 4px auto 4px 0;
+  border-radius: 2px;
+  opacity: .25;
+}
+.depth-size.bids span { background: var(--mint); }
+.depth-size.asks span { background: #ec817e; }
+.depth-size b { position: relative; font-weight: 400; }
 .sector-heatmap {
   display: grid;
   gap: 14px;

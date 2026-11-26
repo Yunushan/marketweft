@@ -22,6 +22,30 @@ export interface TickBar {
   observedTrades: number;
   targetTrades: number;
 }
+export interface DepthStamp {
+  sequence: bigint;
+  eventAt: number;
+  observedAt: number;
+}
+
+export interface DepthLevel {
+  priceTicks: bigint;
+  sizeTicks: bigint;
+}
+
+export type DepthStatus =
+  | { kind: 'no-observation' | 'awaiting-snapshot' | 'synchronized' }
+  | { kind: 'sequence-gap'; expected: bigint; received: bigint }
+  | { kind: 'crossed'; sequence: bigint };
+
+export interface RecordedDepth {
+  status: DepthStatus;
+  received: DepthStamp | null;
+  snapshot: DepthStamp | null;
+  bids: DepthLevel[];
+  asks: DepthLevel[];
+}
+
 export interface SessionTimeframeBar extends TimeframeBar {
   closeTime: number;
   sessionOpen: number;
@@ -444,6 +468,8 @@ export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
   recordedTickBars(instrument: string, csv: string, targetTrades: number, knownAt?: string): TickBar[];
+  depthCheckpoints(instrument: string, csv: string): number[];
+  recordedDepth(instrument: string, csv: string, knownAt: string): RecordedDepth;
   aggregateTimeframe(bars: readonly Bar[], sourceSeconds: number, targetSeconds: number): TimeframeBar[];
   aggregateSessionTimeframe(calendar: string, bars: readonly Bar[], sourceSeconds: number,
     targetSeconds: number): SessionTimeframeBar[];
@@ -494,6 +520,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_instrument(): number;
   mw_parse(): number;
   mw_tick_bars(targetTrades: number): number;
+  mw_depth_checkpoints(): number;
+  mw_recorded_depth(): number;
   mw_aggregate_timeframe(sourceSeconds: number, targetSeconds: number): number;
   mw_aggregate_session_timeframe(calendarBytes: number, sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
@@ -755,6 +783,48 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           targetTrades: out.getUint32(start + 76, true),
         };
       });
+    },
+    depthCheckpoints(instrument, csv) {
+      if (/[\r\n]/.test(instrument)) throw new Error('Use a single depth instrument.');
+      textInput(instrument + '\n' + csv);
+      const out = output(api.mw_depth_checkpoints());
+      return Array.from({ length: out.byteLength / 8 }, (_, i) => Number(out.getBigInt64(i * 8, true)));
+    },
+    recordedDepth(instrument, csv, knownAt) {
+      if (/[\r\n]/.test(instrument + knownAt)) throw new Error('Use a single instrument and UTC cutoff.');
+      textInput([instrument, knownAt, csv].join('\n'));
+      const [summary, ...rows] = decoder.decode(output(api.mw_recorded_depth())).trimEnd().split('\n');
+      const [kind, first, second] = summary.split('\t');
+      let status: DepthStatus;
+      switch (kind) {
+        case 'no-observation':
+        case 'awaiting-snapshot':
+        case 'synchronized':
+          status = { kind };
+          break;
+        case 'sequence-gap':
+          status = { kind, expected: BigInt(first), received: BigInt(second) };
+          break;
+        case 'crossed':
+          status = { kind, sequence: BigInt(first) };
+          break;
+        default:
+          throw new Error('Invalid depth status from the calculation engine.');
+      }
+      const view: RecordedDepth = { status, received: null, snapshot: null, bids: [], asks: [] };
+      for (const row of rows) {
+        const [tag, first, second, third] = row.split('\t');
+        if (tag === 'B' || tag === 'A') {
+          const levels = tag === 'B' ? view.bids : view.asks;
+          levels.push({ priceTicks: BigInt(first), sizeTicks: BigInt(second) });
+        } else if (tag === 'R' || tag === 'S') {
+          const stamp = { sequence: BigInt(first), eventAt: Number(second), observedAt: Number(third) };
+          view[tag === 'R' ? 'received' : 'snapshot'] = stamp;
+        } else {
+          throw new Error('Invalid recorded depth row from the calculation engine.');
+        }
+      }
+      return view;
     },
     aggregateTimeframe(bars, sourceSeconds, targetSeconds) {
       putTimeframeInput(bars, sourceSeconds, targetSeconds);

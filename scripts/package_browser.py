@@ -83,6 +83,11 @@ Expand Relative returns to compare two listing IDs. Select ALFA-001 and
 BETA-001 at an effective and known time of 14:20 UTC. Use 14:10 UTC as
 the comparison baseline and advance knowledge to 14:25 UTC to see the
 gap caused by the removal. Download relative returns for the full window.
+
+Select the NVDA chart and open Recorded market depth. Choose Load depth demo
+or open depth.csv. Inspect the sequence gap at 14:00:05 UTC and the recovered
+book at 14:00:09 UTC. Download depth snapshot to save the exact levels and
+the source's observation and sequence evidence.
 Under Delisting proceeds, load the demo or import delisting-terms.csv.
 Set both universe cutoffs to 14:35 UTC to see missing proceeds, 14:37
 for the USD receivable, and 14:50 for the first cash posting.
@@ -143,6 +148,7 @@ def main():
     files["replay-sessions.csv"] = (fixture / "nyse-2025-replay-sessions.csv").read_bytes()
     files["replay-ohlcv.csv"] = (fixture / "nyse-2025-replay-ohlcv.csv").read_bytes()
     files["tick-trades.csv"] = (fixture / "synthetic-tick-trades.csv").read_bytes()
+    files["depth.csv"] = (fixture / "synthetic-depth.csv").read_bytes()
     for kind in ("actions", "ohlcv", "sessions"):
         files[f"split-{kind}.csv"] = (fixture / f"synthetic-split-{kind}.csv").read_bytes()
     files["cash-dividends.csv"] = (fixture / "synthetic-cash-dividends.csv").read_bytes()
