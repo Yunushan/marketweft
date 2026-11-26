@@ -88,6 +88,11 @@ Select the NVDA chart and open Recorded market depth. Choose Load depth demo
 or open depth.csv. Inspect the sequence gap at 14:00:05 UTC and the recovered
 book at 14:00:09 UTC. Download depth snapshot to save the exact levels and
 the source's observation and sequence evidence.
+
+Select the NVDA chart and open Recorded footprint. Load the demo or open
+footprint-trades.csv. The price bins keep labeled buy, sell and unknown size.
+The cumulative delta follows the execution window and changes when a late
+trade reaches the selected knowledge cutoff.
 Under Delisting proceeds, load the demo or import delisting-terms.csv.
 Set both universe cutoffs to 14:35 UTC to see missing proceeds, 14:37
 for the USD receivable, and 14:50 for the first cash posting.
@@ -149,6 +154,7 @@ def main():
     files["replay-ohlcv.csv"] = (fixture / "nyse-2025-replay-ohlcv.csv").read_bytes()
     files["tick-trades.csv"] = (fixture / "synthetic-tick-trades.csv").read_bytes()
     files["depth.csv"] = (fixture / "synthetic-depth.csv").read_bytes()
+    files["footprint-trades.csv"] = (fixture / "synthetic-footprint.csv").read_bytes()
     for kind in ("actions", "ohlcv", "sessions"):
         files[f"split-{kind}.csv"] = (fixture / f"synthetic-split-{kind}.csv").read_bytes()
     files["cash-dividends.csv"] = (fixture / "synthetic-cash-dividends.csv").read_bytes()

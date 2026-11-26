@@ -3,14 +3,22 @@ use crate::{
     Bar, Instrument, MAX_BARS, MAX_INPUT_BYTES, MAX_TICKS,
 };
 
+#[path = "footprint.rs"]
+mod footprint;
+use footprint::AggressorSide;
+pub use footprint::{FlowVolume, FootprintBar, FootprintLevel, TradeWindow};
+
 const HEADER: &str = "instrument,executed_at,observed_at,sequence,price,size";
+const AGGRESSOR_HEADER: &str = "instrument,executed_at,observed_at,sequence,price,size,aggressor";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Trade {
+    executed_at: i64,
     observed_at: i64,
     sequence: u64,
     price: i64,
     size: i64,
+    side: AggressorSide,
 }
 
 /// One instrument's recorded capture sequence, ordered by observation.
@@ -30,6 +38,18 @@ pub struct TickBar {
 
 impl TradeTape {
     pub fn parse(csv: &str, instrument: &Instrument) -> Result<Self, String> {
+        Self::parse_format(csv, instrument, false)
+    }
+
+    pub fn parse_aggressors(csv: &str, instrument: &Instrument) -> Result<Self, String> {
+        Self::parse_format(csv, instrument, true)
+    }
+
+    fn parse_format(
+        csv: &str,
+        instrument: &Instrument,
+        with_aggressor: bool,
+    ) -> Result<Self, String> {
         if csv.len() > MAX_INPUT_BYTES {
             return Err("Trade CSV exceeds 8 MiB.".into());
         }
@@ -38,8 +58,13 @@ impl TradeTape {
             .lines()
             .enumerate()
             .filter(|(_, line)| !line.trim().is_empty());
-        if lines.next().map(|(_, line)| line.trim()) != Some(HEADER) {
-            return Err(format!("Expected trade CSV header {HEADER}."));
+        let header = if with_aggressor {
+            AGGRESSOR_HEADER
+        } else {
+            HEADER
+        };
+        if lines.next().map(|(_, line)| line.trim()) != Some(header) {
+            return Err(format!("Expected trade CSV header {header}."));
         }
 
         let mut trades: Vec<Trade> = Vec::new();
@@ -75,8 +100,22 @@ impl TradeTape {
                 .and_then(decimal)
                 .filter(|size| *size > 0)
                 .ok_or_else(|| error("Use a positive size with at most six fractional digits."))?;
+            let side = if with_aggressor {
+                match cells.next() {
+                    Some("buy") => AggressorSide::Buy,
+                    Some("sell") => AggressorSide::Sell,
+                    Some("unknown") => AggressorSide::Unknown,
+                    _ => return Err(error("Use buy, sell or unknown as the aggressor side.")),
+                }
+            } else {
+                AggressorSide::Unknown
+            };
             if cells.next().is_some() {
-                return Err(error("Expected exactly six fields."));
+                return Err(error(if with_aggressor {
+                    "Expected exactly seven fields."
+                } else {
+                    "Expected exactly six fields."
+                }));
             }
             if observed_at < executed_at {
                 return Err(error("Observation time precedes execution time."));
@@ -88,16 +127,26 @@ impl TradeTape {
                 return Err(error("Observation times must not decrease and capture sequences must increase strictly."));
             }
             trades.push(Trade {
+                executed_at,
                 observed_at,
                 sequence,
                 price,
                 size,
+                side,
             });
         }
         if trades.is_empty() {
             return Err("Trade CSV contains no recorded trades.".into());
         }
         Ok(Self { trades })
+    }
+
+    fn observed_prefix(&self, known_at: Option<i64>) -> &[Trade] {
+        let end = known_at.map_or(self.trades.len(), |time| {
+            self.trades
+                .partition_point(|trade| trade.observed_at <= time)
+        });
+        &self.trades[..end]
     }
 
     /// Group the observed prefix in capture order. A short final group is provisional.
@@ -109,11 +158,7 @@ impl TradeTape {
         if known_at.is_some_and(|time| !valid_second(time)) {
             return Err("Use a supported UTC observation cutoff.".into());
         }
-        let end = known_at.map_or(self.trades.len(), |time| {
-            self.trades
-                .partition_point(|trade| trade.observed_at <= time)
-        });
-        self.trades[..end]
+        self.observed_prefix(known_at)
             .chunks(count)
             .map(|trades| {
                 let first = trades[0];

@@ -22,6 +22,44 @@ export interface TickBar {
   observedTrades: number;
   targetTrades: number;
 }
+export interface TradeFlowVolume {
+  buy: bigint;
+  sell: bigint;
+  unknown: bigint;
+  trades: number;
+}
+
+export interface FootprintLevel {
+  priceFrom: bigint;
+  priceTo: bigint;
+  volume: TradeFlowVolume;
+}
+
+export interface FootprintBar {
+  startsAt: number;
+  endsAt: number;
+  lastObservedAt: number;
+  firstSequence: bigint;
+  lastSequence: bigint;
+  volume: TradeFlowVolume;
+  cumulativeDelta: bigint;
+  levels: FootprintLevel[];
+}
+
+export interface FootprintQuery {
+  bucketSeconds: number;
+  priceWidth: string;
+  from: string;
+  through: string;
+  known: string;
+}
+
+export interface FootprintWindow {
+  firstExecution: number;
+  lastExecution: number;
+  lastObserved: number;
+}
+
 export interface DepthStamp {
   sequence: bigint;
   eventAt: number;
@@ -468,6 +506,8 @@ export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
   recordedTickBars(instrument: string, csv: string, targetTrades: number, knownAt?: string): TickBar[];
+  footprintWindow(instrument: string, csv: string): FootprintWindow;
+  recordedFootprint(instrument: string, csv: string, query: FootprintQuery): FootprintBar[];
   depthCheckpoints(instrument: string, csv: string): number[];
   recordedDepth(instrument: string, csv: string, knownAt: string): RecordedDepth;
   aggregateTimeframe(bars: readonly Bar[], sourceSeconds: number, targetSeconds: number): TimeframeBar[];
@@ -520,6 +560,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_instrument(): number;
   mw_parse(): number;
   mw_tick_bars(targetTrades: number): number;
+  mw_footprint_window(): number;
+  mw_trade_footprint(bucketSeconds: number): number;
   mw_depth_checkpoints(): number;
   mw_recorded_depth(): number;
   mw_aggregate_timeframe(sourceSeconds: number, targetSeconds: number): number;
@@ -783,6 +825,46 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           targetTrades: out.getUint32(start + 76, true),
         };
       });
+    },
+    footprintWindow(instrument, csv) {
+      if (/[\r\n]/.test(instrument)) throw new Error('Use a single footprint instrument.');
+      textInput(instrument + '\n' + csv);
+      const out = output(api.mw_footprint_window());
+      return {
+        firstExecution: Number(out.getBigInt64(0, true)),
+        lastExecution: Number(out.getBigInt64(8, true)),
+        lastObserved: Number(out.getBigInt64(16, true)),
+      };
+    },
+    recordedFootprint(instrument, csv, { bucketSeconds, priceWidth, from, through, known }) {
+      if (!Number.isInteger(bucketSeconds) || bucketSeconds < 1 || bucketSeconds > 0xffffffff) {
+        throw new Error('Use a positive whole-second footprint interval.');
+      }
+      if ([instrument, priceWidth, from, through, known].some(value => /[\r\n]/.test(value))) {
+        throw new Error('Use one instrument, price increment and exact UTC times.');
+      }
+      textInput([instrument, from, through, known, priceWidth, csv].join('\n'));
+      const text = decoder.decode(output(api.mw_trade_footprint(bucketSeconds)));
+      const volume = (buy: string, sell: string, unknown: string, trades: string): TradeFlowVolume => ({
+        buy: BigInt(buy), sell: BigInt(sell), unknown: BigInt(unknown), trades: Number(trades),
+      });
+      const bars: FootprintBar[] = [];
+      for (const line of text.trimEnd().split('\n')) {
+        if (!line) continue;
+        const [tag, ...fields] = line.split('\t');
+        if (tag === 'B') {
+          const [start, end, observed, first, last, buy, sell, unknown, trades, cumulative] = fields;
+          bars.push({ startsAt: Number(start), endsAt: Number(end), lastObservedAt: Number(observed),
+            firstSequence: BigInt(first), lastSequence: BigInt(last),
+            volume: volume(buy, sell, unknown, trades), cumulativeDelta: BigInt(cumulative), levels: [] });
+        } else {
+          const bar = bars.at(-1);
+          if (tag !== 'L' || !bar) throw new Error('Invalid footprint data from the calculation engine.');
+          const [from, to, buy, sell, unknown, trades] = fields;
+          bar.levels.push({ priceFrom: BigInt(from), priceTo: BigInt(to), volume: volume(buy, sell, unknown, trades) });
+        }
+      }
+      return bars;
     },
     depthCheckpoints(instrument, csv) {
       if (/[\r\n]/.test(instrument)) throw new Error('Use a single depth instrument.');

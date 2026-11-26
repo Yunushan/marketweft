@@ -14,6 +14,7 @@ import { Spark } from './Chart'
 import { TimeframeChart } from './TimeframeChart'
 import { TickBarsResearch } from './TickBarsResearch'
 import { DepthResearch } from './DepthResearch'
+import { FootprintResearch } from './FootprintResearch'
 import { IndicatorPeriods } from './IndicatorPeriods'
 import { Icon, Mark } from './Icons'
 import { changeString, dateLabel, movement, price, volume } from './workspace'
@@ -314,10 +315,11 @@ export function App({
   )
   const [saved, setSaved] = useState(initial)
   const [replaying, setReplaying] = useState(false)
-  const [marketResearch, setMarketResearch] = useState<'tick-bars' | 'depth' | null>(null)
+  const [marketResearch, setMarketResearch] = useState<'tick-bars' | 'depth' | 'footprint' | null>(null)
   const replayButton = useRef<HTMLButtonElement>(null)
   const tickResearchButton = useRef<HTMLButtonElement>(null)
   const depthResearchButton = useRef<HTMLButtonElement>(null)
+  const footprintResearchButton = useRef<HTMLButtonElement>(null)
   const restoreReplayFocus = useRef(false)
   const restoreResearchFocus = useRef<typeof marketResearch>(null)
   useLayoutEffect(() => {
@@ -328,7 +330,9 @@ export function App({
   }, [replaying])
   useEffect(() => {
     if (!marketResearch && restoreResearchFocus.current) {
-      const button = restoreResearchFocus.current === 'tick-bars' ? tickResearchButton : depthResearchButton
+      const button = {
+        'tick-bars': tickResearchButton, depth: depthResearchButton, footprint: footprintResearchButton,
+      }[restoreResearchFocus.current]
       restoreResearchFocus.current = null
       button.current?.focus()
     }
@@ -538,7 +542,7 @@ export function App({
   const span = last.high - last.low,
     position = span === 0 ? 50 : ((last.close - last.low) / span) * 100
   if (marketResearch) {
-    const Research = marketResearch === 'tick-bars' ? TickBarsResearch : DepthResearch
+    const Research = { 'tick-bars': TickBarsResearch, depth: DepthResearch, footprint: FootprintResearch }[marketResearch]
     return <Research key={asset.id} core={core} asset={asset} close={() => {
       restoreResearchFocus.current = marketResearch
       setMarketResearch(null)
@@ -603,6 +607,8 @@ export function App({
               onClick={() => setMarketResearch('tick-bars')}>Recorded tick bars</button>
             <button ref={depthResearchButton} className="outline" disabled={saving}
               onClick={() => setMarketResearch('depth')}>Recorded market depth</button>
+            <button ref={footprintResearchButton} className="outline" disabled={saving}
+              onClick={() => setMarketResearch('footprint')}>Recorded footprint</button>
           </div>
         </div>
         {(warning || saveError) && (

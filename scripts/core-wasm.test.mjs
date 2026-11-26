@@ -9,6 +9,33 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('recorded footprint decodes execution buckets, unknown volume and exact cumulative deltas', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-footprint.csv', import.meta.url), 'utf8');
+  const instrument = 'NASDAQ:NVDA';
+  const utc = seconds => new Date(seconds * 1000).toISOString().replace('.000Z', 'Z');
+  assert.deepEqual(core.footprintWindow(instrument, csv), {
+    firstExecution: -1, lastExecution: 65, lastObserved: 65,
+  });
+  const at = known => core.recordedFootprint(instrument, csv, {
+    bucketSeconds: 60, priceWidth: '0.5', from: utc(-1), through: utc(60), known: utc(known),
+  });
+  assert.deepEqual(at(-1), []);
+  const old = at(60);
+  assert.deepEqual(old.map(b => b.cumulativeDelta), [1250000n, 1000000n, -1000000n]);
+  assert.deepEqual(old[0].levels[0], {
+    priceFrom: -500000n, priceTo: 0n, volume: { buy: 1250000n, sell: 0n, unknown: 0n, trades: 1 },
+  });
+  const revised = at(61);
+  assert.equal(revised[0].lastSequence, 9007199254740997n);
+  assert.equal(revised[0].lastObservedAt, 61);
+  assert.equal(revised[1].levels[1].volume.unknown, 3000000n);
+  assert.equal(revised[1].levels[1].volume.buy, 10000001n);
+  assert.equal(revised[2].cumulativeDelta, 8900001n);
+  assert.deepEqual(at(65), revised);
+  assert.deepEqual(at(60), old);
+  assert.throws(() => core.footprintWindow('NASDAQ:MSFT', csv), /Instrument must match/);
+});
+
 test('recorded depth verifies atomic frames, exact sequences and recovery at the known cutoff', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-depth.csv', import.meta.url), 'utf8');
   const instrument = 'NASDAQ:NVDA';

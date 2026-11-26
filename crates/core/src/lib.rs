@@ -69,7 +69,7 @@ pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};
 pub use screen::{PriceBook, PriceObservation, RelativeLegPoint, RelativePoint, ScreenRow};
 pub use sector::{Classification, Heatmap, HeatmapListing, SectorGroup};
-pub use tick_bars::{TickBar, TradeTape};
+pub use tick_bars::{FlowVolume, FootprintBar, FootprintLevel, TickBar, TradeTape, TradeWindow};
 pub use timeframe::{
     aggregate_session_timeframe, aggregate_timeframe, SessionTimeframeBar, TimeframeBar,
 };

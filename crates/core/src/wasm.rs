@@ -1365,20 +1365,96 @@ pub extern "C" fn mw_tick_bars(target_trades: u32) -> u32 {
     })
 }
 
-fn depth_source(input: &[u8]) -> Result<(Instrument, &str), String> {
+fn recorded_source(input: &[u8]) -> Result<(Instrument, &str), String> {
     let (id, rest) = utf8(input)?
         .split_once('\n')
-        .ok_or("Missing depth reports.")?;
+        .ok_or("Missing recorded reports.")?;
     let (venue, symbol) = id
         .split_once(':')
-        .ok_or("Use a canonical depth instrument.")?;
+        .ok_or("Use a canonical recorded instrument.")?;
     Ok((Instrument::new(venue, symbol)?, rest))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_footprint_window() -> u32 {
+    process(|input| {
+        let (instrument, csv) = recorded_source(input)?;
+        let window = crate::TradeTape::parse_aggressors(csv, &instrument)?.trade_window();
+        Ok([
+            window.first_execution,
+            window.last_execution,
+            window.last_observed,
+        ]
+        .into_iter()
+        .flat_map(i64::to_le_bytes)
+        .collect())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_trade_footprint(bucket_seconds: u32) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let (instrument, rest) = recorded_source(input)?;
+        let mut fields = rest.splitn(5, '\n');
+        let mut time = || {
+            fields
+                .next()
+                .and_then(exact_utc)
+                .ok_or("Footprint times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+        };
+        let (from_at, through_at, known_at) = (time()?, time()?, time()?);
+        let price_width = fields
+            .next()
+            .and_then(crate::history::decimal)
+            .ok_or("Use an exact footprint price increment with up to six fractional digits.")?;
+        let csv = fields.next().ok_or("Missing footprint trade CSV.")?;
+        let bars = crate::TradeTape::parse_aggressors(csv, &instrument)?.footprint(
+            bucket_seconds,
+            price_width,
+            from_at,
+            through_at,
+            known_at,
+        )?;
+        let mut text = String::new();
+        for bar in bars {
+            writeln!(
+                &mut text,
+                "B\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                bar.starts_at,
+                bar.ends_at,
+                bar.last_observed_at,
+                bar.first_sequence,
+                bar.last_sequence,
+                bar.volume.buy,
+                bar.volume.sell,
+                bar.volume.unknown,
+                bar.volume.trades,
+                bar.cumulative_delta,
+            )
+            .unwrap();
+            for level in bar.levels {
+                writeln!(
+                    &mut text,
+                    "L\t{}\t{}\t{}\t{}\t{}\t{}",
+                    level.price_from,
+                    level.price_to,
+                    level.volume.buy,
+                    level.volume.sell,
+                    level.volume.unknown,
+                    level.volume.trades,
+                )
+                .unwrap();
+            }
+        }
+        Ok(text.into_bytes())
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn mw_depth_checkpoints() -> u32 {
     process(|input| {
-        let (instrument, csv) = depth_source(input)?;
+        let (instrument, csv) = recorded_source(input)?;
         Ok(crate::DepthTape::parse(csv, &instrument)?
             .checkpoints()
             .into_iter()
@@ -1392,7 +1468,7 @@ pub extern "C" fn mw_recorded_depth() -> u32 {
     use crate::DepthStatus;
     use std::fmt::Write;
     process(|input| {
-        let (instrument, rest) = depth_source(input)?;
+        let (instrument, rest) = recorded_source(input)?;
         let (cutoff, csv) = rest.split_once('\n').ok_or("Missing depth CSV.")?;
         let known_at = exact_utc(cutoff).ok_or("Use an exact UTC observation cutoff.")?;
         let view = crate::DepthTape::parse(csv, &instrument)?.as_of(known_at)?;
