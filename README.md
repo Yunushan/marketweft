@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.11.0 · 0BSD**
+**0.12.0 · 0BSD**
 
 **Documentation languages**
 
@@ -15,14 +15,14 @@
 
 MarketWeft is a local-first research terminal for analysts, developers and operators who need inspectable historical market data. The browser opens authorized OHLCV files, renders interactive candles and volume, calculates fixed-point SMA and EMA, and saves the watchlist, selected instrument and overlays in IndexedDB. The application works offline after its assets are cached. Its bundled prices and volumes are synthetic and require no provider account.
 
-MarketWeft 0.11.0 adds historical European option chains, implied volatility and Greeks. MarketWeft 0.7.0 adds point-in-time universe screening by price return. Session-aware replay includes stock splits, cash dividends, membership and delistings. The repository also includes a read-only TypeScript observer for a separate trading-bot service and an experimental Tauri wrapper. Provider feeds, order entry, signed native installers and multi-user hosting remain roadmap work.
+MarketWeft 0.12.0 adds replayable crossing rules and a durable local alert inbox. MarketWeft 0.7.0 adds point-in-time universe screening by price return. Session-aware replay includes stock splits, cash dividends, membership and delistings. The repository also includes a read-only TypeScript observer for a separate trading-bot service and an experimental Tauri wrapper. Provider feeds, order entry, signed native installers and multi-user hosting remain roadmap work.
 
 [ROADMAP.md](ROADMAP.md) · [docs/coverage.md](docs/coverage.md)
 
 <!-- section:02 -->
 ## Start with the portable terminal
 
-Open a successful GitHub verification run and download its browser-terminal-attempt-N artifact. Extract the enclosed MarketWeft-browser-0.11.0.zip, keep dist/ beside serve-terminal.mjs and run the following command in that directory. Open http://127.0.0.1:4173/ in a current browser with WebAssembly, Canvas, BigInt and IndexedDB. Node.js 22.12 or later runs the launcher. The portable package needs no npm installation. Wait for Offline ready before disconnecting.
+Open a successful GitHub verification run and download its browser-terminal-attempt-N artifact. Extract the enclosed MarketWeft-browser-0.12.0.zip, keep dist/ beside serve-terminal.mjs and run the following command in that directory. Open http://127.0.0.1:4173/ in a current browser with WebAssembly, Canvas, BigInt and IndexedDB. Node.js 22.12 or later runs the launcher. The portable package needs no npm installation. Wait for Offline ready before disconnecting.
 
 ```sh
 node serve-terminal.mjs
@@ -104,7 +104,19 @@ contract_id,underlying,currency,side,expiry,strike,quote_at,observed_at,bid,ask
 APR-C100,DEMO:OPT,USD,call,2026-04-03T14:00:00Z,100,2025-04-03T14:00:00Z,2025-04-03T14:00:00Z,8.807321,8.847321
 ```
 
-[docs/historical-replay.md](docs/historical-replay.md) · [replay-sessions.csv](crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](docs/corporate-actions.md) · [split-actions.csv](crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](docs/cash-dividends.md) · [cash-dividends.csv](crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](docs/universe-membership.md) · [universe-membership.csv](crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](docs/universe-screen.md) · [universe-prices.csv](crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](docs/sector-heatmap.md) · [universe-sectors.csv](crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](docs/financial-statements.md) · [financial-filings.csv](crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](docs/macro-calendar.md) · [macro-calendar.csv](crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](docs/option-chain.md) · [option-underlying.csv](crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](crates/core/tests/fixtures/synthetic-option-quotes.csv)
+Open Historical replay → Open replay alerts → Start alert demo. First crossing shows one threshold alert. Correction observed shows the revised sample and its moving-average crossing. Full alert replay shows eight alerts. Save to alert inbox twice to verify eight saved records and zero new ones on the second save. Load Alert rules CSV and Alert observations CSV for your own data.
+
+```csv
+rule_id,revision_id,series_id,effective_at,observed_at,kind,direction,operand
+LEVEL,R1,DEMO.CLOSE,2025-04-03T14:00:00Z,2025-04-03T14:00:00Z,threshold,either,5
+```
+
+```csv
+observation_id,series_id,measured_at,observed_at,value
+O2,DEMO.CLOSE,2025-04-03T14:02:00Z,2025-04-03T14:02:00Z,6
+```
+
+[docs/historical-replay.md](docs/historical-replay.md) · [replay-sessions.csv](crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](docs/corporate-actions.md) · [split-actions.csv](crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](docs/cash-dividends.md) · [cash-dividends.csv](crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](docs/universe-membership.md) · [universe-membership.csv](crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](docs/universe-screen.md) · [universe-prices.csv](crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](docs/sector-heatmap.md) · [universe-sectors.csv](crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](docs/financial-statements.md) · [financial-filings.csv](crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](docs/macro-calendar.md) · [macro-calendar.csv](crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](docs/option-chain.md) · [option-underlying.csv](crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](docs/replay-alerts.md) · [alert-rules.csv](crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](crates/core/tests/fixtures/synthetic-alert-observations.csv)
 
 <!-- section:04 -->
 ## Import and replay your own data

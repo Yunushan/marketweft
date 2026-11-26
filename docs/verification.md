@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.12.0 · Replayable alerts and local inbox
+
+| Check | Observed result |
+| --- | --- |
+| Exact crossing evidence | The demo has one threshold alert at 14:02. At 14:03 the revised observation crosses the level and the three-sample SMA. A stale report leaves rolling state unchanged. The full replay has eight distinct records. |
+| Replay and durability | Two Chromium tabs concurrently save identical replay evidence. One commits eight records and the other commits zero. A rewind and repeat save keep all eight, including after offline reload. |
+| Atomicity and retries | Conflicting evidence under the same ID aborts the whole batch. An interrupted write succeeds on the third attempt after two simulated interruptions. Three consecutive interruptions leave existing records intact and stop retrying. |
+| Regression suite | All 44 browser and six SDK tests passed on Windows x64. Forty native tests passed on Linux x64 and 13 Wasm tests passed. All 21 README editions passed the parity check. |
+
+[Alert contract and fixture](replay-alerts.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.11.0 · Point-in-time European option chains
 
 | Check | Observed result |

@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.11.0 adds point-in-time European option chains, implied volatility and Greeks. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.12.0 adds replayable crossings and a durable local alert inbox. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -14,16 +14,17 @@
 | Delivered · 0.9.0 | Statement vintages and valuation (MW-023) | Reproduce annual statements and price multiples at publication and observation boundaries. Verify original and restated filing selection, late older reports, market cap revisions and unavailable ratios. [Financial statement contract](docs/financial-statements.md). |
 | Delivered · 0.10.0 | Economic release vintages (MW-024) | Replay scheduled times, forecasts, actuals and their revisions. Verify no actual before publication and observation, and reconstruct each earlier vintage. [Economic calendar contract](docs/macro-calendar.md). |
 | Delivered · 0.11.0 | European option-chain analytics (MW-026) | Reconstruct quotes and spot using separate cutoffs, estimate IV and five Greeks, and mark missing and invalid points in the sparse surface. [Option-chain contract](docs/option-chain.md). |
+| Delivered · 0.12.0 | Replayable alerts and inbox (MW-027) | Evaluate threshold and SMA crossings from auditable rule revisions and observations. Deduplicate atomic inbox saves across tabs and retry transient interruptions within a fixed budget. [Alert contract](docs/replay-alerts.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend stock split identities for effective-time revisions and cancellation. Add delisting return data with explicit proceeds and missing-value treatment. Model per-distribution entitlement for trading and portfolio simulation. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Persist two chart panes with linked UTC crosshairs, one measured drawing in data coordinates, reusable indicator parameters and CSV export. Restore exact settings after a versioned migration. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Implement paper cash and fills with fees, reasoned rejections, idempotent event IDs and kill switch. Backtest against the same event contract. Check prefix invariance, delayed fills and out-of-sample splits. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Publish an independent time-series language spec, bounded interpreter and isolated Wasm execution. Test determinism, quotas and schema compatibility across SDKs. Start MCP with read-only research queries. |
-| P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Add deduplicated alerts with replayable evidence and bounded delivery. Extend annual filings with quarterly/TTM aggregation, add options exercise and dividend models, and integrate authorized data sources. |
+| P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Add explicit webhook configuration, authenticated delivery, bounded retry and delivery receipts. Extend annual filings with quarterly/TTM aggregation, add options exercise and dividend models, and integrate authorized data sources. |
 | P2 | Order flow and specialized visualization (MW-012, MW-019) | Add authorized trade and depth streams, sequence recovery, trade-side classification and profiles. Benchmark Canvas against WebGL/wgpu with identical traces before adopting another renderer. |
 | P3 | Enterprise and authorized live execution (MW-022, MW-028, MW-030) | Introduce a headless Rust service, SQLite/DuckDB persistence, authenticated APIs and audited operations. Add external stores/queues only after load tests justify them. Prove quota enforcement and disaster recovery before a hosted rollout. Require explicit authorization and deterministic pre-trade risk for any live route. |
 
 ## Handoff for the next change
 
-The next research milestone evaluates auditable alert rules against observed data. Replaying a crossing twice should produce a single notification record, with the underlying observations and rule revision preserved for audit.
+The next research milestone builds the paper cash and fill ledger. Verify deterministic fees, position limits, idempotent fills and cancel behavior before reusing it for backtests.
 
