@@ -2,14 +2,9 @@ import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { MarketCore, ScreenPrice } from './market-core'
 import { utc } from './workspace'
+import { fixed } from './fixed-point'
+import { SectorHeatmap } from './SectorHeatmap'
 import demoPrices from '../../../crates/core/tests/fixtures/synthetic-universe-prices.csv?raw'
-
-function fixed(value: bigint, places: number): string {
-  const magnitude = (value < 0n ? -value : value).toString().padStart(places + 1, '0')
-  const decimals = magnitude.slice(-places).replace(/0+$/, '')
-  return (value < 0n ? '-' : '') + magnitude.slice(0, -places) +
-    (decimals ? '.' + decimals : '')
-}
 
 function PriceCell({ price }: { price: ScreenPrice | null }) {
   return price === null ? 'Missing' : (
@@ -161,6 +156,8 @@ export function UniverseScreen({
       {(report?.error || error) && (
         <p className="warning" role="alert">{report?.error || error}</p>
       )}
+      {prices && <SectorHeatmap core={core} membership={membership} prices={prices.csv}
+        baseline={baseline} effective={effective} known={known} demo={demo} />}
     </section>
   )
 }

@@ -55,6 +55,9 @@ same file path and query independent effective and known times.
 In Universe screen choose Load demo prices, or pair universe-membership.csv
 with universe-prices.csv. Keep the initial 14:00 UTC baseline. At 14:10
 BETA is unranked until its close is observed at 14:12 UTC.
+Below the rankings, choose Load demo sectors or upload universe-sectors.csv
+with the matching membership and price reports. The Sector heatmap shows
+each listing's sector, weight, price return and observed contribution.
 
 The chart supports panning, zooming, a crosshair and moving-average overlays.
 This build has no broker connection or order entry. Press Ctrl+C in the
@@ -83,6 +86,7 @@ def main():
     files["cash-dividends.csv"] = (fixture / "synthetic-cash-dividends.csv").read_bytes()
     files["universe-membership.csv"] = (fixture / "synthetic-universe.csv").read_bytes()
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()
+    files["universe-sectors.csv"] = (fixture / "synthetic-universe-sectors.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
     inventory["components"] = [item for item in inventory["components"]
                                if any(p["value"] == "web-runtime" for p in item["properties"])]

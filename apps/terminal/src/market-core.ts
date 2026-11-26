@@ -72,6 +72,33 @@ export interface ScreenRow {
   current: ScreenPrice | null;
 }
 
+export interface HeatmapListing {
+  listingId: string;
+  instrument: string;
+  rank: number | null;
+  returnUnits: bigint | null;
+  weight: number | null;
+  effectiveAt: number | null;
+  observedAt: number | null;
+  contribution: bigint | null;
+}
+
+interface WeightTotals {
+  knownWeight: number;
+  coveredWeight: number;
+  contribution: bigint | null;
+}
+
+export interface SectorGroup extends WeightTotals {
+  sector: string | null;
+  weightedReturn: bigint | null;
+  listings: HeatmapListing[];
+}
+
+export interface Heatmap extends WeightTotals {
+  groups: SectorGroup[];
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -84,6 +111,8 @@ export interface MarketCore {
   universeAsOf(csv: string, effectiveAt: string, knownAt: string): UniverseListing[];
   universeScreen(membership: string, prices: string, baselineAt: string,
     effectiveAt: string, knownAt: string): ScreenRow[];
+  sectorHeatmap(membership: string, prices: string, sectors: string, baselineAt: string,
+    effectiveAt: string, knownAt: string): Heatmap;
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -102,6 +131,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_universe_index(): number;
   mw_universe_as_of(): number;
   mw_universe_screen(membershipBytes: number): number;
+  mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
 }
 
 const SCALE = 1_000_000;
@@ -133,6 +163,13 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     const view = new DataView(api.memory.buffer, api.mw_output(), api.mw_output_len());
     if (status !== 0) throw new Error(decoder.decode(view));
     return view;
+  }
+
+  function screenInput(times: string[], ...files: string[]) {
+    if (times.some(value => value.length !== 20 || /[\n\r]/.test(value))) {
+      throw new Error('Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
+    }
+    textInput([...times, files.join('')].join('\n'));
   }
 
   function decodeBars(out: DataView): Bar[] {
@@ -225,12 +262,8 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       });
     },
     universeScreen(membership, prices, baselineAt, effectiveAt, knownAt) {
-      const times = [baselineAt, effectiveAt, knownAt];
-      if (times.some(value => value.length !== 20 || /[\n\r]/.test(value))) {
-        throw new Error('Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
-      }
+      screenInput([baselineAt, effectiveAt, knownAt], membership, prices);
       const membershipBytes = encoder.encode(membership).length;
-      textInput([...times, membership + prices].join('\n'));
       const text = decoder.decode(output(api.mw_universe_screen(membershipBytes)));
       if (!text) return [];
       const price = (field: string): ScreenPrice | null => {
@@ -244,6 +277,38 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           returnUnits: change === '' ? null : BigInt(change), baseline: price(baseline),
           current: price(current) };
       });
+    },
+    sectorHeatmap(membership, prices, sectors, baselineAt, effectiveAt, knownAt) {
+      screenInput([baselineAt, effectiveAt, knownAt], membership, prices, sectors);
+      const text = decoder.decode(output(api.mw_sector_heatmap(
+        encoder.encode(membership).length, encoder.encode(prices).length,
+      )));
+      const optionalInt = (value: string) => value === '' ? null : Number(value);
+      const optionalBigInt = (value: string) => value === '' ? null : BigInt(value);
+      const [summary, ...lines] = text.slice(0, -1).split('\n');
+      const [, knownWeight, coveredWeight, net] = summary.split('\t');
+      const map: Heatmap = {
+        knownWeight: Number(knownWeight), coveredWeight: Number(coveredWeight),
+        contribution: optionalBigInt(net), groups: [],
+      };
+      for (const line of lines) {
+        const [type, ...fields] = line.split('\t');
+        if (type === 'S') {
+          const [sector, known, covered, weightedReturn, contribution] = fields;
+          map.groups.push({ sector: sector || null, knownWeight: Number(known),
+            coveredWeight: Number(covered), weightedReturn: optionalBigInt(weightedReturn),
+            contribution: optionalBigInt(contribution), listings: [] });
+        } else {
+          const group = map.groups.at(-1);
+          if (type !== 'L' || !group) throw new Error('Invalid heatmap record from the calculation engine.');
+          const [listingId, instrument, rank, change, weight, effective, observed, contribution] = fields;
+          group.listings.push({ listingId, instrument, rank: optionalInt(rank),
+            returnUnits: optionalBigInt(change), weight: optionalInt(weight),
+            effectiveAt: optionalInt(effective), observedAt: optionalInt(observed),
+            contribution: optionalBigInt(contribution) });
+        }
+      }
+      return map;
     },
     splitBook(instrument, csv) {
       textInput(instrument + '\n' + csv);
