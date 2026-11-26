@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.29.0 · Recorded tick bars
+
+| Check | Observed result |
+| --- | --- |
+| Known prefix | No trades appear before the first observation. At the first cutoff, two trades observed in the same second form one complete bar, with open 5, high 5, low −2, close −2 and exact volume 0.000003. |
+| Late trade | A trade executed earlier and observed five seconds later starts a provisional second bar. The complete first bar and its exported values are identical at both cutoffs. |
+| Identity and provenance | Capture sequences above the JavaScript safe integer range remain exact in Wasm, chart readouts and CSV. A foreign instrument is rejected without replacing the preceding result. The browser workspace backup manifest is identical before and after tick research. |
+| Regression suite | All 68 browser and six SDK tests passed on Windows x64, 68 native tests passed on Linux x64, 25 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Recorded tick bars](recorded-tick-bars.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.28.0 · Session-aware timeframes
 
 | Check | Observed result |

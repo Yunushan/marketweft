@@ -49,3 +49,7 @@ Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's
 **OHLCV bars for reimport** writes the six columns accepted by the terminal importer. Timestamps use UTC Unix seconds, and signed prices and volume retain their original values through six decimal places.
 
 **Bars, provenance and enabled indicators** includes instrument identity, source, interval, usage grant and adjustment policy. Each enabled moving average adds a column such as `sma_20` or `ema_9`. Calculations use the instrument's full history through each exported bar, so the visible-range export preserves values calculated before the visible boundary. Cells stay empty while the indicator has too few closes. A leading apostrophe escapes formula-like provenance text. The research format can be used in analysis tools.
+
+## Recorded trades
+
+The **Recorded tick bars** tool builds an independent chart from captured trades using an observation cutoff and trade count. [Recorded tick bars](recorded-tick-bars.md)

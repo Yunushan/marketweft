@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.28.0 · 0BSD**
+**0.29.0 · 0BSD**
 
 **নথির ভাষা**
 
@@ -15,14 +15,14 @@
 
 MarketWeft বিশ্লেষক, ডেভেলপার ও অপারেটরের জন্য স্থানীয় গবেষণা টার্মিনাল। অনুমোদিত OHLCV খুলে ক্যান্ডেল ও ভলিউম দেখায়, নির্দিষ্ট দশমিক এককে SMA ও EMA গণনা করে এবং নজরদারি তালিকা, নির্বাচিত ইন্সট্রুমেন্ট ও সূচক IndexedDB-তে রাখে। সম্পদ ক্যাশ হলে অফলাইনে চলে। সঙ্গে দেওয়া দাম ও ভলিউম কৃত্রিম, অ্যাকাউন্ট লাগে না।
 
-MarketWeft 0.28.0 এক্সচেঞ্জের সেশন ক্যালেন্ডার ধরে চার্টের সময়সীমা তৈরি করে। MarketWeft 0.7.0 নির্দিষ্ট সময়ে জানা তথ্য দিয়ে দামের রিটার্ন অনুযায়ী ইউনিভার্স স্ক্রিনিং যোগ করে। সেশনভিত্তিক রিপ্লেতে স্টক স্প্লিট, নগদ লভ্যাংশ, সদস্যপদ এবং তালিকা থেকে বাদ পড়া রয়েছে। আলাদা trading-bot পরিষেবার জন্য শুধু পড়ার TypeScript অবজারভার ও পরীক্ষামূলক Tauri র‍্যাপারও আছে। ডেটা ফিড, অর্ডার, স্বাক্ষরিত ইনস্টলার এবং বহু ব্যবহারকারীর হোস্টিং রোডম্যাপে আছে।
+MarketWeft 0.29.0 নথিভুক্ত লেনদেনের পর্যবেক্ষণ সময় ধরে টিক বার তৈরি করে। MarketWeft 0.7.0 নির্দিষ্ট সময়ে জানা তথ্য দিয়ে দামের রিটার্ন অনুযায়ী ইউনিভার্স স্ক্রিনিং যোগ করে। সেশনভিত্তিক রিপ্লেতে স্টক স্প্লিট, নগদ লভ্যাংশ, সদস্যপদ এবং তালিকা থেকে বাদ পড়া রয়েছে। আলাদা trading-bot পরিষেবার জন্য শুধু পড়ার TypeScript অবজারভার ও পরীক্ষামূলক Tauri র‍্যাপারও আছে। ডেটা ফিড, অর্ডার, স্বাক্ষরিত ইনস্টলার এবং বহু ব্যবহারকারীর হোস্টিং রোডম্যাপে আছে।
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## বহনযোগ্য টার্মিনাল চালান
 
-সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.28.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
+সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.29.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
 
 ```sh
 node serve-terminal.mjs
@@ -153,6 +153,8 @@ OHLC bars বেছে নিলে উল্লম্ব রেখায় স
 যেকোনো প্যানে Timeframe খুলে উৎস ও লক্ষ্য ব্যবধান সেকেন্ডে দিন। চার্ট ও গবেষণার CSV-তে কতটি উৎস বার পাওয়া গেছে তা দেখা যায়। ব্যাকআপ মূল সিরিজ রাখে।
 
 Timeframe-এ সেশন ক্যালেন্ডার CSV দিন। প্রতিটি সেশনের খোলার সময় থেকে বিরতি ধরা হয় এবং শেষটি নির্ধারিত বন্ধের সময়ে থামে। গবেষণার CSV-তে ক্যালেন্ডার ও উৎস বারের তথ্য থাকে।
+
+Recorded tick bars খুলে প্রতি বারে লেনদেনের সংখ্যা এবং পর্যবেক্ষণের শেষ সময় দিন। একই সময়ের রেকর্ডগুলো সংগ্রহের ক্রমে থাকে। চার্ট অসম্পূর্ণ বার চিহ্নিত করে এবং সঠিক ক্রমসংখ্যা রপ্তানি করে।
 
 [docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](../../docs/replay-alerts.md) · [alert-rules.csv](../../crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](../../crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](../../docs/paper-ledger.md) · [paper-events.csv](../../crates/core/tests/fixtures/synthetic-paper-events.csv) · [bar-backtest.md](../../docs/bar-backtest.md) · [backtest-sessions.csv](../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv) · [backtest-bars.csv](../../crates/core/tests/fixtures/synthetic-backtest-bars.csv) · [walk-forward.md](../../docs/walk-forward.md) · [seeded-scenarios.md](../../docs/seeded-scenarios.md) · [delisting-proceeds.md](../../docs/delisting-proceeds.md) · [split-revisions.csv](../../crates/core/tests/fixtures/synthetic-split-revisions.csv) · [dividend-positions.csv](../../crates/core/tests/fixtures/synthetic-dividend-positions.csv) · [portfolio-replay.md](../../docs/portfolio-replay.md) · [portfolio-holdings.csv](../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv) · [chart-workspace.md](../../docs/chart-workspace.md)
 
