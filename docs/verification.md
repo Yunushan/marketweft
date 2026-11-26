@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.80.0 · Provider bar withdrawals
+
+| Check | Observed result |
+| --- | --- |
+| Exact observation | The 14:00 close remains `10.250001` through 14:05:59 UTC. At the 14:06 observation the bar disappears. |
+| Replacement and rewind | At 14:07 the replacement appears with a close of `10.400001` and volume of `100.000003`. Rewinding recovers the original version. |
+| Robustness | Rust rejected a withdrawal with OHLCV values, an unknown action and a duplicate observation. Offline Chromium replayed the cutoffs and also accepted the earlier CSV format. |
+
+[Provider bar withdrawals](provider-revisions.md#withdraw-and-replace-a-bar) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.79.0 · Provider OHLCV revision replay
 
 | Check | Observed result |

@@ -16,7 +16,13 @@ pub struct ProviderBar {
 pub struct ProviderHistory {
     provider: String,
     instrument: Instrument,
-    by_effective: BTreeMap<i64, BTreeMap<i64, Bar>>,
+    by_effective: BTreeMap<i64, BTreeMap<i64, Revision>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Revision {
+    Upsert(Bar),
+    Withdraw,
 }
 
 impl ProviderHistory {
@@ -29,28 +35,34 @@ impl ProviderHistory {
             .lines()
             .enumerate()
             .filter(|(_, row)| !row.trim().is_empty());
-        if rows.next().map(|(_, row)| row.trim())
-            != Some("provider,venue,symbol,bar_at,observed_at,open,high,low,close,volume")
-        {
-            return Err(
-                "Expected provider,venue,symbol,bar_at,observed_at,open,high,low,close,volume."
-                    .into(),
-            );
-        }
+        let actions = match rows.next().map(|(_, row)| row.trim()) {
+            Some("provider,venue,symbol,bar_at,observed_at,open,high,low,close,volume") => false,
+            Some("provider,venue,symbol,bar_at,observed_at,action,open,high,low,close,volume") => {
+                true
+            }
+            _ => return Err("Expected a provider history CSV header with optional action.".into()),
+        };
+        let fields_error = if actions {
+            "Expected eleven fields."
+        } else {
+            "Expected ten fields."
+        };
         let mut identity: Option<(String, Instrument)> = None;
-        let mut by_effective: BTreeMap<i64, BTreeMap<i64, Bar>> = BTreeMap::new();
+        let mut by_effective: BTreeMap<i64, BTreeMap<i64, Revision>> = BTreeMap::new();
         for (count, (line, row)) in rows.enumerate() {
             let error = |reason: &str| format!("Provider history line {}: {reason}", line + 1);
             if count == MAX_BARS {
                 return Err(error("Supply at most 100,000 provider observations."));
             }
             let fields: Vec<_> = row.split(',').map(str::trim).collect();
-            let [provider, venue, symbol, at, observed, values @ ..] = fields.as_slice() else {
-                return Err(error("Expected ten fields."));
+            let [provider, venue, symbol, at, observed, tail @ ..] = fields.as_slice() else {
+                return Err(error(fields_error));
             };
-            if values.len() != 5 {
-                return Err(error("Expected ten fields."));
-            }
+            let (action, values) = match (actions, tail) {
+                (true, [action, values @ ..]) if values.len() == 5 => (*action, values),
+                (false, values) if values.len() == 5 => ("upsert", values),
+                _ => return Err(error(fields_error)),
+            };
             if !valid_provider(provider) {
                 return Err(error("Use a lowercase provider identifier."));
             }
@@ -70,16 +82,24 @@ impl ProviderHistory {
             if observed_at < time {
                 return Err(error("A revision cannot be observed before its bar time."));
             }
-            let bar = bar_values(time, &mut values.iter().copied(), error)?;
-            if !valid_ohlcv(bar) {
-                return Err(error(
-                    "High and low must enclose open and close, and volume must be nonnegative.",
-                ));
-            }
+            let revision = match action {
+                "upsert" => {
+                    let bar = bar_values(time, &mut values.iter().copied(), error)?;
+                    if !valid_ohlcv(bar) {
+                        return Err(error(
+                            "High and low must enclose open and close, and volume must be nonnegative.",
+                        ));
+                    }
+                    Revision::Upsert(bar)
+                }
+                "withdraw" if values.iter().all(|value| value.is_empty()) => Revision::Withdraw,
+                "withdraw" => return Err(error("A withdrawal requires five empty OHLCV fields.")),
+                _ => return Err(error("Use action upsert or withdraw.")),
+            };
             if by_effective
                 .entry(time)
                 .or_default()
-                .insert(observed_at, bar)
+                .insert(observed_at, revision)
                 .is_some()
             {
                 return Err(error(
@@ -112,8 +132,11 @@ impl ProviderHistory {
             .by_effective
             .range(..=effective_at)
             .filter_map(|(_, revisions)| {
-                let (&observed_at, &bar) = revisions.range(..=known_at).next_back()?;
-                Some(ProviderBar { bar, observed_at })
+                let (&observed_at, &revision) = revisions.range(..=known_at).next_back()?;
+                match revision {
+                    Revision::Upsert(bar) => Some(ProviderBar { bar, observed_at }),
+                    Revision::Withdraw => None,
+                }
             })
             .collect())
     }

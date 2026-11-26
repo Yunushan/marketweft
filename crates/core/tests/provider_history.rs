@@ -1,9 +1,37 @@
 use marketweft_core::{parse_exact_utc, ProviderHistory};
 
 const FIXTURE: &str = include_str!("fixtures/synthetic-provider-revisions.csv");
+const WITHDRAWALS: &str = include_str!("fixtures/synthetic-provider-withdrawals.csv");
 
 fn utc(time: &str) -> i64 {
     parse_exact_utc(&format!("2025-06-02T{time}Z")).unwrap()
+}
+
+#[test]
+fn withdrawal_and_replacement_apply_at_their_observation_times() {
+    let book = ProviderHistory::parse(WITHDRAWALS).unwrap();
+    let first = |known| book.as_of(utc("14:00:00"), utc(known)).unwrap();
+    let before = first("14:05:59");
+    assert_eq!(before[0].bar.close, 10_250_001);
+    assert!(first("14:06:00").is_empty());
+    assert!(first("14:06:59").is_empty());
+    let replaced = first("14:07:00");
+    assert_eq!(replaced[0].bar.close, 10_400_001);
+    assert_eq!(replaced[0].bar.volume, 100_000_003);
+    assert_eq!(replaced[0].observed_at, utc("14:07:00"));
+    assert_eq!(first("14:05:59"), before);
+    assert_eq!(
+        book.as_of(utc("14:02:00"), utc("14:06:00")).unwrap().len(),
+        2
+    );
+    assert!(
+        ProviderHistory::parse(&WITHDRAWALS.replace("withdraw,,,,,", "withdraw,1,,,,")).is_err()
+    );
+    assert!(ProviderHistory::parse(&WITHDRAWALS.replace("withdraw", "delete")).is_err());
+    assert!(ProviderHistory::parse(
+        &WITHDRAWALS.replace("14:06:00Z,withdraw", "14:04:00Z,withdraw")
+    )
+    .is_err());
 }
 
 #[test]

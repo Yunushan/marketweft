@@ -4,6 +4,32 @@ import { catalogContents } from './catalog-fixtures.mjs'
 
 const fixture = new URL('../../../crates/core/tests/fixtures/synthetic-provider-revisions.csv', import.meta.url)
 
+test('provider replay withdraws a bar at observation and restores it with a later replacement', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Provider revisions', exact: true }).click()
+  const effective = page.getByLabel('Bars effective through (UTC)')
+  const known = page.getByLabel('Revisions known through (UTC)')
+  const replay = page.getByRole('button', { name: 'Replay cutoffs', exact: true })
+  const bars = page.getByRole('table', { name: 'Provider history bars' })
+  await effective.fill('2025-06-02T14:00:00Z')
+  await known.fill('2025-06-02T14:05:59Z')
+  await replay.click()
+  await expect(bars.getByText('10.250001', { exact: true })).toBeVisible()
+  await known.fill('2025-06-02T14:06:00Z')
+  await replay.click()
+  await expect(page.getByText('No bars meet these cutoffs.')).toBeVisible()
+  await known.fill('2025-06-02T14:07:00Z')
+  await replay.click()
+  await expect(bars.getByText('10.400001', { exact: true })).toBeVisible()
+  await expect(bars.getByText('100.000003', { exact: true })).toBeVisible()
+  await known.fill('2025-06-02T14:05:59Z')
+  await replay.click()
+  await expect(bars.getByText('10.250001', { exact: true })).toBeVisible()
+})
+
 test('provider revisions replay before and after corrections at separate UTC cutoffs offline', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()

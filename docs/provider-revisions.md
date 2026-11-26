@@ -22,3 +22,16 @@ The built-in demo shows these independent cutoff behaviors on June 2, 2025.
 | 14:01:00 | 14:05:00 | The effective cutoff excludes the 14:02 bar. |
 
 Each application of the cutoffs reads the same observation history, so moving backward reproduces the earlier values. Uploaded observations stay in the current replay session.
+
+## Withdraw and replace a bar
+
+To record a withdrawal, use the CSV header with `action` immediately after `observed_at`. An `upsert` supplies all five OHLCV values. A `withdraw` leaves all five values empty and removes the bar at that observation cutoff.
+
+```csv
+provider,venue,symbol,bar_at,observed_at,action,open,high,low,close,volume
+synthetic-sample,DEMO,ALFA,2025-06-02T14:00:00Z,2025-06-02T14:04:00Z,upsert,10.000001,10.500001,9.999999,10.250001,100.000002
+synthetic-sample,DEMO,ALFA,2025-06-02T14:00:00Z,2025-06-02T14:06:00Z,withdraw,,,,,
+synthetic-sample,DEMO,ALFA,2025-06-02T14:00:00Z,2025-06-02T14:07:00Z,upsert,10.000001,10.500001,9.999999,10.400001,100.000003
+```
+
+An `upsert` after the withdrawal restores that same bar with its replacement values. At a cutoff before 14:06 the earlier close is 10.250001. The 14:06 observation removes it. The 14:07 replacement brings it back with a close of 10.400001 and volume of 100.000003. A header without `action` represents historical upserts.

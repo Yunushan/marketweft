@@ -5,7 +5,7 @@ import { Mark } from './Icons'
 import { checkImportRows, type ImportPolicy } from './import-policy'
 import type { MarketCore } from './market-core'
 import { utc } from './workspace'
-import demo from '../../../crates/core/tests/fixtures/synthetic-provider-revisions.csv?raw'
+import demo from '../../../crates/core/tests/fixtures/synthetic-provider-withdrawals.csv?raw'
 
 const DEMO = { csv: demo, name: 'Synthetic provider revisions' }
 const DEFAULT_EFFECTIVE = '2025-06-02T14:02:00Z'
