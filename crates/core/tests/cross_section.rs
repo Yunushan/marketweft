@@ -1,6 +1,7 @@
 use marketweft_core::{
-    parse_universe, CrossSectionConfig, DelistingState, LiquidityTape, PaperAction, PaperConfig,
-    PriceBook, SCALE,
+    parse_universe, CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,
+    CrossSectionWalkConfig, DelistingState, LiquidityTape, PaperAction, PaperConfig, PriceBook,
+    SCALE,
 };
 
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-listing-risk-membership.csv");
@@ -9,6 +10,18 @@ const LIQUIDITY: &str = include_str!("fixtures/synthetic-cross-section-liquidity
 const DIVIDENDS: &str = include_str!("fixtures/synthetic-cross-section-dividends.csv");
 const ACTION_MEMBERSHIP: &str = include_str!("fixtures/synthetic-cross-section-membership.csv");
 const DELISTING: &str = include_str!("fixtures/synthetic-cross-section-delisting.csv");
+const WALK_LIQUIDITY: &str = include_str!("fixtures/synthetic-cross-section-walk-liquidity.csv");
+
+const CANDIDATES: [CrossSectionCandidate; 2] = [
+    CrossSectionCandidate {
+        top_listings: 2,
+        lookback_seconds: 60,
+    },
+    CrossSectionCandidate {
+        top_listings: 1,
+        lookback_seconds: 60,
+    },
+];
 
 fn settings(start: i64, known: i64) -> CrossSectionConfig {
     CrossSectionConfig {
@@ -29,6 +42,106 @@ fn settings(start: i64, known: i64) -> CrossSectionConfig {
             fee_per_order: SCALE / 2,
         },
     }
+}
+
+#[test]
+fn cross_section_folds_freeze_training_and_test_disjoint_windows_on_new_accounts() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let liquidity = LiquidityTape::parse(&universe, WALK_LIQUIDITY).unwrap();
+    let start = universe.checkpoints()[0];
+    let run = |prices: &str, known| {
+        PriceBook::parse(&universe, prices)
+            .unwrap()
+            .cross_section_walk_forward(
+                &liquidity,
+                CrossSectionWalkConfig {
+                    replay: settings(start, known),
+                    training_decisions: 2,
+                    test_decisions: 2,
+                    candidates: &CANDIDATES,
+                    corporate: None,
+                },
+            )
+            .unwrap()
+    };
+    assert!(run(PRICES, 3).is_empty());
+    let first = run(PRICES, 4);
+    let all = run(PRICES, 6);
+    assert_eq!(first, all[..1]);
+    assert_eq!(all, run(PRICES, 7));
+    assert_eq!(all.len(), 2);
+    assert_eq!(all[0].training_through, start + 120);
+    assert_eq!(all[0].test_from, start + 180);
+    assert_eq!(all[0].test_through, start + 240);
+    assert_eq!(all[1].test_from, start + 300);
+    let winners = &all[0].training_scores;
+    assert_eq!(winners[0].candidate, CANDIDATES[1]);
+    assert_eq!(winners[0].equity, Some(999_300_000));
+    assert_eq!(winners[1].equity, None);
+    assert_eq!(winners[1].missing_observations, 1);
+    let test = all[0].test_score.as_ref().unwrap();
+    assert_eq!(test.candidate, winners[0].candidate);
+    assert_eq!(test.accepted_fills, 1);
+    assert_eq!(test.turnover, 484_000_000);
+    assert_eq!(test.fees, 900_000);
+    assert_eq!(test.equity, Some(999_100_000));
+    let revised_prices = PRICES.replace(
+        "RISK,A,2025-06-02T14:04:00Z,2025-06-02T14:04:00Z,121",
+        "RISK,A,2025-06-02T14:04:00Z,2025-06-02T14:04:00Z,127",
+    );
+    let revised = run(&revised_prices, 6);
+    assert_eq!(revised[0].training_scores, all[0].training_scores);
+    assert_eq!(
+        revised[0].test_score.as_ref().unwrap().equity,
+        Some(1_023_100_000)
+    );
+}
+
+#[test]
+fn cross_section_folds_reuse_observed_corporate_cash_in_test_accounts() {
+    let universe = parse_universe(ACTION_MEMBERSHIP).unwrap();
+    let prices = PriceBook::parse(&universe, PRICES).unwrap();
+    let liquidity = LiquidityTape::parse(&universe, WALK_LIQUIDITY).unwrap();
+    let request = CrossSectionWalkConfig {
+        replay: settings(universe.checkpoints()[0], 8),
+        training_decisions: 3,
+        test_decisions: 3,
+        candidates: &CANDIDATES,
+        corporate: Some(CrossSectionActionSources {
+            dividends: DIVIDENDS,
+            delistings: DELISTING,
+            account_currency: "USD",
+        }),
+    };
+    let folded = prices
+        .cross_section_walk_forward(&liquidity, request)
+        .unwrap();
+    assert_eq!(folded.len(), 1);
+    assert_eq!(folded[0].training_scores[0].candidate, CANDIDATES[1]);
+    let test = folded[0].test_score.as_ref().unwrap();
+    assert_eq!(test.accepted_fills, 1);
+    assert_eq!(test.cash, 1_015_100_000);
+    assert_eq!(test.equity, Some(1_015_100_000));
+    let no_actions = prices
+        .cross_section_walk_forward(
+            &liquidity,
+            CrossSectionWalkConfig {
+                corporate: None,
+                ..request
+            },
+        )
+        .unwrap();
+    assert_eq!(no_actions[0].test_score.as_ref().unwrap().equity, None);
+    let candidates = [CANDIDATES[0], CANDIDATES[0]];
+    assert!(prices
+        .cross_section_walk_forward(
+            &liquidity,
+            CrossSectionWalkConfig {
+                candidates: &candidates,
+                ..request
+            }
+        )
+        .is_err());
 }
 
 #[test]

@@ -16,6 +16,12 @@ mod dividend;
 pub use dividend::CrossSectionDividendPosting;
 use dividend::DividendReplay;
 
+#[path = "cross_section_walk.rs"]
+mod walk;
+pub use walk::{
+    CrossSectionCandidate, CrossSectionFold, CrossSectionScore, CrossSectionWalkConfig,
+};
+
 const BPS: i128 = 10_000;
 const MAX_DECISIONS: i64 = 512;
 
@@ -31,6 +37,73 @@ pub struct CrossSectionConfig {
     pub limit_buffer_bps: u16,
     pub participation_bps: u16,
     pub paper: PaperConfig,
+}
+
+impl CrossSectionConfig {
+    fn decisions(self) -> Result<usize, String> {
+        if ![self.from_at, self.through_at, self.known_at]
+            .into_iter()
+            .all(valid_second)
+            || self.from_at > self.through_at
+            || self.decision_seconds == 0
+            || self.lookback_seconds == 0
+            || !valid_second(self.from_at - i64::from(self.lookback_seconds))
+        {
+            return Err("Use valid ordered UTC cutoffs and positive replay intervals.".into());
+        }
+        let step = i64::from(self.decision_seconds);
+        let span = self.through_at - self.from_at;
+        if span % step != 0 || span / step >= MAX_DECISIONS {
+            return Err("Use at most 512 decisions with the UTC end on the decision grid.".into());
+        }
+        if !(1..=64).contains(&self.top_listings)
+            || !(1..=MAX_SHARES).contains(&self.target_shares)
+            || self.limit_buffer_bps > 10_000
+            || !(1..=10_000).contains(&self.participation_bps)
+        {
+            return Err(
+                "Supply valid ranking, share, order buffer and participation settings.".into(),
+            );
+        }
+        Ok((span / step + 1) as usize)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct CrossSectionActionSources<'a> {
+    pub dividends: &'a str,
+    pub delistings: &'a str,
+    pub account_currency: &'a str,
+}
+
+struct CorporateReports<'a> {
+    income: Option<PortfolioIncomeReports>,
+    delistings: DelistingBook,
+    currency: &'a str,
+}
+
+impl<'a> CorporateReports<'a> {
+    fn parse(
+        prices: &PriceBook<'_>,
+        sources: CrossSectionActionSources<'a>,
+    ) -> Result<Self, String> {
+        if !valid_currency(sources.account_currency) {
+            return Err("Use a three-letter uppercase paper account currency.".into());
+        }
+        let income = (!sources.dividends.is_empty())
+            .then(|| PortfolioIncomeReports::parse(prices.universe, sources.dividends))
+            .transpose()?;
+        let delistings = if sources.delistings.is_empty() {
+            DelistingBook::new(prices.universe.clone(), Vec::new())?
+        } else {
+            parse_delistings(prices.universe.clone(), sources.delistings)?
+        };
+        Ok(Self {
+            income,
+            delistings,
+            currency: sources.account_currency,
+        })
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -309,7 +382,7 @@ impl PriceBook<'_> {
         liquidity: &LiquidityTape,
         config: CrossSectionConfig,
     ) -> Result<CrossSectionReport, String> {
-        self.run_cross_section(liquidity, config, None, None, "")
+        self.run_cross_section(liquidity, config, None)
     }
 
     pub fn cross_section_with_dividends(
@@ -330,66 +403,42 @@ impl PriceBook<'_> {
         delisting_csv: &str,
         account_currency: &str,
     ) -> Result<CrossSectionReport, String> {
-        if !valid_currency(account_currency) {
-            return Err("Use a three-letter uppercase paper account currency.".into());
-        }
-        let reports = (!dividend_csv.is_empty())
-            .then(|| PortfolioIncomeReports::parse(self.universe, dividend_csv))
-            .transpose()?;
-        let dividends = reports
-            .as_ref()
-            .map(|reports| DividendReplay::new(reports, account_currency));
-        let book = if delisting_csv.is_empty() {
-            DelistingBook::new(self.universe.clone(), Vec::new())?
-        } else {
-            parse_delistings(self.universe.clone(), delisting_csv)?
-        };
-        let delistings =
-            DelistingReplay::new(&book, account_currency, config.from_at, config.known_at)?;
-        self.run_cross_section(
-            liquidity,
-            config,
-            dividends,
-            Some(delistings),
-            account_currency,
-        )
+        let reports = CorporateReports::parse(
+            self,
+            CrossSectionActionSources {
+                dividends: dividend_csv,
+                delistings: delisting_csv,
+                account_currency,
+            },
+        )?;
+        self.run_cross_section(liquidity, config, Some(&reports))
     }
 
     fn run_cross_section(
         &self,
         liquidity: &LiquidityTape,
         config: CrossSectionConfig,
-        mut dividends: Option<DividendReplay<'_>>,
-        mut delistings: Option<DelistingReplay<'_>>,
-        account_currency: &str,
+        corporate: Option<&CorporateReports<'_>>,
     ) -> Result<CrossSectionReport, String> {
         if liquidity.universe_name() != self.universe.name() {
             return Err("Liquidity and price inputs must use the same universe.".into());
         }
-        if ![config.from_at, config.through_at, config.known_at]
-            .into_iter()
-            .all(valid_second)
-            || config.from_at > config.through_at
-            || config.decision_seconds == 0
-            || config.lookback_seconds == 0
-            || !valid_second(config.from_at - i64::from(config.lookback_seconds))
-        {
-            return Err("Use valid ordered UTC cutoffs and positive replay intervals.".into());
-        }
+        let count = config.decisions()?;
         let step = i64::from(config.decision_seconds);
-        let span = config.through_at - config.from_at;
-        if span % step != 0 || span / step >= MAX_DECISIONS {
-            return Err("Use at most 512 decisions with the UTC end on the decision grid.".into());
-        }
-        if !(1..=64).contains(&config.top_listings)
-            || !(1..=MAX_SHARES).contains(&config.target_shares)
-            || config.limit_buffer_bps > 10_000
-            || !(1..=10_000).contains(&config.participation_bps)
-        {
-            return Err(
-                "Supply valid ranking, share, order buffer and participation settings.".into(),
-            );
-        }
+        let account_currency = corporate.map_or("", |reports| reports.currency);
+        let mut dividends = corporate
+            .and_then(|reports| reports.income.as_ref())
+            .map(|income| DividendReplay::new(income, account_currency));
+        let mut delistings = corporate
+            .map(|reports| {
+                DelistingReplay::new(
+                    &reports.delistings,
+                    account_currency,
+                    config.from_at,
+                    config.known_at,
+                )
+            })
+            .transpose()?;
         let ledger =
             PaperAccount::new(config.paper).map_err(|_| "Invalid paper account settings.")?;
         let aliases = self
@@ -409,8 +458,9 @@ impl PriceBook<'_> {
             pending: BTreeMap::new(),
             events: Vec::new(),
         };
-        let mut observed = liquidity
-            .through(config.known_at)
+        let observed = liquidity.through(config.known_at);
+        let first = observed.partition_point(|quote| quote.observed_at < config.from_at);
+        let mut observed = observed[first..]
             .iter()
             .filter(|quote| quote.price_at <= config.through_at)
             .peekable();
@@ -467,8 +517,8 @@ impl PriceBook<'_> {
             Ok(())
         };
         let mut decisions = Vec::new();
-        for slot in 0..=span / step {
-            let at = config.from_at + slot * step;
+        for slot in 0..count {
+            let at = config.from_at + slot as i64 * step;
             if at > config.known_at {
                 break;
             }

@@ -41,9 +41,10 @@ pub use backtest::{
     RecordedBacktestCutoffs,
 };
 pub use cross_section::{
-    CrossSectionConfig, CrossSectionDelistingClaim, CrossSectionDelistingPosting,
-    CrossSectionDividendPosting, CrossSectionEvent, CrossSectionPosition, CrossSectionReport,
-    RankingDecision,
+    CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,
+    CrossSectionDelistingClaim, CrossSectionDelistingPosting, CrossSectionDividendPosting,
+    CrossSectionEvent, CrossSectionFold, CrossSectionPosition, CrossSectionReport,
+    CrossSectionScore, CrossSectionWalkConfig, RankingDecision,
 };
 pub use cross_section_liquidity::{LiquidityTape, ReplayLiquidity};
 pub use delisting::{
