@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.24.0 · 0BSD**
+**0.25.0 · 0BSD**
 
 **Harsunan wannan jagora**
 
@@ -15,14 +15,14 @@
 
 MarketWeft tashar bincike ce da ke aiki a na’urar mai amfani. Tana buɗe OHLCV da aka ba da izini, tana nuna sandunan farashi da ƙarar ciniki, tana lissafin SMA da EMA da tsayayyun guraben goma, kuma tana ajiye jerin sa ido, kadara da alamomi a IndexedDB. Bayan an adana kayan aiki za ta yi aiki ba tare da intanet ba. Farashi da ƙarar da ke tare da ita na kwaikwayo ne, ba sai an buɗe asusun mai bayarwa ba.
 
-MarketWeft 0.24.0 yana fitar da zangon da ake gani ko cikakken tarihi daga kowane ɓangaren zane a matsayin CSV. MarketWeft 0.7.0 ya ƙara tsara membobin rukuni bisa canjin farashi da bayanan da aka sani lokacin tambaya. Sake kunna zaman kasuwa ya haɗa da rabon hannun jari, kuɗin riba, zama memba da cirewa daga kasuwa. Akwai mai lura na TypeScript mai karatu kawai don sabis na trading-bot daban da naɗin Tauri na gwaji. Hanyoyin bayanai, umarnin ciniki, masu sakawa da aka sa wa hannu da masaukin masu amfani da yawa suna cikin shirin gaba.
+MarketWeft 0.25.0 ya ƙara layin farashin rufewa tare da zane na kyandir, kuma kowane sashe na da zaɓin nau'in zanensa. MarketWeft 0.7.0 ya ƙara tsara membobin rukuni bisa canjin farashi da bayanan da aka sani lokacin tambaya. Sake kunna zaman kasuwa ya haɗa da rabon hannun jari, kuɗin riba, zama memba da cirewa daga kasuwa. Akwai mai lura na TypeScript mai karatu kawai don sabis na trading-bot daban da naɗin Tauri na gwaji. Hanyoyin bayanai, umarnin ciniki, masu sakawa da aka sa wa hannu da masaukin masu amfani da yawa suna cikin shirin gaba.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Kunna tashar ɗaukuwa
 
-Sauke browser-terminal-attempt-N daga gwajin GitHub da ya yi nasara. Cire MarketWeft-browser-0.24.0.zip, bar dist/ kusa da serve-terminal.mjs sannan gudanar da umarnin a can. Buɗe http://127.0.0.1:4173/ a burauza mai WebAssembly, Canvas, BigInt da IndexedDB. Ana buƙatar Node.js 22.12 ko sabo. Ba a buƙatar shigar da npm. Jira Offline ready kafin katse intanet.
+Sauke browser-terminal-attempt-N daga gwajin GitHub da ya yi nasara. Cire MarketWeft-browser-0.25.0.zip, bar dist/ kusa da serve-terminal.mjs sannan gudanar da umarnin a can. Buɗe http://127.0.0.1:4173/ a burauza mai WebAssembly, Canvas, BigInt da IndexedDB. Ana buƙatar Node.js 22.12 ko sabo. Ba a buƙatar shigar da npm. Jira Offline ready kafin katse intanet.
 
 ```sh
 node serve-terminal.mjs
@@ -145,6 +145,8 @@ Zaɓi Draw measurement sannan ka zaɓi sandar UTC da take nan da farashi ga kowa
 Buɗe Indicators ka saita yawan sandunan SMA da EMA ga kowane sashe. Idan farashin rufewa sun isa, zane zai nuna ƙimar sandar UTC da aka zaɓa. Saitin yana nan idan an canza kayan aiki, an sake loda shafi ko an dawo da ajiya.
 
 Buɗe Export CSV a ƙarƙashin zane. Sauke sandunan OHLCV don sake shigarwa, ko haɗa tushen bayanai da matsakaitan motsi da aka kunna don bincike. Ƙimar matsakaici tana zama babu komai har sai farashin rufewa sun isa.
+
+Zaɓi Close line a kowane sashe. Layin yana amfani da farashin rufewa da aka samu kuma yana nuna yawa da alamomin da aka kunna. Sandar UTC da babu ita ba ta nuna manuniya mai haɗi. Ajiyar wurin aiki tana riƙe nau'ikan zane.
 
 [docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](../../docs/replay-alerts.md) · [alert-rules.csv](../../crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](../../crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](../../docs/paper-ledger.md) · [paper-events.csv](../../crates/core/tests/fixtures/synthetic-paper-events.csv) · [bar-backtest.md](../../docs/bar-backtest.md) · [backtest-sessions.csv](../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv) · [backtest-bars.csv](../../crates/core/tests/fixtures/synthetic-backtest-bars.csv) · [walk-forward.md](../../docs/walk-forward.md) · [seeded-scenarios.md](../../docs/seeded-scenarios.md) · [delisting-proceeds.md](../../docs/delisting-proceeds.md) · [split-revisions.csv](../../crates/core/tests/fixtures/synthetic-split-revisions.csv) · [dividend-positions.csv](../../crates/core/tests/fixtures/synthetic-dividend-positions.csv) · [portfolio-replay.md](../../docs/portfolio-replay.md) · [portfolio-holdings.csv](../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv) · [chart-workspace.md](../../docs/chart-workspace.md)
 

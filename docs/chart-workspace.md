@@ -10,6 +10,12 @@ MarketWeft saves the comparison pane's instrument, overlay toggles and link sett
 
 The comparison uses the original bars and timestamps from each saved series. Imported histories remain independent, including when their intervals or trading hours differ. [Backup format](workspace-backup.md)
 
+## Chart types
+
+Choose **Candles** to display the open, high, low and close, or **Close line** to trace observed closes. Both show observed volume and use the same source bars, overlays and cursor readout. When several bars share a display column, the line keeps the first, last, highest and lowest closes in their original order. A single observed close is drawn as a point.
+
+The x-axis places consecutive observed bars at regular bar spacing. An unobserved timestamp has no chart point or linked crosshair. Choosing another chart type keeps the current visible range and the pane's indicator settings. Each pane saves its own chart type. [Backup format](workspace-backup.md)
+
 ## Measured drawings
 
 Choose **Draw measurement** below a chart. Each endpoint uses an existing bar's UTC time and a price with up to six decimal places. Enter the values in the form or choose **Pick start on chart** or **Pick end on chart** and select a point in the price plot. The plot snaps the horizontal coordinate to that bar and rounds the vertical coordinate to the nearest price tick. **Edit measurement** reopens these coordinates, and **Remove measurement** clears the line.

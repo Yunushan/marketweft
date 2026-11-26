@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.24.0 exports exact chart bars or research CSVs with provenance and indicators from either pane. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.25.0 adds a close line chart alongside candles and saves the chart type for each pane. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -27,6 +27,7 @@
 | Delivered · 0.22.0 | Editable chart measurements (MW-006, MW-014) | Save two UTC and price endpoints per instrument, reproject the line on zoom or pan, and recover exact coordinates on reload or restore. [Chart workspace](docs/chart-workspace.md). |
 | Delivered · 0.23.0 | Reusable moving-average periods (MW-006, MW-014) | Set primary and comparison SMA and EMA periods independently, verify exact values at selected bars, and recover both settings after reload or restore. [Chart workspace](docs/chart-workspace.md). |
 | Delivered · 0.24.0 | Visible or full-range chart CSVs (MW-006, MW-007) | Reimport exact OHLCV bars or export the same range with provenance and indicator values for analysis. [Chart workspace](docs/chart-workspace.md). |
+| Delivered · 0.25.0 | Close line chart (MW-006, MW-012) | Plot observed closes, link only exact UTC bars, and store the chart type independently for each pane. [Chart workspace](docs/chart-workspace.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Apply delisting proceeds and dividend entries in portfolio execution replay. Extend the source and rights model to live providers. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -38,5 +39,5 @@
 
 ## Handoff for the next change
 
-The next workspace milestone adds a close line chart. Verify the plotted observed closes, gaps and shared UTC hover, and restore the chart type independently for each pane.
+The next chart milestone adds OHLC bars. Verify the orientation of the open and close ticks and the source high and low on an asymmetric fixture, then check range changes and backup restoration.
 

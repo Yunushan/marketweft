@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.25.0 · Close line chart
+
+| Check | Observed result |
+| --- | --- |
+| Observed closes | The line rises from 10 to 30 and falls to 20 on the three-bar fixture. The browser checks the rendered pixels at all three positions, using OHLC bounds that differ from the closes. Switching chart type preserves the visible range. |
+| Exact linked hover | The primary line and comparison candles share the crosshair on June 2. The comparison crosshair stays clear on June 3, when only the primary series reports a bar. |
+| Persistence | Reload and a version 5 backup restore the primary pane as a line and the comparison pane as candles. A version 2 backup restores the original candle defaults. |
+| Regression suite | All 63 browser and six SDK tests passed on Windows x64, 63 native tests passed on Linux x64, 22 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Chart workspace](chart-workspace.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.24.0 · Chart CSV export
 
 | Check | Observed result |
