@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.27.0 · Fixed-duration UTC timeframes
+
+| Check | Observed result |
+| --- | --- |
+| Exact OHLCV | For 60-second source data and a 180-second target, the first bucket has open −1, high 5, low −7, close −1 and volume 1.000002. The complete second bucket has volume 0.300001. Native and Wasm tests also cover signed opens before the Unix epoch and rejection of unaligned timestamps or unsupported durations. |
+| Coverage and provenance | The browser exports the three observed buckets with coverage 2/3, 3/3 and 1/3, omits an empty bucket and includes both interval lengths. An invalid duration leaves the current view visible. |
+| Original history | The offline workspace switches back from three aggregated bars to all six source bars. Its saved backup manifest compares equal before and after the rollup and CSV download. |
+| Regression suite | All 66 browser and six SDK tests passed on Windows x64, 65 native tests passed on Linux x64, 23 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Chart workspace](chart-workspace.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.26.0 · OHLC bar chart
 
 | Check | Observed result |

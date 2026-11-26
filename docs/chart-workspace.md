@@ -16,6 +16,14 @@ Choose **Candles** for a filled price body, **OHLC bars** for a high-to-low stem
 
 The x-axis places consecutive observed bars at regular bar spacing. An unobserved timestamp has no chart point or linked crosshair. Choosing another chart type keeps the current visible range and the pane's indicator settings. Each pane saves its own chart type. [Backup format](workspace-backup.md)
 
+## Fixed-duration timeframes
+
+Open **Timeframe** in either pane. Enter the source and target intervals in whole seconds. Source timestamps are bar opens aligned to the source interval from the Unix epoch. The target must be a larger whole multiple of the source. The tool uses half-open UTC buckets, so a source bar on a boundary belongs to the bucket opening at that timestamp.
+
+Each bucket uses the first observed open, highest observed high, lowest observed low, last observed close and exact volume sum. Empty buckets are omitted. A partial bucket shows the observed and expected source counts in the selected-bar readout. The expected count reflects the fixed duration. Exchange sessions, holidays and calendar-month schedules require a separate calendar. This research view uses saved source history. Historical replay retains its session and observation clock.
+
+The pane's indicators and CSV export follow the current view. Research CSV includes both interval lengths and source coverage per row. A plain OHLCV export of the aggregated view contains derived bars. **Show source bars** restores the original chart, and workspace backup contains the original imported histories. The applied timeframe lasts for the current view.
+
 ## Measured drawings
 
 Choose **Draw measurement** below a chart. Each endpoint uses an existing bar's UTC time and a price with up to six decimal places. Enter the values in the form or choose **Pick start on chart** or **Pick end on chart** and select a point in the price plot. The plot snaps the horizontal coordinate to that bar and rounds the vertical coordinate to the nearest price tick. **Edit measurement** reopens these coordinates, and **Remove measurement** clears the line.

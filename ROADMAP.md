@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.26.0 adds OHLC bars with separate open and close ticks and independently saved chart choices. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.27.0 adds custom fixed-duration UTC timeframes with observed source coverage and export provenance. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -29,6 +29,7 @@
 | Delivered · 0.24.0 | Visible or full-range chart CSVs (MW-006, MW-007) | Reimport exact OHLCV bars or export the same range with provenance and indicator values for analysis. [Chart workspace](docs/chart-workspace.md). |
 | Delivered · 0.25.0 | Close line chart (MW-006, MW-012) | Plot observed closes, link only exact UTC bars, and store the chart type independently for each pane. [Chart workspace](docs/chart-workspace.md). |
 | Delivered · 0.26.0 | OHLC bar chart (MW-006, MW-012) | Draw high and low at the stem ends, open to the left and close to the right. Verify independent pan, zoom, linked timestamps and chart type recovery. [Chart workspace](docs/chart-workspace.md). |
+| Delivered · 0.27.0 | Fixed-duration UTC timeframes (MW-006, MW-013) | Roll exact OHLCV independently per chart pane and export observed and expected source coverage. Verify boundary, gap, partial and raw-history invariants. [Chart workspace](docs/chart-workspace.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Apply delisting proceeds and dividend entries in portfolio execution replay. Extend the source and rights model to live providers. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -40,5 +41,5 @@
 
 ## Handoff for the next change
 
-The next market-data milestone adds fixed-duration timeframes for chart research. Define the source interval and UTC bucket boundaries, verify exact OHLCV rolls and missing intervals, and preserve raw observations and provenance in workspace export.
+The next market-data milestone anchors custom timeframes to a supplied exchange session calendar. Verify that buckets reset at session opens, respect early closes, and retain missing-source coverage across clock changes.
 
