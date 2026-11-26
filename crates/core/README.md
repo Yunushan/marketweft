@@ -30,3 +30,7 @@ The native benchmark measures parsing and calculation over 100,000 bars. The Web
 ## Session replay
 
 The native `parse_sessions` and `replay` functions build the deterministic session event plan used by the terminal. The Wasm ABI encodes each event in 32 little-endian bytes. Two signed 64-bit UTC timestamps are followed by a signed 32-bit source bar index (−1 for no bar), an unsigned 32-bit session index, a signed 32-bit opening offset in minutes and unsigned 32-bit flags. The low byte encodes open, bar, missing or close as 0–3. Bit 8 marks an early close. [Calendar and observation rules](../../docs/historical-replay.md).
+
+## Point-in-time split snapshots
+
+Use `parse_splits` with the instrument and action CSV. Call `SplitBook::adjust` with the already observed bar prefix and replay observation time. The function returns a separate bar vector and leaves its inputs intact. The Wasm bridge encodes split records as 32 bytes each, with 64-bit signed announcement, effective and observed UTC seconds, then 32-bit unsigned new and old share counts. To compute a snapshot, send the signed 64-bit cutoff followed by the split records and the standard 48-byte OHLCV rows. [Stock split schema, examples and rounding](../../docs/corporate-actions.md).

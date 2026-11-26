@@ -1,11 +1,13 @@
 //! Fixed-point, bar-close calculations shared by native consumers and WebAssembly.
 
+mod actions;
 mod history;
 mod indicator;
 mod replay;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
+pub use actions::{parse_splits, Split, SplitBook, MAX_SPLIT_ROWS};
 pub use history::{parse_csv, Bar};
 pub use indicator::{indicator, Average};
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
