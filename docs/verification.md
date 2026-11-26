@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.79.0 · Provider OHLCV revision replay
+
+| Check | Observed result |
+| --- | --- |
+| Before and after correction | The 14:00 close changes from `10.000001` to `10.250001` at the 14:04 observation. Moving the knowledge clock backward restores the original close. |
+| Late and effective cutoffs | The 14:01 close of `11.750001` appears at its 14:05 observation. Moving the effective cutoff to 14:01 still excludes the 14:02 bar. |
+| Boundaries and offline UI | Native Rust checks rejected duplicate, invalid and mixed-identity rows and reproduced the same output with reversed file order. Offline Chromium exercised the same values, invalid file rollback, focus return and a 360-pixel viewport. |
+
+[Provider revision replay](provider-revisions.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.78.0 · Provider key validity windows
 
 | Check | Observed result |

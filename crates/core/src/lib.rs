@@ -20,6 +20,7 @@ mod option_price;
 mod paper;
 mod paper_replay;
 mod portfolio;
+mod provider_history;
 mod replay;
 pub mod research;
 mod scenarios;
@@ -87,6 +88,7 @@ pub use portfolio::{
     PortfolioIncomeCurrency, PortfolioIncomeSnapshot, PortfolioRow, PortfolioSnapshot,
     PortfolioState,
 };
+pub use provider_history::{ProviderBar, ProviderHistory};
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};
 pub use screen::{

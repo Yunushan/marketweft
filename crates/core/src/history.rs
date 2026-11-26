@@ -113,6 +113,29 @@ pub(crate) fn exact_date(text: &str) -> Option<i64> {
         .flatten()
 }
 
+pub(crate) fn bar_values<'a>(
+    time: i64,
+    fields: &mut impl Iterator<Item = &'a str>,
+    problem: impl Fn(&str) -> String,
+) -> Result<Bar, String> {
+    let mut next_value = |name| {
+        fields.next().and_then(decimal)
+            .ok_or_else(|| problem(&format!("Invalid {name}. Use a decimal of magnitude ≤ 2 billion with up to six fractional digits.")))
+    };
+    Ok(Bar {
+        time,
+        open: next_value("open")?,
+        high: next_value("high")?,
+        low: next_value("low")?,
+        close: next_value("close")?,
+        volume: next_value("volume")?,
+    })
+}
+
+pub(crate) fn valid_ohlcv(bar: Bar) -> bool {
+    bar.volume >= 0 && bar.low <= bar.open.min(bar.close) && bar.high >= bar.open.max(bar.close)
+}
+
 /// Parse one instrument's UTC history. Blank lines are ignored. Order is never repaired silently.
 pub fn parse_csv(csv: &str) -> Result<Vec<Bar>, String> {
     if csv.len() > MAX_INPUT_BYTES {
@@ -148,23 +171,11 @@ pub fn parse_csv(csv: &str) -> Result<Vec<Bar>, String> {
             .next()
             .and_then(timestamp)
             .ok_or_else(|| problem("Use Unix seconds, YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ."))?;
-        let mut next_value = |name| {
-            fields.next().and_then(decimal)
-                .ok_or_else(|| problem(&format!("Invalid {name}. Use a decimal of magnitude ≤ 2 billion with up to six fractional digits.")))
-        };
-        let bar = Bar {
-            time,
-            open: next_value("open")?,
-            high: next_value("high")?,
-            low: next_value("low")?,
-            close: next_value("close")?,
-            volume: next_value("volume")?,
-        };
+        let bar = bar_values(time, &mut fields, problem)?;
         if fields.next().is_some() {
             return Err(problem("Expected exactly six fields."));
         }
-        if bar.volume < 0 || bar.low > bar.open.min(bar.close) || bar.high < bar.open.max(bar.close)
-        {
+        if !valid_ohlcv(bar) {
             return Err(problem(
                 "High and low must enclose open and close, and volume must be nonnegative.",
             ));

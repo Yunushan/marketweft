@@ -1,0 +1,60 @@
+import { readFile } from 'node:fs/promises'
+import { expect, test } from './fixtures.mjs'
+import { catalogContents } from './catalog-fixtures.mjs'
+
+const fixture = new URL('../../../crates/core/tests/fixtures/synthetic-provider-revisions.csv', import.meta.url)
+
+test('provider revisions replay before and after corrections at separate UTC cutoffs offline', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+  const initial = await catalogContents(page)
+  const open = page.getByRole('button', { name: 'Provider revisions', exact: true })
+  await open.click()
+  await expect(page.getByRole('heading', { name: 'Provider revisions', exact: true })).toBeFocused()
+  const results = page.getByRole('region', { name: 'Observed provider history' })
+  const rows = results.getByRole('table').locator('tbody tr')
+  const bar = at => rows.filter({ has: page.getByRole('rowheader', { name: at, exact: true }) })
+  const effective = page.getByLabel('Bars effective through (UTC)')
+  const known = page.getByLabel('Revisions known through (UTC)')
+  const apply = page.getByRole('button', { name: 'Replay cutoffs', exact: true })
+
+  await expect(rows).toHaveCount(2)
+  await expect(bar('2025-06-02T14:00:00Z').getByRole('cell').nth(4)).toHaveText('10.000001')
+  await expect(bar('2025-06-02T14:01:00Z')).toHaveCount(0)
+  await known.fill('2025-06-02T14:04:00Z')
+  await apply.click()
+  await expect(bar('2025-06-02T14:00:00Z').getByRole('cell').nth(4)).toHaveText('10.250001')
+  await expect(bar('2025-06-02T14:00:00Z').getByRole('cell').nth(0)).toHaveText('2025-06-02T14:04:00Z')
+  await known.fill('2025-06-02T14:05:00Z')
+  await apply.click()
+  await expect(rows).toHaveCount(3)
+  await expect(bar('2025-06-02T14:01:00Z').getByRole('cell').nth(4)).toHaveText('11.750001')
+  await effective.fill('2025-06-02T14:01:00Z')
+  await apply.click()
+  await expect(rows).toHaveCount(2)
+  await expect(bar('2025-06-02T14:02:00Z')).toHaveCount(0)
+
+  const csv = await readFile(fixture, 'utf8')
+  const upload = page.getByLabel('Provider revisions CSV')
+  await upload.setInputFiles({ name: 'checked-revisions.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
+  await page.getByRole('button', { name: 'Load revisions' }).click()
+  await expect(results.getByRole('status')).toContainText('checked-revisions.csv')
+  await known.fill('2025-06-02T14:03:59Z')
+  await apply.click()
+  await expect(rows).toHaveCount(1)
+  await expect(bar('2025-06-02T14:00:00Z').getByRole('cell').nth(4)).toHaveText('10.000001')
+  await upload.setInputFiles({
+    name: 'invalid-revisions.csv', mimeType: 'text/csv',
+    buffer: Buffer.from(csv.replace('10.500001', '1')),
+  })
+  await page.getByRole('button', { name: 'Load revisions' }).click()
+  await expect(page.getByRole('alert')).toContainText('High and low must enclose')
+  await expect(results.getByRole('status')).toContainText('checked-revisions.csv')
+  await page.setViewportSize({ width: 360, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360)
+  expect(await catalogContents(page)).toEqual(initial)
+  await page.getByRole('button', { name: 'Return to workspace' }).click()
+  await expect(open).toBeFocused()
+})

@@ -187,6 +187,20 @@ export interface UniverseListing {
   observedAt: number;
 }
 
+export interface ProviderHistorySnapshot {
+  provider: string;
+  instrument: string;
+  bars: {
+    at: number;
+    observedAt: number;
+    open: bigint;
+    high: bigint;
+    low: bigint;
+    close: bigint;
+    volume: bigint;
+  }[];
+}
+
 export interface ScreenPrice {
   ticks: bigint;
   observedAt: number;
@@ -748,6 +762,7 @@ export interface MarketCore {
   dividendPositionLedger(instrument: string, dividends: string, positions: string): DividendEvent[];
   universeIndex(csv: string): { name: string; checkpoints: number[] };
   universeAsOf(csv: string, effectiveAt: string, knownAt: string): UniverseListing[];
+  providerHistoryAsOf(csv: string, effectiveAt: string, knownAt: string): ProviderHistorySnapshot;
   delistingAsOf(membership: string, terms: string, listing: string, shares: number,
     effectiveAt: string, knownAt: string): DelistingValuation;
   portfolioAsOf(membership: string, holdings: string, prices: string, terms: string,
@@ -823,6 +838,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_dividend_position_ledger(dividendBytes: number): number;
   mw_universe_index(): number;
   mw_universe_as_of(): number;
+  mw_provider_history_as_of(): number;
   mw_delisting_as_of(membershipBytes: number, shares: number): number;
   mw_portfolio_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number): number;
   mw_portfolio_income_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number, termsBytes: number): number;
@@ -1391,6 +1407,19 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         return { listingId, instrument, status: universeStatuses[Number(status)], changeId,
           effectiveAt: Number(effectiveAt), observedAt: Number(observedAt) };
       });
+    },
+    providerHistoryAsOf(csv, effectiveAt, knownAt) {
+      if ([effectiveAt, knownAt].some(value => value.length !== 20 || /[\n\r]/.test(value))) {
+        throw new Error('Both cutoffs require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
+      }
+      textInput(effectiveAt + '\n' + knownAt + '\n' + csv);
+      const [header, ...lines] = decoder.decode(output(api.mw_provider_history_as_of())).trimEnd().split('\n');
+      const [provider, instrument] = header.split('\t');
+      return { provider, instrument, bars: lines.map(line => {
+        const [at, observed, open, high, low, close, volume] = line.split('\t');
+        return { at: Number(at), observedAt: Number(observed), open: BigInt(open),
+          high: BigInt(high), low: BigInt(low), close: BigInt(close), volume: BigInt(volume) };
+      }) };
     },
     delistingAsOf(membership, terms, listing, shares, effectiveAt, knownAt) {
       if (!/^[A-Za-z0-9._-]{1,40}$/.test(listing) || !Number.isInteger(shares) || shares < 0 || shares > 1_000_000
