@@ -13,9 +13,9 @@
   ],
   "scripts": {
     "dev": "vite apps/terminal --host 127.0.0.1",
-    "build": "tsc -p apps/terminal && vite build apps/terminal && tsc -p packages/trading-bot",
+    "build": "tsc -p apps/terminal && vite build apps/terminal && tsc -p packages/trading-bot && node packages/research/scripts/build.mjs",
     "preview": "vite preview apps/terminal --host 127.0.0.1",
-    "test": "tsc -p packages/trading-bot && node --test packages/trading-bot/test/observer.test.mjs && tsc -p apps/terminal && vite build apps/terminal && playwright test -c apps/terminal/playwright.config.mjs",
+    "test": "tsc -p packages/trading-bot && node --test packages/trading-bot/test/observer.test.mjs && node packages/research/scripts/build.mjs && node --test packages/research/test/research.test.mjs && tsc -p apps/terminal && vite build apps/terminal && playwright test -c apps/terminal/playwright.config.mjs",
     "test:browser": "tsc -p apps/terminal && vite build apps/terminal && playwright test -c apps/terminal/playwright.config.mjs"
   }
 }

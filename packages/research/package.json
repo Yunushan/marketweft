@@ -1,0 +1,22 @@
+{
+  "name": "@marketweft/research",
+  "version": "0.1.0",
+  "description": "Deterministic local time-series research for MarketWeft",
+  "license": "0BSD",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./marketweft_core.wasm": "./dist/marketweft_core.wasm"
+  },
+  "files": ["dist"],
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node --test test/research.test.mjs",
+    "prepack": "node scripts/build.mjs"
+  },
+  "devDependencies": { "typescript": "7.0.2" }
+}
