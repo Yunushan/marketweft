@@ -1,7 +1,8 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
 use crate::{
-    aggregate_timeframe, measure_drawing, AlertBook, AlertDirection, Comparator, DrawingEndpoint,
+    aggregate_session_timeframe, aggregate_timeframe, measure_drawing, AlertBook, AlertDirection,
+    Comparator, DrawingEndpoint, TimeframeBar,
 };
 use crate::{
     history::exact_utc, parse_universe, FinancialBook, MacroCalendar, Multiple, PriceBook,
@@ -1238,9 +1239,37 @@ pub extern "C" fn mw_aggregate_timeframe(source_seconds: u32, target_seconds: u3
         let rolled = aggregate_timeframe(&bars, source_seconds, target_seconds)?;
         let mut bytes = Vec::with_capacity(56 * rolled.len());
         for entry in rolled {
-            push_bar(&mut bytes, entry.bar);
-            bytes.extend_from_slice(&entry.observed_bars.to_le_bytes());
-            bytes.extend_from_slice(&entry.expected_bars.to_le_bytes());
+            push_timeframe_bar(&mut bytes, entry);
+        }
+        Ok(bytes)
+    })
+}
+
+fn push_timeframe_bar(bytes: &mut Vec<u8>, entry: TimeframeBar) {
+    push_bar(bytes, entry.bar);
+    bytes.extend_from_slice(&entry.observed_bars.to_le_bytes());
+    bytes.extend_from_slice(&entry.expected_bars.to_le_bytes());
+}
+
+#[no_mangle]
+pub extern "C" fn mw_aggregate_session_timeframe(
+    calendar_bytes: usize,
+    source_seconds: u32,
+    target_seconds: u32,
+) -> u32 {
+    process(|input| {
+        let (calendar, bars) = input
+            .split_at_checked(calendar_bytes)
+            .ok_or("Invalid calendar length.")?;
+        let sessions = parse_sessions(utf8(calendar)?)?;
+        let bars = decode_bars(bars)?;
+        let rolled = aggregate_session_timeframe(&bars, &sessions, source_seconds, target_seconds)?;
+        let mut bytes = Vec::with_capacity(76 * rolled.len());
+        for entry in rolled {
+            push_timeframe_bar(&mut bytes, entry.bucket);
+            bytes.extend_from_slice(&entry.close_time.to_le_bytes());
+            bytes.extend_from_slice(&entry.session_open.to_le_bytes());
+            bytes.extend_from_slice(&u32::from(entry.early_close).to_le_bytes());
         }
         Ok(bytes)
     })

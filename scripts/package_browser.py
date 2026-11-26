@@ -49,6 +49,8 @@ Choose OHLC bars for a high-low stem with left-open and right-close ticks.
 Choose a chart type independently in each pane.
 Open Timeframe in either pane to roll aligned source bars into a larger
 fixed-duration UTC bucket. Research CSV includes observed and expected counts.
+Add a Session calendar CSV in Timeframe to anchor bars to exchange opens and
+clip the final bucket at each listed close. Try the supplied split-sessions.csv.
 
 Choose Historical replay and Start demo for the NYSE session example. Replay
 reveals each bar at its scheduled close and marks missing intervals in-session.

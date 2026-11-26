@@ -13,6 +13,11 @@ export interface TimeframeBar {
   observedBars: number;
   expectedBars: number;
 }
+export interface SessionTimeframeBar extends TimeframeBar {
+  closeTime: number;
+  sessionOpen: number;
+  earlyClose: boolean;
+}
 
 export interface DrawingEndpoint {
   time: number;
@@ -408,6 +413,8 @@ export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
   aggregateTimeframe(bars: readonly Bar[], sourceSeconds: number, targetSeconds: number): TimeframeBar[];
+  aggregateSessionTimeframe(calendar: string, bars: readonly Bar[], sourceSeconds: number,
+    targetSeconds: number): SessionTimeframeBar[];
   measureDrawing(drawing: MeasuredDrawing): DrawingMeasurement;
   indicator(kind: 'sma' | 'ema', period: number, bars: readonly Bar[]): (number | null)[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
@@ -453,6 +460,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_instrument(): number;
   mw_parse(): number;
   mw_aggregate_timeframe(sourceSeconds: number, targetSeconds: number): number;
+  mw_aggregate_session_timeframe(calendarBytes: number, sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
   mw_indicator(kind: number, period: number): number;
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
@@ -650,6 +658,23 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     }
   }
 
+  function putTimeframeInput(bars: readonly Bar[], source: number, target: number,
+    calendar?: Uint8Array) {
+    if (![source, target].every(n => Number.isInteger(n) && n > 0 && n <= 0xffffffff) ||
+      bars.length > 100_000) {
+      throw new Error('Use positive integer UTC intervals and at most 100,000 bars.');
+    }
+    const start = calendar?.byteLength ?? 0;
+    const dest = input(start + bars.length * 48);
+    if (calendar) new Uint8Array(dest.buffer, dest.byteOffset, start).set(calendar);
+    bars.forEach((bar, index) => putBar(dest, start + index * 48, bar, 'Timeframe aggregation'));
+  }
+
+  function decodeTimeframeBar(out: DataView, start: number): TimeframeBar {
+    return { bar: decodeBar(out, start), observedBars: out.getUint32(start + 48, true),
+      expectedBars: out.getUint32(start + 52, true) };
+  }
+
   return {
     measureDrawing({ start, end }) {
       if (![start.time, start.ticks, end.time, end.ticks].every(Number.isSafeInteger)) {
@@ -670,17 +695,20 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return decodeBars(output(api.mw_parse()));
     },
     aggregateTimeframe(bars, sourceSeconds, targetSeconds) {
-      if (![sourceSeconds, targetSeconds].every(n => Number.isInteger(n) && n > 0 && n <= 0xffffffff) ||
-        bars.length > 100_000) {
-        throw new Error('Use positive integer UTC intervals and at most 100,000 bars.');
-      }
-      const dest = input(bars.length * 48);
-      bars.forEach((bar, index) => putBar(dest, index * 48, bar, 'Timeframe aggregation'));
+      putTimeframeInput(bars, sourceSeconds, targetSeconds);
       const out = output(api.mw_aggregate_timeframe(sourceSeconds, targetSeconds));
-      return Array.from({ length: out.byteLength / 56 }, (_, i) => {
-        const start = i * 56;
-        return { bar: decodeBar(out, start), observedBars: out.getUint32(start + 48, true),
-          expectedBars: out.getUint32(start + 52, true) };
+      return Array.from({ length: out.byteLength / 56 }, (_, i) => decodeTimeframeBar(out, i * 56));
+    },
+    aggregateSessionTimeframe(calendar, bars, sourceSeconds, targetSeconds) {
+      if (calendar.length > 1024 * 1024) throw new Error('Session calendar exceeds 1 MiB.');
+      const encoded = encoder.encode(calendar);
+      if (encoded.byteLength > 1024 * 1024) throw new Error('Session calendar exceeds 1 MiB.');
+      putTimeframeInput(bars, sourceSeconds, targetSeconds, encoded);
+      const out = output(api.mw_aggregate_session_timeframe(encoded.byteLength, sourceSeconds, targetSeconds));
+      return Array.from({ length: out.byteLength / 76 }, (_, i) => {
+        const start = i * 76;
+        return { ...decodeTimeframeBar(out, start), closeTime: Number(out.getBigInt64(start + 56, true)),
+          sessionOpen: Number(out.getBigInt64(start + 64, true)), earlyClose: out.getUint32(start + 72, true) !== 0 };
       });
     },
     indicator(kind, period, bars) {

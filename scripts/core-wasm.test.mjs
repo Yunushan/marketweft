@@ -28,6 +28,20 @@ test('timeframe Wasm rolls exact signed OHLCV, omits empty buckets and reports c
   assert.throws(() => core.aggregateTimeframe(source, 60, 181), /larger whole multiple/);
 });
 
+test('session timeframe Wasm anchors to the supplied open and preserves a clipped close', () => {
+  const calendar = 'date,open_utc,close_utc,utc_offset_minutes,kind\n' +
+    '2025-11-28,2025-11-28T14:30:00Z,2025-11-28T18:00:00Z,-300,early';
+  const bars = core.parseCsv('time,open,high,low,close,volume\n' +
+    '2025-11-28T17:30:00Z,-1,3,-2,1,0.000001');
+  const sec = t => Date.parse('2025-11-28T' + t + 'Z') / 1000;
+  assert.deepEqual(core.aggregateSessionTimeframe(calendar, bars, 3600, 7200), [{
+    bar: { ...bars[0], time: sec('16:30:00') }, observedBars: 1, expectedBars: 2,
+    closeTime: sec('18:00:00'), sessionOpen: sec('14:30:00'), earlyClose: true,
+  }]);
+  assert.throws(() => core.aggregateSessionTimeframe(calendar, [{ ...bars[0], time: sec('18:30:00') }],
+    3600, 7200), /outside a session/);
+});
+
 test('drawing Wasm retains signed measurement and percentages outside the safe JS integer range', () => {
   assert.deepEqual(core.measureDrawing({
     start: { time: 10, ticks: 1 }, end: { time: 5, ticks: 2_000_000_000_000_000 },

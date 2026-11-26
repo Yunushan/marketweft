@@ -1,11 +1,14 @@
 import type { SeriesMetadata } from './catalog-schema'
 import { fixed } from './fixed-point'
-import type { TimeframeBar } from './market-core'
+import type { SessionTimeframeBar, TimeframeBar } from './market-core'
 import type { Asset } from './workspace'
 
 export type BarRange = { start: number; end: number }
 export type ExportOverlay = { name: string; series: readonly (number | null)[] }
-export type TimeframeView = { sourceSeconds: number; targetSeconds: number; buckets: TimeframeBar[] }
+export type TimeframeView = { sourceSeconds: number; targetSeconds: number } & (
+  { mode: 'utc'; buckets: TimeframeBar[] } |
+  { mode: 'session'; buckets: SessionTimeframeBar[]; calendarName: string }
+)
 
 function quoteText(text: string) {
   const safe = /^[\t\r\n]|^[\s\uFEFF]*[=+@-]/.test(text) ? "'" + text : text
@@ -29,6 +32,9 @@ export function chartCsv(
     fields.push('venue', 'symbol', 'source_kind', 'source', 'bar_interval', 'usage_grant', 'adjustment_policy')
     if (analysis.timeframe) fields.push('source_interval_seconds', 'target_interval_seconds',
       'observed_source_bars', 'expected_source_bars')
+    if (analysis.timeframe?.mode === 'session') {
+      fields.push('bucket_close_utc', 'session_open_utc', 'session_kind', 'session_calendar')
+    }
     fields.push(...analysis.overlays.map(item => item.name))
     provenance = ',' + [
       asset.venue,
@@ -50,6 +56,11 @@ export function chartCsv(
         const { sourceSeconds, targetSeconds, buckets } = analysis.timeframe
         row += ',' + [sourceSeconds, targetSeconds, buckets[index].observedBars,
           buckets[index].expectedBars].join(',')
+        if (analysis.timeframe.mode === 'session') {
+          const { closeTime, sessionOpen, earlyClose } = analysis.timeframe.buckets[index]
+          row += ',' + [closeTime, sessionOpen, earlyClose ? 'early' : 'regular',
+            quoteText(analysis.timeframe.calendarName)].join(',')
+        }
       }
       for (const { series } of analysis.overlays) {
         const value = series[index]

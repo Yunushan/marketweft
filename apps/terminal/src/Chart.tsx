@@ -378,6 +378,7 @@ export function Chart({
   const readoutIndex = active ?? view.end - 1
   const b = bars[readoutIndex]
   const coverage = timeframe?.buckets[readoutIndex]
+  const session = timeframe?.mode === 'session' ? timeframe.buckets[readoutIndex] : undefined
   const indicatorValues = sma.length > 0 || ema.length > 0
   function stopEditing() {
     setDrawingFields(null)
@@ -508,6 +509,9 @@ export function Chart({
         </span>
         {coverage && <span className="timeframe-coverage">
           {coverage.observedBars}/{coverage.expectedBars} source bars
+        </span>}
+        {session && <span className="timeframe-coverage">
+          Closes {timeLabel(session.closeTime)} UTC{session.earlyClose ? ' · Early session' : ''}
         </span>}
       </div>
       {periods && (

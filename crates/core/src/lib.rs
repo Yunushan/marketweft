@@ -64,7 +64,9 @@ pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};
 pub use screen::{PriceBook, PriceObservation, ScreenRow};
 pub use sector::{Classification, Heatmap, HeatmapListing, SectorGroup};
-pub use timeframe::{aggregate_timeframe, TimeframeBar};
+pub use timeframe::{
+    aggregate_session_timeframe, aggregate_timeframe, SessionTimeframeBar, TimeframeBar,
+};
 pub use universe::{parse_universe, UniverseAction, UniverseBook, UniverseChange};
 pub use walk_forward::{
     walk_forward, CandidateScore, SmaCandidate, WalkForwardConfig, WalkForwardFold,
