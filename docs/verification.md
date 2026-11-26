@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.43.0 · Formula strategy packages
+
+| Check | Observed result |
+| --- | --- |
+| Versioned validation | Native and Wasm verification reject unknown language and package versions, invalid formulas, out-of-range execution and account settings, unexpected fields and oversized files. |
+| Exact round trip | The bundled JSON and test cases retain exact decimal text, execution mode and both formulas. A clean offline Chromium profile reproduces the accepted ledger CSV and strategy JSON byte for byte using the same inputs. |
+| Workspace separation | An invalid package preserves the accepted result. Switching to current backtest settings leaves the imported formulas editable and produces the expected change in the replay. The catalog remains unchanged. |
+| Regression suite | All 84 browser, six SDK and four launcher tests passed on Windows x64. All 100 native tests passed on Linux x64, all 39 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Formula strategy packages](formula-strategy-packages.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.42.0 · Formula paper backtest
 
 | Check | Observed result |

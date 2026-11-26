@@ -22,3 +22,5 @@ Start the backtest demo and use entry `close >= 13` and exit `close <= 10`. Keep
 | 14:11 | Four fills leave an empty position and 957.8 cash. |
 
 Switch to **Recorded trades** and load the matching sample. At knowledge 14:11:10 UTC the final fill preserves ID `TRADE-9007199254741000` and cash ends at 957.8. To inspect a missing entry value, use `if(close >= 13, 1, 0 / 0)`. Return to **Bar volume** and rewind the cutoff to reproduce a saved CSV byte for byte.
+
+[Formula strategy packages](formula-strategy-packages.md) can restore the same formulas and paper settings in another terminal.
