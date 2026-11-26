@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.43.0 saves and reimports validated formula and paper execution settings in portable strategy packages. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.44.0 ranks formula strategies on training data and tests the winner on disjoint observed bars. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -46,6 +46,7 @@
 | Delivered · 0.41.0 | Time-series formulas (MW-015, MW-016) | Compile independently specified OHLCV expressions, evaluate backward-looking windows with exact missing-value semantics and export the observed result. [Time-series language](docs/time-series-language.md). |
 | Delivered · 0.42.0 | Formula paper backtest (MW-015, MW-020, MW-021) | Evaluate bounded expressions at observed closes and audit later fills, missing conditions and exact receipts in either execution mode. [Formula paper backtest](docs/formula-paper-backtest.md). |
 | Delivered · 0.43.0 | Formula strategy packages (MW-015, MW-016, MW-020) | Validate versioned formulas and execution settings before import. Verify exact re-export and identical replay evidence in a clean profile. [Formula strategy packages](docs/formula-strategy-packages.md). |
+| Delivered · 0.44.0 | Formula walk-forward validation (MW-020) | Freeze training rankings, verify a fresh paper account in each test, and export fold scores, conditions and receipts. [Formula walk-forward validation](docs/formula-walk-forward.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -57,5 +58,5 @@
 
 ## Handoff for the next change
 
-The next strategy milestone selects among formula strategies in completed training windows and evaluates the winner in disjoint tests. Verify cutoff discipline, fresh paper accounts and comparable results.
+Extend formula evaluation with independently testable isolation for user-defined functions and plugins.
 

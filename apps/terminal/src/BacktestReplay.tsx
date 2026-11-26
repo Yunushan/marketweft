@@ -5,6 +5,7 @@ import { Mark } from './Icons'
 import { ScenarioReplay } from './ScenarioReplay'
 import { RecordedTradeReplay } from './RecordedTradeReplay'
 import { FormulaPaperReplay } from './FormulaPaperReplay'
+import { FormulaStrategyWalk } from './FormulaStrategyWalk'
 import type { BacktestBook } from './RecordedTradeReplay'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
@@ -355,6 +356,7 @@ export function BacktestReplay({ core, close }: { core: MarketCore; close: () =>
             </section>
             <RecordedTradeReplay book={book} config={view.query.config} core={core} />
             <FormulaPaperReplay book={book} config={view.query.config} core={core} />
+            <FormulaStrategyWalk book={book} config={view.query.config} core={core} />
             <WalkForward book={book} execution={view.query.config} core={core} />
             <ScenarioReplay source={book} execution={view.query.config} core={core} />
           </>

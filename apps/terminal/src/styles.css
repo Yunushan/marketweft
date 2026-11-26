@@ -266,6 +266,12 @@ main {
   display: grid;
   gap: 12px;
 }
+.formula-form fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
 .formula-form textarea {
   width: 100%;
   box-sizing: border-box;

@@ -21,3 +21,5 @@ Execution and account numbers use strings so decimal values and their precision 
 ## Verify the portable example
 
 Start the same historical bar demo in two independent browser profiles. Import the packaged `formula-strategy.mwstrategy.json` and keep the two default cutoffs at 2025-04-03T14:11:00Z. The import applies four target shares and starting cash of 1,100.25. Run the formula backtest in both profiles and compare the CSVs and re-exported packages byte for byte.
+
+In [formula walk-forward validation](formula-walk-forward.md), packages supply candidate formulas for comparison under a shared execution source and shared paper settings.

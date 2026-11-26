@@ -1,0 +1,83 @@
+import { readFile } from 'node:fs/promises'
+import { expect, test } from './fixtures.mjs'
+import { catalogContents } from './catalog-fixtures.mjs'
+
+test('offline formula validation freezes training scores and exports the same first fold after rewind', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  const original = await catalogContents(page)
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Historical replay' }).click()
+  await page.getByRole('button', { name: 'Open bar backtest' }).click()
+  await page.getByRole('button', { name: 'Start backtest demo' }).click()
+  await page.getByText('Formula walk-forward validation', { exact: true }).click()
+  const panel = page.getByRole('region', { name: 'Formula walk-forward validation' })
+  const known = panel.getByLabel('Validation known cutoff (UTC)')
+  const effective = panel.getByLabel('Validation effective cutoff (UTC)')
+  const run = panel.getByRole('button', { name: 'Run formula walk-forward' })
+  const status = panel.getByRole('status')
+  const scores = panel.getByRole('table', { name: 'Formula walk-forward scores' })
+  const score = name => scores.getByRole('row', { name: new RegExp('^' + name) }).locator('td').allTextContents()
+  const cut = async minute => { await known.fill('2025-04-03T14:' + minute + ':00Z'); await run.click() }
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await panel.getByRole('button', { name: 'Download formula walk-forward' }).click()
+    const saved = await pending
+    expect(saved.suggestedFilename()).toBe('formula-walk-forward.csv')
+    return readFile(await saved.path(), 'utf8')
+  }
+
+  await cut('08')
+  await expect(status).toHaveText('0 completed folds · Bar volume')
+  await cut('09')
+  await expect(status).toHaveText('1 completed fold · Bar volume')
+  await expect(scores.getByRole('rowheader')).toHaveText(['Training Rising', 'Training Late', 'Test Rising'])
+  expect(await score('Training Rising')).toEqual(['1003.4', '2.6', '78', '2.6', '1', '1'])
+  expect(await score('Test Rising')).toEqual(['997.4', '2.6', '60', '2.6', '1', '0'])
+  const first = await download()
+  const [header, ...rows] = first.trimEnd().split('\r\n').map(row => row.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/))
+  expect(rows.every(row => row.length === header.length)).toBe(true)
+  expect(first).toContain(',test,"Rising","close > lag(close, 1)","close <= 10",997.4,2.6,60,2.6,1,0')
+  expect(first).toContain(',ledger,"Rising",')
+  expect(first).toContain(',evaluation,"Rising",')
+
+  await cut('11')
+  await expect(status).toHaveText('2 completed folds · Bar volume')
+  expect(await score('Training Rising')).toEqual(['1003.4', '2.6', '78', '2.6', '1', '1'])
+  await panel.getByLabel('Completed formula fold').selectOption('1')
+  await expect(panel.getByText('2025-04-03T14:10:00Z to 2025-04-03T14:11:00Z')).toBeVisible()
+  await effective.fill('2025-04-03T14:08:00Z')
+  await run.click()
+  await expect(status).toHaveText('0 completed folds · Bar volume')
+  await effective.fill('2025-04-03T14:11:00Z')
+  await cut('09')
+  expect(await download()).toEqual(first)
+
+  await panel.getByLabel('Validation execution source').selectOption('trades')
+  await panel.getByRole('button', { name: 'Use validation sample trades' }).click()
+  await run.click()
+  await expect(status).toHaveText('1 completed fold · Synthetic execution trades')
+  const tapeTest = scores.getByRole('rowheader', { name: /^Test/ })
+  await expect(tapeTest.locator('..').locator('td').nth(4)).toHaveText('0')
+  await panel.getByLabel('Validation execution source').selectOption('bars')
+  const fixture = new URL('../../../crates/core/tests/fixtures/synthetic-formula-strategy.mwstrategy.json', import.meta.url)
+  const manifest = await readFile(fixture)
+  const packages = panel.getByLabel('Candidate strategy packages')
+  const add = panel.getByRole('button', { name: 'Add strategy packages' })
+  await packages.setInputFiles([
+    { name: 'valid.json', mimeType: 'application/json', buffer: manifest },
+    { name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{}') },
+  ])
+  await add.click()
+  await expect(panel.getByRole('alert')).toContainText('Invalid formula strategy package fields')
+  await expect(panel.getByRole('group', { name: /Candidate/ })).toHaveCount(2)
+  await packages.setInputFiles({ name: 'saved.mwstrategy.json', mimeType: 'application/json', buffer: manifest })
+  await add.click()
+  const imported = panel.getByRole('group', { name: /saved\.mwstrategy\.json/ })
+  await expect(imported.getByLabel('Entry formula')).toHaveValue('if(close >= 13, 1, 0 / 0)')
+  await run.click()
+  await expect(scores.getByRole('rowheader', { name: 'Training Strategy-3' })).toBeVisible()
+  expect(await score('Test Rising')).toEqual(['997.4', '2.6', '60', '2.6', '1', '0'])
+  await expect.poll(() => catalogContents(page)).toEqual(original)
+})

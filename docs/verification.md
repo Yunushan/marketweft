@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.44.0 · Formula walk-forward validation
+
+| Check | Observed result |
+| --- | --- |
+| Cutoff discipline | The synthetic example shows zero, one and two completed folds at 14:08, 14:09 and 14:11 UTC. Changing a test price leaves the training scores unchanged and moves the first test equity from 997.4 to 1,000. |
+| Training and test accounting | Rising leads the first training window with equity 1,003.4. The test starts with 1,000 cash and an empty portfolio, carries the formula history forward, and ends at 997.4 with 60 in turnover and 2.6 in fees. The recorded-trade test has zero fills because the eligible print arrives after the fold cutoff. |
+| Offline audit | Chromium verifies deterministic CSV rewind, cutoff behavior in both execution modes, atomic candidate-package import, shared paper settings and preservation of the workspace catalog. |
+| Regression suite | All 85 browser, six SDK and four launcher tests passed on Windows x64. All 102 native tests passed on Linux x64, all 40 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Formula walk-forward validation](formula-walk-forward.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.43.0 · Formula strategy packages
 
 | Check | Observed result |
