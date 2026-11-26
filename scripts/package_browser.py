@@ -38,6 +38,8 @@ Opening a 0.1.0 workspace on the same browser origin migrates it to IndexedDB.
 
 Use Compare charts to choose a second instrument and link exact UTC bars.
 A two-pane workspace includes both instruments and overlays in its backup.
+Choose Draw measurement to anchor a line to two UTC bars and exact prices.
+Its coordinates stay with the instrument and are included in workspace backups.
 
 Choose Historical replay and Start demo for the NYSE session example. Replay
 reveals each bar at its scheduled close and marks missing intervals in-session.

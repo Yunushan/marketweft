@@ -5,6 +5,7 @@ mod alerts;
 mod backtest;
 mod delisting;
 mod dividend;
+mod drawing;
 mod fundamentals;
 mod history;
 mod indicator;
@@ -39,6 +40,7 @@ pub use dividend::{
     parse_dividend_positions, parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind,
     DividendMovement, DividendPositions, PositionObservation,
 };
+pub use drawing::{measure_drawing, DrawingEndpoint, DrawingMeasurement};
 pub use fundamentals::{Filing, FinancialBook, MarketCap, Multiple, Valuation};
 pub use history::{parse_csv, Bar};
 pub use indicator::{indicator, Average};

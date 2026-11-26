@@ -440,7 +440,7 @@ export class Catalog {
           ...this.samples.map((a) => a.id),
           ...head.importIds,
         ])
-        head.preferences = preferences(next, ids)
+        head.preferences = preferences(this.core, next, ids)
         tx.objectStore('workspace').put(head, ACTIVE)
       },
       true,

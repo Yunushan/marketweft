@@ -8,6 +8,22 @@ export interface Bar {
   volume: number;
 }
 
+export interface DrawingEndpoint {
+  time: number;
+  ticks: number;
+}
+
+export interface MeasuredDrawing {
+  start: DrawingEndpoint;
+  end: DrawingEndpoint;
+}
+
+export interface DrawingMeasurement {
+  elapsedSeconds: number;
+  priceTicks: bigint;
+  returnPctMicros: bigint | null;
+}
+
 const replayKinds = ['open', 'bar', 'missing', 'close'] as const;
 export interface ReplayEvent {
   kind: typeof replayKinds[number];
@@ -385,6 +401,7 @@ export interface PortfolioSnapshot {
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
+  measureDrawing(drawing: MeasuredDrawing): DrawingMeasurement;
   indicator(kind: 'sma' | 'ema', period: number, bars: readonly Bar[]): (number | null)[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
   splitBook(instrument: string, csv: string): Split[];
@@ -428,6 +445,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_output_len(): number;
   mw_instrument(): number;
   mw_parse(): number;
+  mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
   mw_indicator(kind: number, period: number): number;
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
   mw_split_book(): number;
@@ -605,6 +623,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
   }
 
   return {
+    measureDrawing({ start, end }) {
+      if (![start.time, start.ticks, end.time, end.ticks].every(Number.isSafeInteger)) {
+        throw new Error('Drawing endpoints require whole UTC seconds and whole price ticks.');
+      }
+      const [elapsed, price, pct] = decoder.decode(output(api.mw_measure_drawing(
+        BigInt(start.time), BigInt(start.ticks), BigInt(end.time), BigInt(end.ticks),
+      ))).split('\t');
+      return { elapsedSeconds: Number(elapsed), priceTicks: BigInt(price),
+        returnPctMicros: pct === '' ? null : BigInt(pct) };
+    },
     instrument(venue, symbol) {
       textInput(venue + '\n' + symbol);
       return decoder.decode(output(api.mw_instrument()));

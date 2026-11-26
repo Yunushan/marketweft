@@ -1,4 +1,4 @@
-import type { MarketCore } from './market-core'
+import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core'
 import type { Asset, SavedImport } from './workspace'
 
 export type Preferences = {
@@ -7,6 +7,7 @@ export type Preferences = {
   sma: boolean
   ema: boolean
   comparison?: ComparisonPreferences
+  drawings?: Record<string, MeasuredDrawing>
 }
 
 export type ComparisonPreferences = {
@@ -64,9 +65,18 @@ function requiredText(value: unknown, name: string): string {
   return value
 }
 
-export function preferences(value: unknown, ids: Set<string>): Preferences {
+function drawingEndpoint(value: unknown): DrawingEndpoint {
+  fields(value, ['time', 'ticks'], 'drawing endpoint')
+  const { time, ticks } = value
+  if (typeof time !== 'number' || typeof ticks !== 'number')
+    throw Error('Drawing endpoints require whole UTC seconds and whole price ticks.')
+  return { time, ticks }
+}
+
+export function preferences(core: MarketCore, value: unknown, ids: Set<string>): Preferences {
   const keys = ['selected', 'watchlist', 'sma', 'ema']
   if (value && typeof value === 'object' && Object.hasOwn(value, 'comparison')) keys.push('comparison')
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'drawings')) keys.push('drawings')
   fields(value, keys, 'workspace preference')
   const { selected, watchlist, sma, ema } = value
   if (
@@ -90,6 +100,21 @@ export function preferences(value: unknown, ids: Set<string>): Preferences {
       throw Error('Invalid comparison chart settings in the workspace.')
     }
     result.comparison = { selected: pane.selected, sma: pane.sma, ema: pane.ema, linked: pane.linked }
+  }
+  if (keys.includes('drawings')) {
+    const drawings = value.drawings
+    if (!drawings || typeof drawings !== 'object' || Array.isArray(drawings))
+      throw Error('Invalid chart drawings in the workspace.')
+    const entries = Object.entries(drawings)
+    if (!entries.length || entries.length > ids.size)
+      throw Error('Invalid chart drawings in the workspace.')
+    result.drawings = Object.fromEntries(entries.map(([id, value]) => {
+      if (!ids.has(id)) throw Error('Drawing refers to an unknown instrument: ' + id + '.')
+      fields(value, ['start', 'end'], 'chart drawing')
+      const drawing = { start: drawingEndpoint(value.start), end: drawingEndpoint(value.end) }
+      core.measureDrawing(drawing)
+      return [id, drawing]
+    }))
   }
   return result
 }
@@ -206,7 +231,7 @@ export function materialize(
     series.push(history)
     assets.push(asset)
   }
-  return { preferences: preferences(value.preferences, ids), series, assets }
+  return { preferences: preferences(core, value.preferences, ids), series, assets }
 }
 
 export function validateCatalogData(

@@ -9,6 +9,21 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('drawing Wasm retains signed measurement and percentages outside the safe JS integer range', () => {
+  assert.deepEqual(core.measureDrawing({
+    start: { time: 10, ticks: 1 }, end: { time: 5, ticks: 2_000_000_000_000_000 },
+  }), {
+    elapsedSeconds: -5, priceTicks: 1_999_999_999_999_999n,
+    returnPctMicros: 199_999_999_999_999_900_000_000n,
+  });
+  assert.equal(core.measureDrawing({
+    start: { time: 0, ticks: 0 }, end: { time: 1, ticks: -1 },
+  }).returnPctMicros, null);
+  assert.throws(() => core.measureDrawing({
+    start: { time: 0, ticks: 0 }, end: { time: 253_402_300_800, ticks: 0 },
+  }), /supported UTC timestamp/);
+});
+
 test('backtest Wasm waits for observed liquidity and preserves marks and paper receipts across prefixes', async () => {
   const read = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');
   const [calendar, bars] = await Promise.all([read('sessions'), read('bars')]);

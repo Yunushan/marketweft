@@ -39,9 +39,13 @@ pub(crate) fn decimal_ticks(text: &str) -> Option<i128> {
 const MIN_TIME: i64 = -62_135_596_800; // 0001-01-01T00:00:00Z
 const MAX_TIME: i64 = 253_402_300_799; // 9999-12-31T23:59:59Z
 
+pub(crate) fn valid_second(seconds: i64) -> bool {
+    (MIN_TIME..=MAX_TIME).contains(&seconds)
+}
+
 pub(crate) fn timestamp(text: &str) -> Option<i64> {
     if let Ok(seconds) = text.parse::<i64>() {
-        return (MIN_TIME..=MAX_TIME).contains(&seconds).then_some(seconds);
+        return valid_second(seconds).then_some(seconds);
     }
     let bytes = text.as_bytes();
     if !matches!(bytes.len(), 10 | 20) || bytes[4] != b'-' || bytes[7] != b'-' {

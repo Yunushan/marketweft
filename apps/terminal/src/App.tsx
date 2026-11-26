@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 import type { ReactNode, FormEvent } from 'react'
-import type { MarketCore } from './market-core'
+import type { MarketCore, MeasuredDrawing } from './market-core'
 import { Chart, Spark } from './Chart'
 import { Icon, Mark } from './Icons'
 import { changeString, dateLabel, movement, price, volume } from './workspace'
@@ -468,6 +468,21 @@ export function App({
     if (change.linked !== undefined) setCrosshair(null)
     update({ ...ws, comparison: { ...comparison, ...change } })
   }
+  function drawingTools(id: string) {
+    return {
+      core,
+      saved: ws.drawings?.[id],
+      busy: saving,
+      async save(drawing: MeasuredDrawing | null) {
+        const { drawings: current, ...preferences } = saved.preferences
+        const drawings = { ...current }
+        if (drawing) drawings[id] = drawing
+        else delete drawings[id]
+        const next = Object.keys(drawings).length ? { ...preferences, drawings } : preferences
+        await commit(() => catalog.savePreferences(saved.revision, next))
+      },
+    }
+  }
   async function addImport(item: SavedImport, metadata: ImportMetadata) {
     const history = createHistory(core, item, metadata)
     await commit(() => catalog.addSeries(saved.revision, history))
@@ -651,12 +666,14 @@ export function App({
               <section aria-label="Primary chart pane">
                 {/* Replacing the history can invalidate bar-indexed viewport and crosshair state. */}
                 <Chart key={`${asset.id}:${bars.length}`} asset={asset} sma={sma} ema={ema}
-                  linkedTimestamp={cursor} onTimestamp={comparison?.linked ? onCrosshair : undefined} />
+                  linkedTimestamp={cursor} onTimestamp={comparison?.linked ? onCrosshair : undefined}
+                  drawingTools={drawingTools(asset.id)} />
               </section>
               {comparison && other && (
                 <section aria-label="Comparison chart pane">
                   <Chart key={`${other.id}:${other.bars.length}`} asset={other} sma={otherSma} ema={otherEma}
-                    linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined} />
+                    linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined}
+                    drawingTools={drawingTools(other.id)} />
                 </section>
               )}
             </div>

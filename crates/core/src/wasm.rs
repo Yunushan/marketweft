@@ -8,12 +8,12 @@ use crate::{
     indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
     Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
 };
+use crate::{measure_drawing, AlertBook, AlertDirection, Comparator, DrawingEndpoint};
 use crate::{
     parse_paper_config, PaperAction, PaperError, PaperOrderStatus, PaperRejection, PaperReplay,
     PaperSide,
 };
 use crate::{parse_split_revisions, ShareRatio, SplitRevision, SplitRevisionBook};
-use crate::{AlertBook, AlertDirection, Comparator};
 use crate::{ModelError, OptionBook, OptionSide, QuoteStatus};
 use std::cell::RefCell;
 
@@ -132,6 +132,31 @@ fn process(f: impl FnOnce(&[u8]) -> Result<Vec<u8>, String>) -> u32 {
 
 fn utf8(bytes: &[u8]) -> Result<&str, String> {
     std::str::from_utf8(bytes).map_err(|_| "Input must be UTF-8.".into())
+}
+
+#[no_mangle]
+pub extern "C" fn mw_measure_drawing(
+    start_time: i64,
+    start_ticks: i64,
+    end_time: i64,
+    end_ticks: i64,
+) -> u32 {
+    process(|_| {
+        let result = measure_drawing(
+            DrawingEndpoint {
+                time: start_time,
+                ticks: start_ticks,
+            },
+            DrawingEndpoint {
+                time: end_time,
+                ticks: end_ticks,
+            },
+        )?;
+        let pct = result
+            .return_pct_micros
+            .map_or_else(String::new, |pct| pct.to_string());
+        Ok(format!("{}\t{}\t{pct}", result.elapsed_seconds, result.price_ticks).into_bytes())
+    })
 }
 
 #[no_mangle]

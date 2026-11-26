@@ -1,12 +1,19 @@
 import { validateCatalogData } from './catalog'
 import type { CatalogData, History } from './catalog'
+import type { Preferences } from './catalog-schema'
 import type { MarketCore } from './market-core'
 import type { Asset } from './workspace'
 
 const FORMAT = 'marketweft-workspace'
 const SINGLE_PANE_BACKUP_VERSION = 1
 const COMPARISON_BACKUP_VERSION = 2
+const DRAWING_BACKUP_VERSION = 3
 const SAMPLE_VERSION = 1
+
+function backupVersion(preferences: Preferences) {
+  if (preferences.drawings) return DRAWING_BACKUP_VERSION
+  return preferences.comparison ? COMPARISON_BACKUP_VERSION : SINGLE_PANE_BACKUP_VERSION
+}
 
 // Data is JSON. Object keys use UTF-16 code-unit order; array order is significant.
 function canonical(value: unknown): string {
@@ -96,7 +103,7 @@ export async function exportWorkspace(
     JSON.stringify(
       {
         format: FORMAT,
-        version: data.preferences.comparison ? COMPARISON_BACKUP_VERSION : SINGLE_PANE_BACKUP_VERSION,
+        version: backupVersion(data.preferences),
         manifest,
         sha256: await digest(manifest),
       },
@@ -120,7 +127,8 @@ export async function verifyWorkspaceBackup(
   const file = fields(parsed, ['format', 'version', 'manifest', 'sha256'])
   if (file.format !== FORMAT)
     throw Error('Choose a MarketWeft workspace backup.')
-  if (file.version !== SINGLE_PANE_BACKUP_VERSION && file.version !== COMPARISON_BACKUP_VERSION)
+  if (file.version !== SINGLE_PANE_BACKUP_VERSION &&
+      file.version !== COMPARISON_BACKUP_VERSION && file.version !== DRAWING_BACKUP_VERSION)
     throw Error('This workspace backup version is unsupported.')
   const manifest = fields(file.manifest, [
     'sampleSet',
@@ -161,7 +169,7 @@ export async function verifyWorkspaceBackup(
     { preferences: manifest.preferences, series },
     samples,
   )
-  if (Boolean(data.preferences.comparison) !== (file.version === COMPARISON_BACKUP_VERSION)) {
+  if (backupVersion(data.preferences) !== file.version) {
     throw Error('The backup version does not match its chart settings.')
   }
   if (

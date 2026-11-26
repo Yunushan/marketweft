@@ -1,12 +1,21 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from './Icons'
+import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
+import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar } from './market-core'
+import type { Bar, MarketCore, MeasuredDrawing } from './market-core'
 
 type View = { end: number; count: number }
 type Series = (number | null)[]
+type Plot = { left: number; right: number; top: number; bottom: number; high: number; low: number }
+type DrawingTools = {
+  core: MarketCore
+  saved?: MeasuredDrawing
+  busy: boolean
+  save: (drawing: MeasuredDrawing | null) => Promise<void>
+}
 const UP = '#68d7b1',
   DOWN = '#ec817e',
   GOLD = '#e8ba70',
@@ -34,6 +43,12 @@ function visibleBarAt(bars: Bar[], timestamp: number, start: number, end: number
   }
   return low < end && bars[low].time === timestamp ? low : null
 }
+
+function sameDrawing(first?: MeasuredDrawing, second?: MeasuredDrawing) {
+  if (!first || !second) return first === second
+  return first.start.time === second.start.time && first.start.ticks === second.start.ticks &&
+    first.end.time === second.end.time && first.end.ticks === second.end.ticks
+}
 function draw(
   canvas: HTMLCanvasElement,
   width: number,
@@ -43,7 +58,8 @@ function draw(
   sma: Series,
   ema: Series,
   active: number | null,
-) {
+  drawing: MeasuredDrawing | undefined,
+): Plot | undefined {
   const ctx = canvas.getContext('2d')
   if (!ctx || width < 80 || height < 100) return
   const dpr = Math.min(window.devicePixelRatio || 1, 3)
@@ -207,6 +223,26 @@ function draw(
   ctx.fillRect(right, at - 9, width - right, 18)
   ctx.fillStyle = '#0e1915'
   ctx.fillText(closeLabel, right + 6, at)
+  if (drawing) {
+    const first = visibleBarAt(bars, drawing.start.time, 0, bars.length)
+    const last = visibleBarAt(bars, drawing.end.time, 0, bars.length)
+    if (first !== null && last !== null) {
+      const endpoints = [[x(first), y(drawing.start.ticks / 1e6)], [x(last), y(drawing.end.ticks / 1e6)]]
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(left, top, right - left, priceBottom - top)
+      ctx.clip()
+      ctx.lineWidth = 2
+      line(endpoints[0][0], endpoints[0][1], endpoints[1][0], endpoints[1][1], '#8bc9ff')
+      ctx.fillStyle = '#8bc9ff'
+      for (const [cx, cy] of endpoints) {
+        ctx.beginPath()
+        ctx.arc(cx, cy, 4, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.restore()
+    }
+  }
   if (active !== null && active >= start && active < view.end) {
     const axis = x(active),
       pos = y(bars[active].close)
@@ -219,7 +255,7 @@ function draw(
     ctx.arc(axis, pos, 3, 0, Math.PI * 2)
     ctx.fill()
   }
-  return right - left
+  return { left, right, top, bottom: priceBottom, high, low }
 }
 
 export function Spark({ bars }: { bars: Bar[] }) {
@@ -260,12 +296,14 @@ export function Chart({
   ema,
   linkedTimestamp,
   onTimestamp,
+  drawingTools,
 }: {
   asset: Asset
   sma: Series
   ema: Series
   linkedTimestamp?: number | null
   onTimestamp?: (timestamp: number | null) => void
+  drawingTools?: DrawingTools
 }) {
   const { bars } = asset,
     n = bars.length
@@ -274,12 +312,54 @@ export function Chart({
   const [size, setSize] = useState({ width: 800, height: 360 })
   const ref = useRef<HTMLCanvasElement>(null),
     zone = useRef<HTMLDivElement>(null)
-  const plottedWidth = useRef(1)
+  const plot = useRef<Plot | undefined>(undefined)
   const drag = useRef<{ x: number; end: number } | null>(null)
+  const [drawingFields, setDrawingFields] = useState<DrawingFields | null>(null)
+  const drawingBeforeEdit = useRef<MeasuredDrawing | undefined>(undefined)
+  const [picking, setPicking] = useState<EndpointName | null>(null)
+  const [drawingError, setDrawingError] = useState('')
+  const drawing = drawingTools?.saved
+  const drawingCore = drawingTools?.core
+  const measurement = useMemo(() => drawing && drawingCore?.measureDrawing(drawing), [drawing, drawingCore])
   const start = view.end - view.count
   const linkedIndex = linkedTimestamp == null ? null : visibleBarAt(bars, linkedTimestamp, start, view.end)
   const active = pointerIndex ?? linkedIndex
   const b = bars[active ?? view.end - 1]
+  function stopEditing() {
+    setDrawingFields(null)
+    setPicking(null)
+    setDrawingError('')
+  }
+  function editDrawing() {
+    const before = bars[Math.max(start, view.end - 2)]
+    const after = bars[view.end - 1]
+    drawingBeforeEdit.current = drawing
+    setDrawingFields({
+      start: endpointFields(drawing?.start ?? { time: before.time, ticks: Math.round(before.close * 1e6) }),
+      end: endpointFields(drawing?.end ?? { time: after.time, ticks: Math.round(after.close * 1e6) }),
+    })
+    setDrawingError('')
+  }
+  async function saveDrawing(remove = false) {
+    if (!drawingTools || drawingTools.busy) return
+    try {
+      let next = null
+      if (!remove && drawingFields) {
+        if (!sameDrawing(drawing, drawingBeforeEdit.current)) {
+          throw Error('This measurement changed while you were editing. Cancel and reopen it.')
+        }
+        next = { start: parseEndpoint(drawingFields.start), end: parseEndpoint(drawingFields.end) }
+        drawingTools.core.measureDrawing(next)
+        if ([next.start, next.end].some(point => visibleBarAt(bars, point.time, 0, n) === null)) {
+          throw Error('Each drawing endpoint needs the UTC time of an existing bar.')
+        }
+      }
+      await drawingTools.save(next)
+      stopEditing()
+    } catch (error) {
+      setDrawingError(error instanceof Error ? error.message : 'Could not save the measurement.')
+    }
+  }
   function hover(index: number | null) {
     setPointerIndex(index)
     onTimestamp?.(index === null ? null : bars[index].time)
@@ -294,7 +374,7 @@ export function Chart({
   }, [])
   useLayoutEffect(() => {
     if (ref.current)
-      plottedWidth.current =
+      plot.current =
         draw(
           ref.current,
           size.width,
@@ -304,8 +384,9 @@ export function Chart({
           sma,
           ema,
           active,
-        ) ?? 1
-  }, [bars, view, sma, ema, active, size])
+          drawing,
+        )
+  }, [bars, view, sma, ema, active, size, drawing])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -326,26 +407,36 @@ export function Chart({
     el.addEventListener('wheel', wheel, { passive: false })
     return () => el.removeEventListener('wheel', wheel)
   }, [n, onTimestamp])
+  function barIndexAt(x: number, bounds: Plot) {
+    return x < bounds.left || x > bounds.right ? null :
+      clamp(start + Math.floor((x - bounds.left) / (bounds.right - bounds.left) * view.count),
+        start, view.end - 1)
+  }
   function move(e: ReactPointerEvent<HTMLCanvasElement>) {
-    const plotWidth = Math.max(1, plottedWidth.current)
+    const bounds = plot.current
+    if (!bounds) return
     if (drag.current) {
       const shift = Math.round(
-        ((drag.current.x - e.clientX) / plotWidth) * view.count,
+        ((drag.current.x - e.clientX) / (bounds.right - bounds.left)) * view.count,
       )
       hover(null)
       setView({ ...view, end: clamp(drag.current.end + shift, view.count, n) })
       return
     }
-    const x = e.clientX - e.currentTarget.getBoundingClientRect().left - 10
-    hover(
-      x < 0 || x > plotWidth
-        ? null
-        : clamp(
-            start + Math.floor((x / plotWidth) * view.count),
-            start,
-            view.end - 1,
-          ),
-    )
+    hover(barIndexAt(e.clientX - e.currentTarget.getBoundingClientRect().left, bounds))
+  }
+  function pickEndpoint(e: ReactPointerEvent<HTMLCanvasElement>, point: EndpointName) {
+    const bounds = plot.current
+    if (!bounds || !drawingFields) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const index = barIndexAt(e.clientX - rect.left, bounds)
+    const y = e.clientY - rect.top
+    if (index === null || y < bounds.top || y > bounds.bottom) return
+    const value = bounds.high - (bounds.high - bounds.low) * (y - bounds.top) / (bounds.bottom - bounds.top)
+    setDrawingFields({ ...drawingFields,
+      [point]: endpointFields({ time: bars[index].time, ticks: Math.round(value * 1e6) }) })
+    setPicking(null)
+    setDrawingError('')
   }
   return (
     <section className="plot" aria-label="Price and volume chart"
@@ -361,7 +452,7 @@ export function Chart({
           <small>Vol</small> {volume(b.volume)}
         </span>
       </div>
-      <div ref={zone} className="canvas-zone">
+      <div ref={zone} className={picking ? 'canvas-zone picking-endpoint' : 'canvas-zone'}>
         <canvas
           tabIndex={0}
           aria-label={
@@ -370,12 +461,17 @@ export function Chart({
           ref={ref}
           onPointerDown={(e) => {
             if (e.button !== 0) return
+            if (picking) {
+              pickEndpoint(e, picking)
+              return
+            }
             drag.current = { x: e.clientX, end: view.end }
             e.currentTarget.setPointerCapture(e.pointerId)
           }}
           onPointerUp={(e) => {
             drag.current = null
-            e.currentTarget.releasePointerCapture(e.pointerId)
+            if (e.currentTarget.hasPointerCapture(e.pointerId))
+              e.currentTarget.releasePointerCapture(e.pointerId)
             move(e)
           }}
           onPointerCancel={() => {
@@ -460,6 +556,30 @@ export function Chart({
           </button>
         </div>
       </div>
+      {drawingTools && (
+        <div className="drawing-tools">
+          {measurement && <MeasurementReadout measurement={measurement} />}
+          {drawingFields ? (
+            <DrawingEditor fields={drawingFields} picking={picking} error={drawingError}
+              saving={drawingTools.busy}
+              onChange={(point, fields) => {
+                setDrawingFields({ ...drawingFields, [point]: fields })
+                setDrawingError('')
+              }}
+              onPick={point => setPicking(picking === point ? null : point)}
+              onSave={() => void saveDrawing()} onCancel={stopEditing} />
+          ) : (
+            <div className="drawing-buttons">
+              <button type="button" disabled={drawingTools.busy} onClick={editDrawing}>
+                {drawing ? 'Edit measurement' : 'Draw measurement'}
+              </button>
+              {drawing && <button type="button" disabled={drawingTools.busy}
+                onClick={() => void saveDrawing(true)}>Remove measurement</button>}
+              {drawingError && <p role="alert">{drawingError}</p>}
+            </div>
+          )}
+        </div>
+      )}
       <span className="sr-only">
         Data from {dateLabel(bars[start].time)} through{' '}
         {dateLabel(bars[view.end - 1].time)}. Focus the chart and use arrow keys
