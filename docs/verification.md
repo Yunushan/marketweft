@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.21.0 · Linked chart panes
+
+| Check | Observed result |
+| --- | --- |
+| UTC crosshair linking | NVDA and MSFT share a crosshair on an exact UTC bar. When the comparison instrument has a gap, its pane shows no linked crosshair. The reverse direction follows the same rule. |
+| Independent panes | Zooming the primary pane leaves the comparison interval in place. Changing the primary symbol preserves the comparison symbol. Turning off linking leaves hover local to its pane. The panes align on a desktop display and fit a 360 px viewport. |
+| Workspace persistence | Reload retains MSFT, its EMA setting and the link toggle. A version 2 backup restores comparison settings into a clean profile. Restoring the older version 1 backup returns to a single pane. |
+| Regression suite | All 56 browser and six SDK tests passed on Windows x64, 61 native tests passed on Linux x64, 21 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Chart workspace](chart-workspace.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.20.0 · Point-in-time portfolio replay
 
 | Check | Observed result |
