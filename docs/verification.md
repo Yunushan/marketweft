@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.17.0 · Point-in-time delisting proceeds
+
+| Check | Observed result |
+| --- | --- |
+| Effective and known cutoffs | The holding retains ten ordinary shares through the 14:34 UTC knowledge cutoff. At 14:35, the delisting becomes known and the proceeds are unavailable. Terms received at 14:37 establish a 70 USD receivable and a −30% return. |
+| Cash and currency revisions | The ledger credits 70 USD at 14:50 and 10 USD at 14:55, reverses 80 USD at 15:01, then credits 90 EUR at 15:04. An observed zero payment at 15:05 reverses 90 EUR. The return remains unavailable when the proceeds and reference close have different currencies. |
+| Identity and cancellation | BETA-002 keeps its ordinary shares despite reusing the same symbol. Native tests verify that canceling the original delisting restores ordinary shares and reverses recognized cash. Earlier cutoffs preserve their original postings. |
+| Regression suite | All 51 browser and six SDK tests passed on Windows x64, 53 native tests passed on Linux x64, 18 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Delisting proceeds contract](delisting-proceeds.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.16.0 · Seeded scenarios
 
 | Check | Observed result |
