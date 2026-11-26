@@ -72,6 +72,54 @@ fn rejected(account: &mut PaperAccount, event: PaperEvent, reason: PaperRejectio
 }
 
 #[test]
+fn corporate_cash_adjustments_are_idempotent_and_preserve_buy_reservations() {
+    let mut ledger = PaperAccount::new(config()).unwrap();
+    apply(
+        &mut ledger,
+        event("BUY-1", 10, order("BUY", "AAA", PaperSide::Buy, 10, 50)),
+    );
+    let debit = event(
+        "DIV-1",
+        11,
+        PaperAction::CorporateCash {
+            source_id: "D1".into(),
+            amount: amount(-600),
+        },
+    );
+    let receipt = apply(&mut ledger, debit.clone());
+    assert_eq!(receipt.cash_delta, amount(-600));
+    assert_eq!(receipt.realized_delta, amount(-600));
+    assert_eq!(ledger.apply(debit), Ok(PaperApply::Duplicate(receipt)));
+    assert_eq!(ledger.cash(), amount(400));
+    assert_eq!(ledger.reserved_cash(), amount(503));
+    rejected(
+        &mut ledger,
+        event("FILL-1", 13, fill("BUY", "Q1", 12, 1, 50)),
+        PaperRejection::CashLimit,
+    );
+    apply(
+        &mut ledger,
+        event(
+            "DIV-2",
+            14,
+            PaperAction::CorporateCash {
+                source_id: "D1".into(),
+                amount: amount(110),
+            },
+        ),
+    );
+    assert_eq!(ledger.cash(), amount(510));
+    let execution = apply(
+        &mut ledger,
+        event("FILL-2", 16, fill("BUY", "Q2", 15, 1, 50)),
+    );
+    assert_eq!(execution.rejection, None);
+    assert_eq!(ledger.cash(), 457_900_000);
+    assert_eq!(ledger.reserved_cash(), 450_900_000);
+    assert_eq!(ledger.realized(), amount(-490));
+}
+
+#[test]
 fn reserves_cash_accounts_for_partial_fills_once_and_reconciles_realized_pnl() {
     let mut ledger = PaperAccount::new(config()).unwrap();
     let buy = event("E1", 10, order("BUY", "AAA", PaperSide::Buy, 10, 50));

@@ -36,12 +36,12 @@ pub struct PortfolioIncomeSnapshot<'a> {
     pub totals: BTreeMap<&'a str, PortfolioIncomeCurrency>,
 }
 
-pub(super) struct PortfolioIncomeReports {
+pub(crate) struct PortfolioIncomeReports {
     listings: BTreeMap<String, (UniverseBook, DividendBook)>,
 }
 
 impl PortfolioIncomeReports {
-    pub(super) fn parse(universe: &UniverseBook, csv: &str) -> Result<Self, String> {
+    pub(crate) fn parse(universe: &UniverseBook, csv: &str) -> Result<Self, String> {
         if csv.len() > 1024 * 1024 {
             return Err("Portfolio dividends CSV exceeds 1 MiB.".into());
         }
@@ -88,6 +88,12 @@ impl PortfolioIncomeReports {
             })
             .collect::<Result<_, String>>()?;
         Ok(Self { listings })
+    }
+
+    pub(crate) fn dividend_books(&self) -> impl Iterator<Item = (&str, &DividendBook)> {
+        self.listings
+            .iter()
+            .map(|(id, (_, book))| (id.as_str(), book))
     }
 }
 

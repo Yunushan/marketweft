@@ -5,6 +5,7 @@ use marketweft_core::{
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-listing-risk-membership.csv");
 const PRICES: &str = include_str!("fixtures/synthetic-listing-risk-prices.csv");
 const LIQUIDITY: &str = include_str!("fixtures/synthetic-cross-section-liquidity.csv");
+const DIVIDENDS: &str = include_str!("fixtures/synthetic-cross-section-dividends.csv");
 
 fn settings(start: i64, known: i64) -> CrossSectionConfig {
     CrossSectionConfig {
@@ -25,6 +26,52 @@ fn settings(start: i64, known: i64) -> CrossSectionConfig {
             fee_per_order: SCALE / 2,
         },
     }
+}
+
+#[test]
+fn pays_dividends_only_on_pre_ex_shares_and_tracks_late_currency_corrections() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let book = PriceBook::parse(&universe, PRICES).unwrap();
+    let liquidity = LiquidityTape::parse(&universe, LIQUIDITY).unwrap();
+    let start = universe.checkpoints()[0];
+    let replay = |effective: i64, known: i64| {
+        let mut config = settings(start, known);
+        config.through_at = start + effective * 60;
+        book.cross_section_with_dividends(&liquidity, config, DIVIDENDS, "USD")
+            .unwrap()
+    };
+
+    assert!(replay(6, 4).dividend_postings.is_empty());
+    assert!(replay(4, 7).dividend_postings.is_empty());
+    let paid = replay(6, 6);
+    let payment = &paid.dividend_postings[0];
+    assert_eq!(paid.dividend_postings.len(), 1);
+    assert_eq!(payment.entitled_shares, 2);
+    assert_eq!(payment.posted_at, start + 300);
+    assert_eq!(payment.cash_delta, 4_000_000);
+    assert_eq!(paid.cash, 540_600_000);
+    assert_eq!(paid.equity, Some(1_073_000_000));
+    assert_eq!(
+        paid.events
+            .iter()
+            .find(|row| Some(&row.event.id) == payment.receipt_id.as_ref())
+            .unwrap()
+            .receipt
+            .cash_delta,
+        4_000_000
+    );
+
+    let revised = replay(6, 7);
+    assert_eq!(revised.decisions, paid.decisions);
+    assert_eq!(&revised.events[..paid.events.len()], paid.events.as_slice());
+    assert_eq!(revised.dividend_postings.len(), 3);
+    assert_eq!(revised.dividend_postings[1].cash_delta, -4_000_000);
+    assert_eq!(revised.dividend_postings[1].currency, "USD");
+    assert_eq!(revised.dividend_postings[2].cash_delta, 6_000_000);
+    assert_eq!(revised.dividend_postings[2].currency, "EUR");
+    assert!(revised.dividend_postings[2].receipt_id.is_none());
+    assert_eq!(revised.cash, 536_600_000);
+    assert_eq!(paid, replay(6, 6));
 }
 
 #[test]

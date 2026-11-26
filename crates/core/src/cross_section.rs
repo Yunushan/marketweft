@@ -1,9 +1,14 @@
 use crate::{
-    history::valid_second, paper::MAX_SHARES, LiquidityTape, PaperAccount, PaperAction,
-    PaperConfig, PaperEvent, PaperOrderStatus, PaperReceipt, PaperSide, PriceBook, UniverseAction,
-    MAX_TICKS,
+    history::valid_second, paper::MAX_SHARES, portfolio::PortfolioIncomeReports, LiquidityTape,
+    PaperAccount, PaperAction, PaperConfig, PaperEvent, PaperOrderStatus, PaperReceipt, PaperSide,
+    PriceBook, UniverseAction, MAX_TICKS,
 };
 use std::collections::{BTreeMap, BTreeSet};
+
+#[path = "cross_section_dividend.rs"]
+mod dividend;
+pub use dividend::CrossSectionDividendPosting;
+use dividend::DividendReplay;
 
 const BPS: i128 = 10_000;
 const MAX_DECISIONS: i64 = 512;
@@ -57,6 +62,7 @@ pub struct CrossSectionReport {
     pub fees: i128,
     pub turnover: i128,
     pub equity: Option<i128>,
+    pub dividend_postings: Vec<CrossSectionDividendPosting>,
 }
 
 struct Replay<'a> {
@@ -92,7 +98,7 @@ impl Replay<'_> {
             PaperAction::Fill { order_id, .. } | PaperAction::Cancel { order_id } => {
                 self.ledger.orders().get(order_id).map(|order| order.side)
             }
-            PaperAction::Halt => None,
+            PaperAction::CorporateCash { .. } | PaperAction::Halt => None,
         };
         self.events.push(CrossSectionEvent {
             listing_id: listing_id.to_owned(),
@@ -103,13 +109,13 @@ impl Replay<'_> {
         Ok(receipt)
     }
 
-    fn fill(&mut self, quote: &crate::ReplayLiquidity, participation: u16) -> Result<(), String> {
+    fn fill(&mut self, quote: &crate::ReplayLiquidity, participation: u16) -> Result<bool, String> {
         let Some(order_id) = self.pending.get(quote.listing_id.as_str()).cloned() else {
-            return Ok(());
+            return Ok(false);
         };
         let order = &self.ledger.orders()[&order_id];
         if quote.price_at <= order.submitted_at {
-            return Ok(());
+            return Ok(false);
         }
         let state = self
             .prices
@@ -121,14 +127,14 @@ impl Replay<'_> {
         if !matches!(state, Some(UniverseAction::Add | UniverseAction::Remove))
             || (order.side == PaperSide::Buy && state != Some(UniverseAction::Add))
         {
-            return Ok(());
+            return Ok(false);
         }
         let available = (i128::from(quote.shares) * i128::from(participation) / BPS) as u64;
         let shares = order.remaining.min(available);
         if shares == 0 {
-            return Ok(());
+            return Ok(false);
         }
-        self.record(
+        let receipt = self.record(
             &quote.listing_id,
             quote.observed_at,
             PaperAction::Fill {
@@ -142,7 +148,14 @@ impl Replay<'_> {
         if self.ledger.orders()[&order_id].status == PaperOrderStatus::Filled {
             self.pending.remove(quote.listing_id.as_str());
         }
-        Ok(())
+        Ok(receipt.rejection.is_none())
+    }
+
+    fn shares(&self, listing: &str) -> u64 {
+        self.ledger
+            .positions()
+            .get(&self.aliases[listing].to_string())
+            .map_or(0, |position| position.shares)
     }
 }
 
@@ -173,11 +186,7 @@ impl<'a> Replay<'a> {
 
         let mut orders = Vec::new();
         for (&listing, instrument) in &self.aliases {
-            let owned = self
-                .ledger
-                .positions()
-                .get(&instrument.to_string())
-                .map_or(0, |row| row.shares);
+            let owned = self.shares(listing);
             let desired = if selected.contains(listing) {
                 config.target_shares
             } else {
@@ -246,6 +255,34 @@ impl PriceBook<'_> {
         liquidity: &LiquidityTape,
         config: CrossSectionConfig,
     ) -> Result<CrossSectionReport, String> {
+        self.run_cross_section(liquidity, config, None)
+    }
+
+    pub fn cross_section_with_dividends(
+        &self,
+        liquidity: &LiquidityTape,
+        config: CrossSectionConfig,
+        dividend_csv: &str,
+        account_currency: &str,
+    ) -> Result<CrossSectionReport, String> {
+        if account_currency.len() != 3
+            || !account_currency
+                .bytes()
+                .all(|letter| letter.is_ascii_uppercase())
+        {
+            return Err("Use a three-letter uppercase paper account currency.".into());
+        }
+        let reports = PortfolioIncomeReports::parse(self.universe, dividend_csv)?;
+        let dividends = DividendReplay::new(&reports, account_currency);
+        self.run_cross_section(liquidity, config, Some(dividends))
+    }
+
+    fn run_cross_section(
+        &self,
+        liquidity: &LiquidityTape,
+        config: CrossSectionConfig,
+        mut dividends: Option<DividendReplay<'_>>,
+    ) -> Result<CrossSectionReport, String> {
         if liquidity.universe_name() != self.universe.name() {
             return Err("Liquidity and price inputs must use the same universe.".into());
         }
@@ -297,20 +334,60 @@ impl PriceBook<'_> {
             .iter()
             .filter(|quote| quote.price_at <= config.through_at)
             .peekable();
+        let mut advance = |replay: &mut Replay<'_>, through: i64| -> Result<(), String> {
+            loop {
+                let quote_time = observed.peek().map(|row| row.observed_at);
+                let dividend_time = dividends.as_mut().and_then(DividendReplay::next_time);
+                let Some(at) = quote_time.into_iter().chain(dividend_time).min() else {
+                    break;
+                };
+                if at > through {
+                    break;
+                }
+                if dividend_time == Some(at) {
+                    let income = dividends.as_mut().unwrap();
+                    for mut posting in income.next_postings(config.through_at) {
+                        if posting.currency == income.currency {
+                            let receipt = replay.record(
+                                &posting.listing_id,
+                                at,
+                                PaperAction::CorporateCash {
+                                    source_id: posting.dividend_id.clone(),
+                                    amount: posting.cash_delta,
+                                },
+                            )?;
+                            if receipt.rejection.is_some() {
+                                return Err("The paper ledger rejected a dividend posting.".into());
+                            }
+                            posting.receipt_id =
+                                replay.events.last().map(|row| row.event.id.clone());
+                        }
+                        income.postings.push(posting);
+                    }
+                } else {
+                    let quote = observed.next().unwrap();
+                    let executed = replay.fill(quote, config.participation_bps)?;
+                    if let Some(income) = dividends.as_mut().filter(|_| executed) {
+                        income.observe_position(
+                            &quote.listing_id,
+                            at,
+                            replay.shares(&quote.listing_id),
+                        );
+                    }
+                }
+            }
+            Ok(())
+        };
         let mut decisions = Vec::new();
         for slot in 0..=span / step {
             let at = config.from_at + slot * step;
             if at > config.known_at {
                 break;
             }
-            while observed.peek().is_some_and(|quote| quote.observed_at <= at) {
-                replay.fill(observed.next().unwrap(), config.participation_bps)?;
-            }
+            advance(&mut replay, at)?;
             decisions.push(replay.decide(at, config)?);
         }
-        for quote in observed {
-            replay.fill(quote, config.participation_bps)?;
-        }
+        advance(&mut replay, config.known_at)?;
         let membership: BTreeMap<_, _> = self
             .universe
             .as_of(config.through_at, config.known_at)
@@ -365,6 +442,7 @@ impl PriceBook<'_> {
             fees,
             turnover,
             equity,
+            dividend_postings: dividends.map_or_else(Vec::new, |income| income.postings),
         })
     }
 }

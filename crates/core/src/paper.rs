@@ -41,6 +41,10 @@ pub enum Action {
     Cancel {
         order_id: String,
     },
+    CorporateCash {
+        source_id: String,
+        amount: i128,
+    },
     Halt,
 }
 
@@ -66,6 +70,7 @@ pub enum Rejection {
     IneligiblePriceTime,
     LimitPrice,
     RepeatedFillSource,
+    InvalidCorporateCash,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -301,6 +306,21 @@ impl PaperAccount {
                 order.status = OrderStatus::Canceled;
                 Ok(PaperReceipt::accepted())
             }
+            Action::CorporateCash { source_id, amount } => {
+                if !valid_id(source_id)
+                    || !(-MAX_CASH_TICKS..=MAX_CASH_TICKS).contains(amount)
+                    || *amount == 0
+                {
+                    return Err(Rejection::InvalidCorporateCash);
+                }
+                self.cash += amount;
+                self.realized += amount;
+                Ok(PaperReceipt {
+                    cash_delta: *amount,
+                    realized_delta: *amount,
+                    ..PaperReceipt::accepted()
+                })
+            }
             Action::Halt => {
                 self.halted = true;
                 self.reserved = 0;
@@ -398,6 +418,10 @@ impl PaperAccount {
         let (new_position, cash_delta, realized_delta) = match order.side {
             Side::Buy => {
                 let cost = principal + charge;
+                let released = i128::from(shares) * i128::from(order.limit) + charge;
+                if self.available_cash() + released < cost {
+                    return Err(Rejection::CashLimit);
+                }
                 (
                     Position {
                         shares: position.shares + shares,

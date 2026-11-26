@@ -9,7 +9,7 @@ use std::{
 
 #[path = "portfolio_income.rs"]
 mod income;
-use income::PortfolioIncomeReports;
+pub(crate) use income::PortfolioIncomeReports;
 pub use income::{
     PortfolioDividendRow, PortfolioDividendState, PortfolioIncomeCurrency, PortfolioIncomeSnapshot,
 };

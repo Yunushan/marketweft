@@ -1073,6 +1073,9 @@ fn paper_event_fields(action: &PaperAction) -> PaperEventFields<'_> {
             Some(*price),
         ),
         PaperAction::Cancel { order_id } => (order_id.as_str(), "cancel", "", None, None, None),
+        PaperAction::CorporateCash { source_id, .. } => {
+            ("", "corporate-cash", source_id.as_str(), None, None, None)
+        }
         PaperAction::Halt => ("", "halt", "", None, None, None),
     }
 }
@@ -1115,6 +1118,7 @@ fn paper_rejection(reason: PaperRejection) -> &'static str {
         PaperRejection::IneligiblePriceTime => "price-time",
         PaperRejection::LimitPrice => "limit-price",
         PaperRejection::RepeatedFillSource => "repeated-fill-source",
+        PaperRejection::InvalidCorporateCash => "invalid-corporate-cash",
     }
 }
 

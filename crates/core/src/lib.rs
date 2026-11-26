@@ -38,8 +38,8 @@ pub use alerts::{
 };
 pub use backtest::{backtest, BacktestConfig, BacktestMark, BacktestReport, BacktestSignal};
 pub use cross_section::{
-    CrossSectionConfig, CrossSectionEvent, CrossSectionPosition, CrossSectionReport,
-    RankingDecision,
+    CrossSectionConfig, CrossSectionDividendPosting, CrossSectionEvent, CrossSectionPosition,
+    CrossSectionReport, RankingDecision,
 };
 pub use cross_section_liquidity::{LiquidityTape, ReplayLiquidity};
 pub use delisting::{

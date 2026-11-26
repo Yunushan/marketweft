@@ -93,10 +93,10 @@ pub struct DividendBook {
     rows: Vec<Dividend>,
 }
 
-struct DividendSchedule<'a> {
-    at: i64,
+pub(crate) struct DividendSchedule<'a> {
+    pub(crate) at: i64,
     kind: DividendKind,
-    row: &'a Dividend,
+    pub(crate) row: &'a Dividend,
 }
 
 struct DividendState<'a> {
@@ -161,7 +161,7 @@ impl DividendBook {
         self.ledger_with(&positions.rows, None)
     }
 
-    fn schedule(&self) -> Vec<DividendSchedule<'_>> {
+    pub(crate) fn schedule(&self) -> Vec<DividendSchedule<'_>> {
         let mut schedule = Vec::new();
         for revisions in self.rows.chunk_by(|a, b| a.id == b.id) {
             for (i, row) in revisions.iter().enumerate() {
