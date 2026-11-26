@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.40.0 · Cross-sectional walk-forward
+
+| Check | Observed result |
+| --- | --- |
+| Frozen training | Raising a test-window price changes first test equity from 999.1 to 1,023.1 while leaving its training scores intact. A later observed close leaves both completed folds and the earlier candidate ranking intact. |
+| Missing marks and coverage | The one-listing candidate earns training equity of 999.3. The two-listing candidate has an unmarked holding at that boundary. The winning test runs with a fresh account and records turnover of 484 and fees of 0.9. |
+| Corporate cash and offline export | Wasm verifies an out-of-sample settlement of 500 USD and test equity of 1,015.1. Chromium verifies zero, one and two completed windows, malformed candidate rejection, catalog preservation and byte-for-byte CSV rewind. |
+| Regression suite | All 81 browser, six SDK and four launcher tests passed on Windows x64. All 94 native tests passed on Linux x64, all 36 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Cross-sectional walk-forward](cross-sectional-walk-forward.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.39.0 · Recorded trade execution
 
 | Check | Observed result |

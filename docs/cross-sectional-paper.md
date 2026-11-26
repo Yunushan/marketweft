@@ -27,3 +27,5 @@ Start the listing risk demo and load the sample liquidity. Keep the default 60-s
 - Moving knowledge to 14:07 UTC reveals a late close while preserving the prior decisions and receipts. Returning to 14:01 UTC reproduces the earlier download.
 
 **Download paper replay** exports the source labels, cutoffs, settings, rankings, open positions and paper receipts. Each receipt includes its ledger outcome and any source liquidity ID. The packaged browser build includes the three synthetic reports and works offline once the terminal cache is ready.
+
+[Cross-sectional walk-forward](cross-sectional-walk-forward.md) ranks alternative lookbacks and listing counts with the accepted paper settings.
