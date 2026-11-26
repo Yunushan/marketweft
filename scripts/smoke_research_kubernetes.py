@@ -20,6 +20,25 @@ NAMESPACE = "marketweft-research"
 SERVICE = "marketweft-research"
 DEPLOYMENT = f"deployment/{SERVICE}"
 HOST = f"{SERVICE}.{NAMESPACE}.svc.cluster.local"
+WAIT_FOR_PEER_TLS = b"""
+import socket
+import ssl
+import sys
+import time
+
+host = sys.argv[1]
+trust = ssl.create_default_context(cafile="/peer/tls.crt")
+deadline = time.monotonic() + 30
+while True:
+    try:
+        with socket.create_connection((host, 4174), timeout=2) as connection:
+            with trust.wrap_socket(connection, server_hostname=host):
+                break
+    except (ConnectionRefusedError, TimeoutError):
+        if time.monotonic() >= deadline:
+            raise
+        time.sleep(0.25)
+"""
 
 
 def command(*args, timeout=240):
@@ -74,7 +93,9 @@ def exercise(archive, temporary):
     def put(path, data):
         kube("exec", "-i", "research-peer", "--", "sh", "-c", 'cat > "$1"', "sh", path, content=data)
 
-    def client():
+    def client(stage):
+        print(f"Checking peer HTTPS {stage}.", flush=True)
+        kube("exec", "-i", "research-peer", "--", "python", "-B", "-", HOST, content=WAIT_FOR_PEER_TLS)
         kube("exec", "-i", "research-peer", "--", "python", "-B", "-",
              f"https://{HOST}:4174", content=PEER.read_bytes())
 
@@ -125,16 +146,24 @@ def exercise(archive, temporary):
         service = json.loads(kube("get", "service", SERVICE, "-o", "json"))["spec"]
         assert service["type"] == "ClusterIP" and not service.get("externalIPs")
         assert kube("exec", DEPLOYMENT, "--", "id", "-u").strip() == b"65532"
-        client()
+        client("after startup")
         kube("rollout", "restart", DEPLOYMENT)
         wait_for_research()
-        client()
+        client("after restart")
         audit("backup", "audit", "snapshot", 6)
         audit("restore", "snapshot", "recovered", 6)
         kube("set", "env", DEPLOYMENT, f"MARKETWEFT_RESEARCH_AUDIT_DB={AUDIT}/recovered.sqlite")
         wait_for_research()
-        client()
+        client("with the restored ledger")
         audit("backup", "recovered", "reopened", 9)
+    except (subprocess.CalledProcessError, AssertionError):
+        for resources in (("get", "pods,service,endpointslices", "-o", "wide"),
+                          ("logs", DEPLOYMENT, "--tail=15")):
+            try:
+                print(kube(*resources).decode(errors="replace"), file=sys.stderr)
+            except subprocess.CalledProcessError:
+                pass
+        raise
     finally:
         try:
             command("kind", "delete", "cluster", "--name", cluster, "--kubeconfig", config)
