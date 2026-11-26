@@ -1,6 +1,6 @@
 # MarketWeft requirements and acceptance evidence
 
-The evidence column tracks delivery through 0.3.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
+The evidence column tracks delivery through 0.4.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
 
 | ID | Behavior and acceptance criterion | Evidence or next test |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ The evidence column tracks delivery through 0.3.0. “Backlog” identifies beha
 | MW-014 | Save editable drawings in data coordinates. Maintain an inventory of 150 distinct tools and 600 distinct built-in indicators. | Two indicators implemented. Test drawing serialization across zoom, then add only individually specified and verified tools and studies to counts. |
 | MW-015 | Specify an open time-series language with deterministic missing values, bounded evaluation and isolated plugins. | Backlog. Publish grammar, interpreter conformance vectors and quota tests before accepting user programs. |
 | MW-016 | Support custom financial/statistical formulas and Rust, TS, Python and Wasm SDKs. | Partial TS observation package. Future SDKs must exchange identical typed input and output fixtures and expose version negotiation. |
-| MW-017 | Track exchange sessions, action adjustments and point-in-time membership. | 0.3.0 validates supplied UTC-resolved sessions, offsets, early closes and gaps. Applied corporate actions and point-in-time membership are open. |
+| MW-017 | Track exchange sessions, action adjustments and point-in-time membership. | 0.4.0 verifies stock splits and reverse splits against announcement, effect and observation times. Raw and adjusted candles are compared before and after a split, including delayed reports and corrections. Other actions and point-in-time membership are open. [Action contract](corporate-actions.md). |
 | MW-018 | Screen an as-of universe and group a heatmap by sector, weight and return. | Backlog. Publish ranking and missing-data rules. Reconcile screen and heatmap constituents to the same timestamp. |
 | MW-019 | Rebuild depth, footprint, TPO, volume profiles and cumulative delta from ordered trades/quotes. | Backlog. Detect a sequence gap, resnapshot, and reconcile size totals and aggressor classifications. |
 | MW-020 | Backtest and optimize strategies with fees, slippage, execution delays and survivorship controls. | Backlog. A signal at close cannot fill before the next eligible event. Test a delisted constituent, partial fills and cash reconciliation. |
