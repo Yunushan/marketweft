@@ -12,6 +12,12 @@ For a structured grant, **Export CSV** requires **Granted** redistribution permi
 
 Use **Workspace backup** to recover your local catalog and its permission records.
 
+## Time-series formulas
+
+For a structured grant, **Evaluate formula** requires **Granted** automated-use permission for the selected history. Each evaluation checks the device's UTC date against the last valid day of the grant. A permission error clears any earlier result in the current formula panel.
+
+The formula's observation cutoff controls which historical bars are available to the calculation. The grant check uses the current UTC date.
+
 ## Backup and restore
 
 Exports containing a structured grant use workspace backup version 7 and series descriptor version 2. The per-series checksum covers the structured grant and its underlying data. Restore validates the four permission statuses and any UTC expiry before preparing a replacement.

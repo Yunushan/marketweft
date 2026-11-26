@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.71.0 · Formula automated-use permission
+
+| Check | Observed result |
+| --- | --- |
+| Evaluation authorization | Chromium rejected restricted and unconfirmed automated-use declarations before producing values. A granted history evaluated to the exact close of `1.000001`. |
+| UTC deadline | The granted formula ran in the last millisecond of its final UTC day. A retry at the next UTC midnight reported expiration and cleared the previous results. The catalog stayed intact. |
+| Compatibility | The existing offline formula test preserved the observed prefix, exact decimal values and CSV export for a legacy history. Chart CSV checks still passed. |
+
+[Formula use permission](source-permissions.md#time-series-formulas) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.70.0 · Chart CSV redistribution permission
 
 | Check | Observed result |

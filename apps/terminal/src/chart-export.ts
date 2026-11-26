@@ -1,4 +1,5 @@
 import type { SeriesMetadata } from './catalog-schema'
+import { sourcePermissionRestriction } from './catalog-schema'
 import { fixed } from './fixed-point'
 import type { SessionTimeframeBar, TimeframeBar } from './market-core'
 import type { Asset } from './workspace'
@@ -25,13 +26,11 @@ export function chartCsv(
   metadata: SeriesMetadata | undefined,
   analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView } | undefined,
 ) {
-  const rights = metadata?.sourceRights
-  if (rights) {
-    if (rights.redistribution !== 'granted')
-      throw Error('Chart CSV export requires a granted redistribution permission.')
-    if (rights.expiresOn && new Date().toISOString().slice(0, 10) > rights.expiresOn)
-      throw Error('Chart CSV export is unavailable because the source grant has expired.')
-  }
+  const restriction = sourcePermissionRestriction(metadata?.sourceRights, 'redistribution')
+  if (restriction === 'permission')
+    throw Error('Chart CSV export requires a granted redistribution permission.')
+  if (restriction === 'expired')
+    throw Error('Chart CSV export is unavailable because the source grant has expired.')
   const fields = ['time', 'open', 'high', 'low', 'close', 'volume']
   let provenance = ''
   if (analysis) {

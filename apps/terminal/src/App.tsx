@@ -590,7 +590,8 @@ export function App({
     const Research = { 'tick-bars': TickBarsResearch, depth: DepthResearch, footprint: FootprintResearch,
       formula: FormulaResearch }[marketResearch]
     return <Suspense fallback={<p role="status">Loading research…</p>}>
-    <Research key={asset.id} core={core} asset={asset} sourceLabel={descriptor?.source ?? source} close={() => {
+    <Research key={asset.id} core={core} asset={asset} sourceLabel={descriptor?.source ?? source}
+      sourceRights={sourceRights} close={() => {
       restoreResearchFocus.current = marketResearch
       setMarketResearch(null)
     }} />

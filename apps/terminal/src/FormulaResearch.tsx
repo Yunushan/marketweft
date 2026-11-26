@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { sourcePermissionRestriction, type SourceRights } from './catalog-schema'
 import type { FormulaResult, MarketCore } from './market-core'
 import type { Asset } from './workspace'
 import { Mark } from './Icons'
@@ -61,8 +62,8 @@ function FormulaPlot({ values }: { values: (bigint | null)[] }) {
     aria-label={`Formula output for the latest ${Math.min(512, values.length)} observed bars`} />
 }
 
-export function FormulaResearch({ core, asset, sourceLabel, close }: {
-  core: MarketCore; asset: Asset; sourceLabel: string; close: () => void
+export function FormulaResearch({ core, asset, sourceLabel, sourceRights, close }: {
+  core: MarketCore; asset: Asset; sourceLabel: string; sourceRights?: SourceRights; close: () => void
 }) {
   const title = useRef<HTMLHeadingElement>(null)
   const [source, setSource] = useState('close - sma(close, 3)')
@@ -103,6 +104,14 @@ export function FormulaResearch({ core, asset, sourceLabel, close }: {
 
   function run(event: FormEvent) {
     event.preventDefault()
+    const restriction = sourcePermissionRestriction(sourceRights, 'automatedUse')
+    if (restriction) {
+      setReport(null)
+      setError(restriction === 'permission'
+        ? 'Formula evaluation requires granted automated-use permission.'
+        : 'Formula evaluation is unavailable because the source grant has expired.')
+      return
+    }
     try {
       const cutoff = through.trim()
       const second = Date.parse(cutoff) / 1000

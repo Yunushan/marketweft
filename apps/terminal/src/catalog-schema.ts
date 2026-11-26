@@ -29,6 +29,15 @@ export type SourceRight = (typeof SOURCE_RIGHTS)[number]
 export type SourceRightStatus = 'unconfirmed' | 'granted' | 'restricted'
 export type SourceRights = Record<SourceRight, SourceRightStatus> & { expiresOn?: string }
 
+export function sourcePermissionRestriction(
+  rights: SourceRights | undefined, action: SourceRight,
+): 'permission' | 'expired' | undefined {
+  if (!rights) return undefined
+  if (rights[action] !== 'granted') return 'permission'
+  if (rights.expiresOn && new Date().toISOString().slice(0, 10) > rights.expiresOn) return 'expired'
+  return undefined
+}
+
 type SeriesProvenance = {
   venue: string
   symbol: string

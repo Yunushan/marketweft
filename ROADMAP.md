@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.70.0 applies structured redistribution permission and expiry to chart CSV export. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.71.0 applies structured automated-use permission and expiry to time-series formulas. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -73,6 +73,7 @@
 | Delivered · 0.68.0 | Research readiness (MW-030) | Verify admission capacity, locked SQLite audit storage and graceful drain independently of process liveness. [Research readiness](docs/local-rest-research.md#research-readiness). |
 | Delivered · 0.69.0 | Structured source permissions (MW-029) | Record display, storage, redistribution and automated-use permissions and a UTC expiry on imported data. Verify versioned workspace recovery and preserve earlier history files. [Source permissions](docs/source-permissions.md). |
 | Delivered · 0.70.0 | Chart CSV redistribution permission (MW-029) | Apply the declared redistribution grant to CSV downloads and verify the final included UTC day in Chromium. [Chart CSV export](docs/source-permissions.md#chart-csv-export). |
+| Delivered · 0.71.0 | Formula automated-use permission (MW-029) | Check the selected history at evaluation time and verify that its UTC expiration blocks a retry and clears the earlier result. [Formula use permission](docs/source-permissions.md#time-series-formulas). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -84,5 +85,5 @@
 
 ## Handoff for the next change
 
-Apply declared automated-use permissions and expiration when running a formula against a selected catalog history. Verify permission checking at evaluation time.
+Apply redistribution permission to formula-result CSVs at download time. Verify that a valid local evaluation can remain visible while its export is restricted or has expired.
 
