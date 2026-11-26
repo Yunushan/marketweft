@@ -96,6 +96,21 @@ impl<'a> PriceBook<'a> {
         Ok(book)
     }
 
+    pub(crate) fn exact_close(
+        &self,
+        listing_id: &str,
+        price_at: i64,
+        known_at: i64,
+    ) -> Option<PriceObservation> {
+        let (&observed_at, &ticks) = self
+            .prices
+            .get(listing_id)?
+            .get(&price_at)?
+            .range(..=known_at)
+            .next_back()?;
+        Some(PriceObservation { observed_at, ticks })
+    }
+
     /// Use members effective at the target and reports known by a shared observation cutoff.
     /// Each endpoint requires a close at its exact time. Missing members remain in the results.
     pub fn screen(
@@ -112,11 +127,7 @@ impl<'a> PriceBook<'a> {
             if listing.action != UniverseAction::Add {
                 continue;
             }
-            let series = self.prices.get(&listing.listing_id);
-            let price = |at| {
-                let (&observed_at, &ticks) = series?.get(&at)?.range(..=known_at).next_back()?;
-                Some(PriceObservation { observed_at, ticks })
-            };
+            let price = |at| self.exact_close(&listing.listing_id, at, known_at);
             rows.push(ScreenRow {
                 listing,
                 baseline: price(baseline_at),

@@ -62,6 +62,8 @@ BETA is unranked until its close is observed at 14:12 UTC.
 Under Delisting proceeds, load the demo or import delisting-terms.csv.
 Set both universe cutoffs to 14:35 UTC to see missing proceeds, 14:37
 for the USD receivable, and 14:50 for the first cash posting.
+Portfolio replay combines portfolio-holdings.csv, universe-prices.csv
+and optional delisting-terms.csv at the universe replay cutoffs.
 Below the rankings, choose Load demo sectors or upload universe-sectors.csv
 with the matching membership and price reports. The Sector heatmap shows
 each listing's sector, weight, price return and observed contribution.
@@ -121,6 +123,7 @@ def main():
     files["dividend-positions.csv"] = (fixture / "synthetic-dividend-positions.csv").read_bytes()
     files["universe-membership.csv"] = (fixture / "synthetic-universe.csv").read_bytes()
     files["delisting-terms.csv"] = (fixture / "synthetic-delisting-terms.csv").read_bytes()
+    files["portfolio-holdings.csv"] = (fixture / "synthetic-portfolio-holdings.csv").read_bytes()
     files["split-revisions.csv"] = (fixture / "synthetic-split-revisions.csv").read_bytes()
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()
     files["universe-sectors.csv"] = (fixture / "synthetic-universe-sectors.csv").read_bytes()

@@ -205,7 +205,7 @@ impl DelistingBook {
         Ok(())
     }
 
-    fn value<'a>(
+    pub(crate) fn value<'a>(
         &'a self,
         member: Option<&'a UniverseChange>,
         shares: u32,

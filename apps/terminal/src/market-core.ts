@@ -361,6 +361,27 @@ export interface DelistingValuation {
   ledger: { at: number; currency: string; delta: bigint; balance: bigint }[];
 }
 
+export interface PortfolioSnapshot {
+  effectiveAt: number;
+  knownAt: number;
+  unvaluedPositions: number;
+  totals: { currency: string; sharesValue: bigint; receivable: bigint; cash: bigint }[];
+  holdings: {
+    listing: string;
+    instrument: string | null;
+    shares: number;
+    positionEffectiveAt: number;
+    positionObservedAt: number;
+    state: 'unobserved' | 'missing-close' | 'shares' | 'missing-proceeds' | 'receivable' | 'cash';
+    currency: string | null;
+    value: bigint | null;
+    price: bigint | null;
+    priceObservedAt: number | null;
+    delisting: string | null;
+    termsObservedAt: number | null;
+  }[];
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -374,6 +395,8 @@ export interface MarketCore {
   universeAsOf(csv: string, effectiveAt: string, knownAt: string): UniverseListing[];
   delistingAsOf(membership: string, terms: string, listing: string, shares: number,
     effectiveAt: string, knownAt: string): DelistingValuation;
+  portfolioAsOf(membership: string, holdings: string, prices: string, terms: string,
+    effectiveAt: string, knownAt: string): PortfolioSnapshot;
   universeScreen(membership: string, prices: string, baselineAt: string,
     effectiveAt: string, knownAt: string): ScreenRow[];
   sectorHeatmap(membership: string, prices: string, sectors: string, baselineAt: string,
@@ -416,6 +439,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_universe_index(): number;
   mw_universe_as_of(): number;
   mw_delisting_as_of(membershipBytes: number, shares: number): number;
+  mw_portfolio_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number): number;
   mw_universe_screen(membershipBytes: number): number;
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
   mw_financial_index(filingBytes: number): number;
@@ -680,6 +704,39 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         if (tag === 'L') value.ledger.push({ at: Number(a), currency: b, delta: BigInt(c), balance: BigInt(d) });
       }
       return value;
+    },
+    portfolioAsOf(membership, holdings, prices, terms, effectiveAt, knownAt) {
+      if ([effectiveAt, knownAt].some(time => time.length !== 20 || /[\n\r]/.test(time))) {
+        throw new Error('Use YYYY-MM-DDTHH:MM:SSZ UTC portfolio cutoffs.');
+      }
+      textInput([effectiveAt, knownAt, membership + holdings + prices + terms].join('\n'));
+      const text = decoder.decode(output(api.mw_portfolio_as_of(
+        encoder.encode(membership).length, encoder.encode(holdings).length, encoder.encode(prices).length,
+      )));
+      const [header, ...rows] = text.slice(0, -1).split('\n');
+      const [, effective, known, unavailable] = header.split('\t');
+      const report: PortfolioSnapshot = {
+        effectiveAt: Number(effective), knownAt: Number(known), unvaluedPositions: Number(unavailable),
+        holdings: [], totals: [],
+      };
+      for (const row of rows) {
+        const [kind, ...fields] = row.split('\t');
+        if (kind === 'C') {
+          const [currency, sharesValue, receivable, cash] = fields;
+          report.totals.push({ currency, sharesValue: BigInt(sharesValue), receivable: BigInt(receivable), cash: BigInt(cash) });
+        } else {
+          const [listing, instrument, shares, effective, observed, state, currency,
+            value, price, priceAt, delisting, termsAt] = fields;
+          report.holdings.push({
+            listing, instrument: instrument || null, shares: Number(shares), positionEffectiveAt: Number(effective),
+            positionObservedAt: Number(observed), state: state as PortfolioSnapshot['holdings'][number]['state'],
+            currency: currency || null, value: value ? BigInt(value) : null, price: price ? BigInt(price) : null,
+            priceObservedAt: priceAt ? Number(priceAt) : null, delisting: delisting || null,
+            termsObservedAt: termsAt ? Number(termsAt) : null,
+          });
+        }
+      }
+      return report;
     },
     universeScreen(membership, prices, baselineAt, effectiveAt, knownAt) {
       screenInput([baselineAt, effectiveAt, knownAt], membership, prices);

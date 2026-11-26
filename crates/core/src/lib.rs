@@ -13,6 +13,7 @@ mod option_chain;
 mod option_price;
 mod paper;
 mod paper_replay;
+mod portfolio;
 mod replay;
 mod scenarios;
 mod screen;
@@ -53,6 +54,9 @@ pub use paper::{
     Position as PaperPosition, Rejection as PaperRejection, Side as PaperSide,
 };
 pub use paper_replay::{parse_paper_config, PaperReplay};
+pub use portfolio::{
+    PortfolioBook, PortfolioCurrency, PortfolioRow, PortfolioSnapshot, PortfolioState,
+};
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};
 pub use screen::{PriceBook, PriceObservation, ScreenRow};

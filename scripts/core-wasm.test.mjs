@@ -254,6 +254,26 @@ test('Wasm universe queries gate each listing by knowledge and effective time', 
   assert.throws(() => core.universeAsOf(csv, '2025-06-31T14:00:00Z', iso('14:35:00')), /UTC timestamps/);
 });
 
+test('portfolio Wasm keeps late closes and delisting cash separate by listing and currency', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
+  const [universe, holdings, prices, terms] = await Promise.all(
+    ['universe', 'portfolio-holdings', 'universe-prices', 'delisting-terms'].map(fixture));
+  const time = value => '2025-06-02T' + value + ':00Z';
+  const value = (effective, known = effective) => core.portfolioAsOf(universe, holdings, prices, terms, time(effective), time(known));
+  assert.equal(value('14:10').unvaluedPositions, 1);
+  assert.equal(value('14:10').holdings[1].value, null);
+  assert.equal(value('14:10', '14:12').holdings[1].value, 560000000n);
+  assert.equal(value('14:35').holdings[1].state, 'missing-proceeds');
+  const reused = value('14:45');
+  assert.equal(reused.holdings[1].instrument, reused.holdings[2].instrument);
+  assert.equal(reused.holdings[1].value, 70000000n);
+  assert.equal(reused.holdings[2].value, 225000000n);
+  assert.deepEqual(value('14:50').totals[0], { currency: 'USD', sharesValue: 214000000n, receivable: 0n, cash: 70000000n });
+  assert.equal(value('14:58').totals[0].cash, 64000000n);
+  assert.deepEqual(value('15:04').totals[0], { currency: 'EUR', sharesValue: 0n, receivable: 0n, cash: 72000000n });
+  assert.equal(value('15:05').holdings[1].value, 0n);
+});
+
 test('delisting Wasm separates the two cutoffs and preserves exact cash reversals', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
   const [membership, reports] = await Promise.all([fixture('universe'), fixture('delisting-terms')]);

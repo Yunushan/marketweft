@@ -4,6 +4,7 @@ import type { MarketCore, UniverseListing } from './market-core'
 import { Mark } from './Icons'
 import { UniverseScreen } from './UniverseScreen'
 import { DelistingReplay } from './DelistingReplay'
+import { PortfolioReplay } from './PortfolioReplay'
 import { utc } from './workspace'
 import demo from '../../../crates/core/tests/fixtures/synthetic-universe.csv?raw'
 
@@ -344,6 +345,13 @@ export function UniverseReplay({
               known={result.known}
             />
             <DelistingReplay
+              core={core}
+              membership={dataset.csv}
+              demo={dataset.demo}
+              effective={result.effective}
+              known={result.known}
+            />
+            <PortfolioReplay
               core={core}
               membership={dataset.csv}
               demo={dataset.demo}

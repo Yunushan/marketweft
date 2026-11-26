@@ -263,6 +263,84 @@ pub extern "C" fn mw_delisting_as_of(membership_bytes: usize, shares: u32) -> u3
 }
 
 #[no_mangle]
+pub extern "C" fn mw_portfolio_as_of(
+    membership_bytes: usize,
+    holding_bytes: usize,
+    price_bytes: usize,
+) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(3, '\n');
+        let mut cutoff = || {
+            parts
+                .next()
+                .and_then(exact_utc)
+                .ok_or("Use YYYY-MM-DDTHH:MM:SSZ portfolio cutoffs.")
+        };
+        let effective = cutoff()?;
+        let known = cutoff()?;
+        let (membership, input) = parts
+            .next()
+            .and_then(|input| input.split_at_checked(membership_bytes))
+            .ok_or("Supply a universe membership report.")?;
+        let (holdings, input) = input
+            .split_at_checked(holding_bytes)
+            .ok_or("Supply a portfolio holdings report.")?;
+        let (prices, terms) = input
+            .split_at_checked(price_bytes)
+            .ok_or("Supply price and delisting reports.")?;
+        let universe = parse_universe(membership)?;
+        let book = crate::PortfolioBook::parse(&universe, holdings, prices, terms)?;
+        let snapshot = book.as_of(effective, known);
+        let mut text = String::new();
+        writeln!(
+            text,
+            "P\t{}\t{}\t{}",
+            snapshot.effective_at, snapshot.known_at, snapshot.unvalued_positions
+        )
+        .unwrap();
+        for (currency, totals) in snapshot.totals {
+            writeln!(
+                text,
+                "C\t{currency}\t{}\t{}\t{}",
+                totals.shares_value, totals.delisting_receivable, totals.delisting_cash
+            )
+            .unwrap();
+        }
+        let optional = |value: Option<i64>| value.map(|n| n.to_string()).unwrap_or_default();
+        for row in snapshot.rows {
+            let state = match row.state {
+                crate::PortfolioState::ListingUnobserved => "unobserved",
+                crate::PortfolioState::MissingClose => "missing-close",
+                crate::PortfolioState::MarkedShares => "shares",
+                crate::PortfolioState::MissingProceeds => "missing-proceeds",
+                crate::PortfolioState::Receivable => "receivable",
+                crate::PortfolioState::Cash => "cash",
+            };
+            writeln!(
+                text,
+                "H\t{}\t{}\t{}\t{}\t{}\t{state}\t{}\t{}\t{}\t{}\t{}\t{}",
+                row.listing_id,
+                row.instrument.map(ToString::to_string).unwrap_or_default(),
+                row.shares,
+                row.position_effective_at,
+                row.position_observed_at,
+                row.currency.unwrap_or_default(),
+                row.value.map(|value| value.to_string()).unwrap_or_default(),
+                optional(row.price.map(|price| price.ticks)),
+                optional(row.price.map(|price| price.observed_at)),
+                row.delisting
+                    .map(|action| action.change_id.as_str())
+                    .unwrap_or_default(),
+                optional(row.terms_observed_at)
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_universe_screen(membership_bytes: usize) -> u32 {
     use std::fmt::Write;
     process(|input| {
