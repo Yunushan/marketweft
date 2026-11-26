@@ -55,6 +55,15 @@ services:
         source: credentials
         target: /var/lib/marketweft/credentials
 
+  audit-admin:
+    <<: *research-container
+    profiles: [operators]
+    network_mode: none
+    volumes:
+      - type: volume
+        source: audit
+        target: /var/lib/marketweft/audit
+
 networks:
   research:
     internal: true

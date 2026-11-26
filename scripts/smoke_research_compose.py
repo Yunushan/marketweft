@@ -1,7 +1,9 @@
-"""Verify private Compose startup, restart and restored SQLite reuse."""
+"""Verify private Compose restart and recovery in existing and fresh volumes."""
+from contextlib import closing
 import os
 from pathlib import Path
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -31,7 +33,7 @@ def certificate(tls, peer):
     shutil.copyfile(cert, peer / "tls.crt")
 
 
-def exercise(image, tls, peer):
+def exercise(image, tls, peer, restore_from=None):
     project = f"mwcompose-{uuid.uuid4().hex[:10]}"
     environment = dict(
         os.environ,
@@ -61,16 +63,30 @@ def exercise(image, tls, peer):
         )
         assert output.strip() == f"Verified {count} audit receipts, 0 unfinished.".encode()
 
+    def export(name, destination):
+        compose("cp", f"research:{AUDIT}/{name}.sqlite", str(destination))
+        return destination
+
     try:
         compose("config", "--quiet")
         for scope in ("formula", "screen"):
             issued = compose("run", "--rm", "--no-deps", "-T", "credential-admin",
                              "credential", "issue", CREDENTIALS, scope, "300")
             (peer / f"{scope}.json").write_bytes(issued)
+        if restore_from is not None:
+            restored = compose(
+                "run", "--rm", "--no-deps", "-T",
+                "--volume", f"{restore_from}:/transfer/snapshot.sqlite:ro", "audit-admin",
+                "audit", "restore", "/transfer/snapshot.sqlite", f"{AUDIT}/audit.sqlite",
+            )
+            assert restored.strip() == b"Verified 6 audit receipts, 0 unfinished."
         start()
         container = compose("ps", "-q", "research").decode().strip()
         assert container and not docker("port", container).strip()
         client()
+        if restore_from is not None:
+            audit("backup", "audit", "destination", 9)
+            return export("destination", peer / "audit-destination.sqlite")
         compose("restart", "research")
         start()
         client()
@@ -80,8 +96,18 @@ def exercise(image, tls, peer):
         start()
         client()
         audit("backup", "recovered", "reopened", 9)
+        return export("snapshot", peer / "audit-source.sqlite")
     finally:
         compose("down", "--volumes", "--remove-orphans")
+
+
+def receipts(path):
+    with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro&immutable=1", uri=True)) as database:
+        assert database.execute("PRAGMA quick_check").fetchone() == ("ok",)
+        return database.execute(
+            "SELECT receipt_id, transport, scope, started_at, finished_at, outcome "
+            "FROM research_receipts ORDER BY receipt_id"
+        ).fetchall()
 
 
 if __name__ == "__main__":
@@ -92,9 +118,18 @@ if __name__ == "__main__":
             peer.mkdir()
             certificate(tls, peer)
             try:
-                exercise(sys.argv[1], tls, peer)
+                source = exercise(sys.argv[1], tls, peer)
+                source.chmod(0o444)
+                try:
+                    destination = exercise(sys.argv[1], tls, peer, restore_from=source)
+                finally:
+                    source.chmod(0o600)
+                original, recovered = receipts(source), receipts(destination)
+                assert len(original) == 6 and recovered[:6] == original
+                assert [row[0] for row in recovered[6:]] == [7, 8, 9]
+                assert all(row[-1] == "completed" for row in recovered)
             finally:
                 tls.chmod(0o700)
-        print("Verified private Compose restart, six recovered receipts and three new receipts.")
+        print("Verified private Compose restart and a separate fresh-volume restore with receipt IDs 7 through 9.")
     except subprocess.CalledProcessError as error:
         raise SystemExit(error.stderr.decode(errors="replace").strip() or str(error)) from error

@@ -202,3 +202,25 @@ On Unix, SIGTERM or SIGINT starts a controlled shutdown. On Windows, Ctrl+C or C
 Admitted work retains its slot and may finish during the drain. The default deadline is five seconds. Set `MARKETWEFT_RESEARCH_SHUTDOWN_SECONDS` from 1 to 30 to change it. The supplied Compose and Kubernetes manifests allow 35 seconds for the process to exit.
 
 Audit updates committed before exit survive a restart. A receipt whose outcome was still pending at exit remains unfinished for inspection in the ledger.
+
+## Recover audit in a separate Compose project
+
+Make a verified SQLite snapshot in the source project and copy the file to a private transfer directory. Set `SOURCE_PROJECT` to the source Compose project name.
+
+```sh
+layout=apps/research-service/deploy/compose.yaml
+docker compose -p "$SOURCE_PROJECT" -f "$layout" exec research marketweft-research-service audit backup /var/lib/marketweft/audit/audit.sqlite /var/lib/marketweft/audit/transfer.sqlite
+docker compose -p "$SOURCE_PROJECT" -f "$layout" cp research:/var/lib/marketweft/audit/transfer.sqlite ./transfer.sqlite
+```
+
+Configure the destination project's certificate, private address and managed credentials independently. Give it a new Compose project name in `RECOVERY_PROJECT`. If both projects run on the same Docker host, assign them distinct private subnets. Make the snapshot readable by UID 65532 for the restore.
+
+Before starting the destination service, restore the snapshot to the new audit volume. The operator container has networking disabled. The restore verifies the receipt count and requires a fresh destination path. Start research with the restored file selected.
+
+```sh
+docker compose -p "$RECOVERY_PROJECT" -f "$layout" run --rm --no-deps --volume "$PWD/transfer.sqlite:/transfer/snapshot.sqlite:ro" audit-admin audit restore /transfer/snapshot.sqlite /var/lib/marketweft/audit/audit.sqlite
+export MARKETWEFT_RESEARCH_AUDIT_FILE=audit.sqlite
+docker compose -p "$RECOVERY_PROJECT" -f "$layout" up -d --wait research
+```
+
+The destination continues the receipt sequence from the snapshot.

@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.65.0 · Fresh-volume audit recovery
+
+| Check | Observed result |
+| --- | --- |
+| Snapshot transfer | The source Compose project exported a consistent SQLite snapshot with six completed receipts. A second project restored it to a new audit volume through a network-isolated operator, then started its own TLS listener. |
+| Receipt continuity | The destination preserved all six original rows, including the receipt IDs, timestamps and outcomes. Its authorized peer then added completed receipts 7, 8 and 9. Both snapshots passed SQLite integrity checks. |
+
+[Fresh-volume recovery](local-rest-research.md#recover-audit-in-a-separate-compose-project) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.64.0 · Controlled research shutdown
 
 | Check | Observed result |
