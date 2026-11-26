@@ -1,6 +1,6 @@
 # MarketWeft requirements and acceptance evidence
 
-The evidence column tracks delivery through 0.8.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
+The evidence column tracks delivery through 0.9.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
 
 | ID | Behavior and acceptance criterion | Evidence or next test |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ The evidence column tracks delivery through 0.8.0. “Backlog” identifies beha
 | MW-020 | Backtest and optimize strategies with fees, slippage, execution delays and survivorship controls. | Backlog. A signal at close cannot fill before the next eligible event. Test a delisted constituent, partial fills and cash reconciliation. |
 | MW-021 | Run an isolated paper ledger with fees, position limits, exposure caps, idempotency and kill switch. | Backlog. A repeated order must have one effect. Disallowed exposure, stopped accounts and unauthorized live routes must fail closed. |
 | MW-022 | Gate live execution by operator authorization and deterministic risk decisions. | Backlog. Prove a read-only or AI client cannot escalate, retry or bypass limits. Require venue-specific acceptance evidence. |
-| MW-023 | Research financial statements and valuation using publication-time vintages, currencies and restatements. | Backlog. Reproduce a dated valuation with original and revised filings. |
+| MW-023 | Research financial statements and valuation using publication-time vintages, currencies and restatements. | 0.9.0 reconstructs annual publication vintages with stable issuer and filing IDs, separate capitalization revisions and traceable P/E, P/S and P/B. Scope remains local with annual periods. [Contracts and fixtures](financial-statements.md). |
 | MW-024 | Serve economic events with release time, actual, forecast and revision lineage. | Backlog. An as-of query before a release must yield no actual for that release. |
 | MW-025 | Run walk-forward optimization and seeded Monte Carlo, report drawdown, exposure and portfolio risk. | Backlog. Enforce disjoint evaluation periods and reproduce percentiles on a synthetic portfolio. |
 | MW-026 | Observe option chains and calculate Greeks and implied volatility surfaces. | Backlog. Check put-call parity, finite-difference Greeks, inversion error and invalid quote handling. |
