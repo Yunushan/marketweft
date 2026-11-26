@@ -5,16 +5,31 @@ export const MAX_PROVIDER_VERIFICATION_BYTES = 65_536
 const MAX_PROVIDER_KEY_BYTES = 4096
 const MAX_REGISTRY_KEYS = 32
 const MAX_KEYS_PER_PROVIDER = 4
+type VerificationKey = { pem: string; from: number; until: number }
+const unrestricted = (pem: string): VerificationKey => ({ pem, from: -Infinity, until: Infinity })
 
 export function validProvider(value: unknown): value is string {
   return typeof value === 'string' && value.length <= 64 &&
     /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(value)
 }
 
-function providerKeys(text: string, provider: string): string[] {
+function utcSecond(value: unknown): number {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value))
+    throw Error('Use whole UTC seconds for provider key activation and retirement.')
+  const time = Date.parse(value)
+  if (!Number.isFinite(time) || new Date(time).toISOString().replace('.000Z', 'Z') !== value)
+    throw Error('Use whole UTC seconds for provider key activation and retirement.')
+  return time
+}
+
+function activeAt(key: VerificationKey, time: number) {
+  return key.from <= time && time < key.until
+}
+
+function providerKeys(text: string, provider: string): VerificationKey[] {
   if (text.length > MAX_PROVIDER_VERIFICATION_BYTES)
     throw Error('The provider verification file exceeds 64 KiB.')
-  if (!text.trimStart().startsWith('{')) return [text]
+  if (!text.trimStart().startsWith('{')) return [unrestricted(text)]
   let registry: unknown
   try {
     registry = JSON.parse(text)
@@ -23,20 +38,26 @@ function providerKeys(text: string, provider: string): string[] {
   }
   if (!registry || typeof registry !== 'object' || Object.keys(registry).length !== 3 ||
       !('format' in registry) || registry.format !== 'marketweft-provider-key-registry' ||
-      !('version' in registry) || registry.version !== 1 ||
+      !('version' in registry) || (registry.version !== 1 && registry.version !== 2) ||
       !('keys' in registry) || !Array.isArray(registry.keys) ||
       registry.keys.length === 0 || registry.keys.length > MAX_REGISTRY_KEYS)
-    throw Error('Choose a version 1 provider key registry with 1 through 32 keys.')
-  const byProvider = new Map<string, string[]>()
+    throw Error('Choose a version 1 or 2 provider key registry with 1 through 32 keys.')
+  const timed = registry.version === 2
+  const byProvider = new Map<string, VerificationKey[]>()
   for (const entry of registry.keys) {
-    if (!entry || typeof entry !== 'object' || Object.keys(entry).length !== 2 ||
+    if (!entry || typeof entry !== 'object' || Object.keys(entry).length !== (timed ? 4 : 2) ||
         !validProvider(entry.provider) || typeof entry.pem !== 'string' ||
         entry.pem.length === 0 || entry.pem.length > MAX_PROVIDER_KEY_BYTES)
       throw Error('Each registry entry requires a provider identifier and public key PEM.')
     const keys = byProvider.get(entry.provider) ?? []
     if (keys.length >= MAX_KEYS_PER_PROVIDER)
       throw Error('The provider key registry allows at most four keys per provider.')
-    keys.push(entry.pem)
+    const key = timed
+      ? { pem: entry.pem, from: utcSecond(entry.validFrom), until: utcSecond(entry.validUntil) }
+      : unrestricted(entry.pem)
+    if (key.from >= key.until)
+      throw Error('Provider key retirement must follow activation.')
+    keys.push(key)
     byProvider.set(entry.provider, keys)
   }
   const selected = byProvider.get(provider)
@@ -65,14 +86,20 @@ export async function verifyProviderSignature(
 ): Promise<string> {
   if (typeof signature !== 'string' || !/^[A-Za-z0-9_-]{86}$/.test(signature))
     throw Error('Supply an unpadded base64url P-256 signature.')
-  const keys = providerKeys(verification, provider)
+  const time = Date.now()
+  const keys = providerKeys(verification, provider).filter(key => activeAt(key, time))
+  if (!keys.length) throw Error('The provider key registry has no active key at the current UTC time.')
   const signed = new TextEncoder().encode(canonicalJson(manifest, 'The signed provider manifest contains an unsupported value.'))
   const bytes = Uint8Array.from(atob(signature.replaceAll('-', '+').replaceAll('_', '/')),
     character => character.charCodeAt(0))
-  for (const pem of keys) {
-    const { key, der } = await importKey(pem)
-    if (await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, bytes, signed))
-      return sha256Bytes(der)
+  for (const entry of keys) {
+    const { key, der } = await importKey(entry.pem)
+    if (await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, bytes, signed)) {
+      const fingerprint = await sha256Bytes(der)
+      if (!activeAt(entry, Date.now()))
+        throw Error('The provider key retired before verification completed.')
+      return fingerprint
+    }
   }
   throw Error('The provider history signature does not match the supplied key and manifest.')
 }

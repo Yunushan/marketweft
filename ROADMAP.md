@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.77.0 verifies and rotates provider keys with an operator-supplied registry. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.78.0 enforces timed activation and retirement for provider verification keys. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -80,6 +80,7 @@
 | Delivered · 0.75.0 | Signed provider history fixtures (MW-013, MW-029) | Verify the provider and grant against a supplied P-256 public key. Reject substituted metadata, the wrong key and unsigned packets in a keyed import. [Provider signature verification](docs/provider-history-fixture.md#verify-a-signed-provider-fixture). |
 | Delivered · 0.76.0 | Provider verification provenance (MW-013, MW-029) | Preserve the verified key fingerprint and exact CSV digest through versioned backups. Verify recovery and reject altered CSV with updated outer checksums. [Provider verification records](docs/provider-history-fixture.md#provider-verification-records). |
 | Delivered · 0.77.0 | Provider key registry (MW-013, MW-029) | Scope signer keys to a provider, verify a rotation with overlapping keys and reject the retired key on a subsequent import. [Provider key registry](docs/provider-history-fixture.md#provider-key-registry). |
+| Delivered · 0.78.0 | Provider key validity windows (MW-013, MW-029) | Verify the same signed fixture just before activation, at activation and at key retirement. [Provider key validity windows](docs/provider-history-fixture.md#provider-key-validity-windows). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -91,5 +92,5 @@
 
 ## Handoff for the next change
 
-Apply explicit observation cutoffs to provider key activation and retirement in fixture imports. Verify that the same signed input is accepted or rejected at the appropriate UTC boundaries.
+Record independently observed provider history revisions and verify replay before and after a correction without replacing earlier source observations.
 

@@ -34,6 +34,58 @@ function signedFixture(privateKey, symbol = fixture.symbol) {
   return { manifest, signed: { ...manifest, csv, signature }, csv }
 }
 
+test('provider verification keys activate inclusively and retire exclusively at UTC cutoffs', async ({ page }) => {
+  const signer = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+  const { signed } = signedFixture(signer.privateKey, 'TIMED')
+  const entry = {
+    provider: fixture.provider,
+    pem: signer.publicKey.export({ type: 'spki', format: 'pem' }),
+    validFrom: '2099-12-31T14:00:00Z',
+    validUntil: '2099-12-31T14:30:00Z',
+  }
+  await page.clock.setFixedTime(new Date('2099-12-31T13:59:59.999Z'))
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'NVDA', exact: true })).toBeVisible()
+  const initial = await catalogContents(page)
+  const dialog = page.getByRole('dialog')
+  async function open() {
+    await page.getByRole('button', { name: 'Import CSV', exact: true }).click()
+    await dialog.getByRole('combobox', { name: 'Input format', exact: true }).selectOption('provider')
+    await dialog.getByLabel('Provider history JSON', { exact: true }).setInputFiles({
+      name: 'timed.provider.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(signed)),
+    })
+  }
+  async function registry(key) {
+    await dialog.getByLabel('Provider verification key or registry', { exact: true }).setInputFiles({
+      name: 'timed-keys.json', mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ format: 'marketweft-provider-key-registry', version: 2, keys: [key] })),
+    })
+  }
+  async function failure(message) {
+    await dialog.getByRole('button', { name: 'Import to watchlist' }).click()
+    await expect(dialog.getByRole('alert')).toHaveText(message)
+  }
+  const inactive = 'The provider key registry has no active key at the current UTC time.'
+  await open()
+  await registry({ ...entry, validFrom: '2099-02-30T14:00:00Z' })
+  await failure('Use whole UTC seconds for provider key activation and retirement.')
+  await registry({ ...entry, validUntil: entry.validFrom })
+  await failure('Provider key retirement must follow activation.')
+  await registry(entry)
+  await failure(inactive)
+  expect(await catalogContents(page)).toEqual(initial)
+  await page.clock.setFixedTime(new Date(entry.validFrom))
+  await submitImport(page, 'TIMED')
+  const saved = await catalogContents(page)
+  expect(saved.series[0].id).toBe('DEMO:TIMED')
+
+  await page.clock.setFixedTime(new Date(entry.validUntil))
+  await open()
+  await registry(entry)
+  await failure(inactive)
+  expect(await catalogContents(page)).toEqual(saved)
+})
+
 test('a provider key registry scopes and rotates accepted public keys', async ({ page }) => {
   const previous = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
   const next = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })

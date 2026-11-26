@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.78.0 · Provider key validity windows
+
+| Check | Observed result |
+| --- | --- |
+| UTC boundary | Chromium rejected a signed fixture at 13:59:59.999 UTC, accepted the same fixture at the inclusive 14:00 activation and rejected it at the exclusive 14:30 retirement. |
+| Invalid entries | A nonexistent calendar date and a retirement equal to activation both failed before writing a history. |
+| Persistence | Rejected attempts left the catalog intact. Existing registry rotation and backup restore checks continued to pass. |
+
+[Provider key validity windows](provider-history-fixture.md#provider-key-validity-windows) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.77.0 · Provider key registry
 
 | Check | Observed result |

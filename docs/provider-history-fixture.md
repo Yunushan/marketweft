@@ -56,3 +56,9 @@ Restore checks the archived CSV against its recorded provider digest before prep
 The verification input also accepts an operator-supplied JSON registry with `format` set to `marketweft-provider-key-registry`, `version` set to `1`, and a `keys` array. Each entry contains the `provider` identifier and its P-256 public key in `pem`. Choose a registry from a trusted source. It can contain up to 32 keys, with up to four keys per provider.
 
 During a key rotation, include the existing and replacement public keys under the same provider identifier. Remove the retired key from the registry when its acceptance period ends. The importer checks only keys listed under the fixture's signed provider identifier and records the fingerprint of the key that verified the packet.
+
+## Provider key validity windows
+
+Use registry version 2 to add `validFrom` and `validUntil` to each key entry. Both timestamps use whole UTC seconds in `YYYY-MM-DDTHH:MM:SSZ` format. An entry is active at `validFrom` and retires at `validUntil`. Overlapping windows allow both keys during rotation.
+
+Verification uses the device's current UTC time and checks the chosen key again after signature verification. The history's bar timestamps and the fixture's grant expiration retain their own meaning.
