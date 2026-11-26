@@ -34,6 +34,10 @@ The standalone Linux x64 research service includes the original notices from
 its Cargo dependencies and the compiler's standard-library copyright inventory.
 Keep the notices directory together with the executable.
 
+The Linux x64 research OCI archive includes the pinned Debian base and its
+system package notices. The service's notices are installed under
+/usr/share/doc/marketweft-research in the image.
+
 docs/dependencies.cdx.json lists exact package versions, integrity digests and
 declared licenses, including optional target packages. Rust package source
 archives are available at https://crates.io/api/v1/crates/NAME/VERSION/download.

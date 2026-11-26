@@ -53,6 +53,13 @@ jobs:
           name: research-service-linux-x64-attempt-${{ github.run_attempt }}
           path: reports/MarketWeft-research-service-*-linux-x64.tar.gz
           if-no-files-found: error
+      - name: Build and verify the non-root research OCI archive
+        run: python3 -B scripts/package_research_oci.py reports/MarketWeft-research-service-*-linux-x64.tar.gz
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: research-oci-linux-x64-attempt-${{ github.run_attempt }}
+          path: reports/MarketWeft-research-service-*-linux-x64-oci.tar
+          if-no-files-found: error
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm run build
       - run: npm test

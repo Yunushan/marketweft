@@ -110,3 +110,11 @@ To serve a separate client on a private network, set `MARKETWEFT_RESEARCH_BIND_I
 Private-interface operation requires the TLS certificate and key and a managed credential database. The certificate must cover the advertised host, and each client must trust its issuing CA. Use managed credentials for the formula and screen scopes. Static environment tokens are for loopback listeners.
 
 The server prints the advertised HTTPS address and only listens on the selected interface. Clients must use its authority and scheme. Optional SQLite audit receipts record admitted research on the private listener.
+
+## Research OCI image
+
+Download the `research-oci-linux-x64-attempt-N` GitHub Actions artifact and extract its OCI archive. Import it with `docker load --input "$OCI_ARCHIVE"`. The imported tag is `marketweft-research:<version>`. The archive uses a pinned Debian base and includes the service license, dependency notices and Protobuf schema.
+
+Run the service as its configured UID and GID 65532. Use a read-only root filesystem, drop Linux capabilities and set `no-new-privileges`. Mount the managed database read-only at `/var/lib/marketweft/credentials` and give the service a separate writable audit volume at `/var/lib/marketweft/audit`. Issue or revoke credentials with a separate invocation that can write to the credentials volume. For private-interface service, mount the certificate and key read-only and configure the advertised authority as described above.
+
+The default listener is localhost inside the container. Use the private bind settings to reach it from a separate client on a private container network.

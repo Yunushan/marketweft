@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.60.0 · Non-root research OCI image
+
+| Check | Observed result |
+| --- | --- |
+| Archive and native binary | The exporter created an OCI layout for Linux x64. Verification rehashed its manifest, image configuration and layers. After import, the executable digest matched the native package. |
+| Runtime permissions | The process ran as UID 65532 with capabilities dropped, a read-only root and no new privileges. A distinct read-only volume supplied the managed credential, and a writable audit volume held the resulting receipt and snapshot. |
+| Isolated request | A request inside the isolated container returned exactly `10000001` formula ticks. The service backed up its completed receipt to the external audit volume. |
+
+[Research OCI image](local-rest-research.md#research-oci-image) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.59.0 · Private-interface research
 
 | Check | Observed result |
