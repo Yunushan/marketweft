@@ -1,5 +1,17 @@
 # MarketWeft verification
 
+## 0.7.0 · Point-in-time universe screening
+
+| Check | Observed result |
+| --- | --- |
+| Addition and late close | At 14:05 UTC ALFA alone ranks at +1%. BETA joins at 14:10 and stays unranked through 14:11:59. Its first visible close at 14:12 puts it first at +12%. |
+| Price revision | Holding the effective cutoff at 14:10 and advancing the knowledge cutoff to 14:16 changes BETA to +1%, behind ALFA at +2%. Rewinding restores the earlier rank or missing price. |
+| Membership removal and delisting | Holding the effective cutoff at 14:20 shows two ranked members at 14:24:59 and only BETA at 14:25. After delisting there are no members. BETA's later listing remains unranked with a missing baseline. |
+| Exact ranking and inputs | Native checks cover tied ranks, equally displayed but unequal returns, signed tie rounding, values above JavaScript's safe integer limit, out-of-order reports, missing endpoints and rejected duplicates. Chromium verifies rejection of a foreign universe, custom baseline validation, offline replay, a 360-pixel viewport and an unchanged catalog. |
+| Regression suite | 33 production Chromium and six SDK tests passed on Windows x64. Twenty-four native tests passed on Linux x64 and eight compiled Wasm checks passed. The README checker verified all 21 editions. |
+
+[Screen contract and fixture](universe-screen.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.6.0 · Point-in-time universe membership and delistings
 
 | Check | Observed result |

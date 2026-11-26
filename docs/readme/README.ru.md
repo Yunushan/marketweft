@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.6.0 · 0BSD**
+**0.7.0 · 0BSD**
 
 **Языки документации**
 
@@ -15,14 +15,14 @@
 
 MarketWeft — локальный исследовательский терминал для аналитиков, разработчиков и операторов. Он открывает разрешённые файлы OHLCV, показывает свечи и объёмы, рассчитывает SMA и EMA с фиксированной точкой и сохраняет список наблюдения, инструмент и индикаторы в IndexedDB. После кэширования работает офлайн. Встроенные цены и объёмы синтетические, учётная запись поставщика не нужна.
 
-MarketWeft 0.6.0 добавляет состав вселенной и делистинги по информации на каждый момент, наряду с дроблениями акций и денежными дивидендами. Включены независимый TypeScript SDK для чтения trading-bot и экспериментальная оболочка Tauri. Выделения компаний, каналы данных, заявки, многопользовательский режим и подписанные установщики остаются в плане.
+MarketWeft 0.7.0 добавляет отбор по ценовой доходности среди участников с учётом данных, известных на момент запроса. Воспроизведение торговых сессий учитывает дробления, денежные дивиденды, состав выборки и делистинги. В репозитории также есть модуль TypeScript с доступом для чтения к отдельному сервису trading-bot и экспериментальная оболочка Tauri. Подключение поставщиков данных, заявки, подписанные установщики и многопользовательский режим остаются в плане.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Запуск переносимого терминала
 
-Откройте успешный запуск GitHub, скачайте browser-terminal-attempt-N и извлеките MarketWeft-browser-0.6.0.zip. Оставьте dist/ рядом с serve-terminal.mjs и выполните команду в этой папке. Откройте http://127.0.0.1:4173/ в актуальном браузере с WebAssembly, Canvas, BigInt и IndexedDB. Нужен Node.js 22.12 или новее. Установка npm не нужна. Перед отключением дождитесь Offline ready.
+Откройте успешный запуск GitHub, скачайте browser-terminal-attempt-N и извлеките MarketWeft-browser-0.7.0.zip. Оставьте dist/ рядом с serve-terminal.mjs и выполните команду в этой папке. Откройте http://127.0.0.1:4173/ в актуальном браузере с WebAssembly, Canvas, BigInt и IndexedDB. Нужен Node.js 22.12 или новее. Установка npm не нужна. Перед отключением дождитесь Offline ready.
 
 ```sh
 node serve-terminal.mjs
@@ -58,7 +58,14 @@ universe,change_id,listing_id,instrument,effective_at,observed_at,action
 DEMO-BASKET,BETA-JOIN,BETA-001,DEMO:BETA,2025-06-02T14:10:00Z,2025-06-02T14:05:00Z,add
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv)
+В Universe screen нажмите Load demo prices и оставьте базу 14:00 UTC. В 14:05 ALFA лидирует с 1%. В 14:10 входит BETA, но получает место только после появления цены закрытия в 14:12. Задайте эффективное время 14:10 и сравните время знания 14:12 и 14:16. Доходность BETA меняется с 12% на 1%. При эффективном времени 14:20 ALFA исчезает, когда его исключение известно в 14:25. Для своих цен загрузите Universe prices CSV с идентификаторами листинга и точным временем закрытия. При отсутствии начальной или конечной цены участник остаётся без места.
+
+```csv
+universe,listing_id,price_at,observed_at,close
+DEMO-BASKET,BETA-001,2025-06-02T14:10:00Z,2025-06-02T14:12:00Z,56
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv)
 
 <!-- section:04 -->
 ## Импорт и воспроизведение своих данных
