@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.6.0 adds point-in-time universe membership, delisting and as-of queries. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.7.0 adds point-in-time universe screening by price return. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -9,16 +9,17 @@
 | Delivered · 0.4.0 | Point-in-time stock splits (MW-013, MW-017, MW-029) | Raw and split-adjusted snapshots use announced, effective and observed times. Forward and reverse split ratios preserve source rows. Tests cover a delayed report, a ratio correction, and rewinding across the split. [Action contract](docs/corporate-actions.md). |
 | Delivered · 0.5.0 | Point-in-time cash dividends (MW-013, MW-017, MW-029) | Stable IDs, ex and pay cutoffs, late reports and corrections drive gross receivables and signed cash postings by currency. Native and browser tests compare the ledger at successive cutoffs and verify raw and split-adjusted price views. [Dividend contract](docs/cash-dividends.md). |
 | Delivered · 0.6.0 | Point-in-time universe membership (MW-017, MW-018) | Reconstruct effective, known membership from revisions and stable listing IDs. Browser and Rust tests verify additions, late removals, delistings, cancellations and reused tickers. [Universe contract](docs/universe-membership.md). |
+| Delivered · 0.7.0 | Point-in-time universe screen (MW-018) | Rank the known effective membership by exact close-to-close price return. Verify absent and late closes, revisions, membership changes and deterministic ties. [Screen contract](docs/universe-screen.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend stock split identities for effective-time revisions and cancellation. Add delisting return data with explicit proceeds and missing-value treatment. Model per-distribution entitlement for trading and portfolio simulation. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Persist two chart panes with linked UTC crosshairs, one measured drawing in data coordinates, reusable indicator parameters and CSV export. Restore exact settings after a versioned migration. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Implement paper cash and fills with fees, reasoned rejections, idempotent event IDs and kill switch. Backtest against the same event contract. Check prefix invariance, delayed fills and out-of-sample splits. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Publish an independent time-series language spec, bounded interpreter and isolated Wasm execution. Test determinism, quotas and schema compatibility across SDKs. Start MCP with read-only research queries. |
-| P2 | Cross-sectional and fundamental research (MW-018, MW-023, MW-024, MW-026, MW-027) | Screen a point-in-time universe, release an attributable heatmap, then add statement vintages, macro releases, option-chain analytics and deduplicated notifications with fixtures per domain. |
+| P2 | Cross-sectional and fundamental research (MW-018, MW-023, MW-024, MW-026, MW-027) | Release a sector heatmap reconciled to screening constituents, then add statement vintages, macro releases, option-chain analytics and deduplicated notifications with fixtures per domain. |
 | P2 | Order flow and specialized visualization (MW-012, MW-019) | Add authorized trade and depth streams, sequence recovery, trade-side classification and profiles. Benchmark Canvas against WebGL/wgpu with identical traces before adopting another renderer. |
 | P3 | Enterprise and authorized live execution (MW-022, MW-028, MW-030) | Introduce a headless Rust service, SQLite/DuckDB persistence, authenticated APIs and audited operations. Add external stores/queues only after load tests justify them. Prove quota enforcement and disaster recovery before a hosted rollout. Require explicit authorization and deterministic pre-trade risk for any live route. |
 
 ## Handoff for the next change
 
-The next research milestone starts with screening a point-in-time universe. Apply a fixed, inspectable rule to prices available at each observation cutoff. Verify that new listings, missing prices and delisted listings affect the screen only through the as-of queries and price observations.
+The next research milestone adds a sector heatmap from the same point-in-time screen. Import dated sector and weight reports, reconcile every displayed listing to the screen, and verify that missing weights or returns affect coverage and attribution at the correct observation cutoff.
 
