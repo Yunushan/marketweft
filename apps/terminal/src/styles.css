@@ -248,6 +248,19 @@ main {
 .alert-evidence dd {
   margin: 3px 0 0;
 }
+.backtest-settings {
+  padding: 0;
+}
+.backtest-settings details .universe-query {
+  margin-top: 12px;
+}
+.backtest-equity {
+  display: block;
+  width: 100%;
+  height: 190px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
 .dividend-reports {
   display: grid;
   gap: 8px;

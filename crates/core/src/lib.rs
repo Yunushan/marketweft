@@ -2,6 +2,7 @@
 
 mod actions;
 mod alerts;
+mod backtest;
 mod dividend;
 mod fundamentals;
 mod history;
@@ -22,6 +23,7 @@ pub use actions::{parse_splits, Split, SplitBook, MAX_SPLIT_ROWS};
 pub use alerts::{
     AlertBook, AlertDirection, AlertNotification, AlertRule, Comparator, Observation,
 };
+pub use backtest::{backtest, BacktestConfig, BacktestMark, BacktestReport, BacktestSignal};
 pub use dividend::{
     parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind, DividendMovement,
 };

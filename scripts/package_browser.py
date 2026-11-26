@@ -78,6 +78,10 @@ local inbox twice to verify that each crossing is delivered once.
 Open Paper ledger under Historical replay and Start paper demo, or load
 paper-events.csv. Step through reserves, partial fills, fees and the halt.
 
+Open Bar backtest under Historical replay and Start backtest demo, or load
+backtest-sessions.csv and backtest-bars.csv with a 60-second bar interval.
+Check how a missing interval delays the first partial fill.
+
 The chart supports panning, zooming, a crosshair and moving-average overlays.
 This build has no broker connection or order entry. Press Ctrl+C in the
 launcher's terminal to stop serving the application.
@@ -114,6 +118,8 @@ def main():
     for kind in ("rules", "observations"):
         files[f"alert-{kind}.csv"] = (fixture / f"synthetic-alert-{kind}.csv").read_bytes()
     files["paper-events.csv"] = (fixture / "synthetic-paper-events.csv").read_bytes()
+    for kind in ("sessions", "bars"):
+        files[f"backtest-{kind}.csv"] = (fixture / f"synthetic-backtest-{kind}.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
     inventory["components"] = [item for item in inventory["components"]
                                if any(p["value"] == "web-runtime" for p in item["properties"])]

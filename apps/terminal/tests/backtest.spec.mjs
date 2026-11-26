@@ -1,0 +1,76 @@
+import { readFile } from 'node:fs/promises'
+import { expect, test } from './fixtures.mjs'
+import { catalogContents } from './catalog-fixtures.mjs'
+
+async function open(page) {
+  await page.getByRole('button', { name: 'Historical replay' }).click()
+  await page.getByRole('button', { name: 'Open bar backtest' }).click()
+  await expect(page.getByRole('heading', { name: 'Bar backtest', exact: true })).toBeFocused()
+}
+
+test('offline bar backtest never fills at the signal or missing bar and rewinds exactly', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+  await open(page)
+  await page.getByRole('button', { name: 'Start backtest demo' }).click()
+  const result = page.getByRole('region', { name: 'Backtest results' })
+  const field = (label, value) => expect(result.getByText(label, { exact: true })
+    .locator('xpath=following-sibling::dd')).toHaveText(value)
+  const receipts = result.getByRole('table', { name: 'Backtest receipts' })
+  const next = page.getByRole('button', { name: 'Next backtest cutoff' })
+  const run = async time => {
+    await page.getByLabel('Observed through (UTC)').fill('2025-04-03T' + time + 'Z')
+    await page.getByRole('button', { name: 'Run bar backtest' }).click()
+  }
+  await run('14:05:00')
+  await expect(receipts.getByRole('rowheader')).toHaveText(['SUBMIT-4'])
+  await field('Cash', '1000')
+  await field('Held shares', '0')
+  await next.click()
+  await expect(result.getByRole('status')).toHaveText('5 observed bars · Known through 2025-04-03T14:06:00Z')
+  await expect(receipts.getByRole('rowheader')).toHaveText(['SUBMIT-4'])
+  await next.click()
+  await field('Cash', '969.8')
+  await field('Held shares', '2')
+  await expect(receipts.getByRole('row', { name: /^FILL-5/ })).toContainText('2025-04-03T14:07:00Z')
+  await page.getByRole('button', { name: 'Final backtest' }).click()
+  await field('Cash', '957.8')
+  await field('Equity', '957.8')
+  await field('Realized profit and loss', '-42.2')
+  await expect(result.getByRole('img', { name: 'Equity over observed bar closes' })).toBeVisible()
+  await run('14:05:00')
+  await field('Cash', '1000')
+  await expect(receipts.getByRole('rowheader')).toHaveText(['SUBMIT-4'])
+  await page.setViewportSize({ width: 360, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360)
+  await page.getByRole('button', { name: 'Return to historical replay' }).click()
+  await expect(page.getByRole('button', { name: 'Open bar backtest' })).toBeFocused()
+})
+
+test('imported backtest uses adjustable fees and slippage without modifying the workspace', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('heading', { name: 'Research terminal' }).waitFor()
+  const catalog = await catalogContents(page)
+  await open(page)
+  const loadFixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8')
+  const [calendar, bars] = await Promise.all([loadFixture('sessions'), loadFixture('bars')])
+  const toFile = (label, name, content) => page.getByLabel(label).setInputFiles({
+    name, mimeType: 'text/csv', buffer: Buffer.from(content),
+  })
+  await toFile('Backtest session CSV', 'sessions.csv', calendar)
+  await toFile('Backtest bars CSV', 'bars.csv', bars)
+  await page.getByRole('button', { name: 'Load backtest data' }).click()
+  await expect(page.getByText('bars.csv · sessions.csv', { exact: true })).toBeVisible()
+  await page.getByText('Strategy and account settings', { exact: true }).click()
+  await page.getByLabel('Adverse slippage (bps)').fill('100')
+  await page.getByLabel('Observed through (UTC)').fill('2025-04-03T14:11:00Z')
+  await page.getByRole('button', { name: 'Run bar backtest' }).click()
+  const receipts = page.getByRole('table', { name: 'Backtest receipts' })
+  await expect(receipts.getByRole('row', { name: /^FILL-5/ })).toContainText('14.14')
+  await expect(receipts.getByRole('row', { name: /^FILL-9/ })).toContainText('limit price')
+  await page.getByRole('button', { name: 'Return to historical replay' }).click()
+  await page.getByRole('button', { name: 'Return to workspace' }).click()
+  expect(await catalogContents(page)).toEqual(catalog)
+})

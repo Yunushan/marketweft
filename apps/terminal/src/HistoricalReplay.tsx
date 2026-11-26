@@ -14,6 +14,7 @@ import { MacroReplay } from './MacroReplay'
 import { OptionReplay } from './OptionReplay'
 import { AlertReplay } from './AlertReplay'
 import { PaperReplay } from './PaperReplay'
+import { BacktestReplay } from './BacktestReplay'
 import type { Asset } from './workspace'
 import { Chart } from './Chart'
 import { Icon, Mark } from './Icons'
@@ -61,7 +62,7 @@ type ReplayRun = {
   dividends?: { events: DividendEvent[]; shares: number }
 }
 
-type ReplayView = 'universe' | 'fundamentals' | 'macro' | 'options' | 'alerts' | 'paper'
+type ReplayView = 'universe' | 'fundamentals' | 'macro' | 'options' | 'alerts' | 'paper' | 'backtest'
 
 export function HistoricalReplay({
   core,
@@ -82,6 +83,7 @@ export function HistoricalReplay({
   const optionsButton = useRef<HTMLButtonElement>(null)
   const alertsButton = useRef<HTMLButtonElement>(null)
   const paperButton = useRef<HTMLButtonElement>(null)
+  const backtestButton = useRef<HTMLButtonElement>(null)
   const returnFocus = useRef<ReplayView | null>(null)
   const [cursor, setCursor] = useState(-1)
   const [playing, setPlaying] = useState(false)
@@ -117,6 +119,7 @@ export function HistoricalReplay({
         options: optionsButton,
         alerts: alertsButton,
         paper: paperButton,
+        backtest: backtestButton,
       }
       const button = buttons[returnFocus.current]
       returnFocus.current = null
@@ -334,6 +337,8 @@ export function HistoricalReplay({
     return <AlertReplay core={core} close={() => setView(null)} />
   if (view === 'paper')
     return <PaperReplay core={core} close={() => setView(null)} />
+  if (view === 'backtest')
+    return <BacktestReplay core={core} close={() => setView(null)} />
 
   return (
     <>
@@ -461,6 +466,17 @@ export function HistoricalReplay({
                     setView('paper')
                   }}>
                   Open paper ledger
+                </button>
+              </section>
+              <section className="side-card replay-panel">
+                <h2>Bar backtest</h2>
+                <p>Replay an SMA crossover with delayed fills, volume limits and paper fees.</p>
+                <button ref={backtestButton} className="primary" disabled={busy}
+                  onClick={() => {
+                    returnFocus.current = 'backtest'
+                    setView('backtest')
+                  }}>
+                  Open bar backtest
                 </button>
               </section>
             </div>

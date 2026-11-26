@@ -9,6 +9,29 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('backtest Wasm waits for observed liquidity and preserves marks and paper receipts across prefixes', async () => {
+  const read = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');
+  const [calendar, bars] = await Promise.all([read('sessions'), read('bars')]);
+  const paper = { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' };
+  const policy = { paper, fastWindow: '2', slowWindow: '3', targetShares: '6', participation: '1000',
+    slippage: '0', limitBuffer: '2000', maxWait: '3' };
+  const iso = t => '2025-04-03T' + t + 'Z';
+  const run = time => core.backtest('DEMO:SMA', calendar, bars, 60, iso(time), policy);
+  assert.equal(core.backtestIndex(calendar, bars, 60).length, 11);
+  const submitted = run('14:05:00');
+  assert.deepEqual(run('14:06:00'), submitted);
+  assert.equal(submitted.ledger.orders[0].status, 'open');
+  assert.equal(submitted.ledger.positions.length, 0);
+  const partial = run('14:07:00');
+  assert.equal(partial.ledger.orders[0].status, 'partial');
+  assert.equal(partial.ledger.positions[0].shares, 2n);
+  const end = run('14:11:00');
+  assert.equal(end.ledger.cash, 957800000n);
+  assert.equal(end.ledger.realized, -42200000n);
+  assert.equal(end.marks.length, 10);
+  assert.deepEqual(end.marks.slice(0, partial.marks.length), partial.marks);
+});
+
 test('paper replay Wasm reconciles cash, fees and observed unique fills', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-paper-events.csv', import.meta.url), 'utf8');
   const config = { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' };

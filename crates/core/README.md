@@ -66,3 +66,7 @@ Parse `AlertBook` from rule revisions and observations. Query `notifications(eff
 ## Paper ledger
 
 Construct a `PaperAccount` with a fixed-point configuration and apply time-ordered commands with stable event IDs. `PaperReplay` parses a local report and rebuilds an account through an inclusive observation cutoff. Rejections, fees and cash and realized deltas are recorded for audit. [Paper ledger](../../docs/paper-ledger.md).
+
+## Bar backtest
+
+Call `backtest` with a canonical instrument, validated sessions and interval-start bars, an inclusive observation cutoff, and strategy and paper-account settings. The report retains signals, paper receipts, exact cash and an observation-time equity curve. [Backtest contract](../../docs/bar-backtest.md).
