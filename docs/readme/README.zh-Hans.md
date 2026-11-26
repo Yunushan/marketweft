@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.9.0 · 0BSD**
+**0.10.0 · 0BSD**
 
 **文档语言**
 
@@ -15,14 +15,14 @@
 
 MarketWeft 是面向分析师、开发人员和运维人员的本地优先研究终端。它读取有权使用的 OHLCV 文件，绘制交互式蜡烛图与成交量，用定点数计算 SMA 和 EMA，并把自选列表、选中标的和指标保存在 IndexedDB。应用资源缓存后即可离线使用。内置价格与成交量均为合成数据，无需行情商账户。
 
-MarketWeft 0.9.0 新增年度申报版本及历史估值。 MarketWeft 0.7.0 新增按价格收益率进行的时点股票池筛选。基于交易时段的回放支持拆股、现金股息、成分变动和退市。仓库还提供独立 trading-bot 服务的只读 TypeScript 观察器和实验性 Tauri 封装。数据源接入、下单、签名原生安装包及多用户托管仍在路线图上。
+MarketWeft 0.10.0 新增时点经济日历，可查看排期、预测和修订后的实际值。 MarketWeft 0.7.0 新增按价格收益率进行的时点股票池筛选。基于交易时段的回放支持拆股、现金股息、成分变动和退市。仓库还提供独立 trading-bot 服务的只读 TypeScript 观察器和实验性 Tauri 封装。数据源接入、下单、签名原生安装包及多用户托管仍在路线图上。
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## 启动便携终端
 
-从 GitHub 成功的验证运行中下载 browser-terminal-attempt-N，解压其中的 MarketWeft-browser-0.9.0.zip。让 dist/ 与 serve-terminal.mjs 位于同一目录，在该目录运行下列命令。使用支持 WebAssembly、Canvas、BigInt 和 IndexedDB 的新版浏览器打开 http://127.0.0.1:4173/。启动器需要 Node.js 22.12 或更高版本，无需通过 npm 安装。断网前等待显示 Offline ready。
+从 GitHub 成功的验证运行中下载 browser-terminal-attempt-N，解压其中的 MarketWeft-browser-0.10.0.zip。让 dist/ 与 serve-terminal.mjs 位于同一目录，在该目录运行下列命令。使用支持 WebAssembly、Canvas、BigInt 和 IndexedDB 的新版浏览器打开 http://127.0.0.1:4173/。启动器需要 Node.js 22.12 或更高版本，无需通过 npm 安装。断网前等待显示 Offline ready。
 
 ```sh
 node serve-terminal.mjs
@@ -84,7 +84,15 @@ issuer_id,source_id,valuation_at,observed_at,currency,market_cap
 DEMO-ALFA,ALFA-CAP,2025-04-03T14:00:00Z,2025-04-03T14:01:00Z,USD,12000000000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv)
+打开 Historical replay → Open economic calendar → Start calendar demo。发布前可见 2.5% 的预测，实际值暂不可见。Actual observed 在 14:32 UTC 显示 2.7%。Revised actual 显示 2.8%，可在 Release evidence 核对两次修订。上传 Macro calendar CSV 可使用自己的带时间戳发布记录。
+
+```csv
+release_id,series_id,reference_date,unit,record_id,kind,published_at,observed_at,scheduled_at,value,supersedes
+INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A0,actual,2025-04-03T14:30:00Z,2025-04-03T14:32:00Z,,2.7,
+INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A1,revision,2025-04-03T14:40:00Z,2025-04-03T14:45:00Z,,2.6,CPI-A0
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv)
 
 <!-- section:04 -->
 ## 导入并回放自己的数据

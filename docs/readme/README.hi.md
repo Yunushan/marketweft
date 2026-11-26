@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.9.0 · 0BSD**
+**0.10.0 · 0BSD**
 
 **दस्तावेज़ की भाषाएँ**
 
@@ -15,14 +15,14 @@
 
 MarketWeft विश्लेषकों, डेवलपरों और संचालकों के लिए स्थानीय शोध टर्मिनल है। यह अधिकृत OHLCV फ़ाइलें खोलता है, कैंडल और मात्रा दिखाता है, स्थिर दशमलव में SMA और EMA निकालता है और निगरानी सूची, चयन तथा संकेतक IndexedDB में रखता है। संसाधनों की कैशिंग के बाद ऑफ़लाइन चलता है। शामिल भाव और मात्राएँ कृत्रिम हैं और खाता नहीं चाहिए।
 
-MarketWeft 0.9.0 वार्षिक फ़ाइलिंग के संस्करण और ऐतिहासिक मूल्यांकन जोड़ता है। MarketWeft 0.7.0 किसी समय पर उपलब्ध जानकारी से मूल्य प्रतिफल के अनुसार यूनिवर्स स्क्रीनिंग जोड़ता है। सत्र-आधारित रीप्ले में शेयर विभाजन, नकद लाभांश, सदस्यता और डीलिस्टिंग हैं। रिपॉज़िटरी में अलग trading-bot सेवा के लिए केवल-पठन TypeScript ऑब्ज़र्वर और प्रायोगिक Tauri रैपर भी हैं। प्रदाता फ़ीड, ऑर्डर, हस्ताक्षरित इंस्टॉलर और बहु-उपयोगकर्ता होस्टिंग रोडमैप में हैं।
+MarketWeft 0.10.0 रिलीज़ समय, अनुमान और संशोधित वास्तविक आँकड़ों का ऐतिहासिक कैलेंडर जोड़ता है। MarketWeft 0.7.0 किसी समय पर उपलब्ध जानकारी से मूल्य प्रतिफल के अनुसार यूनिवर्स स्क्रीनिंग जोड़ता है। सत्र-आधारित रीप्ले में शेयर विभाजन, नकद लाभांश, सदस्यता और डीलिस्टिंग हैं। रिपॉज़िटरी में अलग trading-bot सेवा के लिए केवल-पठन TypeScript ऑब्ज़र्वर और प्रायोगिक Tauri रैपर भी हैं। प्रदाता फ़ीड, ऑर्डर, हस्ताक्षरित इंस्टॉलर और बहु-उपयोगकर्ता होस्टिंग रोडमैप में हैं।
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## पोर्टेबल टर्मिनल शुरू करें
 
-सफल GitHub सत्यापन से browser-terminal-attempt-N डाउनलोड करें। MarketWeft-browser-0.9.0.zip खोलें, dist/ को serve-terminal.mjs के साथ रखें और उसी फ़ोल्डर में आदेश चलाएँ। WebAssembly, Canvas, BigInt और IndexedDB वाले आधुनिक ब्राउज़र में http://127.0.0.1:4173/ खोलें। Node.js 22.12 या नया चाहिए। npm इंस्टॉल नहीं चाहिए। नेटवर्क बंद करने से पहले Offline ready देखें।
+सफल GitHub सत्यापन से browser-terminal-attempt-N डाउनलोड करें। MarketWeft-browser-0.10.0.zip खोलें, dist/ को serve-terminal.mjs के साथ रखें और उसी फ़ोल्डर में आदेश चलाएँ। WebAssembly, Canvas, BigInt और IndexedDB वाले आधुनिक ब्राउज़र में http://127.0.0.1:4173/ खोलें। Node.js 22.12 या नया चाहिए। npm इंस्टॉल नहीं चाहिए। नेटवर्क बंद करने से पहले Offline ready देखें।
 
 ```sh
 node serve-terminal.mjs
@@ -84,7 +84,15 @@ issuer_id,source_id,valuation_at,observed_at,currency,market_cap
 DEMO-ALFA,ALFA-CAP,2025-04-03T14:00:00Z,2025-04-03T14:01:00Z,USD,12000000000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv)
+Historical replay → Open economic calendar → Start calendar demo खोलें। रिलीज़ से पहले अनुमान 2.5 प्रतिशत है और वास्तविक मान उपलब्ध नहीं है। Actual observed में 14:32 UTC पर 2.7 प्रतिशत दिखता है। Revised actual में 2.8 प्रतिशत है और दोनों संशोधन Release evidence में मिलते हैं। अपने रिलीज़ डेटा के लिए Macro calendar CSV अपलोड करें।
+
+```csv
+release_id,series_id,reference_date,unit,record_id,kind,published_at,observed_at,scheduled_at,value,supersedes
+INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A0,actual,2025-04-03T14:30:00Z,2025-04-03T14:32:00Z,,2.7,
+INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A1,revision,2025-04-03T14:40:00Z,2025-04-03T14:45:00Z,,2.6,CPI-A0
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv)
 
 <!-- section:04 -->
 ## अपना डेटा आयात और पुनर्चालित करें

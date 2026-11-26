@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.9.0 · 0BSD**
+**0.10.0 · 0BSD**
 
 **Idiomas de la documentación**
 
@@ -15,14 +15,14 @@
 
 MarketWeft es un terminal de investigación que prioriza el trabajo local para analistas, desarrolladores y operadores. Abre archivos OHLCV autorizados, dibuja velas y volumen, calcula SMA y EMA en punto fijo y guarda en IndexedDB la lista de seguimiento, el instrumento seleccionado y los indicadores. Funciona sin conexión tras almacenar los recursos. Los precios y volúmenes integrados son sintéticos y no requieren una cuenta.
 
-MarketWeft 0.9.0 incorpora versiones de estados anuales y valoración histórica. MarketWeft 0.7.0 incorpora un filtro histórico por rentabilidad de precio con los datos disponibles en cada fecha. La reproducción por sesiones incluye desdoblamientos, dividendos en efectivo, composición del universo y exclusiones de cotización. El repositorio también ofrece un observador TypeScript de solo lectura para el servicio independiente trading-bot y un envoltorio Tauri experimental. Los proveedores de datos, las órdenes, los instaladores firmados y el alojamiento multiusuario siguen en la hoja de ruta.
+MarketWeft 0.10.0 incorpora un calendario económico histórico con horarios, pronósticos y datos publicados revisados. MarketWeft 0.7.0 incorpora un filtro histórico por rentabilidad de precio con los datos disponibles en cada fecha. La reproducción por sesiones incluye desdoblamientos, dividendos en efectivo, composición del universo y exclusiones de cotización. El repositorio también ofrece un observador TypeScript de solo lectura para el servicio independiente trading-bot y un envoltorio Tauri experimental. Los proveedores de datos, las órdenes, los instaladores firmados y el alojamiento multiusuario siguen en la hoja de ruta.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Iniciar el terminal portátil
 
-Descarga browser-terminal-attempt-N de una ejecución satisfactoria de GitHub. Extrae MarketWeft-browser-0.9.0.zip, deja dist/ junto a serve-terminal.mjs y ejecuta el comando en esa carpeta. Abre http://127.0.0.1:4173/ en un navegador actual con WebAssembly, Canvas, BigInt e IndexedDB. Usa Node.js 22.12 o posterior. No hace falta npm. Espera a Offline ready antes de desconectarte.
+Descarga browser-terminal-attempt-N de una ejecución satisfactoria de GitHub. Extrae MarketWeft-browser-0.10.0.zip, deja dist/ junto a serve-terminal.mjs y ejecuta el comando en esa carpeta. Abre http://127.0.0.1:4173/ en un navegador actual con WebAssembly, Canvas, BigInt e IndexedDB. Usa Node.js 22.12 o posterior. No hace falta npm. Espera a Offline ready antes de desconectarte.
 
 ```sh
 node serve-terminal.mjs
@@ -84,7 +84,15 @@ issuer_id,source_id,valuation_at,observed_at,currency,market_cap
 DEMO-ALFA,ALFA-CAP,2025-04-03T14:00:00Z,2025-04-03T14:01:00Z,USD,12000000000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv)
+Abre Historical replay → Open economic calendar → Start calendar demo. Antes de publicarse, el pronóstico es del 2,5% y el dato real todavía no está disponible. Actual observed muestra el 2,7% a las 14:32 UTC. Revised actual muestra el 2,8% y Release evidence permite seguir las dos revisiones. Carga un Macro calendar CSV para usar tus propias publicaciones fechadas.
+
+```csv
+release_id,series_id,reference_date,unit,record_id,kind,published_at,observed_at,scheduled_at,value,supersedes
+INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A0,actual,2025-04-03T14:30:00Z,2025-04-03T14:32:00Z,,2.7,
+INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A1,revision,2025-04-03T14:40:00Z,2025-04-03T14:45:00Z,,2.6,CPI-A0
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv)
 
 <!-- section:04 -->
 ## Importar y reproducir datos propios

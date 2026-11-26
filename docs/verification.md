@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.10.0 · Point-in-time economic release calendar
+
+| Check | Observed result |
+| --- | --- |
+| Schedule and forecast | The synthetic inflation release moves from 14:10 UTC to 14:30 after the reschedule is observed. The pre-release forecast is 2.5 percent. |
+| Independent actual gates | No actual appears with a publication cutoff of 14:29:59, even with later knowledge. Publication at 14:30 also produces no actual at knowledge cutoff 14:31:59. The report becomes visible at 14:32 with 2.7 percent. |
+| Revisions and rewind | The first and second revisions show 2.6 and 2.8 percent. The official chain links each revision to its predecessor. The frozen forecast remains 2.5 percent, and rewinding restores the earlier view. |
+| Imports and regression | Native tests cover reordered and incomplete lineage, malformed reports and missing releases. Chromium verifies offline replay, CSV validation, focus restoration, a 360-pixel viewport and an unchanged workspace catalog. All 39 browser and six SDK tests passed on Windows x64. Thirty-two native tests passed on Linux x64 and eleven Wasm tests passed. All 21 README editions passed the parity check. |
+
+[Economic calendar contract and fixture](macro-calendar.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.9.0 · Point-in-time financial statements
 
 | Check | Observed result |

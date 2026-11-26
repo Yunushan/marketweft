@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.9.0 · 0BSD**
+**0.10.0 · 0BSD**
 
 **Harsunan wannan jagora**
 
@@ -15,14 +15,14 @@
 
 MarketWeft tashar bincike ce da ke aiki a na’urar mai amfani. Tana buɗe OHLCV da aka ba da izini, tana nuna sandunan farashi da ƙarar ciniki, tana lissafin SMA da EMA da tsayayyun guraben goma, kuma tana ajiye jerin sa ido, kadara da alamomi a IndexedDB. Bayan an adana kayan aiki za ta yi aiki ba tare da intanet ba. Farashi da ƙarar da ke tare da ita na kwaikwayo ne, ba sai an buɗe asusun mai bayarwa ba.
 
-MarketWeft 0.9.0 ya ƙara nau'o'in rahotannin shekara da lissafin ƙima na tarihi. MarketWeft 0.7.0 ya ƙara tsara membobin rukuni bisa canjin farashi da bayanan da aka sani lokacin tambaya. Sake kunna zaman kasuwa ya haɗa da rabon hannun jari, kuɗin riba, zama memba da cirewa daga kasuwa. Akwai mai lura na TypeScript mai karatu kawai don sabis na trading-bot daban da naɗin Tauri na gwaji. Hanyoyin bayanai, umarnin ciniki, masu sakawa da aka sa wa hannu da masaukin masu amfani da yawa suna cikin shirin gaba.
+MarketWeft 0.10.0 ya ƙara kalandar tattalin arziki mai jadawali, hasashe da bayanan da aka gyara. MarketWeft 0.7.0 ya ƙara tsara membobin rukuni bisa canjin farashi da bayanan da aka sani lokacin tambaya. Sake kunna zaman kasuwa ya haɗa da rabon hannun jari, kuɗin riba, zama memba da cirewa daga kasuwa. Akwai mai lura na TypeScript mai karatu kawai don sabis na trading-bot daban da naɗin Tauri na gwaji. Hanyoyin bayanai, umarnin ciniki, masu sakawa da aka sa wa hannu da masaukin masu amfani da yawa suna cikin shirin gaba.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Kunna tashar ɗaukuwa
 
-Sauke browser-terminal-attempt-N daga gwajin GitHub da ya yi nasara. Cire MarketWeft-browser-0.9.0.zip, bar dist/ kusa da serve-terminal.mjs sannan gudanar da umarnin a can. Buɗe http://127.0.0.1:4173/ a burauza mai WebAssembly, Canvas, BigInt da IndexedDB. Ana buƙatar Node.js 22.12 ko sabo. Ba a buƙatar shigar da npm. Jira Offline ready kafin katse intanet.
+Sauke browser-terminal-attempt-N daga gwajin GitHub da ya yi nasara. Cire MarketWeft-browser-0.10.0.zip, bar dist/ kusa da serve-terminal.mjs sannan gudanar da umarnin a can. Buɗe http://127.0.0.1:4173/ a burauza mai WebAssembly, Canvas, BigInt da IndexedDB. Ana buƙatar Node.js 22.12 ko sabo. Ba a buƙatar shigar da npm. Jira Offline ready kafin katse intanet.
 
 ```sh
 node serve-terminal.mjs
@@ -84,7 +84,15 @@ issuer_id,source_id,valuation_at,observed_at,currency,market_cap
 DEMO-ALFA,ALFA-CAP,2025-04-03T14:00:00Z,2025-04-03T14:01:00Z,USD,12000000000
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv)
+Buɗe Historical replay → Open economic calendar → Start calendar demo. Kafin wallafa, hasashe ya kasance 2.5% kuma babu ainihin ƙima. Actual observed ya nuna 2.7% da 14:32 UTC. Revised actual ya nuna 2.8%, kuma Release evidence yana da gyare-gyaren biyu. Loda Macro calendar CSV don rahotannin da ka tanada.
+
+```csv
+release_id,series_id,reference_date,unit,record_id,kind,published_at,observed_at,scheduled_at,value,supersedes
+INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A0,actual,2025-04-03T14:30:00Z,2025-04-03T14:32:00Z,,2.7,
+INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A1,revision,2025-04-03T14:40:00Z,2025-04-03T14:45:00Z,,2.6,CPI-A0
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv)
 
 <!-- section:04 -->
 ## Shigo da bayananka ka sake kunna su
