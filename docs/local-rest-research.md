@@ -1,6 +1,6 @@
-# Local REST research service
+# Local REST and WebSocket research service
 
-The Rust research service runs on IPv4 loopback and exposes two read-only endpoints. It uses the same core that powers the native executable and WebAssembly terminal.
+The Rust research service runs on IPv4 loopback and exposes read-only formula and universe screening endpoints over REST and WebSocket. It uses the same core that powers the native executable and WebAssembly terminal.
 
 For Ubuntu 24.04 on Linux x64, download the `research-service-linux-x64-attempt-N` artifact from a successful GitHub verification run and unpack its enclosed tar.gz archive. Extract the service with its notices. Start it with `./marketweft-research-service` after configuring its environment as shown below. To build from source, use the same settings from the repository root and run the Cargo command.
 
@@ -24,3 +24,13 @@ Both endpoints accept `offset` and `limit`. The default page contains up to 200 
 The response carries exact integer values as decimal strings. Alongside each screen row the service returns the selected membership change and selected close observation timestamps. Missing prices and unavailable returns are `null`. [Research universe screening](research-universe-screen.md) · [Time-series formulas](time-series-language.md).
 
 The service accepts at most 16 MiB per JSON body and reads each body within five seconds. Two requests can hold a research slot simultaneously. The server returns 429 when slots are occupied, 401 for missing or invalid tokens, 403 for a different scope or origin, and 422 for inputs rejected by the research engine.
+
+## WebSocket streaming
+
+Connect to `ws://127.0.0.1:4174/v1/formula/stream` or `ws://127.0.0.1:4174/v1/universe/screen/stream`, using the port printed by the service. Use a client that can set the `Authorization: Bearer <token>` header on the upgrade request. Each path requires the same scope as its REST equivalent. The Host and Origin checks apply to the upgrade.
+
+Send one JSON text message using the corresponding REST request fields. The service evaluates the query once and streams ascending offsets in text messages. Each message has `type: "page"` and a `page` object shaped like the REST response. A failure after upgrade has `type: "error"` with numeric `status` and a string `error`.
+
+Keep the `next_offset` from the last fully received and accepted page. If the connection ends before the terminal page, reconnect with the same query, CSV data and cutoffs. Set `offset` to that saved `next_offset`. The new connection recomputes the results from those inputs. A null `next_offset` marks completion.
+
+Send the query within five seconds. The message limit is 16 MiB and delivery has a 30-second deadline after the query arrives. The same two research slots are shared by REST requests and WebSocket connections.

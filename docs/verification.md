@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.52.0 · Local WebSocket research
+
+| Check | Observed result |
+| --- | --- |
+| Resumed formula | A native client obtained `next_offset: 3`, disconnected, and resumed from that offset with the same inputs. The terminal page retained one null and the exact value `14500000`. |
+| Point-in-time rank stream | One-row pages preserved ALFA first and BETA unranked at 14:10 UTC. At the 14:12 knowledge cutoff, BETA led and ALFA ranked second. |
+| Scope, limits and parity | Four WebSocket integration tests passed against the optimized Linux x64 executable. They covered bearer scopes, the upgrade origin, concurrent stream limits and an invalid-query error. Four REST integration tests and all 21 README editions passed. |
+
+[WebSocket research](local-rest-research.md#websocket-streaming) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.51.0 · Local REST research service
 
 | Check | Observed result |

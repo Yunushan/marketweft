@@ -1,19 +1,20 @@
-//! Loopback-only, read-only HTTP access to the shared research engine.
+//! Loopback-only, read-only access to the shared research engine.
 
 mod analytics;
+mod websocket;
 
 use axum::body::to_bytes;
 use axum::extract::{Request, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{json, Value};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use subtle::ConstantTimeEq;
-use tokio::sync::Semaphore;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 const BODY_LIMIT: usize = 16 * 1024 * 1024;
 const BODY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -124,6 +125,8 @@ pub fn research_router(address: SocketAddr, tokens: Tokens) -> Result<Router, &'
     Ok(Router::new()
         .route("/v1/formula", post(formula))
         .route("/v1/universe/screen", post(screen))
+        .route("/v1/formula/stream", get(websocket::formula))
+        .route("/v1/universe/screen/stream", get(websocket::screen))
         .with_state(state))
 }
 
@@ -134,6 +137,12 @@ fn header_value(headers: &HeaderMap, name: HeaderName) -> Option<&str> {
 }
 
 impl Server {
+    fn acquire(&self) -> Result<OwnedSemaphorePermit, ApiError> {
+        Arc::clone(&self.slots)
+            .try_acquire_owned()
+            .map_err(|_| ApiError::new(StatusCode::TOO_MANY_REQUESTS, "Research workers are busy."))
+    }
+
     fn authorize(&self, headers: &HeaderMap, scope: Scope) -> Result<(), ApiError> {
         if header_value(headers, header::HOST) != Some(self.authority.as_str())
             || (headers.contains_key(header::ORIGIN)
@@ -180,7 +189,7 @@ impl Server {
     }
 }
 
-type Operation = fn(&[u8]) -> Result<Value, ApiError>;
+type Operation = fn(&[u8], &mut dyn FnMut(Value) -> bool) -> Result<(), ApiError>;
 
 async fn execute(
     state: Arc<Server>,
@@ -198,9 +207,7 @@ async fn execute(
             "Send application/json.",
         ));
     }
-    let permit = Arc::clone(&state.slots)
-        .try_acquire_owned()
-        .map_err(|_| ApiError::new(StatusCode::TOO_MANY_REQUESTS, "Research workers are busy."))?;
+    let permit = state.acquire()?;
     let bytes = tokio::time::timeout(BODY_TIMEOUT, to_bytes(request.into_body(), BODY_LIMIT))
         .await
         .map_err(|_| ApiError::new(StatusCode::REQUEST_TIMEOUT, "Request body timed out."))?
@@ -212,7 +219,17 @@ async fn execute(
         })?;
     tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        operation(&bytes)
+        let mut page = None;
+        operation(&bytes, &mut |value| {
+            page = Some(value);
+            false
+        })?;
+        page.ok_or_else(|| {
+            ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Research returned no page.",
+            )
+        })
     })
     .await
     .map_err(|_| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Research worker failed."))?

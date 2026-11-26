@@ -80,7 +80,25 @@ fn bounds(offset: usize, limit: usize, total: usize) -> (Range<usize>, Option<us
     (start..end, (end < total).then_some(end))
 }
 
-pub(crate) fn formula(bytes: &[u8]) -> Result<Value, ApiError> {
+fn pages(
+    offset: usize,
+    limit: usize,
+    total: usize,
+    emit: &mut dyn FnMut(Value) -> bool,
+    render: impl Fn(usize, Range<usize>, Option<usize>) -> Value,
+) {
+    let mut offset = offset;
+    loop {
+        let (range, next) = bounds(offset, limit, total);
+        if !emit(render(offset, range, next)) {
+            break;
+        }
+        let Some(next) = next else { break };
+        offset = next;
+    }
+}
+
+pub(crate) fn formula(bytes: &[u8], emit: &mut dyn FnMut(Value) -> bool) -> Result<(), ApiError> {
     let params: FormulaRequest = request(bytes)?;
     page(params.offset, params.limit, 100_000)?;
     if params.functions.len() > 16 {
@@ -116,21 +134,29 @@ pub(crate) fn formula(bytes: &[u8]) -> Result<Value, ApiError> {
     });
     let visible = &bars[..end];
     let values = compiled.evaluate(visible).map_err(analytical_error)?;
-    let (range, next) = bounds(params.offset, params.limit, values.len());
-    let rows: Vec<_> = visible[range.clone()].iter().zip(&values[range]).map(|(bar, value)| {
-        json!({"observed_at": bar.time, "value_ticks": value.map(|number| number.to_string())})
-    }).collect();
-    Ok(json!({
-        "language_version": FORMULA_VERSION, "total_rows": end,
-        "offset": params.offset, "next_offset": next, "rows": rows,
-    }))
+    pages(
+        params.offset,
+        params.limit,
+        end,
+        emit,
+        |offset, range, next| {
+            let rows: Vec<_> = visible[range.clone()].iter().zip(&values[range]).map(|(bar, value)| {
+            json!({"observed_at": bar.time, "value_ticks": value.map(|number| number.to_string())})
+        }).collect();
+            json!({
+                "language_version": FORMULA_VERSION, "total_rows": end,
+                "offset": offset, "next_offset": next, "rows": rows,
+            })
+        },
+    );
+    Ok(())
 }
 
 fn close(price: Option<PriceObservation>) -> Option<Value> {
     price.map(|price| json!({"ticks": price.ticks.to_string(), "observed_at": price.observed_at}))
 }
 
-pub(crate) fn screen(bytes: &[u8]) -> Result<Value, ApiError> {
+pub(crate) fn screen(bytes: &[u8], emit: &mut dyn FnMut(Value) -> bool) -> Result<(), ApiError> {
     let params: ScreenRequest = request(bytes)?;
     page(params.offset, params.limit, 5000)?;
     let (Some(baseline), Some(effective), Some(known)) = (
@@ -148,25 +174,33 @@ pub(crate) fn screen(bytes: &[u8]) -> Result<Value, ApiError> {
     let ranked = prices
         .screen(baseline, effective, known)
         .map_err(analytical_error)?;
-    let (range, next) = bounds(params.offset, params.limit, ranked.len());
-    let rows: Vec<_> = ranked[range]
-        .iter()
-        .map(|row| {
+    pages(
+        params.offset,
+        params.limit,
+        ranked.len(),
+        emit,
+        |offset, range, next| {
+            let rows: Vec<_> = ranked[range]
+                .iter()
+                .map(|row| {
+                    json!({
+                        "listing_id": row.listing.listing_id,
+                        "instrument": row.listing.instrument.to_string(),
+                        "membership_change_id": row.listing.change_id,
+                        "membership_effective_at": row.listing.effective_at,
+                        "membership_observed_at": row.listing.observed_at,
+                        "rank": row.rank,
+                        "return_units": row.return_units.map(|value| value.to_string()),
+                        "baseline": close(row.baseline),
+                        "current": close(row.current),
+                    })
+                })
+                .collect();
             json!({
-                "listing_id": row.listing.listing_id,
-                "instrument": row.listing.instrument.to_string(),
-                "membership_change_id": row.listing.change_id,
-                "membership_effective_at": row.listing.effective_at,
-                "membership_observed_at": row.listing.observed_at,
-                "rank": row.rank,
-                "return_units": row.return_units.map(|value| value.to_string()),
-                "baseline": close(row.baseline),
-                "current": close(row.current),
+                "universe": universe.name(), "total_rows": ranked.len(),
+                "offset": offset, "next_offset": next, "rows": rows,
             })
-        })
-        .collect();
-    Ok(json!({
-        "universe": universe.name(), "total_rows": ranked.len(),
-        "offset": params.offset, "next_offset": next, "rows": rows,
-    }))
+        },
+    );
+    Ok(())
 }

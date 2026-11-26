@@ -6,7 +6,7 @@
     "component": {
       "type": "application",
       "name": "MarketWeft",
-      "version": "0.51.0"
+      "version": "0.52.0"
     }
   },
   "components": [
@@ -329,6 +329,30 @@
     {
       "type": "library",
       "name": "base64",
+      "version": "0.22.1",
+      "bom-ref": "pkg:cargo/base64@0.22.1",
+      "purl": "pkg:cargo/base64@0.22.1",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "base64",
       "version": "0.23.1",
       "bom-ref": "pkg:cargo/base64@0.23.1",
       "purl": "pkg:cargo/base64@0.23.1",
@@ -515,6 +539,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -999,6 +1027,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -1215,6 +1247,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -1335,6 +1371,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -1532,6 +1572,30 @@
     },
     {
       "type": "library",
+      "name": "data-encoding",
+      "version": "2.11.1",
+      "bom-ref": "pkg:cargo/data-encoding@2.11.1",
+      "purl": "pkg:cargo/data-encoding@2.11.1",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "dbus",
       "version": "0.9.12",
       "bom-ref": "pkg:cargo/dbus@0.9.12",
@@ -1647,6 +1711,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -2491,6 +2559,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -2739,6 +2811,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -2763,6 +2839,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -4583,6 +4663,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -6048,6 +6132,30 @@
     },
     {
       "type": "library",
+      "name": "ppv-lite86",
+      "version": "0.2.21",
+      "bom-ref": "pkg:cargo/ppv-lite86@0.2.21",
+      "purl": "pkg:cargo/ppv-lite86@0.2.21",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "precomputed-hash",
       "version": "0.1.1",
       "bom-ref": "pkg:cargo/precomputed-hash@0.1.1",
@@ -6291,6 +6399,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -6315,6 +6427,78 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "rand",
+      "version": "0.9.5",
+      "bom-ref": "pkg:cargo/rand@0.9.5",
+      "purl": "pkg:cargo/rand@0.9.5",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b9ef1d0d795eb7d84685bca4f72f3649f064e6641543d3a8c415898726a57b41"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "rand_chacha",
+      "version": "0.9.0",
+      "bom-ref": "pkg:cargo/rand_chacha@0.9.0",
+      "purl": "pkg:cargo/rand_chacha@0.9.0",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "rand_core",
+      "version": "0.9.5",
+      "bom-ref": "pkg:cargo/rand_core@0.9.5",
+      "purl": "pkg:cargo/rand_core@0.9.5",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -7224,6 +7408,30 @@
     },
     {
       "type": "library",
+      "name": "sha1",
+      "version": "0.10.7",
+      "bom-ref": "pkg:cargo/sha1@0.10.7",
+      "purl": "pkg:cargo/sha1@0.10.7",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a978451301f4db1d02937a4ab3ccce137717b81826e79b7d49ffe3244a13c3b8"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "sha2",
       "version": "0.10.9",
       "bom-ref": "pkg:cargo/sha2@0.10.9",
@@ -7759,6 +7967,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -8199,6 +8411,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -8247,6 +8463,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -8385,6 +8605,30 @@
         {
           "alg": "SHA-256",
           "content": "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "tokio-tungstenite",
+      "version": "0.29.0",
+      "bom-ref": "pkg:cargo/tokio-tungstenite@0.29.0",
+      "purl": "pkg:cargo/tokio-tungstenite@0.29.0",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8f72a05e828585856dacd553fba484c242c46e391fb0e58917c942ee9202915c"
         }
       ],
       "properties": [
@@ -8868,6 +9112,30 @@
     },
     {
       "type": "library",
+      "name": "tungstenite",
+      "version": "0.29.0",
+      "bom-ref": "pkg:cargo/tungstenite@0.29.0",
+      "purl": "pkg:cargo/tungstenite@0.29.0",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6c01152af293afb9c7c2a57e4b559c5620b421f6d133261c60dd2d0cdb38e6b8"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "typeid",
       "version": "1.0.3",
       "bom-ref": "pkg:cargo/typeid@1.0.3",
@@ -8911,6 +9179,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -9131,6 +9403,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -9279,6 +9555,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -10391,6 +10671,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -10535,6 +10819,54 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "zerocopy-derive",
+      "version": "0.8.66",
+      "bom-ref": "pkg:cargo/zerocopy-derive@0.8.66",
+      "purl": "pkg:cargo/zerocopy-derive@0.8.66",
+      "licenses": [
+        {
+          "expression": "BSD-2-Clause OR Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f89bca3b96ceb3cfcb4572790402f977442270d252b9a8504ebc258760c55f94"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "zerocopy",
+      "version": "0.8.66",
+      "bom-ref": "pkg:cargo/zerocopy@0.8.66",
+      "purl": "pkg:cargo/zerocopy@0.8.66",
+      "licenses": [
+        {
+          "expression": "BSD-2-Clause OR Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cba8a86aee14fc8cc6c208af60854b3d4ab7185a9a369a12c648faa2716ff42a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
