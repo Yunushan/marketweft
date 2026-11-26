@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.60.0
+# Platform support · MarketWeft 0.61.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. No signed native distribution is part of this milestone.
 
@@ -14,5 +14,5 @@ A successful web test validates a specific browser, build and host. Producing a 
 | iOS / iPadOS | Responsive browser route. | Safari storage/import, installation and device tests. Native wrapper and Apple signing remain future work. |
 | FreeBSD / OpenBSD / NetBSD / DragonFly BSD | The complete static browser build uses standard web APIs, with no wrapper or server OS dependency. A BSD user may serve the ZIP's dist/ from any static server or open it on an HTTPS host. | Each BSD/browser combination needs its own offline and import tests. No native BSD wrapper has a release claim. |
 | Headless servers | Serve the same dist/ using a static web server. The bundled Node launcher binds loopback. The Node observation package and local MCP formula server run without a GUI. The MCP stdio process and the scoped localhost REST, WebSocket and gRPC service were exercised on Linux x64. CI packages the research service with bundled SQLite for Ubuntu 24.04 x64 and exercises local audit recovery and explicitly configured TLS. [Local REST research](local-rest-research.md). | 0.59.0 exercises TLS and scoped credentials from an isolated second client. Enterprise deployment and credentials-provider integration. |
-| OCI / Kubernetes / enterprise | A Linux x64 OCI archive was verified with a non-root user, isolated loopback and separate credential and audit volumes. [Research OCI image](local-rest-research.md#research-oci-image). | Deployment manifests, orchestration monitoring and hosted restore drills. |
+| OCI / Kubernetes / enterprise | A Linux x64 OCI archive was verified with a non-root user, isolated loopback and separate credential and audit volumes. [Research OCI image](local-rest-research.md#research-oci-image). | 0.61.0 verifies private Docker Compose deployment and restored audit reuse. Kubernetes, orchestration monitoring and hosted restore drills. |
 

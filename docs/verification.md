@@ -1,6 +1,6 @@
 # MarketWeft verification
 
-## Private Docker Compose acceptance
+## 0.61.0 · Private Docker Compose deployment
 
 | Check | Observed result |
 | --- | --- |
