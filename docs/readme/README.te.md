@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.29.0 · 0BSD**
+**0.30.0 · 0BSD**
 
 **పత్రాల భాషలు**
 
@@ -15,14 +15,14 @@
 
 MarketWeft విశ్లేషకులు, డెవలపర్లు, నిర్వాహకుల కోసం స్థానిక పరిశోధన టెర్మినల్. అనుమతి ఉన్న OHLCV ఫైళ్లను తెరుస్తుంది, క్యాండిళ్లు మరియు పరిమాణం చూపిస్తుంది, స్థిర దశాంశంతో SMA, EMA లెక్కిస్తుంది. గమనిక జాబితా, ఎంచుకున్న సాధనం, సూచికలు IndexedDBలో ఉంటాయి. వనరులు కాష్ అయిన తర్వాత ఆఫ్‌లైన్‌లో పనిచేస్తుంది. అందించిన ధరలు, పరిమాణం కృత్రిమమైనవి. ఖాతా అవసరం లేదు.
 
-MarketWeft 0.29.0 రికార్డ్ చేసిన ట్రేడ్‌ల నుంచి గమనించిన సమయాన్ని బట్టి టిక్ బార్‌లను నిర్మిస్తుంది. MarketWeft 0.7.0లో ప్రశ్న సమయానికి తెలిసిన ధరల రాబడిని బట్టి సమూహ సభ్యులకు ర్యాంకు ఇవ్వవచ్చు. సెషన్ ఆధారిత రీప్లేలో షేరు విభజనలు, నగదు డివిడెండ్లు, సభ్యత్వం, డీలిస్టింగ్ ఉన్నాయి. వేరే trading-bot సేవ కోసం చదవడానికి మాత్రమే TypeScript అబ్జర్వర్, ప్రయోగాత్మక Tauri ర్యాపర్ కూడా ఉన్నాయి. డేటా ఫీడ్లు, ఆర్డర్లు, సంతకం చేసిన ఇన్‌స్టాలర్లు, బహుళ వినియోగదారుల హోస్టింగ్ రోడ్‌మ్యాప్‌లో ఉన్నాయి.
+MarketWeft 0.30.0 పోర్ట్‌ఫోలియో రీప్లేకు తేదీతో కూడిన డివిడెండ్ రాబడులు, నగదును జోడిస్తుంది. MarketWeft 0.7.0లో ప్రశ్న సమయానికి తెలిసిన ధరల రాబడిని బట్టి సమూహ సభ్యులకు ర్యాంకు ఇవ్వవచ్చు. సెషన్ ఆధారిత రీప్లేలో షేరు విభజనలు, నగదు డివిడెండ్లు, సభ్యత్వం, డీలిస్టింగ్ ఉన్నాయి. వేరే trading-bot సేవ కోసం చదవడానికి మాత్రమే TypeScript అబ్జర్వర్, ప్రయోగాత్మక Tauri ర్యాపర్ కూడా ఉన్నాయి. డేటా ఫీడ్లు, ఆర్డర్లు, సంతకం చేసిన ఇన్‌స్టాలర్లు, బహుళ వినియోగదారుల హోస్టింగ్ రోడ్‌మ్యాప్‌లో ఉన్నాయి.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## పోర్టబుల్ టెర్మినల్ ప్రారంభించండి
 
-విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.29.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
+విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.30.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
 
 ```sh
 node serve-terminal.mjs
@@ -155,6 +155,8 @@ OHLC bars ఎంచుకోండి. నిలువు గీత గరిష
 Timeframe లో సెషన్ క్యాలెండర్ CSVని జోడించండి. బకెట్లు ప్రతి సెషన్ ప్రారంభ సమయం నుంచి మొదలవుతాయి. చివరి బకెట్ పేర్కొన్న ముగింపు సమయంలో ఆగుతుంది. పరిశోధన CSV క్యాలెండర్, సోర్స్ కవరేజీని నమోదు చేస్తుంది.
 
 Recorded tick bars తెరిచి ట్రేడ్‌ల సంఖ్య, పరిశీలన కటాఫ్ ఎంచుకోండి. ఒకే సమయంలో ఉన్నవి రికార్డు క్రమంలో ఉంటాయి. చార్ట్ అసంపూర్ణ బార్‌లను గుర్తించి ఖచ్చితమైన సీక్వెన్స్ పరిమితులను ఎగుమతి చేస్తుంది.
+
+Portfolio replay లో డివిడెండ్ డెమో లోడ్ చేయండి లేదా CSV జోడించండి. క్వెరీ ఎక్స్ తేదీకి ముందున్న హోల్డింగ్‌లను తీసుకుని, చెల్లింపు తేదీన సెటిల్ చేస్తుంది. సవరణలు గమనించిన సమయానికే అమలవుతాయి.
 
 [docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](../../docs/replay-alerts.md) · [alert-rules.csv](../../crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](../../crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](../../docs/paper-ledger.md) · [paper-events.csv](../../crates/core/tests/fixtures/synthetic-paper-events.csv) · [bar-backtest.md](../../docs/bar-backtest.md) · [backtest-sessions.csv](../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv) · [backtest-bars.csv](../../crates/core/tests/fixtures/synthetic-backtest-bars.csv) · [walk-forward.md](../../docs/walk-forward.md) · [seeded-scenarios.md](../../docs/seeded-scenarios.md) · [delisting-proceeds.md](../../docs/delisting-proceeds.md) · [split-revisions.csv](../../crates/core/tests/fixtures/synthetic-split-revisions.csv) · [dividend-positions.csv](../../crates/core/tests/fixtures/synthetic-dividend-positions.csv) · [portfolio-replay.md](../../docs/portfolio-replay.md) · [portfolio-holdings.csv](../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv) · [chart-workspace.md](../../docs/chart-workspace.md)
 

@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.30.0 · Portfolio dividend income
+
+| Check | Observed result |
+| --- | --- |
+| Ex-date entitlement | The first 2.50 USD receivable uses two shares effective before ex. A quantity reported at the ex timestamp does not change that entitlement. The amount is absent before either its effective or observation cutoff. |
+| Delisting and ticker reuse | Late delisting evidence removes a post-delisting entitlement. At 14:37 UTC the portfolio shows 7.50 USD in dividend receivables and a separate delisting receivable of 70 USD. The two BETA listings retain separate dividends even when they share a ticker and dividend ID. |
+| Payments and revisions | At 14:55 UTC, dividend cash is 5 USD and 8 EUR. A later holding correction changes USD cash to 4. A zero-rate revision removes it. Rewinding knowledge restores the 5 USD result. |
+| Regression suite | All 69 browser and six SDK tests passed on Windows x64, 70 native tests passed on Linux x64, 26 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Portfolio replay](portfolio-replay.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.29.0 · Recorded tick bars
 
 | Check | Observed result |

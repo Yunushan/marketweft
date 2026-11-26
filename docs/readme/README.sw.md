@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.29.0 · 0BSD**
+**0.30.0 · 0BSD**
 
 **Lugha za mwongozo**
 
@@ -15,14 +15,14 @@
 
 MarketWeft ni kituo cha utafiti cha ndani kwa wachambuzi, wasanidi na waendeshaji. Hufungua OHLCV iliyoidhinishwa, huchora vinara na kiasi, hukokotoa SMA na EMA kwa nukta isiyohama, na huhifadhi orodha, chombo kilichochaguliwa na viashiria katika IndexedDB. Hufanya kazi bila mtandao baada ya kuhifadhi rasilimali. Bei na kiasi vya mfano ni vya kutungwa na havihitaji akaunti.
 
-MarketWeft 0.29.0 huunda pau kwa idadi ya miamala iliyorekodiwa kulingana na muda wa kuonekana. MarketWeft 0.7.0 inaongeza uchujaji na upangaji wa wanachama kwa faida ya bei kwa kutumia taarifa zilizojulikana wakati wa hoja. Rejeo la vipindi vya soko linajumuisha mgawanyo wa hisa, gawio la fedha taslimu, uanachama na kufutwa kwa orodha. Hazina ina kifuatiliaji cha TypeScript cha kusoma tu kwa huduma tofauti ya trading-bot na kifurushi cha majaribio cha Tauri. Milisho ya data, maagizo, visakinishi vilivyosainiwa na upangishaji wa watumiaji wengi vipo kwenye ramani ya kazi.
+MarketWeft 0.30.0 huongeza madai ya gawio na fedha zilizolipwa kwa tarehe katika marudio ya jalada. MarketWeft 0.7.0 inaongeza uchujaji na upangaji wa wanachama kwa faida ya bei kwa kutumia taarifa zilizojulikana wakati wa hoja. Rejeo la vipindi vya soko linajumuisha mgawanyo wa hisa, gawio la fedha taslimu, uanachama na kufutwa kwa orodha. Hazina ina kifuatiliaji cha TypeScript cha kusoma tu kwa huduma tofauti ya trading-bot na kifurushi cha majaribio cha Tauri. Milisho ya data, maagizo, visakinishi vilivyosainiwa na upangishaji wa watumiaji wengi vipo kwenye ramani ya kazi.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Anzisha kituo kinachobebeka
 
-Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.29.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
+Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.30.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
 
 ```sh
 node serve-terminal.mjs
@@ -155,6 +155,8 @@ Fungua Timeframe katika paneli yoyote na uandike vipindi vya chanzo na lengwa kw
 Ongeza CSV ya kalenda katika Timeframe. Vipindi vinaanzia wakati wa kufungua kila kikao na kipindi cha mwisho kinaishia wakati wa kufunga uliowekwa. CSV ya utafiti huandika kalenda na idadi ya pau za chanzo.
 
 Fungua Recorded tick bars na uchague idadi ya miamala na muda wa mwisho wa uchunguzi. Chati huhifadhi mpangilio wa rekodi kwa muda sawa, hutambua pau zisizokamilika na husafirisha namba halisi za mfuatano.
+
+Katika Portfolio replay pakia mfano wa gawio au ongeza CSV. Hoja hutumia hisa za kabla ya tarehe ya ex, huhesabu malipo siku ya kulipa na hutumia marekebisho yanapoonekana.
 
 [docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](../../docs/replay-alerts.md) · [alert-rules.csv](../../crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](../../crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](../../docs/paper-ledger.md) · [paper-events.csv](../../crates/core/tests/fixtures/synthetic-paper-events.csv) · [bar-backtest.md](../../docs/bar-backtest.md) · [backtest-sessions.csv](../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv) · [backtest-bars.csv](../../crates/core/tests/fixtures/synthetic-backtest-bars.csv) · [walk-forward.md](../../docs/walk-forward.md) · [seeded-scenarios.md](../../docs/seeded-scenarios.md) · [delisting-proceeds.md](../../docs/delisting-proceeds.md) · [split-revisions.csv](../../crates/core/tests/fixtures/synthetic-split-revisions.csv) · [dividend-positions.csv](../../crates/core/tests/fixtures/synthetic-dividend-positions.csv) · [portfolio-replay.md](../../docs/portfolio-replay.md) · [portfolio-holdings.csv](../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv) · [chart-workspace.md](../../docs/chart-workspace.md)
 
