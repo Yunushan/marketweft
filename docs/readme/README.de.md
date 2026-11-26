@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.7.0 · 0BSD**
+**0.8.0 · 0BSD**
 
 **Sprachen der Dokumentation**
 
@@ -15,14 +15,14 @@
 
 MarketWeft ist ein lokal arbeitendes Rechercheterminal für Analysten, Entwickler und Betreiber. Es öffnet berechtigte OHLCV-Dateien, zeichnet Kerzen und Volumen, berechnet SMA und EMA in Festkommaarithmetik und speichert Beobachtungsliste, Instrument und Indikatoren in IndexedDB. Nach dem Zwischenspeichern der Anwendung funktioniert es offline. Die mitgelieferten Kurse und Volumina sind synthetisch und brauchen kein Konto.
 
-MarketWeft 0.7.0 ergänzt eine historische Rangliste nach Kursrendite anhand der zum Abfragezeitpunkt bekannten Daten. Die sitzungsbasierte Wiedergabe umfasst Aktiensplits, Bardividenden, Indexzugehörigkeit und Delistings. Das Repository enthält außerdem einen schreibgeschützten TypeScript-Beobachter für den getrennten Dienst trading-bot sowie eine experimentelle Tauri-Hülle. Datenfeeds, Orderaufgabe, signierte Installationspakete und Mehrbenutzer-Hosting stehen weiter auf der Roadmap.
+MarketWeft 0.8.0 ergänzt eine zeitpunktbezogene Sektor-Heatmap mit Gewichtsabdeckung und Renditebeiträgen. MarketWeft 0.7.0 ergänzt eine historische Rangliste nach Kursrendite anhand der zum Abfragezeitpunkt bekannten Daten. Die sitzungsbasierte Wiedergabe umfasst Aktiensplits, Bardividenden, Indexzugehörigkeit und Delistings. Das Repository enthält außerdem einen schreibgeschützten TypeScript-Beobachter für den getrennten Dienst trading-bot sowie eine experimentelle Tauri-Hülle. Datenfeeds, Orderaufgabe, signierte Installationspakete und Mehrbenutzer-Hosting stehen weiter auf der Roadmap.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Portables Terminal starten
 
-Laden Sie browser-terminal-attempt-N aus einem erfolgreichen GitHub-Lauf herunter. Entpacken Sie MarketWeft-browser-0.7.0.zip, lassen Sie dist/ neben serve-terminal.mjs und führen Sie dort den Befehl aus. Öffnen Sie http://127.0.0.1:4173/ in einem aktuellen Browser mit WebAssembly, Canvas, BigInt und IndexedDB. Der Starter benötigt Node.js ab 22.12 und keine npm-Installation. Warten Sie vor dem Trennen auf Offline ready.
+Laden Sie browser-terminal-attempt-N aus einem erfolgreichen GitHub-Lauf herunter. Entpacken Sie MarketWeft-browser-0.8.0.zip, lassen Sie dist/ neben serve-terminal.mjs und führen Sie dort den Befehl aus. Öffnen Sie http://127.0.0.1:4173/ in einem aktuellen Browser mit WebAssembly, Canvas, BigInt und IndexedDB. Der Starter benötigt Node.js ab 22.12 und keine npm-Installation. Warten Sie vor dem Trennen auf Offline ready.
 
 ```sh
 node serve-terminal.mjs
@@ -65,7 +65,14 @@ universe,listing_id,price_at,observed_at,close
 DEMO-BASKET,BETA-001,2025-06-02T14:10:00Z,2025-06-02T14:12:00Z,56
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv)
+Lade die Demokurse und wähle Load demo sectors in Sector heatmap. Um 14:10 UTC sind 60% des bekannten Gewichts abgedeckt. Sobald BETAs Kurs um 14:12 bekannt wird, steigt die Abdeckung auf 100% und der beobachtete Beitrag von 1,2% auf 6%. Die Korrektur um 14:16 verschiebt BETA von Financials nach Technology. Öffne eine Kachel für Rang, Beitrag und Klassifizierungszeiten. Lade eigene Daten als Sector and weight CSV.
+
+```csv
+universe,listing_id,effective_at,observed_at,sector,weight
+DEMO-BASKET,BETA-001,2025-06-02T14:05:00Z,2025-06-02T14:16:00Z,Technology,0.4
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv)
 
 <!-- section:04 -->
 ## Eigene Daten importieren und abspielen

@@ -1,6 +1,6 @@
 # MarketWeft requirements and acceptance evidence
 
-The evidence column tracks delivery through 0.7.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
+The evidence column tracks delivery through 0.8.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
 
 | ID | Behavior and acceptance criterion | Evidence or next test |
 | --- | --- | --- |
@@ -21,7 +21,7 @@ The evidence column tracks delivery through 0.7.0. “Backlog” identifies beha
 | MW-015 | Specify an open time-series language with deterministic missing values, bounded evaluation and isolated plugins. | Backlog. Publish grammar, interpreter conformance vectors and quota tests before accepting user programs. |
 | MW-016 | Support custom financial/statistical formulas and Rust, TS, Python and Wasm SDKs. | Partial TS observation package. Future SDKs must exchange identical typed input and output fixtures and expose version negotiation. |
 | MW-017 | Track exchange sessions, action adjustments and point-in-time membership. | 0.6.0 reconstructs membership and delistings through independent effective and observation cutoffs. Historical dividend ledgers and split replay keep source candles intact. [Universe membership](universe-membership.md) · [Cash dividends](cash-dividends.md) · [Stock splits](corporate-actions.md). |
-| MW-018 | Screen an as-of universe and group a heatmap by sector, weight and return. | 0.7.0 ranks the point-in-time membership by exact price return and retains unranked members when a close is missing. Browser, native and Wasm tests exercise cutoff boundaries and revisions. The sector heatmap remains open. [Screen contract](universe-screen.md). |
+| MW-018 | Screen an as-of universe and group a heatmap by sector, weight and return. | Rust and Wasm share the screening constituents, prices and returns. The heatmap adds point-in-time sector and weight evidence, covered weight, sector returns and listing contributions. Fixtures reconcile memberships and check late prices and classifications. [Screen contract](universe-screen.md) · [Heatmap contract](sector-heatmap.md). |
 | MW-019 | Rebuild depth, footprint, TPO, volume profiles and cumulative delta from ordered trades/quotes. | Backlog. Detect a sequence gap, resnapshot, and reconcile size totals and aggressor classifications. |
 | MW-020 | Backtest and optimize strategies with fees, slippage, execution delays and survivorship controls. | Backlog. A signal at close cannot fill before the next eligible event. Test a delisted constituent, partial fills and cash reconciliation. |
 | MW-021 | Run an isolated paper ledger with fees, position limits, exposure caps, idempotency and kill switch. | Backlog. A repeated order must have one effect. Disallowed exposure, stopped accounts and unauthorized live routes must fail closed. |
