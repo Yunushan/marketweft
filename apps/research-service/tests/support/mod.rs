@@ -1,5 +1,6 @@
 use std::env;
 use std::io::{BufRead, BufReader};
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
@@ -15,16 +16,20 @@ pub struct ResearchProcess {
 }
 
 impl ResearchProcess {
-    pub fn start() -> Self {
+    pub fn start(path: Option<&Path>) -> Self {
         let executable = env::var_os("MARKETWEFT_TEST_BINARY")
             .unwrap_or_else(|| env!("CARGO_BIN_EXE_marketweft-research-service").into());
-        let process = Command::new(executable)
+        let mut command = Command::new(executable);
+        command
             .env("MARKETWEFT_FORMULA_TOKEN", FORMULA_TOKEN)
             .env("MARKETWEFT_SCREEN_TOKEN", SCREEN_TOKEN)
             .env("MARKETWEFT_RESEARCH_PORT", "0")
-            .stdout(Stdio::piped())
-            .spawn()
-            .unwrap();
+            .env_remove("MARKETWEFT_RESEARCH_AUDIT_DB")
+            .stdout(Stdio::piped());
+        if let Some(path) = path {
+            command.env("MARKETWEFT_RESEARCH_AUDIT_DB", path);
+        }
+        let process = command.spawn().unwrap();
         let mut server = Self {
             origin: String::new(),
             process,

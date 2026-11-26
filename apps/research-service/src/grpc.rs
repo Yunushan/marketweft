@@ -1,5 +1,6 @@
 use crate::{
     analytics,
+    audit::{Outcome, Transport},
     proto::{
         research_server::{Research, ResearchServer},
         FormulaPage, FormulaQuery, ScreenPage, ScreenQuery,
@@ -58,18 +59,36 @@ async fn guard(
     if let Err(error) = state.authorize(request.headers(), authority, scope) {
         return grpc_error(status(error));
     }
-    let permit = match state.acquire() {
-        Ok(permit) => permit,
+    let admission = match state.admit(scope, Transport::Grpc).await {
+        Ok(admission) => admission,
         Err(error) => return grpc_error(status(error)),
     };
-    request.extensions_mut().insert(Arc::new(permit));
-    timeout(CALL_TIMEOUT, next.run(request))
+    request
+        .extensions_mut()
+        .insert(Arc::clone(&admission.permit));
+    let response = timeout(CALL_TIMEOUT, next.run(request))
         .await
         .unwrap_or_else(|_| {
             grpc_error(Status::deadline_exceeded(
                 "Research call exceeded its deadline.",
             ))
-        })
+        });
+    let outcome = match response
+        .headers()
+        .get("grpc-status")
+        .map(|code| code.as_bytes())
+    {
+        None => Outcome::from_http(response.status()),
+        Some(b"0") => Outcome::Completed,
+        Some(b"1") => Outcome::Interrupted,
+        Some(b"4") => Outcome::TimedOut,
+        Some(b"3" | b"7" | b"8" | b"9" | b"11" | b"12" | b"16") => Outcome::Rejected,
+        Some(_) => Outcome::Failed,
+    };
+    match admission.finish(outcome).await {
+        Ok(()) => response,
+        Err(error) => grpc_error(status(error)),
+    }
 }
 
 fn grpc_error(status: Status) -> Response {
@@ -81,6 +100,7 @@ fn status(error: ApiError) -> Status {
         StatusCode::UNAUTHORIZED => Code::Unauthenticated,
         StatusCode::FORBIDDEN => Code::PermissionDenied,
         StatusCode::TOO_MANY_REQUESTS | StatusCode::PAYLOAD_TOO_LARGE => Code::ResourceExhausted,
+        StatusCode::SERVICE_UNAVAILABLE => Code::Unavailable,
         StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => Code::InvalidArgument,
         _ => Code::Internal,
     };

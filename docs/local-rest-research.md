@@ -45,3 +45,17 @@ Use a Protobuf client over plaintext HTTP/2 at the printed IPv4 loopback address
 | `ScreenUniverse` | `MARKETWEFT_SCREEN_TOKEN` |
 
 Send the bearer token as `authorization` metadata. Reuse the same query and its data and cutoffs with `offset` set to the previous page’s `next_offset`. An absent `next_offset` marks the last page. The schema uses optional fields for unavailable formula values, ranks and close observations, and strings for exact ticks and returns. The server shares the two research slots with REST and WebSocket, caps each Protobuf message at 16 MiB and applies a 15-second deadline to each call.
+
+## SQLite audit receipts
+
+To enable the audit trail, set `MARKETWEFT_RESEARCH_AUDIT_DB` to a database file in a private local directory before starting the service. On first use, the service creates and versions the database. Start with the same path to retain the receipt history across restarts.
+
+Each admitted research request records only its receipt ID, transport, formula or screen scope, UTC timestamps and outcome. Authentication and capacity checks precede admission. The service records the admission before evaluating the query. A receipt with an empty outcome and finish time identifies an admission without a recorded conclusion, such as one interrupted by a process exit. A WebSocket receipt covers the stream until it closes.
+
+Open the ledger with the SQLite command-line tool to read the receipts.
+
+```sh
+sqlite3 -readonly "$MARKETWEFT_RESEARCH_AUDIT_DB" 'SELECT receipt_id, transport, scope, started_at, finished_at, outcome FROM research_receipts ORDER BY receipt_id;'
+```
+
+If SQLite cannot write a receipt, REST and WebSocket upgrades return HTTP 503 and gRPC returns `Unavailable`. An upgraded WebSocket returns an error frame when finalizing its receipt fails. An interrupted admission keeps its original receipt ID.

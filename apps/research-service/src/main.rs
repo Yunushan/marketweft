@@ -1,7 +1,8 @@
-use marketweft_research_service::{research_router, Tokens};
+use marketweft_research_service::{research_router, research_router_with_audit, Tokens};
 use std::env::{self, VarError};
 use std::io;
 use std::net::Ipv4Addr;
+use std::path::Path;
 use tokio::net::TcpListener;
 
 fn setting(key: &str) -> Result<Option<String>, VarError> {
@@ -23,7 +24,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tokens = Tokens::new(formula.as_deref(), screen.as_deref()).map_err(io::Error::other)?;
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await?;
     let address = listener.local_addr()?;
-    let endpoint = research_router(address, tokens).map_err(io::Error::other)?;
+    let endpoint = match env::var_os("MARKETWEFT_RESEARCH_AUDIT_DB") {
+        Some(path) => research_router_with_audit(address, tokens, Path::new(&path))?,
+        None => research_router(address, tokens).map_err(io::Error::other)?,
+    };
     println!("http://{address}");
     axum::serve(listener, endpoint).await?;
     Ok(())

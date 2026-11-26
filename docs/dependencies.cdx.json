@@ -6,7 +6,7 @@
     "component": {
       "type": "application",
       "name": "MarketWeft",
-      "version": "0.53.0"
+      "version": "0.54.0"
     }
   },
   "components": [
@@ -967,6 +967,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -2240,6 +2244,54 @@
     },
     {
       "type": "library",
+      "name": "fallible-iterator",
+      "version": "0.3.0",
+      "bom-ref": "pkg:cargo/fallible-iterator@0.3.0",
+      "purl": "pkg:cargo/fallible-iterator@0.3.0",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "fallible-streaming-iterator",
+      "version": "0.1.9",
+      "bom-ref": "pkg:cargo/fallible-streaming-iterator@0.1.9",
+      "purl": "pkg:cargo/fallible-streaming-iterator@0.1.9",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "fastrand",
       "version": "2.5.0",
       "bom-ref": "pkg:cargo/fastrand@2.5.0",
@@ -2335,6 +2387,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -2459,6 +2515,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -3364,6 +3424,30 @@
           "name": "marketweft:dependency-group",
           "value": "desktop"
         },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "hashlink",
+      "version": "0.12.2",
+      "bom-ref": "pkg:cargo/hashlink@0.12.2",
+      "purl": "pkg:cargo/hashlink@0.12.2",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a596f1b20ed2cc5ecac41a164aaebc7258057060f06c0cf7a2ba3991ee7990fb"
+        }
+      ],
+      "properties": [
         {
           "name": "marketweft:dependency-group",
           "value": "research-service"
@@ -4823,6 +4907,30 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "libsqlite3-sys",
+      "version": "0.40.0",
+      "bom-ref": "pkg:cargo/libsqlite3-sys@0.40.0",
+      "purl": "pkg:cargo/libsqlite3-sys@0.40.0",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b06e69070b7e12262b0cd90832f0a7396f142a2b330181255562decf9f0c6215"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -6483,6 +6591,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -7496,6 +7608,54 @@
     },
     {
       "type": "library",
+      "name": "rsqlite-vfs",
+      "version": "0.2.0",
+      "bom-ref": "pkg:cargo/rsqlite-vfs@0.2.0",
+      "purl": "pkg:cargo/rsqlite-vfs@0.2.0",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "353b74f9810d5b085b6c42c9d86a5f0fdb795553235cdd48753b32e3809d18a7"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "rusqlite",
+      "version": "0.43.0",
+      "bom-ref": "pkg:cargo/rusqlite@0.43.0",
+      "purl": "pkg:cargo/rusqlite@0.43.0",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f172c4812a19b26d1c23cdb0070e69db335503dfa378b910eb857386e5b8beba"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "rustc-hash",
       "version": "2.1.3",
       "bom-ref": "pkg:cargo/rustc-hash@2.1.3",
@@ -8299,6 +8459,10 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -8503,6 +8667,30 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "sqlite-wasm-rs",
+      "version": "0.6.3",
+      "bom-ref": "pkg:cargo/sqlite-wasm-rs@0.6.3",
+      "purl": "pkg:cargo/sqlite-wasm-rs@0.6.3",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a6cd504cecbfe7eef649988840f9a6cb768d11085efec138f8e99f160632d867"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },
@@ -10387,6 +10575,30 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "vcpkg",
+      "version": "0.2.15",
+      "bom-ref": "pkg:cargo/vcpkg@0.2.15",
+      "purl": "pkg:cargo/vcpkg@0.2.15",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },

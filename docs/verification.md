@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.54.0 · Local SQLite research audit
+
+| Check | Observed result |
+| --- | --- |
+| Scoped receipts and restart | REST retained ordered completion and rejection receipts after reopening the same database. A valid WebSocket stream and invalid gRPC request recorded their transport, scope and outcome. Killing the process after a separate WebSocket upgrade preserved an unfinished receipt. |
+| Data boundary | The ledger contains the receipt fields. It contained none of the fixture bearer tokens, formula text or CSV marker. An unauthorized scope attempt added zero rows. |
+| Storage failure and ownership | A second connection held a write lock. The research request returned 503 and succeeded after the lock was released. The service rejected an unrelated database and preserved its schema and data. |
+| Regression suite | All 16 local research integration tests passed on Linux x64. |
+
+[SQLite audit receipts](local-rest-research.md#sqlite-audit-receipts) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.53.0 · Local gRPC research
 
 | Check | Observed result |

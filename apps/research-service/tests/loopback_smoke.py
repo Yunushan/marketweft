@@ -72,6 +72,7 @@ def main(executable):
         MARKETWEFT_FORMULA_TOKEN=formula_token,
         MARKETWEFT_SCREEN_TOKEN=screen_token,
     )
+    settings.pop("MARKETWEFT_RESEARCH_AUDIT_DB", None)
     with subprocess.Popen(
         [str(Path(executable).resolve())], env=settings, text=True, stdout=subprocess.PIPE,
     ) as process:

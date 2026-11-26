@@ -1,6 +1,7 @@
 //! Loopback-only, read-only access to the shared research engine.
 
 mod analytics;
+mod audit;
 mod grpc;
 mod websocket;
 
@@ -10,6 +11,7 @@ pub mod proto {
 }
 
 use analytics::ResearchPage;
+use audit::{Outcome, Receipt, Trail, Transport};
 use axum::body::to_bytes;
 use axum::extract::{Request, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode};
@@ -17,7 +19,9 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::json;
+use std::io;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use subtle::ConstantTimeEq;
@@ -84,6 +88,21 @@ struct Server {
     origin: String,
     tokens: Tokens,
     slots: Arc<Semaphore>,
+    audit: Option<Trail>,
+}
+
+struct Admission {
+    permit: Arc<OwnedSemaphorePermit>,
+    receipt: Option<Receipt>,
+}
+
+impl Admission {
+    async fn finish(self, outcome: Outcome) -> Result<(), ApiError> {
+        match self.receipt {
+            Some(receipt) => receipt.finish(outcome).await,
+            None => Ok(()),
+        }
+    }
 }
 
 struct ApiError {
@@ -114,29 +133,48 @@ impl IntoResponse for ApiError {
 
 /// Construct the v1 API for the exact IPv4 loopback address bound by the service.
 pub fn research_router(address: SocketAddr, tokens: Tokens) -> Result<Router, &'static str> {
+    Ok(configure_router(authority(address)?, tokens, None))
+}
+
+/// Open a local SQLite audit database before enabling the loopback research API.
+pub fn research_router_with_audit(
+    address: SocketAddr,
+    tokens: Tokens,
+    path: &Path,
+) -> io::Result<Router> {
+    let authority = authority(address).map_err(io::Error::other)?;
+    let trail = Trail::open(path).map_err(io::Error::other)?;
+    Ok(configure_router(authority, tokens, Some(trail)))
+}
+
+fn authority(address: SocketAddr) -> Result<String, &'static str> {
     if address.ip() != Ipv4Addr::LOCALHOST || address.port() == 0 {
         return Err("Bind the research service to 127.0.0.1 with an assigned port.");
     }
-    let authority = if address.port() == 80 {
+    Ok(if address.port() == 80 {
         "127.0.0.1".to_owned()
     } else {
         address.to_string()
-    };
+    })
+}
+
+fn configure_router(authority: String, tokens: Tokens, audit: Option<Trail>) -> Router {
     let origin = format!("http://{authority}");
     let state = Arc::new(Server {
         authority,
         origin,
         tokens,
         slots: Arc::new(Semaphore::new(2)),
+        audit,
     });
     let grpc_routes = grpc::routes(Arc::clone(&state));
-    Ok(Router::new()
+    Router::new()
         .route("/v1/formula", post(formula))
         .route("/v1/universe/screen", post(screen))
         .route("/v1/formula/stream", get(websocket::formula))
         .route("/v1/universe/screen/stream", get(websocket::screen))
         .with_state(state)
-        .merge(grpc_routes))
+        .merge(grpc_routes)
 }
 
 fn header_value(headers: &HeaderMap, name: HeaderName) -> Option<&str> {
@@ -146,10 +184,18 @@ fn header_value(headers: &HeaderMap, name: HeaderName) -> Option<&str> {
 }
 
 impl Server {
-    fn acquire(&self) -> Result<OwnedSemaphorePermit, ApiError> {
-        Arc::clone(&self.slots)
-            .try_acquire_owned()
-            .map_err(|_| ApiError::new(StatusCode::TOO_MANY_REQUESTS, "Research workers are busy."))
+    async fn admit(&self, scope: Scope, transport: Transport) -> Result<Admission, ApiError> {
+        let permit = Arc::clone(&self.slots).try_acquire_owned().map_err(|_| {
+            ApiError::new(StatusCode::TOO_MANY_REQUESTS, "Research workers are busy.")
+        })?;
+        let receipt = match &self.audit {
+            Some(trail) => Some(trail.begin(transport, scope).await?),
+            None => None,
+        };
+        Ok(Admission {
+            permit: Arc::new(permit),
+            receipt,
+        })
     }
 
     fn authorize(
@@ -227,23 +273,31 @@ async fn execute(
             "Send application/json.",
         ));
     }
-    let permit = state.acquire()?;
-    let bytes = tokio::time::timeout(BODY_TIMEOUT, to_bytes(request.into_body(), BODY_LIMIT))
+    let admission = state.admit(scope, Transport::Rest).await?;
+    let permit = Arc::clone(&admission.permit);
+    let result = async {
+        let bytes = tokio::time::timeout(BODY_TIMEOUT, to_bytes(request.into_body(), BODY_LIMIT))
+            .await
+            .map_err(|_| ApiError::new(StatusCode::REQUEST_TIMEOUT, "Request body timed out."))?
+            .map_err(|_| {
+                ApiError::new(
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    "Request body exceeds 16 MiB or is incomplete.",
+                )
+            })?;
+        tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            analytics::first_page(|emit| operation(&bytes, emit))
+        })
         .await
-        .map_err(|_| ApiError::new(StatusCode::REQUEST_TIMEOUT, "Request body timed out."))?
-        .map_err(|_| {
-            ApiError::new(
-                StatusCode::PAYLOAD_TOO_LARGE,
-                "Request body exceeds 16 MiB or is incomplete.",
-            )
-        })?;
-    tokio::task::spawn_blocking(move || {
-        let _permit = permit;
-        analytics::first_page(|emit| operation(&bytes, emit))
-    })
-    .await
-    .map_err(|_| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Research worker failed."))?
-    .map(Json)
+        .map_err(|_| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Research worker failed."))?
+    }
+    .await;
+    let status = result
+        .as_ref()
+        .map_or_else(|error| error.status, |_| StatusCode::OK);
+    admission.finish(Outcome::from_http(status)).await?;
+    result.map(Json)
 }
 
 async fn formula(
