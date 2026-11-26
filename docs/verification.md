@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.34.0 · Observed volume and time-price profiles
+
+| Check | Observed result |
+| --- | --- |
+| Distinct opportunities | The negative price bin has two occupied time brackets, even after a late trade adds a third execution. A separate test verifies that occupying a previously untouched bin and bracket adds one opportunity. |
+| Exact area selection | At the first cutoff the 70% volume area covers 5 of 6.5 units and the time-price area covers 3 of 4 opportunities. A later cutoff changes the volume area to 13.000001 of 16.600001 with the same time-price counts. Ties prefer lower prices and an exact 75% boundary is tested independently. |
+| Offline CSV | Chromium verifies both points of control, full bin data, empty and restored cutoffs, and a 100% area. Invalid targets preserve the earlier data. Rewinding reproduces the same CSV. |
+| Regression suite | All 75 browser, six SDK and four launcher tests passed on Windows x64. All 79 native tests passed on Linux x64, all 30 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Price profiles](price-profiles.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.33.0 · Recorded footprint and cumulative delta
 
 | Check | Observed result |

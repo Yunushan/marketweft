@@ -2,7 +2,7 @@
 
 Select an instrument in the chart workspace and open **Recorded footprint**. Choose **Footprint trades CSV** and load that instrument's trades. The synthetic NVDA chart also offers **Load footprint demo**, using the packaged footprint-trades.csv.
 
-Set the interval in whole seconds and the price increment to a positive decimal with at most six fractional digits. The **Execution from (UTC)** and **Execution through (UTC)** fields select an inclusive execution window. **Footprint known time (UTC)** limits the calculation to trades observed by that time. Choose **Query footprint** to apply the inputs. Step through populated buckets to inspect price bins and the corresponding exact cumulative delta. **Download footprint** includes every populated bin in the window.
+Set the interval in whole seconds and the price increment to a positive decimal with at most six fractional digits. The **Execution from (UTC)** and **Execution through (UTC)** fields select an inclusive execution window. **Footprint known time (UTC)** limits the calculation to trades observed by that time. Choose **Query footprint** to apply the inputs. Step through populated buckets to inspect price bins and the corresponding exact cumulative delta. **Download footprint** includes every populated bin in the window. Expand **Price profiles** to aggregate that same window into volume and time-price opportunities. [Price profiles](price-profiles.md).
 
 ## Trade input
 
