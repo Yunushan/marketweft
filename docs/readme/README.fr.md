@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.4.0 · 0BSD**
+**0.5.0 · 0BSD**
 
 **Langues de la documentation**
 
@@ -15,14 +15,14 @@
 
 MarketWeft est un terminal de recherche local destiné aux analystes, développeurs et opérateurs. Il ouvre des fichiers OHLCV autorisés, trace des chandeliers et les volumes, calcule SMA et EMA en virgule fixe et enregistre liste, instrument et indicateurs dans IndexedDB. Les ressources mises en cache permettent de travailler hors ligne. Les cours et volumes fournis sont synthétiques et ne nécessitent aucun compte.
 
-MarketWeft 0.4.0 ajoute les divisions d’actions selon l’information disponible à chaque instant à la relecture par séance d’un historique immuable. Le dépôt fournit aussi un SDK TypeScript de lecture pour un trading-bot indépendant et un hôte Tauri expérimental. Dividendes en espèces, scissions, flux distants, ordres, hébergement multiutilisateur et installateurs signés figurent dans la feuille de route.
+MarketWeft 0.5.0 ajoute les dividendes en espèces d’après l’information disponible à chaque instant, aux côtés des divisions d’actions dans la relecture par séance. Le dépôt fournit aussi un SDK TypeScript de lecture pour un trading-bot indépendant et un hôte Tauri expérimental. Scissions, flux distants, ordres, hébergement multiutilisateur et installateurs signés figurent dans la feuille de route.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Démarrer le terminal portable
 
-Téléchargez browser-terminal-attempt-N depuis une vérification GitHub réussie et extrayez MarketWeft-browser-0.4.0.zip. Conservez dist/ à côté de serve-terminal.mjs et exécutez la commande ci-dessous dans ce répertoire. Ouvrez http://127.0.0.1:4173/ avec un navigateur récent offrant WebAssembly, Canvas, BigInt et IndexedDB. Le lanceur exige Node.js 22.12 ou supérieur. Aucune installation npm n’est nécessaire. Attendez Offline ready avant la déconnexion.
+Téléchargez browser-terminal-attempt-N depuis une vérification GitHub réussie et extrayez MarketWeft-browser-0.5.0.zip. Conservez dist/ à côté de serve-terminal.mjs et exécutez la commande ci-dessous dans ce répertoire. Ouvrez http://127.0.0.1:4173/ avec un navigateur récent offrant WebAssembly, Canvas, BigInt et IndexedDB. Le lanceur exige Node.js 22.12 ou supérieur. Aucune installation npm n’est nécessaire. Attendez Offline ready avant la déconnexion.
 
 ```sh
 node serve-terminal.mjs
@@ -44,7 +44,14 @@ instrument,announced_at,effective_at,observed_at,new_shares,old_shares
 DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
+Ouvrez Historical replay → Start dividend demo pour suivre 100 actions éligibles par distribution. Le détachement crée une créance de USD 25.00. Une révision la porte à USD 30.00 et la date de paiement révisée décale le crédit. Un rapport tardif crédite EUR 10.00 à son observation. Une correction après paiement ramène les espèces à USD 28.00. Revenez en arrière pour voir les soldes antérieurs. Importez Cash dividends CSV pour vos données et saisissez Entitled shares per distribution. Gardez le même ID de distribution dans les révisions. Le registre sépare les devises et conserve les écritures passées et les cours sources.
+
+```csv
+instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
+DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
 
 <!-- section:04 -->
 ## Importer et relire ses données

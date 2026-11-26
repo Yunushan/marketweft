@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.4.0 · 0BSD**
+**0.5.0 · 0BSD**
 
 **ドキュメントの言語**
 
@@ -15,14 +15,14 @@
 
 MarketWeft はアナリスト、開発者、運用者向けのローカル優先の調査端末です。利用権がある OHLCV を開き、ローソク足と出来高を表示し、固定小数点で SMA と EMA を計算します。ウォッチリスト、選択銘柄、指標を IndexedDB に保存します。資材のキャッシュ後はオフラインで使えます。同梱の価格と出来高は合成データです。プロバイダーの口座は不要です。
 
-MarketWeft 0.4.0 では、変更されない履歴のセッション再生に、各時点で判明していた株式分割が加わります。別途稼働する trading-bot 用の読み取り専用 TypeScript SDK と実験段階の Tauri ホストも提供します。現金配当、スピンオフ、データフィード、注文、複数利用者向けホスト、署名付きインストーラーは計画段階です。
+MarketWeft 0.5.0 では、株式分割に加えて、各時点で入手できた現金配当情報をセッション再生に適用できます。別途稼働する trading-bot 用の読み取り専用 TypeScript SDK と実験段階の Tauri ホストも提供します。スピンオフ、フィード、注文、複数利用者向けホスティング、署名付きインストーラーは計画段階です。
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## ポータブル端末を起動
 
-成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.4.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
+成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.5.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
 
 ```sh
 node serve-terminal.mjs
@@ -44,7 +44,14 @@ instrument,announced_at,effective_at,observed_at,new_shares,old_shares
 DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
+Historical replay → Start dividend demo を開くと、各配当を受け取る資格がある 100 株の例を確認できます。権利落ち日に USD 25.00 の未収金が生じます。金額の改定で USD 30.00 になり、支払日の改定で入金が遅れます。遅着した報告は観測時に EUR 10.00 を計上します。支払後の訂正で米ドルの現金は USD 28.00 になります。巻き戻すと過去の残高を確認できます。独自データでは Cash dividends CSV と Entitled shares per distribution を指定し、改定で同じ配当 ID を使います。台帳は通貨を分け、過去の仕訳と元の価格を保持します。
+
+```csv
+instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
+DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
 
 <!-- section:04 -->
 ## 独自データを取り込み再生

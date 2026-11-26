@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.4.0 · 0BSD**
+**0.5.0 · 0BSD**
 
 **Lugha za mwongozo**
 
@@ -15,14 +15,14 @@
 
 MarketWeft ni kituo cha utafiti cha ndani kwa wachambuzi, wasanidi na waendeshaji. Hufungua OHLCV iliyoidhinishwa, huchora vinara na kiasi, hukokotoa SMA na EMA kwa nukta isiyohama, na huhifadhi orodha, chombo kilichochaguliwa na viashiria katika IndexedDB. Hufanya kazi bila mtandao baada ya kuhifadhi rasilimali. Bei na kiasi vya mfano ni vya kutungwa na havihitaji akaunti.
 
-MarketWeft 0.4.0 inaongeza mgawanyo wa hisa kwa habari zilizojulikana wakati husika kwenye uchezaji wa vipindi wa historia isiyobadilika. Kuna pia SDK ya TypeScript ya kusoma trading-bot ya nje na ganda la majaribio la Tauri. Gawio la fedha taslimu, utenganishaji wa kampuni, milisho, maagizo, upangishaji wa watu wengi na visakinishi vilivyosainiwa yako kwenye mpango.
+MarketWeft 0.5.0 inaongeza gawio la fedha taslimu kwa habari zilizojulikana wakati husika pamoja na mgawanyo wa hisa katika uchezaji wa vipindi. Kuna SDK ya TypeScript inayosoma trading-bot ya nje na ganda la majaribio la Tauri. Utenganishaji wa kampuni, milisho, maagizo, upangishaji wa wengi na visakinishi vilivyosainiwa yako kwenye mpango.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Anzisha kituo kinachobebeka
 
-Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.4.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
+Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.5.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
 
 ```sh
 node serve-terminal.mjs
@@ -44,7 +44,14 @@ instrument,announced_at,effective_at,observed_at,new_shares,old_shares
 DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
+Fungua Historical replay → Start dividend demo ufuatilie hisa 100 zenye haki kwa kila gawio. Tarehe ya bila gawio huweka USD 25.00 ya kupokea. Marekebisho huifikisha USD 30.00 na tarehe mpya ya kulipa huchelewesha kuingia kwa pesa. Ripoti iliyochelewa huandika EUR 10.00 ikionekana. Sahihisho baada ya malipo huacha USD 28.00. Rudi nyuma kuona salio la awali. Kwa data yako pakia Cash dividends CSV na weka Entitled shares per distribution. Tumia kitambulisho kilekile unapofanya marekebisho. Leja hutenganisha sarafu na kuhifadhi maingizo ya awali pamoja na bei asili.
+
+```csv
+instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
+DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
 
 <!-- section:04 -->
 ## Ingiza na cheza data yako

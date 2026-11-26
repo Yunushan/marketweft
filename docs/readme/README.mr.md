@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.4.0 · 0BSD**
+**0.5.0 · 0BSD**
 
 **दस्तऐवजाच्या भाषा**
 
@@ -15,14 +15,14 @@
 
 MarketWeft विश्लेषक, विकासक आणि संचालकांसाठी स्थानिक संशोधन टर्मिनल आहे. ते परवानगीचे OHLCV उघडते, कँडल व व्यवहाराचे प्रमाण दाखवते, स्थिर दशांश एककांत SMA व EMA मोजते आणि निरीक्षण यादी, निवड व निर्देशक IndexedDB मध्ये ठेवते. संसाधने कॅश झाल्यावर ऑफलाइन चालते. सोबतचे भाव व प्रमाण कृत्रिम आहेत आणि खाते लागत नाही.
 
-MarketWeft 0.4.0 मध्ये सत्रांनुसार पुन्हा चालणाऱ्या अपरिवर्तनीय इतिहासात त्या वेळी ज्ञात शेअर विभाजने जोडली आहेत. स्वतंत्र trading-bot साठी फक्त वाचनाचा TypeScript SDK आणि प्रयोगात्मक Tauri होस्ट आहे. रोख लाभांश, कंपनी विभक्तीकरण, फीड, ऑर्डर, बहुवापरकर्ता होस्टिंग व स्वाक्षरीत इंस्टॉलर आराखड्यात आहेत.
+MarketWeft 0.5.0 सत्रांनुसार पुनर्चालनात शेअर विभाजनांसोबत त्या वेळी ज्ञात रोख लाभांश जोडते. स्वतंत्र trading-bot साठी वाचनाचा TypeScript SDK आणि प्रयोगात्मक Tauri होस्ट आहे. कंपनी विभक्तीकरण, फीड, ऑर्डर, बहुवापरकर्ता होस्टिंग व स्वाक्षरीत इंस्टॉलर आराखड्यात आहेत.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## वाहून नेता येणारे टर्मिनल सुरू करा
 
-यशस्वी GitHub पडताळणीतून browser-terminal-attempt-N घ्या आणि MarketWeft-browser-0.4.0.zip उघडा. dist/ आणि serve-terminal.mjs शेजारी ठेवून आदेश त्याच संचिकेत चालवा. WebAssembly, Canvas, BigInt व IndexedDB असलेल्या ब्राउझरमध्ये http://127.0.0.1:4173/ उघडा. Node.js 22.12 किंवा नवे आवश्यक आहे. npm स्थापना लागत नाही. जाळे बंद करण्याआधी Offline ready दिसू द्या.
+यशस्वी GitHub पडताळणीतून browser-terminal-attempt-N घ्या आणि MarketWeft-browser-0.5.0.zip उघडा. dist/ आणि serve-terminal.mjs शेजारी ठेवून आदेश त्याच संचिकेत चालवा. WebAssembly, Canvas, BigInt व IndexedDB असलेल्या ब्राउझरमध्ये http://127.0.0.1:4173/ उघडा. Node.js 22.12 किंवा नवे आवश्यक आहे. npm स्थापना लागत नाही. जाळे बंद करण्याआधी Offline ready दिसू द्या.
 
 ```sh
 node serve-terminal.mjs
@@ -44,7 +44,14 @@ instrument,announced_at,effective_at,observed_at,new_shares,old_shares
 DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
+Historical replay → Start dividend demo उघडून प्रत्येक वाटपासाठी १०० पात्र शेअर्स पहा. एक्स-तारखेला USD 25.00 येणे निर्माण होते. सुधारणा ते USD 30.00 करते आणि नवीन भरणा तारीख जमा पुढे नेते. उशिराचा अहवाल दिसल्यावर EUR 10.00 जमा होते. नंतरच्या दुरुस्तीने USD 28.00 राहतात. मागे जाऊन आधीची शिल्लक पहा. स्वतःसाठी Cash dividends CSV द्या आणि Entitled shares per distribution भरा. सुधारणेत तोच वाटप ID ठेवा. नोंदवही चलने वेगळी ठेवते आणि आधीच्या नोंदी व मूळ भाव जपते.
+
+```csv
+instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
+DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
 
 <!-- section:04 -->
 ## स्वतःची माहिती आयात करा व चालवा

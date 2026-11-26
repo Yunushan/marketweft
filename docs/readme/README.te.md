@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.4.0 · 0BSD**
+**0.5.0 · 0BSD**
 
 **పత్రాల భాషలు**
 
@@ -15,14 +15,14 @@
 
 MarketWeft విశ్లేషకులు, డెవలపర్లు, నిర్వాహకుల కోసం స్థానిక పరిశోధన టెర్మినల్. అనుమతి ఉన్న OHLCV ఫైళ్లను తెరుస్తుంది, క్యాండిళ్లు మరియు పరిమాణం చూపిస్తుంది, స్థిర దశాంశంతో SMA, EMA లెక్కిస్తుంది. గమనిక జాబితా, ఎంచుకున్న సాధనం, సూచికలు IndexedDBలో ఉంటాయి. వనరులు కాష్ అయిన తర్వాత ఆఫ్‌లైన్‌లో పనిచేస్తుంది. అందించిన ధరలు, పరిమాణం కృత్రిమమైనవి. ఖాతా అవసరం లేదు.
 
-MarketWeft 0.4.0 మార్పులేని చరిత్రను సెషన్ ప్రకారం నడిపేటప్పుడు అప్పటికి తెలిసిన షేరు విభజనలను కలుపుతుంది. ప్రత్యేక trading-bot చదివే TypeScript SDK, ప్రయోగాత్మక Tauri హోస్ట్ కూడా ఉన్నాయి. నగదు డివిడెండ్లు, సంస్థ విభజనలు, ఫీడ్లు, ఆర్డర్లు, బహుళ వినియోగదారుల హోస్టింగ్, సంతకం ఉన్న ఇన్‌స్టాలర్లు ప్రణాళికలో ఉన్నాయి.
+MarketWeft 0.5.0 సెషన్ పునరావృతంలో షేరు విభజనలతో పాటు అప్పటికి తెలిసిన నగదు డివిడెండ్లను కలుపుతుంది. ప్రత్యేక trading-bot చదివే TypeScript SDK, ప్రయోగాత్మక Tauri హోస్ట్ కూడా ఉన్నాయి. సంస్థ విభజనలు, ఫీడ్లు, ఆర్డర్లు, బహుళ వినియోగదారుల హోస్టింగ్, సంతకం ఉన్న ఇన్‌స్టాలర్లు ప్రణాళికలో ఉన్నాయి.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## పోర్టబుల్ టెర్మినల్ ప్రారంభించండి
 
-విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.4.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
+విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.5.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
 
 ```sh
 node serve-terminal.mjs
@@ -44,7 +44,14 @@ instrument,announced_at,effective_at,observed_at,new_shares,old_shares
 DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
+Historical replay → Start dividend demo తెరిచి ప్రతి పంపిణీకి అర్హమైన 100 షేర్లను చూడండి. ఎక్స్ తేదీన USD 25.00 అందవలసి ఉంటుంది. సవరణ దాన్ని USD 30.00 చేస్తుంది, కొత్త చెల్లింపు తేదీ నగదు నమోదును వాయిదా వేస్తుంది. ఆలస్య నివేదిక చూసినప్పుడు EUR 10.00 చేరుతుంది. చెల్లింపు తర్వాత సవరణతో USD 28.00 మిగులుతుంది. పాత నిల్వల కోసం వెనక్కి వెళ్లండి. మీ డేటాకు Cash dividends CSV ఇచ్చి Entitled shares per distribution నింపండి. సవరణలకు అదే పంపిణీ ID వాడండి. పద్దు ద్రవ్యాలను వేరుగా ఉంచి పాత నమోదులు, మూల ధరలను కాపాడుతుంది.
+
+```csv
+instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
+DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
 
 <!-- section:04 -->
 ## మీ డేటాను దిగుమతి చేసి పునరావృతం చేయండి

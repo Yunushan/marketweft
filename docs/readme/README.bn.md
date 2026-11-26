@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.4.0 · 0BSD**
+**0.5.0 · 0BSD**
 
 **নথির ভাষা**
 
@@ -15,14 +15,14 @@
 
 MarketWeft বিশ্লেষক, ডেভেলপার ও অপারেটরের জন্য স্থানীয় গবেষণা টার্মিনাল। অনুমোদিত OHLCV খুলে ক্যান্ডেল ও ভলিউম দেখায়, নির্দিষ্ট দশমিক এককে SMA ও EMA গণনা করে এবং নজরদারি তালিকা, নির্বাচিত ইন্সট্রুমেন্ট ও সূচক IndexedDB-তে রাখে। সম্পদ ক্যাশ হলে অফলাইনে চলে। সঙ্গে দেওয়া দাম ও ভলিউম কৃত্রিম, অ্যাকাউন্ট লাগে না।
 
-MarketWeft 0.4.0 অপরিবর্তনীয় ইতিহাসের সেশনভিত্তিক পুনরাবৃত্তিতে সেই সময়ে জানা শেয়ার বিভাজন যোগ করে। আলাদা trading-bot পড়ার TypeScript SDK ও পরীক্ষামূলক Tauri হোস্টও আছে। নগদ লভ্যাংশ, কোম্পানির অংশ বিচ্ছেদ, ফিড, অর্ডার, বহু ব্যবহারকারীর হোস্টিং ও স্বাক্ষরিত ইনস্টলার ভবিষ্যতের কাজ।
+MarketWeft 0.5.0 সেশনভিত্তিক পুনরাবৃত্তিতে শেয়ার বিভাজনের পাশাপাশি সেই সময়ে জানা নগদ লভ্যাংশ যোগ করে। আলাদা trading-bot পড়ার TypeScript SDK ও পরীক্ষামূলক Tauri হোস্ট আছে। কোম্পানির অংশ বিচ্ছেদ, ফিড, অর্ডার, বহু ব্যবহারকারীর হোস্টিং ও স্বাক্ষরিত ইনস্টলার ভবিষ্যতের কাজ।
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## বহনযোগ্য টার্মিনাল চালান
 
-সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.4.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
+সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.5.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
 
 ```sh
 node serve-terminal.mjs
@@ -44,7 +44,14 @@ instrument,announced_at,effective_at,observed_at,new_shares,old_shares
 DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
+প্রতি বণ্টনে ১০০ যোগ্য শেয়ার দেখতে Historical replay → Start dividend demo খুলুন। এক্স-তারিখে USD 25.00 প্রাপ্য হয়। সংশোধিত অঙ্ক USD 30.00 করে, আর নতুন পরিশোধের তারিখ জমার সময় বদলায়। দেরিতে আসা রিপোর্ট পর্যবেক্ষণে EUR 10.00 জমা হয়। পরিশোধের পর সংশোধনে USD 28.00 থাকে। আগের ব্যালান্স দেখতে পিছিয়ে যান। নিজের ক্ষেত্রে Cash dividends CSV আপলোড করে Entitled shares per distribution দিন। সংশোধনে একই বণ্টন ID রাখুন। লেজার মুদ্রা আলাদা রাখে, আগের এন্ট্রি ও মূল দাম অক্ষত থাকে।
+
+```csv
+instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
+DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:00Z,2025-06-02T14:05:00Z,USD,0.250000
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv)
 
 <!-- section:04 -->
 ## নিজের তথ্য আমদানি ও পুনরায় চালান
