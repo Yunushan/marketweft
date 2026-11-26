@@ -158,6 +158,10 @@ strategy on sampled price moves and volumes. The default 256 paths give
 a median ending equity of 997.6 against observed baseline equity of 957.8.
 
 The chart supports panning, zooming, a crosshair and moving-average overlays.
+For a custom formula, import formula-bars.csv, select the imported chart and
+open Time-series formulas. Evaluate ema(if(close == 11, close / 0, close), 2)
+through 2025-04-03T14:05:00Z. The last value is 16.833333 after the missing row
+resets the average. Download the values and their source timestamps as CSV.
 This build has no broker connection or order entry. Press Ctrl+C in the
 launcher's terminal to stop serving the application.
 """
@@ -180,6 +184,7 @@ def main():
     files["replay-sessions.csv"] = (fixture / "nyse-2025-replay-sessions.csv").read_bytes()
     files["replay-ohlcv.csv"] = (fixture / "nyse-2025-replay-ohlcv.csv").read_bytes()
     files["tick-trades.csv"] = (fixture / "synthetic-tick-trades.csv").read_bytes()
+    files["formula-bars.csv"] = (fixture / "synthetic-formula-bars.csv").read_bytes()
     files["depth.csv"] = (fixture / "synthetic-depth.csv").read_bytes()
     files["footprint-trades.csv"] = (fixture / "synthetic-footprint.csv").read_bytes()
     for kind in ("actions", "ohlcv", "sessions"):

@@ -2345,6 +2345,27 @@ pub extern "C" fn mw_indicator(kind: u32, period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_formula_version() -> u32 {
+    crate::FORMULA_VERSION
+}
+
+#[no_mangle]
+pub extern "C" fn mw_evaluate_formula(source_bytes: usize) -> u32 {
+    process(|input| {
+        let (source, bars) = input
+            .split_at_checked(source_bytes)
+            .ok_or("Invalid formula source length.")?;
+        let formula = crate::Formula::compile(utf8(source)?)?;
+        let bars = decode_bars(bars)?;
+        Ok(formula
+            .evaluate(&bars)?
+            .into_iter()
+            .flat_map(|value| value.unwrap_or(i64::MIN).to_le_bytes())
+            .collect())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_replay(calendar_bytes: usize, interval: u32) -> u32 {
     process(|input| {
         let (calendar, bar_bytes) = input

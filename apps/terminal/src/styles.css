@@ -26,6 +26,7 @@ button:disabled {
 button:focus-visible,
 summary:focus-visible,
 input:focus-visible,
+textarea:focus-visible,
 canvas:focus-visible {
   outline: 2px solid var(--mint);
   outline-offset: 2px;
@@ -260,6 +261,26 @@ main {
   height: 190px;
   border: 1px solid var(--line);
   border-radius: 6px;
+}
+.formula-form {
+  display: grid;
+  gap: 12px;
+}
+.formula-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: inherit;
+  font: 14px var(--mono);
+}
+.formula-source {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .dividend-reports {
   display: grid;

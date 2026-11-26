@@ -8,6 +8,11 @@ export interface Bar {
   volume: number;
 }
 
+export interface FormulaResult {
+  version: number;
+  values: (bigint | null)[];
+}
+
 export interface TimeframeBar {
   bar: Bar;
   observedBars: number;
@@ -672,6 +677,7 @@ export interface PortfolioSnapshot {
 }
 
 export interface MarketCore {
+  evaluateFormula(source: string, bars: readonly Bar[]): FormulaResult;
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
   recordedTickBars(instrument: string, csv: string, targetTrades: number, knownAt?: string): TickBar[];
@@ -749,6 +755,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_aggregate_session_timeframe(calendarBytes: number, sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
   mw_indicator(kind: number, period: number): number;
+  mw_formula_version(): number;
+  mw_evaluate_formula(sourceBytes: number): number;
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
   mw_split_book(): number;
   mw_split_revision_book(): number;
@@ -1015,6 +1023,21 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
   }
 
   return {
+    evaluateFormula(source, bars) {
+      const sourceBytes = encoder.encode(source);
+      if (sourceBytes.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');
+      if (bars.length > 100_000) throw new Error('Formula histories support at most 100,000 bars.');
+      const dest = input(sourceBytes.length + bars.length * 48);
+      new Uint8Array(dest.buffer, dest.byteOffset, sourceBytes.length).set(sourceBytes);
+      for (const [index, bar] of bars.entries()) {
+        putBar(dest, sourceBytes.length + index * 48, bar, 'Formula evaluation');
+      }
+      const values = output(api.mw_evaluate_formula(sourceBytes.length));
+      return { version: api.mw_formula_version(), values: Array.from({ length: bars.length }, (_, index) => {
+        const value = values.getBigInt64(index * 8, true);
+        return value === -(1n << 63n) ? null : value;
+      }) };
+    },
     measureDrawing({ start, end }) {
       if (![start.time, start.ticks, end.time, end.ticks].every(Number.isSafeInteger)) {
         throw new Error('Drawing endpoints require whole UTC seconds and whole price ticks.');

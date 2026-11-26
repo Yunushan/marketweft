@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useEffectEvent,
@@ -35,6 +37,10 @@ import { checkImportRows, type ImportPolicy } from './import-policy'
 
 declare const __MARKETWEFT_IMPORT_POLICY__: ImportPolicy
 const importPolicy = __MARKETWEFT_IMPORT_POLICY__
+const FormulaResearch = lazy(async () => {
+  const module = await import('./FormulaResearch')
+  return { default: module.FormulaResearch }
+})
 const chartTypeLabels: Record<ChartType, string> = {
   candles: 'Candles',
   line: 'Close line',
@@ -315,11 +321,12 @@ export function App({
   )
   const [saved, setSaved] = useState(initial)
   const [replaying, setReplaying] = useState(false)
-  const [marketResearch, setMarketResearch] = useState<'tick-bars' | 'depth' | 'footprint' | null>(null)
+  const [marketResearch, setMarketResearch] = useState<'tick-bars' | 'depth' | 'footprint' | 'formula' | null>(null)
   const replayButton = useRef<HTMLButtonElement>(null)
   const tickResearchButton = useRef<HTMLButtonElement>(null)
   const depthResearchButton = useRef<HTMLButtonElement>(null)
   const footprintResearchButton = useRef<HTMLButtonElement>(null)
+  const formulaResearchButton = useRef<HTMLButtonElement>(null)
   const restoreReplayFocus = useRef(false)
   const restoreResearchFocus = useRef<typeof marketResearch>(null)
   useLayoutEffect(() => {
@@ -332,6 +339,7 @@ export function App({
     if (!marketResearch && restoreResearchFocus.current) {
       const button = {
         'tick-bars': tickResearchButton, depth: depthResearchButton, footprint: footprintResearchButton,
+        formula: formulaResearchButton,
       }[restoreResearchFocus.current]
       restoreResearchFocus.current = null
       button.current?.focus()
@@ -542,11 +550,14 @@ export function App({
   const span = last.high - last.low,
     position = span === 0 ? 50 : ((last.close - last.low) / span) * 100
   if (marketResearch) {
-    const Research = { 'tick-bars': TickBarsResearch, depth: DepthResearch, footprint: FootprintResearch }[marketResearch]
-    return <Research key={asset.id} core={core} asset={asset} close={() => {
+    const Research = { 'tick-bars': TickBarsResearch, depth: DepthResearch, footprint: FootprintResearch,
+      formula: FormulaResearch }[marketResearch]
+    return <Suspense fallback={<p role="status">Loading research…</p>}>
+    <Research key={asset.id} core={core} asset={asset} sourceLabel={descriptor?.source ?? source} close={() => {
       restoreResearchFocus.current = marketResearch
       setMarketResearch(null)
     }} />
+    </Suspense>
   }
   if (replaying) {
     return (
@@ -609,6 +620,8 @@ export function App({
               onClick={() => setMarketResearch('depth')}>Recorded market depth</button>
             <button ref={footprintResearchButton} className="outline" disabled={saving}
               onClick={() => setMarketResearch('footprint')}>Recorded footprint</button>
+            <button ref={formulaResearchButton} className="outline" disabled={saving}
+              onClick={() => setMarketResearch('formula')}>Time-series formulas</button>
           </div>
         </div>
         {(warning || saveError) && (

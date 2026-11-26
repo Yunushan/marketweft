@@ -9,6 +9,22 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('time-series formulas preserve exact output, missing values and prefix rules in Wasm', async () => {
+  const fixture = await readFile(new URL('../crates/core/tests/fixtures/synthetic-formula-bars.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(fixture);
+  const source = 'ema(if(close == 11, close / 0, close), 2)';
+  const result = core.evaluateFormula(source, bars);
+  assert.equal(result.version, 1);
+  assert.deepEqual(result.values, [null, 11000000n, null, null, 14500000n, 16833333n]);
+  for (let end = 0; end <= bars.length; end += 1) {
+    assert.deepEqual(core.evaluateFormula(source, bars.slice(0, end)).values, result.values.slice(0, end));
+  }
+  assert.deepEqual(core.evaluateFormula('coalesce(lag(volume, 1), 0)', bars).values,
+    [0n, 100000000n, 150125000n, 80000000n, 110000000n, 105000000n]);
+  assert.throws(() => core.evaluateFormula('lag(close, -1)', bars), /literal window or lag/);
+  assert.throws(() => core.evaluateFormula('close'.padEnd(2049, ' '), bars), /2,048 source bytes/);
+});
+
 test('cross-sectional walk-forward freezes candidates and isolates corporate test replay', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
   const [membership, actionMembership, prices, liquidity, dividends, delistings] = await Promise.all([

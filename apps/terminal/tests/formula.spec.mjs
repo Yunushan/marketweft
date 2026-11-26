@@ -1,0 +1,57 @@
+import { readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
+import { expect, test } from './fixtures.mjs'
+import { catalogContents } from './catalog-fixtures.mjs'
+
+const fixture = fileURLToPath(new URL('../../../crates/core/tests/fixtures/synthetic-formula-bars.csv', import.meta.url))
+
+test('offline formulas evaluate observed prefixes and retain exact missing values in the export', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Import CSV', exact: true }).click()
+  await page.getByLabel('Venue', { exact: true }).fill('DEMO')
+  await page.getByLabel('Symbol', { exact: true }).fill('FORMULA')
+  await page.locator('input[type=file]').setInputFiles(fixture)
+  await page.getByRole('button', { name: 'Import to watchlist' }).click()
+  await expect(page.getByRole('heading', { name: 'FORMULA', exact: true })).toBeVisible()
+  const saved = await catalogContents(page)
+  const open = page.getByRole('button', { name: 'Time-series formulas', exact: true })
+  await open.click()
+  await expect(page.getByRole('heading', { name: 'Time-series formulas' })).toBeFocused()
+  const formula = page.getByRole('textbox', { name: 'Formula', exact: true })
+  await formula.fill('ema(if(close == 11, close / 0, close), 2)')
+  const cutoff = page.getByLabel('Formula observed through (UTC)')
+  const evaluate = page.getByRole('button', { name: 'Evaluate formula' })
+  const panel = page.getByRole('region', { name: 'Formula results' })
+  const rows = panel.getByRole('table', { name: 'Formula values' }).locator('tbody tr')
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await panel.getByRole('button', { name: 'Download formula values' }).click()
+    const csv = await pending
+    expect(csv.suggestedFilename()).toBe('time-series-formula.csv')
+    return readFile(await csv.path(), 'utf8')
+  }
+  await cutoff.fill('2025-04-03T14:04:00Z')
+  await evaluate.click()
+  await expect(panel.getByRole('status')).toHaveText('2 values · 3 unavailable · Language v1')
+  await expect(rows.last()).toContainText('14.5')
+  const early = await download()
+  await cutoff.fill('2025-04-03T14:05:00Z')
+  await evaluate.click()
+  await expect(rows.last()).toContainText('16.833333')
+  expect(await download()).toContain('1,2025-04-03T14:02:00Z,\r\n')
+  await cutoff.fill('2025-04-03T14:04:00Z')
+  await evaluate.click()
+  expect(await download()).toEqual(early)
+  await formula.fill('lag(close, -1)')
+  await evaluate.click()
+  await expect(page.getByRole('alert')).toContainText('literal window or lag')
+  expect(await download()).toEqual(early)
+  await page.setViewportSize({ width: 360, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360)
+  await page.getByRole('button', { name: 'Return to workspace' }).click()
+  await expect(open).toBeFocused()
+  await expect.poll(() => catalogContents(page)).toEqual(saved)
+})

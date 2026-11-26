@@ -9,6 +9,7 @@ mod delisting;
 mod depth;
 mod dividend;
 mod drawing;
+mod formula;
 mod fundamentals;
 mod history;
 mod indicator;
@@ -57,6 +58,7 @@ pub use dividend::{
     DividendMovement, DividendPositions, PositionObservation,
 };
 pub use drawing::{measure_drawing, DrawingEndpoint, DrawingMeasurement};
+pub use formula::{Formula, FORMULA_VERSION};
 pub use fundamentals::{Filing, FinancialBook, MarketCap, Multiple, Valuation};
 pub use history::{parse_csv, Bar};
 pub use indicator::{indicator, Average};
