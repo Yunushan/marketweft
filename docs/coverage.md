@@ -1,6 +1,6 @@
 # MarketWeft requirements and acceptance evidence
 
-The evidence column tracks delivery through 0.12.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
+The evidence column tracks delivery through 0.13.0. “Backlog” identifies behavior that still needs implementation and verification. See the [test results](verification.md) and [reference product inventory](references.md).
 
 | ID | Behavior and acceptance criterion | Evidence or next test |
 | --- | --- | --- |
@@ -24,7 +24,7 @@ The evidence column tracks delivery through 0.12.0. “Backlog” identifies beh
 | MW-018 | Screen an as-of universe and group a heatmap by sector, weight and return. | Rust and Wasm share the screening constituents, prices and returns. The heatmap adds point-in-time sector and weight evidence, covered weight, sector returns and listing contributions. Fixtures reconcile memberships and check late prices and classifications. [Screen contract](universe-screen.md) · [Heatmap contract](sector-heatmap.md). |
 | MW-019 | Rebuild depth, footprint, TPO, volume profiles and cumulative delta from ordered trades/quotes. | Backlog. Detect a sequence gap, resnapshot, and reconcile size totals and aggressor classifications. |
 | MW-020 | Backtest and optimize strategies with fees, slippage, execution delays and survivorship controls. | Backlog. A signal at close cannot fill before the next eligible event. Test a delisted constituent, partial fills and cash reconciliation. |
-| MW-021 | Run an isolated paper ledger with fees, position limits, exposure caps, idempotency and kill switch. | Backlog. A repeated order must have one effect. Disallowed exposure, stopped accounts and unauthorized live routes must fail closed. |
+| MW-021 | Run an isolated paper ledger with fees, position limits, exposure caps, idempotency and kill switch. | 0.13.0 replays supplied limit orders, fills and controls with exact reserves and fees, a committed-cost cap and kill switch. Browser and native tests verify duplicate suppression and exposure, timing and halt rejections. Liquidity and matching remain open. [Paper ledger](paper-ledger.md). |
 | MW-022 | Gate live execution by operator authorization and deterministic risk decisions. | Backlog. Prove a read-only or AI client cannot escalate, retry or bypass limits. Require venue-specific acceptance evidence. |
 | MW-023 | Research financial statements and valuation using publication-time vintages, currencies and restatements. | 0.9.0 reconstructs annual publication vintages with stable issuer and filing IDs, separate capitalization revisions and traceable P/E, P/S and P/B. Scope remains local with annual periods. [Contracts and fixtures](financial-statements.md). |
 | MW-024 | Serve economic events with release time, actual, forecast and revision lineage. | 0.10.0 reconstructs local scheduled releases, known forecasts, actuals and their revision chains with independent published and observed cutoffs. Provider feeds remain open. [Economic calendar contract](macro-calendar.md). |

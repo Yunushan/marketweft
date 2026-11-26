@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.13.0 · Paper cash and fill ledger
+
+| Check | Observed result |
+| --- | --- |
+| Cash and reserves | The initial 503 reserve leaves 497 available. A unique four-share partial fill leaves 801.6 cash, 300.6 reserved and 501 available. Fees total 2.4 on the first fill and 0.6 on the second. |
+| Position accounting | Selling three shares gives 13 realized profit and a 663.7 cash balance. Native tests reconcile fixed-point cost and profit through partial liquidation and final removal, including a residual millionth. |
+| Risk and replay | Tests cover cash, position and exposure caps, insufficient shares, ineligible price time, limit prices, repeated fill IDs, cancellations and halting. Rewinding restores the earlier account and receipt prefix. |
+| Regression suite | All 46 browser and six SDK tests passed on Windows x64, 44 native tests passed on Linux x64, 14 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Paper ledger contract and fixture](paper-ledger.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.12.0 · Replayable alerts and local inbox
 
 | Check | Observed result |
