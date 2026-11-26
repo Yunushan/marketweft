@@ -34,3 +34,7 @@ The native `parse_sessions` and `replay` functions build the deterministic sessi
 ## Point-in-time split snapshots
 
 Use `parse_splits` with the instrument and action CSV. Call `SplitBook::adjust` with the already observed bar prefix and replay observation time. The function returns a separate bar vector and leaves its inputs intact. The Wasm bridge encodes split records as 32 bytes each, with 64-bit signed announcement, effective and observed UTC seconds, then 32-bit unsigned new and old share counts. To compute a snapshot, send the signed 64-bit cutoff followed by the split records and the standard 48-byte OHLCV rows. [Stock split schema, examples and rounding](../../docs/corporate-actions.md).
+
+## Cash dividend ledger
+
+Use `parse_dividends` for the instrument's reports, then `DividendBook::ledger` with the fixed entitled share count. Consume events through the inclusive replay cutoff. Each event exposes the visible report and per-currency deltas and cumulative balances in integer millionths. The Wasm bridge uses tab-separated event fields, followed by zero or more tab-separated movements with comma-separated currency, receivable delta, cash delta, receivable and cash. Decimal integer strings carry exact 128-bit amounts to the browser's BigInt. [Cash dividend contract](../../docs/cash-dividends.md).

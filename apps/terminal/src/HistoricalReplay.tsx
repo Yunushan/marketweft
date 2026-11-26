@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { MarketCore, Split } from './market-core'
-import { splitTimeline, type TimelineEvent } from './split-events'
+import type { DividendEvent, MarketCore, Split } from './market-core'
+import { splitTimeline } from './split-events'
+import {
+  dividendName,
+  dividendTimeline,
+  utc,
+  type TimelineEvent,
+} from './dividend-events'
+import { DividendLedger } from './DividendLedger'
 import type { Asset } from './workspace'
 import { Chart } from './Chart'
 import { Icon, Mark } from './Icons'
@@ -11,6 +18,7 @@ import demoBars from '../../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv
 import splitCalendar from '../../../crates/core/tests/fixtures/synthetic-split-sessions.csv?raw'
 import splitBars from '../../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv?raw'
 import splitActions from '../../../crates/core/tests/fixtures/synthetic-split-actions.csv?raw'
+import dividendActions from '../../../crates/core/tests/fixtures/synthetic-cash-dividends.csv?raw'
 
 const eventNames = {
   open: 'Session opened',
@@ -20,8 +28,13 @@ const eventNames = {
   'split-notice': 'Split report observed',
   'split-effective': 'Split effective',
 }
-const utc = (time: number) =>
-  new Date(time * 1000).toISOString().replace('.000Z', 'Z')
+function eventLabel(event: TimelineEvent | undefined) {
+  if (!event) return 'Ready to replay'
+  if (event.kind !== 'dividend') return eventNames[event.kind]
+  return event.dividends.length === 1
+    ? dividendName[event.dividends[0].kind]
+    : 'Dividend events'
+}
 const openingOffset = (minutes: number) => {
   const magnitude = Math.abs(minutes)
   const part = (n: number) => String(n).padStart(2, '0')
@@ -40,6 +53,7 @@ type ReplayRun = {
   events: TimelineEvent[]
   counts: Uint32Array
   splits: Split[]
+  dividends?: { events: DividendEvent[]; shares: number }
 }
 
 export function HistoricalReplay({
@@ -67,6 +81,8 @@ export function HistoricalReplay({
   const [interval, setInterval] = useState('1800')
   const [calendarFile, setCalendarFile] = useState<File | null>(null)
   const [actionsFile, setActionsFile] = useState<File | null>(null)
+  const [dividendFile, setDividendFile] = useState<File | null>(null)
+  const [entitledShares, setEntitledShares] = useState('100')
   const [rawConfirmed, setRawConfirmed] = useState(false)
   const [basis, setBasis] = useState<'raw' | 'adjusted'>('raw')
   const terminal = useRef<HTMLHeadingElement>(null)
@@ -83,13 +99,23 @@ export function HistoricalReplay({
     calendar: string,
     seconds: number,
     calendarName: string,
-    actions?: string,
+    inputs?: { splits?: string; dividends?: { csv: string; shares: number } },
   ) {
     const splits =
-      actions === undefined ? [] : core.splitBook(asset.id, actions)
-    const events = splitTimeline(
-      core.replay(calendar, seconds, asset.bars),
-      splits,
+      inputs?.splits === undefined
+        ? []
+        : core.splitBook(asset.id, inputs.splits)
+    const dividends = inputs?.dividends && {
+      events: core.dividendLedger(
+        asset.id,
+        inputs.dividends.csv,
+        inputs.dividends.shares,
+      ),
+      shares: inputs.dividends.shares,
+    }
+    const events = dividendTimeline(
+      splitTimeline(core.replay(calendar, seconds, asset.bars), splits),
+      dividends?.events ?? [],
     )
     const counts = new Uint32Array(events.length + 1)
     events.forEach((event, i) => {
@@ -98,7 +124,7 @@ export function HistoricalReplay({
     setCursor(-1)
     setPlaying(false)
     setBasis('raw')
-    setActive({ asset, calendarName, events, counts, splits })
+    setActive({ asset, calendarName, events, counts, splits, dividends })
   }
 
   function splitDemo() {
@@ -116,13 +142,39 @@ export function HistoricalReplay({
         splitCalendar,
         600,
         'Synthetic market · Jun 2–3, 2025',
-        splitActions,
+        { splits: splitActions },
       )
     } catch (cause) {
       setError(
         cause instanceof Error
           ? cause.message
           : 'Could not start the split demo.',
+      )
+    }
+  }
+
+  function dividendDemo() {
+    setError('')
+    try {
+      start(
+        {
+          id: 'DEMO:DIVIDEND',
+          venue: 'DEMO',
+          symbol: 'DIVIDEND',
+          name: 'Synthetic raw OHLCV',
+          source: 'sample',
+          bars: core.parseCsv(splitBars),
+        },
+        splitCalendar,
+        600,
+        'Synthetic market · 100 entitled shares',
+        { dividends: { csv: dividendActions, shares: 100 } },
+      )
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Could not start the dividend demo.',
       )
     }
   }
@@ -163,12 +215,23 @@ export function HistoricalReplay({
         throw Error(
           'Confirm a raw OHLCV source and choose a corporate actions CSV of at most 1 MiB.',
         )
+      if (dividendFile && dividendFile.size > 1024 * 1024)
+        throw Error('Cash dividends CSV exceeds 1 MiB.')
       const decoder = new TextDecoder('utf-8', { fatal: true })
       const calendar = decoder.decode(await calendarFile.arrayBuffer())
       const actions = actionsFile
         ? decoder.decode(await actionsFile.arrayBuffer())
         : undefined
-      start(asset, calendar, Number(interval), calendarFile.name, actions)
+      const dividends = dividendFile
+        ? {
+            csv: decoder.decode(await dividendFile.arrayBuffer()),
+            shares: Number(entitledShares),
+          }
+        : undefined
+      start(asset, calendar, Number(interval), calendarFile.name, {
+        splits: actions,
+        dividends,
+      })
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'Could not start the replay.',
@@ -261,6 +324,20 @@ export function HistoricalReplay({
                 </p>
                 <button className="primary" onClick={splitDemo} disabled={busy}>
                   Start split demo
+                </button>
+              </section>
+              <section className="side-card replay-panel">
+                <h2>Cash dividend demo</h2>
+                <p>
+                  Follow receivables and cash through an ex-date, a changed pay
+                  date and late reports in two currencies.
+                </p>
+                <button
+                  className="primary"
+                  onClick={dividendDemo}
+                  disabled={busy}
+                >
+                  Start dividend demo
                 </button>
               </section>
             </div>
@@ -357,6 +434,43 @@ export function HistoricalReplay({
                   instrument,announced_at,effective_at,observed_at,new_shares,old_shares
                   {'\n'}
                   DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+                </pre>
+              </details>
+              <label>
+                Cash dividends CSV (optional)
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  disabled={busy}
+                  onChange={(event) =>
+                    setDividendFile(event.target.files?.[0] ?? null)
+                  }
+                />
+              </label>
+              {dividendFile && (
+                <label>
+                  Entitled shares per distribution
+                  <input
+                    type="number"
+                    min={0}
+                    max={1000000}
+                    step={1}
+                    required
+                    disabled={busy}
+                    value={entitledShares}
+                    onChange={(event) => setEntitledShares(event.target.value)}
+                  />
+                </label>
+              )}
+              <details>
+                <summary>Cash dividends format</summary>
+                <p>
+                  Supply a stable ID, announcement, ex-date, pay date, report
+                  observation time and a cash amount per entitled share. Define
+                  each date as an exact UTC instant. Reuse the ID for revisions.
+                </p>
+                <pre>
+                  instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
                 </pre>
               </details>
               <button className="primary" disabled={busy || !seriesId}>
@@ -466,9 +580,7 @@ export function HistoricalReplay({
                 aria-live={playing ? 'off' : 'polite'}
               >
                 <div>
-                  <strong>
-                    {event ? eventNames[event.kind] : 'Ready to replay'}
-                  </strong>
+                  <strong>{eventLabel(event)}</strong>
                   <p>
                     {cursor >= end
                       ? 'Replay complete'
@@ -488,7 +600,7 @@ export function HistoricalReplay({
                           {event.split.newShares} for {event.split.oldShares}
                         </dd>
                       </div>
-                    ) : (
+                    ) : 'sessionIndex' in event ? (
                       <div>
                         <dt>Session</dt>
                         <dd>
@@ -497,7 +609,7 @@ export function HistoricalReplay({
                           {openingOffset(event.utcOffsetMinutes)} at open
                         </dd>
                       </div>
-                    )}
+                    ) : null}
                     <div>
                       <dt>Event time</dt>
                       <dd>
@@ -528,6 +640,14 @@ export function HistoricalReplay({
                 )}
               </div>
             </section>
+            {active.dividends && (
+              <DividendLedger
+                events={active.dividends.events}
+                shares={active.dividends.shares}
+                cutoff={clock ?? -Infinity}
+                current={event?.kind === 'dividend' ? event.dividends : []}
+              />
+            )}
             {adjustmentError ? (
               <p role="alert" className="warning replay-empty">
                 {adjustmentError} Select Raw to inspect the original prefix.

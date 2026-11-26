@@ -1,6 +1,7 @@
 //! Fixed-point, bar-close calculations shared by native consumers and WebAssembly.
 
 mod actions;
+mod dividend;
 mod history;
 mod indicator;
 mod replay;
@@ -8,6 +9,9 @@ mod replay;
 mod wasm;
 
 pub use actions::{parse_splits, Split, SplitBook, MAX_SPLIT_ROWS};
+pub use dividend::{
+    parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind, DividendMovement,
+};
 pub use history::{parse_csv, Bar};
 pub use indicator::{indicator, Average};
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};

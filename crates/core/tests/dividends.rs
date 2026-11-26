@@ -1,0 +1,223 @@
+use marketweft_core::{
+    parse_csv, parse_dividends, parse_sessions, replay, Dividend, DividendBook, DividendKind,
+    Instrument,
+};
+use std::collections::BTreeMap;
+
+const REPORTS: &str = include_str!("fixtures/synthetic-cash-dividends.csv");
+const BARS: &str = include_str!("fixtures/synthetic-split-ohlcv.csv");
+const CALENDAR: &str = include_str!("fixtures/synthetic-split-sessions.csv");
+
+fn instrument() -> Instrument {
+    Instrument::new("DEMO", "DIVIDEND").unwrap()
+}
+fn utc(time: &str) -> i64 {
+    parse_csv(&format!(
+        "time,open,high,low,close,volume\n{time},0,0,0,0,0"
+    ))
+    .unwrap()[0]
+        .time
+}
+
+#[test]
+fn each_market_and_dividend_cutoff_matches_the_cash_ledger() {
+    let book = parse_dividends(REPORTS, &instrument()).unwrap();
+    let plan = book.ledger(100).unwrap();
+    let opens = parse_sessions(CALENDAR).unwrap();
+    let bars = parse_csv(BARS).unwrap();
+    let market = replay(
+        &opens,
+        &bars.iter().map(|bar| bar.time).collect::<Vec<_>>(),
+        600,
+    )
+    .unwrap();
+
+    let announced = utc("2025-06-02T14:03:00Z");
+    let first_report = utc("2025-06-02T14:05:00Z");
+    let ex = utc("2025-06-03T14:00:00Z");
+    let revised_amount = utc("2025-06-03T15:00:00Z");
+    let revised_date = utc("2025-06-03T15:30:00Z");
+    let superseded_pay = utc("2025-06-04T12:00:00Z");
+    let late_report = utc("2025-06-04T13:30:00Z");
+    let pay = utc("2025-06-04T14:00:00Z");
+    let correction = utc("2025-06-04T15:00:00Z");
+
+    assert_eq!(
+        plan.iter()
+            .map(|e| (e.at, e.kind, e.revision.id.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            (first_report, DividendKind::Report, "ALPHA"),
+            (ex, DividendKind::Ex, "ALPHA"),
+            (revised_amount, DividendKind::Report, "ALPHA"),
+            (revised_date, DividendKind::Report, "ALPHA"),
+            (late_report, DividendKind::Report, "BETA"),
+            (pay, DividendKind::Pay, "ALPHA"),
+            (correction, DividendKind::Report, "ALPHA"),
+        ]
+    );
+
+    let cutoffs = market
+        .iter()
+        .map(|event| event.observed_at)
+        .chain(
+            plan.iter()
+                .flat_map(|event| [event.at - 1, event.at, event.at + 1]),
+        )
+        .chain([announced, superseded_pay]);
+    for cutoff in cutoffs {
+        let mut totals = BTreeMap::<&str, (i128, i128)>::new();
+        for event in plan.iter().filter(|event| event.at <= cutoff) {
+            for movement in &event.movements {
+                let row = totals.entry(&movement.currency).or_default();
+                row.0 += movement.receivable_delta;
+                row.1 += movement.cash_delta;
+                assert_eq!(*row, (movement.receivable, movement.cash));
+            }
+        }
+        let usd = match cutoff {
+            t if t < ex => (0, 0),
+            t if t < revised_amount => (25_000_000, 0),
+            t if t < pay => (30_000_000, 0),
+            t if t < correction => (0, 30_000_000),
+            _ => (0, 28_000_000),
+        };
+        let eur = if cutoff < late_report {
+            (0, 0)
+        } else {
+            (0, 10_000_000)
+        };
+        assert_eq!(
+            totals.get("USD").copied().unwrap_or_default(),
+            usd,
+            "cutoff {cutoff}"
+        );
+        assert_eq!(
+            totals.get("EUR").copied().unwrap_or_default(),
+            eur,
+            "cutoff {cutoff}"
+        );
+    }
+    let postings: Vec<_> = plan
+        .iter()
+        .flat_map(|event| {
+            event
+                .movements
+                .iter()
+                .filter(|m| m.cash_delta != 0)
+                .map(|m| (event.at, m.currency.as_str(), m.cash_delta))
+        })
+        .collect();
+    assert_eq!(
+        postings,
+        [
+            (late_report, "EUR", 10_000_000),
+            (pay, "USD", 30_000_000),
+            (correction, "USD", -2_000_000)
+        ]
+    );
+}
+
+#[test]
+fn date_and_currency_changes_reverse_only_at_observation_and_zero_cancels() {
+    let original = Dividend {
+        id: "cash".into(),
+        announced_at: 0,
+        observed_at: 1,
+        ex_at: 2,
+        pay_at: 4,
+        currency: "USD".into(),
+        amount_per_share: 1_000_001,
+    };
+    let changed = Dividend {
+        observed_at: 5,
+        currency: "EUR".into(),
+        ex_at: 3,
+        pay_at: 7,
+        ..original.clone()
+    };
+    let cancelled = Dividend {
+        observed_at: 8,
+        amount_per_share: 0,
+        ..changed.clone()
+    };
+    let book = DividendBook::new(vec![cancelled, changed, original.clone()]).unwrap();
+    let plan = book.ledger(3).unwrap();
+    let changes: Vec<_> = plan
+        .iter()
+        .flat_map(|event| {
+            event.movements.iter().map(|m| {
+                (
+                    event.at,
+                    m.currency.as_str(),
+                    m.receivable_delta,
+                    m.cash_delta,
+                )
+            })
+        })
+        .collect();
+    assert_eq!(
+        changes,
+        [
+            (2, "USD", 3_000_003, 0),
+            (4, "USD", -3_000_003, 3_000_003),
+            (5, "USD", 0, -3_000_003),
+            (5, "EUR", 3_000_003, 0),
+            (7, "EUR", -3_000_003, 3_000_003),
+            (8, "EUR", 0, -3_000_003),
+        ]
+    );
+    assert!(book
+        .ledger(0)
+        .unwrap()
+        .iter()
+        .all(|event| event.movements.is_empty()));
+    assert!(book.ledger(1_000_001).is_err());
+    let boundary = Dividend {
+        observed_at: 4,
+        ex_at: 4,
+        pay_at: 4,
+        ..original.clone()
+    };
+    let same_second = DividendBook::new(vec![original, boundary])
+        .unwrap()
+        .ledger(1)
+        .unwrap();
+    assert_eq!(same_second.iter().filter(|e| e.at == 4).count(), 1);
+    assert_eq!(same_second.last().unwrap().movements[0].cash, 1_000_001);
+}
+
+#[test]
+fn files_reject_ambiguous_revisions_and_invalid_ordinary_dividend_terms() {
+    assert!(parse_dividends(REPORTS, &Instrument::new("LOCAL", "DIVIDEND").unwrap()).is_err());
+    for text in [
+        REPORTS.replace("USD,0.250000", "usd,0.250000"),
+        REPORTS.replace("USD,0.250000", "USD,-0.250000"),
+        REPORTS.replace("USD,0.250000", "USD,0.2500001"),
+        REPORTS.replace("T14:05:00Z", "T14:02:00Z"),
+        REPORTS.replace("2025-06-04T12:00:00Z", "2025-06-01T12:00:00Z"),
+        format!("{}{}", REPORTS, REPORTS.lines().nth(1).unwrap()),
+    ] {
+        assert!(parse_dividends(&text, &instrument()).is_err(), "{text}");
+    }
+}
+
+#[test]
+fn exact_large_cash_totals_fit_the_integer_contract() {
+    let row = Dividend {
+        id: "large".into(),
+        announced_at: 0,
+        observed_at: 1,
+        ex_at: 1,
+        pay_at: 1,
+        currency: "USD".into(),
+        amount_per_share: 1_999_999_999_999_999,
+    };
+    let second = Dividend {
+        id: "large2".into(),
+        ..row.clone()
+    };
+    let book = DividendBook::new(vec![second, row]).unwrap();
+    let last = book.ledger(1_000_000).unwrap().pop().unwrap();
+    assert_eq!(last.movements[0].cash, 3_999_999_999_999_998_000_000);
+}
