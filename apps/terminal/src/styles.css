@@ -258,6 +258,94 @@ main {
 .universe-table td {
   white-space: nowrap;
 }
+.sector-heatmap {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+.sector-heatmap h3,
+.sector-heatmap h4,
+.sector-heatmap p {
+  margin: 0;
+}
+.heatmap-totals,
+.sector-group-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
+.heatmap-totals {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.heatmap-totals strong,
+.sector-group-heading strong,
+.sector-tile dd {
+  color: var(--text);
+  font-family: var(--mono);
+}
+.sector-group {
+  display: grid;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.sector-group-heading h4 {
+  color: var(--text);
+}
+.sector-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sector-tile {
+  min-width: min(168px, 100%);
+  max-width: 100%;
+  flex: var(--tile-weight) 1 168px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #222d32;
+  overflow-wrap: anywhere;
+}
+.sector-tile[data-return='gain'] {
+  background: color-mix(in srgb, #174a3b var(--tile-intensity), #222d32);
+  border-color: #397557;
+}
+.sector-tile[data-return='loss'] {
+  background: color-mix(in srgb, #562b32 var(--tile-intensity), #222d32);
+  border-color: #854653;
+}
+.sector-tile[data-return='missing'] {
+  background: repeating-linear-gradient(135deg, #242c31 0 7px, #2b353a 7px 9px);
+}
+.sector-tile summary {
+  cursor: pointer;
+  padding: 10px;
+}
+.sector-tile summary > span {
+  display: block;
+  margin-block-start: 4px;
+  font: 12px var(--mono);
+}
+.sector-tile dl {
+  margin: 0 10px 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.sector-tile dl div + div {
+  margin-top: 8px;
+}
+.sector-tile dd {
+  margin: 3px 0 0;
+}
 .replay-panel {
   display: grid;
   align-content: start;

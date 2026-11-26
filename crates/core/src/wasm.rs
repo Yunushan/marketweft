@@ -147,19 +147,9 @@ pub extern "C" fn mw_universe_as_of() -> u32 {
 pub extern "C" fn mw_universe_screen(membership_bytes: usize) -> u32 {
     use std::fmt::Write;
     process(|input| {
-        let mut parts = utf8(input)?.splitn(4, '\n');
-        let mut cutoff = || {
-            parts
-                .next()
-                .and_then(exact_utc)
-                .ok_or("Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
-        };
-        let baseline_at = cutoff()?;
-        let effective_at = cutoff()?;
-        let known_at = cutoff()?;
-        let (membership, closes) = parts
-            .next()
-            .and_then(|csvs| csvs.split_at_checked(membership_bytes))
+        let ([baseline_at, effective_at, known_at], csvs) = screen_inputs(input)?;
+        let (membership, closes) = csvs
+            .split_at_checked(membership_bytes)
             .ok_or("Supply both membership and price reports.")?;
         let universe = parse_universe(membership)?;
         let prices = PriceBook::parse(&universe, closes)?;
@@ -186,6 +176,81 @@ pub extern "C" fn mw_universe_screen(membership_bytes: usize) -> u32 {
         }
         Ok(text.into_bytes())
     })
+}
+
+fn screen_inputs(input: &[u8]) -> Result<([i64; 3], &str), String> {
+    let mut parts = utf8(input)?.splitn(4, '\n');
+    let mut times = [0; 3];
+    for time in &mut times {
+        *time = parts
+            .next()
+            .and_then(exact_utc)
+            .ok_or("Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")?;
+    }
+    Ok((
+        times,
+        parts.next().ok_or("Supply the universe CSV reports.")?,
+    ))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_sector_heatmap(membership_bytes: usize, price_bytes: usize) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let ([baseline_at, effective_at, known_at], csvs) = screen_inputs(input)?;
+        let (membership, rest) = csvs
+            .split_at_checked(membership_bytes)
+            .ok_or("Supply membership, price and sector reports.")?;
+        let (closes, metadata) = rest
+            .split_at_checked(price_bytes)
+            .ok_or("Supply both price and sector reports.")?;
+        let universe = parse_universe(membership)?;
+        let prices = PriceBook::parse(&universe, closes)?;
+        let map = prices.heatmap(metadata, baseline_at, effective_at, known_at)?;
+        let mut text = String::new();
+        writeln!(
+            &mut text,
+            "H\t{}\t{}\t{}",
+            map.known_weight,
+            map.covered_weight,
+            optional_number(map.contribution)
+        )
+        .unwrap();
+        for group in map.groups {
+            writeln!(
+                &mut text,
+                "S\t{}\t{}\t{}\t{}\t{}",
+                group.sector.as_deref().unwrap_or_default(),
+                group.known_weight,
+                group.covered_weight,
+                optional_number(group.weighted_return),
+                optional_number(group.contribution)
+            )
+            .unwrap();
+            for listing in group.listings {
+                let rank = listing.ranking;
+                let report = listing.classification.as_ref();
+                writeln!(
+                    &mut text,
+                    "L\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    rank.listing.listing_id,
+                    rank.listing.instrument,
+                    optional_number(rank.rank),
+                    optional_number(rank.return_units),
+                    optional_number(report.and_then(|r| r.weight)),
+                    optional_number(report.map(|r| r.effective_at)),
+                    optional_number(report.map(|r| r.observed_at)),
+                    optional_number(listing.contribution)
+                )
+                .unwrap();
+            }
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+fn optional_number(value: Option<impl ToString>) -> String {
+    value.map(|number| number.to_string()).unwrap_or_default()
 }
 
 fn encode_bars(bars: Vec<Bar>) -> Vec<u8> {

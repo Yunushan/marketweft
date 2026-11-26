@@ -9,6 +9,31 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('sector heatmap Wasm bridge groups the screen and preserves weighted coverage', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-universe' + name + '.csv', import.meta.url), 'utf8');
+  const [members, prices, sectors] = await Promise.all([fixture(''), fixture('-prices'), fixture('-sectors')]);
+  const iso = t => '2025-06-02T' + t + 'Z';
+  const map = (end, known) => core.sectorHeatmap(members, prices, sectors, iso('14:00:00'), iso(end), iso(known));
+  const added = map('14:10:00', '14:10:00');
+  assert.deepEqual([added.knownWeight, added.coveredWeight, added.contribution], [1000000, 600000, 12000n]);
+  assert.deepEqual(added.groups.map(group => [group.sector, group.weightedReturn, group.listings[0].listingId]), [
+    ['Technology', 20000n, 'ALFA-001'], ['Financials', null, 'BETA-001'],
+  ]);
+  assert.equal(map('14:10:00', '14:12:00').contribution, 60000n);
+  const revised = map('14:10:00', '14:16:00').groups;
+  assert.deepEqual(revised.map(group => [group.sector, group.weightedReturn]), [['Technology', 16000n]]);
+  const latest = revised[0].listings[1];
+  assert.deepEqual(latest, {
+    listingId: 'BETA-001', instrument: 'DEMO:BETA', rank: 2, returnUnits: 10000n,
+    weight: 400000, effectiveAt: Date.parse(iso('14:05:00')) / 1000,
+    observedAt: Date.parse(iso('14:16:00')) / 1000, contribution: 4000n,
+  });
+  assert.deepEqual(map('14:35:00', '14:35:00'), { knownWeight: 0, coveredWeight: 0, contribution: null, groups: [] });
+  const relisted = map('14:45:00', '14:45:00').groups[0];
+  assert.equal(relisted.sector, null);
+  assert.equal(relisted.listings[0].weight, null);
+});
+
 test('screen Wasm bridge retains missing ends, revisions and precise rank units', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-universe' + name + '.csv', import.meta.url), 'utf8');
   const [membership, prices] = await Promise.all([fixture(''), fixture('-prices')]);
