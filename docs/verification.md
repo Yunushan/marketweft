@@ -1,5 +1,17 @@
 # MarketWeft verification
 
+## 0.8.0 · Point-in-time sector heatmap
+
+| Check | Observed result |
+| --- | --- |
+| Reconciliation | Native and Chromium tests compare listing identities to the screen at each selected cutoff, including unknown classifications, late removals, delisting and ticker reuse. |
+| Covered weight and contribution | At effective 14:10 UTC the late close leaves 60% of 100% known weight covered with 1.2% observed contribution. At 14:12 coverage reaches 100% and observed contribution rises to 6%. |
+| Sector revisions | The 14:16 correction moves BETA from Financials to Technology and the price revision yields a 1.6% weighted sector return. Rewinding restores the earlier sectors and weights. |
+| Sparse data and validation | The new BETA listing first appears with missing sector, weight and return. Its later sector report leaves weight missing. Native tests distinguish zero from missing weight. Browser tests verify CSV validation, an unchanged stored catalog and a 360-pixel viewport. |
+| Regression suite | 35 production Chromium and six SDK tests passed on Windows x64. Twenty-six native tests passed on Linux x64 and nine compiled Wasm checks passed. The README checker verified all 21 editions. |
+
+[Heatmap contract and fixture](sector-heatmap.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.7.0 · Point-in-time universe screening
 
 | Check | Observed result |
