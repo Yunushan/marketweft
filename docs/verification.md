@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.18.0 · Split revisions and cancellations
+
+| Check | Observed result |
+| --- | --- |
+| Effective-time revision | The original split changes the last pre-open close from 106.50 raw to 53.25 adjusted. The 14:10 UTC revision moves the effect to 14:20 and restores the raw prefix until then. |
+| Distinct IDs and cancellation | Two IDs compound at 14:20 UTC, so the 14:10 candle closes at 17.833333 adjusted and 53.50 raw. Canceling SPLIT-A at 14:30 leaves SPLIT-B in force and the adjusted close becomes 35.666667. Candles starting on the new effective boundary retain their original basis. |
+| Replay and legacy files | Rewinding restores the earlier exact view and keeps source prices and the saved workspace intact. The native suite rejects ambiguous revisions and verifies a withdrawal before the revised effect. The six-column imports and prior dividend and split replays still pass. |
+| Regression suite | All 52 browser and six SDK tests passed on Windows x64, 55 native tests passed on Linux x64, 19 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Split contract and fixture](corporate-actions.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.17.0 · Point-in-time delisting proceeds
 
 | Check | Observed result |
