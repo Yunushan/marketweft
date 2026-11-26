@@ -685,6 +685,27 @@ test('financial Wasm bridge returns exact balances and revision-specific multipl
   assert.throws(() => at('14:00:00', 'UNKNOWN'), /Select an issuer/);
 });
 
+test('quarterly Wasm replay keeps publication vintages and exact trailing amounts independent of annual multiples', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-financial-' + name + '.csv', import.meta.url), 'utf8');
+  const [filings, caps] = await Promise.all([fixture('periods'), fixture('market-caps')]);
+  const snapshot = (time, reports = filings) => core.financialSnapshot(
+    reports, caps, 'DEMO-ALFA', '2025-04-03T14:00:00Z', '2025-04-03T' + time + 'Z');
+  const early = snapshot('14:04:59');
+  assert.deepEqual(early.quarters.map(row => row.sourceId), ['ALFA-Q1', 'ALFA-Q3', 'ALFA-Q4']);
+  assert.deepEqual(early.trailing, { kind: 'insufficient-quarters' });
+  const complete = snapshot('14:05:00');
+  assert.deepEqual(complete.trailing, { kind: 'available', currency: 'USD',
+    revenue: 6000000000000010n, commonNetIncome: 1200000000000010n, operatingCashFlow: 700000000000003n });
+  const revised = snapshot('14:22:00');
+  assert.equal(revised.filing.sourceId, 'ALFA-FY24-A1');
+  assert.equal(revised.quarters[3].sourceId, 'ALFA-Q4-A1');
+  assert.deepEqual(revised.trailing, { kind: 'available', currency: 'USD',
+    revenue: 8000000000000010n, commonNetIncome: null, operatingCashFlow: -250000000000005n });
+  assert.deepEqual(snapshot('14:05:00').trailing, complete.trailing);
+  assert.equal(snapshot('14:05:00', filings.replace('14:05:00Z,USD', '14:05:00Z,EUR')).trailing.kind, 'currency');
+  assert.equal(snapshot('14:05:00', filings.replace('2024-04-01,2024-06-30', '2024-04-02,2024-06-30')).trailing.kind, 'noncontiguous');
+});
+
 test('sector heatmap Wasm bridge groups the screen and preserves weighted coverage', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-universe' + name + '.csv', import.meta.url), 'utf8');
   const [members, prices, sectors] = await Promise.all([fixture(''), fixture('-prices'), fixture('-sectors')]);

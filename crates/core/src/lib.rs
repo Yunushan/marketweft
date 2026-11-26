@@ -68,7 +68,10 @@ pub use formula_walk::{
     walk_forward_formulas, FormulaWalkCandidate, FormulaWalkConfig, FormulaWalkFold,
     FormulaWalkScore,
 };
-pub use fundamentals::{Filing, FinancialBook, MarketCap, Multiple, Valuation};
+pub use fundamentals::{
+    Filing, FinancialBook, MarketCap, Multiple, QuarterlyFinancials, TrailingFourQuarters,
+    Valuation,
+};
 pub use history::{exact_utc as parse_exact_utc, parse_csv, Bar};
 pub use indicator::{indicator, Average};
 pub use macro_calendar::{MacroCalendar, ReleaseRecord, ReleaseSnapshot, ReportKind};

@@ -353,6 +353,16 @@ export interface Valuation {
   priceBook: Multiple;
 }
 
+export type TrailingFourQuarters =
+  | { kind: 'available'; currency: string; revenue: bigint | null; commonNetIncome: bigint | null;
+      operatingCashFlow: bigint | null }
+  | { kind: 'insufficient-quarters' | 'noncontiguous' | 'currency' };
+
+export interface FinancialSnapshot extends Valuation {
+  quarters: Filing[];
+  trailing: TrailingFourQuarters;
+}
+
 export interface MacroRecord {
   recordId: string;
   publishedAt: number;
@@ -789,6 +799,7 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string): Heatmap;
   financialIndex(filings: string, caps: string): FinancialIssuer[];
   financialAsOf(filings: string, caps: string, issuer: string, at: string, known: string): Valuation;
+  financialSnapshot(filings: string, caps: string, issuer: string, at: string, known: string): FinancialSnapshot;
   macroIndex(csv: string): number;
   macroAsOf(csv: string, published: string, known: string): MacroRelease[];
   optionIndex(underlying: string, quotes: string): OptionSource;
@@ -856,6 +867,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
   mw_financial_index(filingBytes: number): number;
   mw_financial_as_of(filingBytes: number): number;
+  mw_financial_snapshot(filingBytes: number): number;
   mw_macro_index(): number;
   mw_macro_as_of(): number;
   mw_option_index(underlyingBytes: number): number;
@@ -1051,6 +1063,62 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     const view = new DataView(api.memory.buffer, api.mw_output(), api.mw_output_len());
     if (status !== 0) throw new Error(decoder.decode(view));
     return view;
+  }
+
+  function financialQuery(filings: string, caps: string, issuer: string, at: string, known: string,
+    includeQuarters: boolean) {
+    if (!/^[A-Za-z0-9._-]{1,40}$/.test(issuer)) throw new Error('Select an issuer in the filing history.');
+    if ([at, known].some(value => value.length !== 20 || /[\n\r]/.test(value))) {
+      throw new Error('Use YYYY-MM-DDTHH:MM:SSZ UTC timestamps for valuation and knowledge.');
+    }
+    textInput([issuer, at, known, filings + caps].join('\n'));
+    const bytes = encoder.encode(filings).length;
+    const status = includeQuarters ? api.mw_financial_snapshot(bytes) : api.mw_financial_as_of(bytes);
+    const text = decoder.decode(output(status));
+    let filing: Filing | null = null;
+    let marketCap: MarketCap | null = null;
+    let trailing: TrailingFourQuarters | null = null;
+    const quarters: Filing[] = [];
+    const multiples: Multiple[] = [];
+    const amount = (value: string) => value === '' ? null : BigInt(value);
+    for (const line of text.slice(0, -1).split('\n')) {
+      const [type, ...fields] = line.split('\t');
+      if (type === 'F' || type === 'Q') {
+        const [sourceId, start, end, pub, obs, currency, revenue, income, equity, cash] = fields;
+        const row = { sourceId, fiscalStart: Number(start), fiscalEnd: Number(end), publishedAt: Number(pub),
+          observedAt: Number(obs), currency, revenue: amount(revenue), commonNetIncome: amount(income),
+          commonEquity: amount(equity), operatingCashFlow: amount(cash) };
+        if (type === 'F') filing = row;
+        else quarters.push(row);
+      } else if (type === 'C') {
+        const [sourceId, time, obs, currency, cap] = fields;
+        marketCap = { sourceId, at: Number(time), observedAt: Number(obs), currency, ticks: BigInt(cap) };
+      } else if (type === 'R') {
+        const [kind, value] = fields;
+        switch (kind) {
+          case 'value': multiples.push({ kind, units: BigInt(value) }); break;
+          case 'missing-filing':
+          case 'missing-cap':
+          case 'currency':
+          case 'missing-denominator':
+          case 'nonpositive-denominator': multiples.push({ kind }); break;
+          default: throw new Error('Invalid valuation multiple from the calculation engine.');
+        }
+      } else if (type === 'T') {
+        const [kind, currency, revenue, income, cash] = fields;
+        switch (kind) {
+          case 'available': trailing = { kind, currency, revenue: amount(revenue),
+            commonNetIncome: amount(income), operatingCashFlow: amount(cash) }; break;
+          case 'insufficient-quarters':
+          case 'noncontiguous':
+          case 'currency': trailing = { kind }; break;
+          default: throw new Error('Invalid quarterly coverage from the calculation engine.');
+        }
+      }
+    }
+    const [priceEarnings, priceSales, priceBook] = multiples;
+    if (multiples.length !== 3) throw new Error('Incomplete valuation from the calculation engine.');
+    return { valuation: { filing, marketCap, priceEarnings, priceSales, priceBook }, quarters, trailing };
   }
 
   function screenInput(times: string[], ...files: string[]) {
@@ -1729,42 +1797,12 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       });
     },
     financialAsOf(filings, caps, issuer, at, known) {
-      if (!/^[A-Za-z0-9._-]{1,40}$/.test(issuer)) throw new Error('Select an issuer in the filing history.');
-      if ([at, known].some(value => value.length !== 20 || /[\n\r]/.test(value))) {
-        throw new Error('Use YYYY-MM-DDTHH:MM:SSZ UTC timestamps for valuation and knowledge.');
-      }
-      textInput([issuer, at, known, filings + caps].join('\n'));
-      const text = decoder.decode(output(api.mw_financial_as_of(encoder.encode(filings).length)));
-      let filing: Filing | null = null;
-      let marketCap: MarketCap | null = null;
-      const multiples: Multiple[] = [];
-      const amount = (value: string) => value === '' ? null : BigInt(value);
-      for (const line of text.slice(0, -1).split('\n')) {
-        const [type, ...fields] = line.split('\t');
-        if (type === 'F') {
-          const [sourceId, start, end, pub, obs, currency, revenue, income, equity, cash] = fields;
-          filing = { sourceId, fiscalStart: Number(start), fiscalEnd: Number(end), publishedAt: Number(pub),
-            observedAt: Number(obs), currency, revenue: amount(revenue), commonNetIncome: amount(income),
-            commonEquity: amount(equity), operatingCashFlow: amount(cash) };
-        } else if (type === 'C') {
-          const [sourceId, time, obs, currency, cap] = fields;
-          marketCap = { sourceId, at: Number(time), observedAt: Number(obs), currency, ticks: BigInt(cap) };
-        } else if (type === 'R') {
-          const [kind, value] = fields;
-          switch (kind) {
-            case 'value': multiples.push({ kind, units: BigInt(value) }); break;
-            case 'missing-filing':
-            case 'missing-cap':
-            case 'currency':
-            case 'missing-denominator':
-            case 'nonpositive-denominator': multiples.push({ kind }); break;
-            default: throw new Error('Invalid valuation multiple from the calculation engine.');
-          }
-        }
-      }
-      const [priceEarnings, priceSales, priceBook] = multiples;
-      if (multiples.length !== 3) throw new Error('Incomplete valuation from the calculation engine.');
-      return { filing, marketCap, priceEarnings, priceSales, priceBook };
+      return financialQuery(filings, caps, issuer, at, known, false).valuation;
+    },
+    financialSnapshot(filings, caps, issuer, at, known) {
+      const { valuation, quarters, trailing } = financialQuery(filings, caps, issuer, at, known, true);
+      if (!trailing) throw new Error('Incomplete quarterly coverage from the calculation engine.');
+      return { ...valuation, quarters, trailing };
     },
     macroIndex(csv) {
       textInput(csv);

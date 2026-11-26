@@ -10,6 +10,10 @@ const MAX_ROWS: usize = 10_000;
 const MAX_BYTES: usize = 1024 * 1024;
 const NEXT_DAY: i64 = 86_400;
 const MAX_AMOUNT: i128 = 10_i128.pow(27);
+const ANNUAL_HEADER: &str =
+    "issuer_id,filing_id,fiscal_start,fiscal_end,published_at,observed_at,currency,revenue,common_net_income,common_equity,operating_cash_flow";
+const PERIOD_HEADER: &str =
+    "issuer_id,filing_id,period_kind,fiscal_start,fiscal_end,published_at,observed_at,currency,revenue,common_net_income,common_equity,operating_cash_flow";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Filing {
@@ -53,61 +57,129 @@ pub struct Valuation<'a> {
     pub price_book: Multiple,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QuarterlyFinancials<'a> {
+    /// The four most recent eligible fiscal quarters, ordered from oldest to newest.
+    pub quarters: Vec<&'a Filing>,
+    pub trailing: TrailingFourQuarters<'a>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TrailingFourQuarters<'a> {
+    InsufficientQuarters,
+    Noncontiguous,
+    CurrencyMismatch,
+    Available {
+        currency: &'a str,
+        revenue: Option<i128>,
+        common_net_income: Option<i128>,
+        operating_cash_flow: Option<i128>,
+    },
+}
+
 type Filings = BTreeMap<i64, Vec<Filing>>;
 type Capitalizations = BTreeMap<i64, BTreeMap<i64, MarketCap>>;
 
+#[derive(Default)]
+struct IssuerFilings {
+    annual: Filings,
+    quarterly: Filings,
+}
+
 pub struct FinancialBook {
-    filings: BTreeMap<String, Filings>,
+    filings: BTreeMap<String, IssuerFilings>,
     capitalizations: BTreeMap<String, Capitalizations>,
 }
 
 impl FinancialBook {
     pub fn parse(filings_csv: &str, caps_csv: &str) -> Result<Self, String> {
-        let mut filings: BTreeMap<String, Filings> = BTreeMap::new();
+        let mut filings: BTreeMap<String, IssuerFilings> = BTreeMap::new();
         let mut filing_keys = BTreeMap::new();
-        for line in csv_rows(
-            filings_csv,
-            "issuer_id,filing_id,fiscal_start,fiscal_end,published_at,observed_at,currency,revenue,common_net_income,common_equity,operating_cash_flow",
-            "filing",
-        )? {
+        let (format, rows) = csv_rows(filings_csv, &[ANNUAL_HEADER, PERIOD_HEADER], "filing")?;
+        for line in rows {
             let (line, fields) = line?;
             let error = |message: &str| format!("Filing line {line}: {message}");
-            let [issuer, source, fiscal_start, fiscal_end, published, observed, currency,
-                revenue, income, equity, cash_flow] = fields.as_slice() else {
-                return Err(error("Expected eleven fields."));
+            let [issuer, source, rest @ ..] = fields.as_slice() else {
+                return Err(error("Supply an issuer ID and filing ID."));
+            };
+            let (is_quarter, period_fields) = match (format, rest) {
+                (0, fields) => (false, fields),
+                (_, ["annual", fields @ ..]) => (false, fields),
+                (_, ["quarter", fields @ ..]) => (true, fields),
+                _ => return Err(error("Use period_kind annual or quarter.")),
+            };
+            let [fiscal_start, fiscal_end, published, observed, currency, revenue, income, equity, cash_flow] =
+                period_fields
+            else {
+                return Err(error(
+                    "A fiscal period requires dates, currency and four amount fields.",
+                ));
             };
             if !valid_id(issuer) || !valid_id(source) {
-                return Err(error("Use stable issuer and filing identifiers with 1–40 ASCII characters."));
+                return Err(error(
+                    "Use stable issuer and filing identifiers with 1–40 ASCII characters.",
+                ));
             }
-            let fiscal_start = exact_date(fiscal_start).ok_or_else(|| error("Use a YYYY-MM-DD fiscal start."))?;
-            let fiscal_end = exact_date(fiscal_end).ok_or_else(|| error("Use a YYYY-MM-DD fiscal end."))?;
+            let fiscal_start =
+                exact_date(fiscal_start).ok_or_else(|| error("Use a YYYY-MM-DD fiscal start."))?;
+            let fiscal_end =
+                exact_date(fiscal_end).ok_or_else(|| error("Use a YYYY-MM-DD fiscal end."))?;
             if fiscal_start > fiscal_end {
                 return Err(error("Fiscal start must be at or before fiscal end."));
             }
-            let published_at = exact_utc(published).ok_or_else(|| error("Use an exact UTC publication timestamp."))?;
-            let observed_at = exact_utc(observed).ok_or_else(|| error("Use an exact UTC observation timestamp."))?;
+            let published_at = exact_utc(published)
+                .ok_or_else(|| error("Use an exact UTC publication timestamp."))?;
+            let observed_at = exact_utc(observed)
+                .ok_or_else(|| error("Use an exact UTC observation timestamp."))?;
             if published_at < fiscal_end + NEXT_DAY || observed_at < published_at {
-                return Err(error("Publish after the fiscal end date and observe at or after publication."));
+                return Err(error(
+                    "Publish after the fiscal end date and observe at or after publication.",
+                ));
             }
-            let currency = currency_code(currency).ok_or_else(|| error("Use a three-letter uppercase currency code."))?;
+            let currency = currency_code(currency)
+                .ok_or_else(|| error("Use a three-letter uppercase currency code."))?;
             let amount = |field: &str| {
-                if field.is_empty() { return Ok(None) }
-                bounded_amount(field).map(Some).ok_or_else(|| error("Use at most six decimals and an absolute amount no larger than 10^21."))
+                if field.is_empty() {
+                    return Ok(None);
+                }
+                bounded_amount(field).map(Some).ok_or_else(|| {
+                    error("Use at most six decimals and an absolute amount no larger than 10^21.")
+                })
             };
-            if filing_keys.insert((*issuer, *source), published_at).is_some_and(|prior| prior != published_at) {
+            if filing_keys
+                .insert((*issuer, *source), published_at)
+                .is_some_and(|prior| prior != published_at)
+            {
                 return Err(error("A filing ID must retain the same publication time."));
             }
-            filings.entry((*issuer).into()).or_default().entry(fiscal_end).or_default().push(Filing {
-                source_id: (*source).into(), fiscal_start, fiscal_end, published_at, observed_at,
-                currency, revenue: amount(revenue)?, common_net_income: amount(income)?,
-                common_equity: amount(equity)?, operating_cash_flow: amount(cash_flow)?,
+            let issuer_filings = filings.entry((*issuer).into()).or_default();
+            let periods = if is_quarter {
+                &mut issuer_filings.quarterly
+            } else {
+                &mut issuer_filings.annual
+            };
+            periods.entry(fiscal_end).or_default().push(Filing {
+                source_id: (*source).into(),
+                fiscal_start,
+                fiscal_end,
+                published_at,
+                observed_at,
+                currency,
+                revenue: amount(revenue)?,
+                common_net_income: amount(income)?,
+                common_equity: amount(equity)?,
+                operating_cash_flow: amount(cash_flow)?,
             });
         }
         if filings.is_empty() {
-            return Err("Supply at least one annual filing.".into());
+            return Err("Supply at least one financial filing.".into());
         }
-        for periods in filings.values_mut() {
-            for versions in periods.values_mut() {
+        for issuer in filings.values_mut() {
+            for versions in issuer
+                .annual
+                .values_mut()
+                .chain(issuer.quarterly.values_mut())
+            {
                 versions.sort_unstable_by_key(|f| (f.published_at, f.observed_at));
                 let mut keys = BTreeSet::new();
                 if versions.iter().any(|f| {
@@ -119,11 +191,12 @@ impl FinancialBook {
             }
         }
         let mut capitalizations: BTreeMap<String, Capitalizations> = BTreeMap::new();
-        for line in csv_rows(
+        let (_, rows) = csv_rows(
             caps_csv,
-            "issuer_id,source_id,valuation_at,observed_at,currency,market_cap",
+            &["issuer_id,source_id,valuation_at,observed_at,currency,market_cap"],
             "capitalization",
-        )? {
+        )?;
+        for line in rows {
             let (line, fields) = line?;
             let error = |message: &str| format!("Capitalization line {line}: {message}");
             let [issuer, source, at, observed, currency, ticks] = fields.as_slice() else {
@@ -182,9 +255,11 @@ impl FinancialBook {
             .and_then(|values| values.first_key_value())
             .map(|(at, _)| *at)
             .or_else(|| {
-                self.filings
-                    .get(issuer)?
+                let issuer = self.filings.get(issuer)?;
+                issuer
+                    .annual
                     .values()
+                    .chain(issuer.quarterly.values())
                     .flatten()
                     .map(|f| f.observed_at)
                     .max()
@@ -202,16 +277,7 @@ impl FinancialBook {
             .filings
             .get(issuer)
             .ok_or("Select an issuer in the filing history.")?;
-        let fiscal_cutoff = valuation_at.saturating_sub(NEXT_DAY);
-        let filing = filings
-            .range(..=fiscal_cutoff)
-            .rev()
-            .find_map(|(_, vintages)| {
-                vintages
-                    .iter()
-                    .rev()
-                    .find(|filing| filing.observed_at <= known_at)
-            });
+        let filing = selected_filings(&filings.annual, valuation_at, known_at).next();
         let market_cap = self
             .capitalizations
             .get(issuer)
@@ -240,6 +306,65 @@ impl FinancialBook {
             price_book: ratio(|f| f.common_equity),
         })
     }
+
+    pub fn quarterly_as_of(
+        &self,
+        issuer: &str,
+        valuation_at: i64,
+        known_at: i64,
+    ) -> Result<QuarterlyFinancials<'_>, String> {
+        let filings = self
+            .filings
+            .get(issuer)
+            .ok_or("Select an issuer in the filing history.")?;
+        let mut quarters = selected_filings(&filings.quarterly, valuation_at, known_at)
+            .take(4)
+            .collect::<Vec<_>>();
+        quarters.reverse();
+        let trailing = match quarters.as_slice() {
+            [_, _, _, latest] => {
+                if !quarters
+                    .windows(2)
+                    .all(|pair| pair[0].fiscal_end + NEXT_DAY == pair[1].fiscal_start)
+                {
+                    TrailingFourQuarters::Noncontiguous
+                } else if !quarters
+                    .iter()
+                    .all(|filing| filing.currency == latest.currency)
+                {
+                    TrailingFourQuarters::CurrencyMismatch
+                } else {
+                    let total = |amount: fn(&Filing) -> Option<i128>| {
+                        quarters.iter().map(|filing| amount(filing)).sum()
+                    };
+                    TrailingFourQuarters::Available {
+                        currency: &latest.currency,
+                        revenue: total(|filing| filing.revenue),
+                        common_net_income: total(|filing| filing.common_net_income),
+                        operating_cash_flow: total(|filing| filing.operating_cash_flow),
+                    }
+                }
+            }
+            _ => TrailingFourQuarters::InsufficientQuarters,
+        };
+        Ok(QuarterlyFinancials { quarters, trailing })
+    }
+}
+
+fn selected_filings(
+    filings: &Filings,
+    valuation_at: i64,
+    known_at: i64,
+) -> impl Iterator<Item = &Filing> {
+    filings
+        .range(..=valuation_at.saturating_sub(NEXT_DAY))
+        .rev()
+        .filter_map(move |(_, vintages)| {
+            vintages
+                .iter()
+                .rev()
+                .find(|filing| filing.observed_at <= known_at)
+        })
 }
 
 fn currency_code(text: &str) -> Option<String> {
@@ -250,11 +375,13 @@ fn bounded_amount(value: &str) -> Option<i128> {
     decimal_ticks(value).filter(|ticks| ticks.abs() <= MAX_AMOUNT)
 }
 
+type CsvRow<'a> = Result<(usize, Vec<&'a str>), String>;
+
 fn csv_rows<'a>(
     csv: &'a str,
-    header: &str,
+    headers: &[&str],
     name: &'a str,
-) -> Result<impl Iterator<Item = Result<(usize, Vec<&'a str>), String>> + 'a, String> {
+) -> Result<(usize, impl Iterator<Item = CsvRow<'a>> + 'a), String> {
     if csv.len() > MAX_BYTES {
         return Err(format!("The {name} CSV exceeds 1 MiB."));
     }
@@ -263,13 +390,18 @@ fn csv_rows<'a>(
         .lines()
         .enumerate()
         .filter(|(_, row)| !row.trim().is_empty());
-    if rows.next().map(|(_, line)| line.trim()) != Some(header) {
-        return Err(format!("Expected {name} header {header}."));
-    }
-    Ok(rows.enumerate().map(move |(i, (line, content))| {
-        if i == MAX_ROWS {
-            return Err(format!("Supply at most 10,000 {name} reports."));
-        }
-        Ok((line + 1, content.split(',').map(str::trim).collect()))
-    }))
+    let header = rows.next().map(|(_, line)| line.trim());
+    let format = headers
+        .iter()
+        .position(|expected| Some(*expected) == header)
+        .ok_or_else(|| format!("Expected {name} header {}.", headers.join(" or ")))?;
+    Ok((
+        format,
+        rows.enumerate().map(move |(i, (line, content))| {
+            if i == MAX_ROWS {
+                return Err(format!("Supply at most 10,000 {name} reports."));
+            }
+            Ok((line + 1, content.split(',').map(str::trim).collect()))
+        }),
+    ))
 }

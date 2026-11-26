@@ -62,3 +62,15 @@ test('the TypeScript SDK screens effective members at an independent known cutof
   const [large] = research.universeScreen(membership, extreme, utc('14:00:00'), utc('14:05:00'), utc('14:05:00'))
   assert.equal(large.returnUnits, (2_000_000_000_000_000n - 1n) * 1_000_000n)
 })
+
+test('the public TypeScript SDK reads quarterly evidence from its packaged engine', async () => {
+  const fixture = name => new URL('../../../crates/core/tests/fixtures/synthetic-financial-' + name + '.csv', import.meta.url)
+  const [filings, caps, research] = await Promise.all([
+    readFile(fixture('periods'), 'utf8'), readFile(fixture('market-caps'), 'utf8'), createResearchEngine(wasm),
+  ])
+  assert.equal(research.financialIndex(filings, caps)[0].id, 'DEMO-ALFA')
+  const result = research.financialSnapshot(filings, caps, 'DEMO-ALFA', '2025-04-03T14:00:00Z', '2025-04-03T14:22:00Z')
+  assert.equal(result.quarters[3].sourceId, 'ALFA-Q4-A1')
+  assert.equal(result.trailing.revenue, 8000000000000010n)
+  assert.equal(result.trailing.commonNetIncome, null)
+})

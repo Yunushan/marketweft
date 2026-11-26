@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { FinancialIssuer, MarketCore, Multiple, Valuation } from './market-core'
+import type { FinancialIssuer, FinancialSnapshot, MarketCore, Multiple } from './market-core'
 import { Mark } from './Icons'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
-import demoFilings from '../../../crates/core/tests/fixtures/synthetic-financial-filings.csv?raw'
+import demoFilings from '../../../crates/core/tests/fixtures/synthetic-financial-periods.csv?raw'
 import demoCaps from '../../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv?raw'
 
 const capHeader = 'issuer_id,source_id,valuation_at,observed_at,currency,market_cap'
@@ -14,6 +14,10 @@ const missing = {
   currency: 'Currencies differ',
   'missing-denominator': 'Denominator missing from filing',
   'nonpositive-denominator': 'Denominator is zero or negative',
+}
+const trailingUnavailable = {
+  noncontiguous: 'The four known fiscal quarters do not form a continuous period.',
+  currency: 'The four known fiscal quarters use different currencies.',
 }
 
 type FinancialInputs = {
@@ -46,13 +50,13 @@ export function FundamentalReplay({ core, close }: { core: MarketCore; close: ()
   const [capsFile, setCapsFile] = useState<File | null>(null)
   const [inputs, setInputs] = useState<FinancialInputs | null>(null)
   const [draft, setDraft] = useState<Query>({ issuer: '', at: '', known: '' })
-  const [result, setResult] = useState<{ query: Query; valuation: Valuation } | null>(null)
+  const [result, setResult] = useState<{ query: Query; valuation: FinancialSnapshot } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => { heading.current?.focus() }, [])
 
   function run(book: FinancialInputs, query: Query) {
-    const valuation = core.financialAsOf(book.filings, book.caps, query.issuer, query.at, query.known)
+    const valuation = core.financialSnapshot(book.filings, book.caps, query.issuer, query.at, query.known)
     setDraft(query)
     setResult({ query, valuation })
   }
@@ -68,7 +72,7 @@ export function FundamentalReplay({ core, close }: { core: MarketCore; close: ()
   function openDemo() {
     setError('')
     try {
-      start(demoFilings, demoCaps, 'Synthetic annual filings and market capitalizations', true)
+      start(demoFilings, demoCaps, 'Synthetic financial filings and market capitalizations', true)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the financial demo.')
     }
@@ -116,12 +120,12 @@ export function FundamentalReplay({ core, close }: { core: MarketCore; close: ()
           <div className="replay-setup">
             <section className="side-card replay-panel">
               <h2>Financial statements demo</h2>
-              <p>Follow annual results through a delayed restatement and compare valuation multiples.</p>
+              <p>Replay annual and quarterly restatements and see when four quarters become available.</p>
               <button className="primary" disabled={busy} onClick={openDemo}>Start financial demo</button>
             </section>
             <form className="side-card replay-panel" onSubmit={load}>
               <h2>Open financial reports</h2>
-              <label>Annual filings CSV
+              <label>Financial filings CSV
                 <input type="file" accept=".csv,text/csv" required disabled={busy}
                   onChange={(event) => setFilingsFile(event.target.files?.[0] ?? null)} />
               </label>
@@ -172,7 +176,9 @@ export function FundamentalReplay({ core, close }: { core: MarketCore; close: ()
                 <div className="replay-controls">
                   {[
                     ['Original filing', '14:01:00'],
+                    ['Four quarters known', '14:05:00'],
                     ['Restatement observed', '14:20:00'],
+                    ['Quarter restatement observed', '14:22:00'],
                     ['Revised capitalization', '14:35:00'],
                   ].map(([label, t]) => (
                     <button className="outline" key={t} onClick={() =>
@@ -214,10 +220,52 @@ export function FundamentalReplay({ core, close }: { core: MarketCore; close: ()
                 </dl>
               ) : <p>No known capitalization at the exact valuation time.</p>}
             </section>
+            <QuarterlyResults valuation={result.valuation} />
           </>
         )}
         {error && <p className="warning replay-error" role="alert">{error}</p>}
       </main>
     </>
+  )
+}
+
+function QuarterlyResults({ valuation }: { valuation: FinancialSnapshot }) {
+  const { quarters, trailing } = valuation
+  return (
+    <section className="side-card replay-panel replay-results" aria-labelledby="quarterly-results">
+      <h2 id="quarterly-results">Quarterly financial results</h2>
+      <h3>Trailing twelve months</h3>
+      {trailing.kind === 'available' ? (
+        <dl className="replay-times">
+          <div><dt>Revenue</dt><dd>{money(trailing.revenue, trailing.currency)}</dd></div>
+          <div><dt>Common net income</dt><dd>{money(trailing.commonNetIncome, trailing.currency)}</dd></div>
+          <div><dt>Operating cash flow</dt><dd>{money(trailing.operatingCashFlow, trailing.currency)}</dd></div>
+        </dl>
+      ) : (
+        <p>{trailing.kind === 'insufficient-quarters'
+          ? `${quarters.length} of 4 fiscal quarters are known at these cutoffs.`
+          : trailingUnavailable[trailing.kind]}</p>
+      )}
+      {quarters.length > 0 && (
+        <div className="replay-table-scroll" tabIndex={0} role="region" aria-label="Scrollable quarterly filings">
+          <table className="universe-table" aria-label="Quarterly filing vintages">
+            <thead><tr>{['Source filing', 'Fiscal period', 'Published UTC', 'Observed UTC',
+              'Revenue', 'Common net income', 'Common equity', 'Operating cash flow'].map(label =>
+              <th scope="col" key={label}>{label}</th>)}</tr></thead>
+            <tbody>{quarters.map(filing => (
+              <tr key={filing.fiscalEnd}>
+                <th scope="row">{filing.sourceId}</th>
+                <td>{utc(filing.fiscalStart).slice(0, 10)} to {utc(filing.fiscalEnd).slice(0, 10)}</td>
+                <td>{utc(filing.publishedAt)}</td><td>{utc(filing.observedAt)}</td>
+                <td>{money(filing.revenue, filing.currency)}</td>
+                <td>{money(filing.commonNetIncome, filing.currency)}</td>
+                <td>{money(filing.commonEquity, filing.currency)}</td>
+                <td>{money(filing.operatingCashFlow, filing.currency)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
   )
 }

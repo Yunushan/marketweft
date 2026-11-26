@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.86.0 · Quarterly financial replay
+
+| Check | Observed result |
+| --- | --- |
+| Late observation | Native Rust, the Wasm bridge and offline Chromium reported three quarters before 14:05 UTC and four at the exact late second-quarter observation. Trailing revenue was USD 6,000,000,000.00001. |
+| Independent restatements | The annual restatement was available at 14:20 UTC. The fourth-quarter restatement changed trailing revenue to USD 8,000,000,000.00001 and net income to missing at 14:22 UTC. Rewinding reproduced the earlier values. |
+| Coverage and compatibility | Gap and currency fixtures returned explicit reasons. The legacy annual format and annual valuation checks still passed. The TypeScript SDK returned the exact quarter IDs and trailing integers from the packaged Wasm. |
+
+[Financial statements](financial-statements.md#quarterly-filings-and-trailing-twelve-months) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.85.0 · Provider replay provenance and CSV
 
 | Check | Observed result |

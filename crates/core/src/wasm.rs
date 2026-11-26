@@ -6,8 +6,8 @@ use crate::{
     Comparator, DrawingEndpoint, TimeframeBar,
 };
 use crate::{
-    history::exact_utc, parse_universe, FinancialBook, MacroCalendar, Multiple, PriceBook,
-    ReportKind,
+    history::exact_utc, parse_universe, Filing, FinancialBook, MacroCalendar, Multiple, PriceBook,
+    ReportKind, TrailingFourQuarters,
 };
 use crate::{
     indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
@@ -1146,6 +1146,34 @@ pub extern "C" fn mw_financial_index(filing_bytes: usize) -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_financial_as_of(filing_bytes: usize) -> u32 {
+    financial_as_of(filing_bytes, false)
+}
+
+#[no_mangle]
+pub extern "C" fn mw_financial_snapshot(filing_bytes: usize) -> u32 {
+    financial_as_of(filing_bytes, true)
+}
+
+fn write_financial_filing(text: &mut String, tag: char, filing: &Filing) {
+    use std::fmt::Write;
+    writeln!(
+        text,
+        "{tag}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        filing.source_id,
+        filing.fiscal_start,
+        filing.fiscal_end,
+        filing.published_at,
+        filing.observed_at,
+        filing.currency,
+        optional_number(filing.revenue),
+        optional_number(filing.common_net_income),
+        optional_number(filing.common_equity),
+        optional_number(filing.operating_cash_flow)
+    )
+    .unwrap();
+}
+
+fn financial_as_of(filing_bytes: usize, include_quarters: bool) -> u32 {
     use std::fmt::Write;
     process(|input| {
         let mut parts = utf8(input)?.splitn(4, '\n');
@@ -1165,21 +1193,7 @@ pub extern "C" fn mw_financial_as_of(filing_bytes: usize) -> u32 {
         let valuation = book.as_of(issuer, at, known)?;
         let mut text = String::new();
         if let Some(f) = valuation.filing {
-            writeln!(
-                &mut text,
-                "F\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                f.source_id,
-                f.fiscal_start,
-                f.fiscal_end,
-                f.published_at,
-                f.observed_at,
-                f.currency,
-                optional_number(f.revenue),
-                optional_number(f.common_net_income),
-                optional_number(f.common_equity),
-                optional_number(f.operating_cash_flow)
-            )
-            .unwrap();
+            write_financial_filing(&mut text, 'F', f);
         }
         if let Some(c) = valuation.market_cap {
             writeln!(
@@ -1206,6 +1220,32 @@ pub extern "C" fn mw_financial_as_of(filing_bytes: usize) -> u32 {
                 Multiple::NonPositiveDenominator => "nonpositive-denominator",
             };
             writeln!(&mut text, "R\t{code}").unwrap();
+        }
+        if include_quarters {
+            let quarterly = book.quarterly_as_of(issuer, at, known)?;
+            for quarter in quarterly.quarters {
+                write_financial_filing(&mut text, 'Q', quarter);
+            }
+            match quarterly.trailing {
+                TrailingFourQuarters::Available {
+                    currency,
+                    revenue,
+                    common_net_income,
+                    operating_cash_flow,
+                } => writeln!(
+                    text,
+                    "T\tavailable\t{currency}\t{}\t{}\t{}",
+                    optional_number(revenue),
+                    optional_number(common_net_income),
+                    optional_number(operating_cash_flow)
+                ),
+                TrailingFourQuarters::InsufficientQuarters => {
+                    writeln!(text, "T\tinsufficient-quarters")
+                }
+                TrailingFourQuarters::Noncontiguous => writeln!(text, "T\tnoncontiguous"),
+                TrailingFourQuarters::CurrencyMismatch => writeln!(text, "T\tcurrency"),
+            }
+            .unwrap();
         }
         Ok(text.into_bytes())
     })

@@ -15,7 +15,7 @@ Use **Original filing** to return to the earlier view. The annual statement disp
 
 ## Local input
 
-Upload **Annual filings CSV**. Supply **Capitalization CSV** to calculate multiples. These inputs use a stable issuer ID and an immutable source filing or observation ID. The portable build includes both synthetic files. [Annual filing fixture](../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [Capitalization fixture](../crates/core/tests/fixtures/synthetic-financial-market-caps.csv).
+Upload **Financial filings CSV**. Supply **Capitalization CSV** to calculate annual multiples. These inputs use a stable issuer ID and an immutable source filing or observation ID. The portable build includes synthetic filings and capitalization. [Annual filing fixture](../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [Capitalization fixture](../crates/core/tests/fixtures/synthetic-financial-market-caps.csv).
 
 ```csv
 issuer_id,filing_id,fiscal_start,fiscal_end,published_at,observed_at,currency,revenue,common_net_income,common_equity,operating_cash_flow
@@ -27,8 +27,8 @@ issuer_id,source_id,valuation_at,observed_at,currency,market_cap
 DEMO-ALFA,ALFA-CAP,2025-04-03T14:00:00Z,2025-04-03T14:01:00Z,USD,12000000000
 ```
 
-- Use annual filings, source-level publication and observation times, chronological fiscal dates, exact UTC timestamps and the source currency's three uppercase letters. Monetary values are in currency units with up to six decimals and an absolute limit of 10²¹. Blank fields are missing, and zero stays distinct. Market capitalization must be positive.
-- Each filing row is a full vintage for one issuer and annual period. A restatement can explicitly leave a prior value absent. A filing ID has one publication time and can cover more than one fiscal period. The same issuer and fiscal end require a consistent start and distinct publication and observation pairs. Each file allows up to 10,000 data rows and 1 MiB.
+- Use source-level publication and observation times, chronological fiscal dates, exact UTC timestamps and the source currency's three uppercase letters. Monetary values are in currency units with up to six decimals and an absolute limit of 10²¹. Blank fields are missing, and zero stays distinct. Market capitalization must be positive.
+- Each filing row is a full vintage for one issuer and fiscal period. A restatement can explicitly leave a prior value absent. A filing ID has one publication time and can cover more than one fiscal period. Each issuer, period kind and fiscal end require a consistent start and distinct publication and observation pairs. Each file allows up to 10,000 data rows and 1 MiB.
 - A provider adapter must retain original filed values, filing identity and when its vintages became available. The application reads local files supplied by the user. A public source such as EDGAR exposes submission history and XBRL facts separately. [SEC EDGAR data APIs](https://www.sec.gov/search-filings/edgar-application-programming-interfaces) · [SEC filing identifiers](https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data).
 
 ## Selection and multiples
@@ -37,4 +37,12 @@ DEMO-ALFA,ALFA-CAP,2025-04-03T14:00:00Z,2025-04-03T14:01:00Z,USD,12000000000
 2. Choose capitalization at the exact valuation time from the latest report observed by the same known cutoff. When the knowledge cutoff exceeds valuation time, the query reconstructs a historical valuation with the later information that is explicitly requested.
 3. Divide common-equity market value by common net income for P/E, by reported revenue for P/S, or by common book equity for P/B. The caller supplies comparable issuer-level amounts and one currency for both reports. The app reports a reason whenever the filing, exact capitalization, matching currency, or positive denominator is unavailable. It displays exact fixed-point multiples rounded to six decimal places. [Definitions of valuation multiples](https://pages.stern.nyu.edu/~adamodar/New_Home_Page/definitions.html).
 
-The current local module handles one displayed annual vintage per query. Trailing-twelve-month aggregation, FX, automated filing ingestion and provider entitlement enforcement remain separate work. [Architecture decision](adr/0009-financial-vintages.md).
+## Quarterly filings and trailing twelve months
+
+Use the original header for annual-only files. For a quarterly or mixed file, insert `period_kind` after `filing_id` and mark each row `annual` or `quarter`. Supply standalone quarter amounts for revenue, net income and operating cash flow. Cumulative year-to-date values require conversion before import. Annual and quarterly vintages can share a fiscal end.
+
+The **Quarterly financial results** panel shows up to four eligible quarters in fiscal order with their source, publication time, observation time and exact values. The trailing totals require four contiguous fiscal quarters in one currency. A gap, overlap or mixed currency leaves the totals unavailable. A missing value in any quarter leaves that metric unavailable. Common equity is a balance at a date and appears on the individual filing row.
+
+At 14:04:59 UTC in the demo, three quarters are known. The late second quarter arrives at 14:05:00 UTC, so trailing revenue becomes USD 6,000,000,000.00001. At 14:22:00 UTC a fourth-quarter restatement raises revenue to USD 8,000,000,000.00001 and leaves trailing net income unavailable. Choose **Four quarters known** to rewind. [Quarterly and annual fixture](../crates/core/tests/fixtures/synthetic-financial-periods.csv).
+
+The existing valuation multiples use the annual filing and exact capitalization observation. [Architecture decision](adr/0009-financial-vintages.md).
