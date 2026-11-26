@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test } from './fixtures.mjs'
-import { catalogContents, header, microCSV, openImport, submitImport } from './catalog-fixtures.mjs'
+import { catalogContents, downloadWorkspace, header, microCSV, openImport, submitImport } from './catalog-fixtures.mjs'
 
 const primary = page => page.getByRole('region', { name: 'Primary chart pane' })
 
@@ -12,6 +12,46 @@ async function downloadCsv(page, pane) {
   expect(await file.failure()).toBeNull()
   return { name: file.suggestedFilename(), csv: await readFile(await file.path(), 'utf8') }
 }
+
+test('chart exports require redistribution permission and honor the last covered UTC date', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2099-12-31T23:59:59.999Z'))
+  await page.goto('/')
+  const pane = primary(page)
+  const imported = [{ symbol: 'DENIED', right: 'restricted' }, { symbol: 'PENDING', right: 'unconfirmed' }]
+  for (const { symbol, right } of imported) {
+    await openImport(page, symbol, microCSV)
+    const dialog = page.getByRole('dialog')
+    await dialog.getByText('Series details', { exact: true }).click()
+    await dialog.getByRole('combobox', { name: 'Display', exact: true }).selectOption('granted')
+    await dialog.getByRole('combobox', { name: 'Redistribution', exact: true }).selectOption(right)
+    await submitImport(page, symbol)
+    if (!(await pane.getByRole('button', { name: 'Download CSV' }).isVisible()))
+      await pane.getByText('Export CSV', { exact: true }).click()
+    await pane.getByRole('button', { name: 'Download CSV' }).click()
+    await expect(pane.getByRole('alert')).toHaveText('Chart CSV export requires a granted redistribution permission.')
+  }
+
+  await openImport(page, 'DATED', microCSV)
+  const dialog = page.getByRole('dialog')
+  await dialog.getByText('Series details', { exact: true }).click()
+  await dialog.getByRole('combobox', { name: 'Redistribution', exact: true }).selectOption('granted')
+  await dialog.getByLabel('Grant expiration in UTC').fill('2099-12-31')
+  await submitImport(page, 'DATED')
+  if (!(await pane.getByRole('button', { name: 'Download CSV' }).isVisible()))
+    await pane.getByText('Export CSV', { exact: true }).click()
+  expect((await downloadCsv(page, pane)).csv).toContain('1709251200,0,1.000001,-0.123456,1.000001,19.000009')
+
+  await page.clock.setFixedTime(new Date('2100-01-01T00:00:00.000Z'))
+  const deniedDownloads = []
+  page.on('download', file => deniedDownloads.push(file.suggestedFilename()))
+  for (const format of ['bars', 'analysis']) {
+    await pane.getByLabel('Contents').selectOption(format)
+    await pane.getByRole('button', { name: 'Download CSV' }).click()
+    await expect(pane.getByRole('alert')).toHaveText('Chart CSV export is unavailable because the source grant has expired.')
+  }
+  expect(deniedDownloads).toEqual([])
+  expect((await downloadWorkspace(page)).manifest.series).toHaveLength(3)
+})
 
 test('the comparison pane exports signed OHLCV ticks and the file reimports offline', async ({ page, context }) => {
   await page.goto('/')

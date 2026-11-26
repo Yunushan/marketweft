@@ -6,6 +6,12 @@ The terminal stores and displays an imported series locally. An explicit display
 
 The selected series shows its source, usage grant, permission statuses and any expiration date in the provenance panel.
 
+## Chart CSV export
+
+For a structured grant, **Export CSV** requires **Granted** redistribution permission. Both bars-only and analysis CSVs use the same check. The terminal reads the device's current UTC date when you click **Download CSV**. The recorded expiration day is included, and the download is blocked at the start of the next UTC day.
+
+Use **Workspace backup** to recover your local catalog and its permission records.
+
 ## Backup and restore
 
 Exports containing a structured grant use workspace backup version 7 and series descriptor version 2. The per-series checksum covers the structured grant and its underlying data. Restore validates the four permission statuses and any UTC expiry before preparing a replacement.

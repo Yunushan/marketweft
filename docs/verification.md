@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.70.0 · Chart CSV redistribution permission
+
+| Check | Observed result |
+| --- | --- |
+| Permission | Chromium blocked chart CSV downloads for restricted and unconfirmed redistribution. A granted history produced the expected six-place OHLCV values. |
+| UTC deadline | The last millisecond of the licensed day produced a CSV. The exact next UTC midnight blocked both bars-only and analysis downloads. The workspace backup still included the three histories and their declarations. |
+| Compatibility | The comparison pane reimported an earlier history's exported CSV offline. The analysis CSV regression kept the expected signed values, visible range, provenance and overlays. |
+
+[Chart CSV export](source-permissions.md#chart-csv-export) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.69.0 · Structured source permissions
 
 | Check | Observed result |

@@ -22,12 +22,19 @@ function decimal(value: number) {
 export function chartCsv(
   asset: Asset,
   range: BarRange,
-  analysis: { metadata?: SeriesMetadata; overlays: ExportOverlay[]; timeframe?: TimeframeView } | undefined,
+  metadata: SeriesMetadata | undefined,
+  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView } | undefined,
 ) {
+  const rights = metadata?.sourceRights
+  if (rights) {
+    if (rights.redistribution !== 'granted')
+      throw Error('Chart CSV export requires a granted redistribution permission.')
+    if (rights.expiresOn && new Date().toISOString().slice(0, 10) > rights.expiresOn)
+      throw Error('Chart CSV export is unavailable because the source grant has expired.')
+  }
   const fields = ['time', 'open', 'high', 'low', 'close', 'volume']
   let provenance = ''
   if (analysis) {
-    const metadata = analysis.metadata
     const synthetic = asset.source === 'sample'
     fields.push('venue', 'symbol', 'source_kind', 'source', 'bar_interval', 'usage_grant', 'adjustment_policy')
     if (analysis.timeframe) fields.push('source_interval_seconds', 'target_interval_seconds',

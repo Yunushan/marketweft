@@ -17,12 +17,12 @@ export function ChartExport({ asset, visible, metadata, overlays, timeframe }: {
   const [error, setError] = useState('')
   function download() {
     const interval = range === 'visible' ? visible : { start: 0, end: asset.bars.length }
-    const analysis = format === 'analysis' ? { metadata, overlays, timeframe } : undefined
+    const analysis = format === 'analysis' ? { overlays, timeframe } : undefined
     const identity = (asset.venue + '-' + asset.symbol).replace(/[^A-Za-z0-9_.-]/g, '_')
     const intervalName = timeframe ? '-' + timeframe.targetSeconds + 's' : ''
     setError('')
     try {
-      const csv = chartCsv(asset, interval, analysis)
+      const csv = chartCsv(asset, interval, metadata, analysis)
       downloadFile(identity + intervalName + '-' + range + '-' + format + '.csv',
         new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     } catch (error) {
