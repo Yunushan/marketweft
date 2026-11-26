@@ -99,6 +99,44 @@ export interface Heatmap extends WeightTotals {
   groups: SectorGroup[];
 }
 
+export interface FinancialIssuer {
+  id: string;
+  suggestedAt: number;
+}
+
+export interface Filing {
+  sourceId: string;
+  fiscalStart: number;
+  fiscalEnd: number;
+  publishedAt: number;
+  observedAt: number;
+  currency: string;
+  revenue: bigint | null;
+  commonNetIncome: bigint | null;
+  commonEquity: bigint | null;
+  operatingCashFlow: bigint | null;
+}
+
+export interface MarketCap {
+  sourceId: string;
+  at: number;
+  observedAt: number;
+  currency: string;
+  ticks: bigint;
+}
+
+export type Multiple =
+  | { kind: 'value'; units: bigint }
+  | { kind: 'missing-filing' | 'missing-cap' | 'currency' | 'missing-denominator' | 'nonpositive-denominator' };
+
+export interface Valuation {
+  filing: Filing | null;
+  marketCap: MarketCap | null;
+  priceEarnings: Multiple;
+  priceSales: Multiple;
+  priceBook: Multiple;
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -113,6 +151,8 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string): ScreenRow[];
   sectorHeatmap(membership: string, prices: string, sectors: string, baselineAt: string,
     effectiveAt: string, knownAt: string): Heatmap;
+  financialIndex(filings: string, caps: string): FinancialIssuer[];
+  financialAsOf(filings: string, caps: string, issuer: string, at: string, known: string): Valuation;
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -132,6 +172,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_universe_as_of(): number;
   mw_universe_screen(membershipBytes: number): number;
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
+  mw_financial_index(filingBytes: number): number;
+  mw_financial_as_of(filingBytes: number): number;
 }
 
 const SCALE = 1_000_000;
@@ -309,6 +351,52 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         }
       }
       return map;
+    },
+    financialIndex(filings, caps) {
+      textInput(filings + caps);
+      const text = decoder.decode(output(api.mw_financial_index(encoder.encode(filings).length)));
+      return text.trimEnd().split('\n').map(line => {
+        const [id, at] = line.split('\t');
+        return { id, suggestedAt: Number(at) };
+      });
+    },
+    financialAsOf(filings, caps, issuer, at, known) {
+      if (!/^[A-Za-z0-9._-]{1,40}$/.test(issuer)) throw new Error('Select an issuer in the filing history.');
+      if ([at, known].some(value => value.length !== 20 || /[\n\r]/.test(value))) {
+        throw new Error('Use YYYY-MM-DDTHH:MM:SSZ UTC timestamps for valuation and knowledge.');
+      }
+      textInput([issuer, at, known, filings + caps].join('\n'));
+      const text = decoder.decode(output(api.mw_financial_as_of(encoder.encode(filings).length)));
+      let filing: Filing | null = null;
+      let marketCap: MarketCap | null = null;
+      const multiples: Multiple[] = [];
+      const amount = (value: string) => value === '' ? null : BigInt(value);
+      for (const line of text.slice(0, -1).split('\n')) {
+        const [type, ...fields] = line.split('\t');
+        if (type === 'F') {
+          const [sourceId, start, end, pub, obs, currency, revenue, income, equity, cash] = fields;
+          filing = { sourceId, fiscalStart: Number(start), fiscalEnd: Number(end), publishedAt: Number(pub),
+            observedAt: Number(obs), currency, revenue: amount(revenue), commonNetIncome: amount(income),
+            commonEquity: amount(equity), operatingCashFlow: amount(cash) };
+        } else if (type === 'C') {
+          const [sourceId, time, obs, currency, cap] = fields;
+          marketCap = { sourceId, at: Number(time), observedAt: Number(obs), currency, ticks: BigInt(cap) };
+        } else if (type === 'R') {
+          const [kind, value] = fields;
+          switch (kind) {
+            case 'value': multiples.push({ kind, units: BigInt(value) }); break;
+            case 'missing-filing':
+            case 'missing-cap':
+            case 'currency':
+            case 'missing-denominator':
+            case 'nonpositive-denominator': multiples.push({ kind }); break;
+            default: throw new Error('Invalid valuation multiple from the calculation engine.');
+          }
+        }
+      }
+      const [priceEarnings, priceSales, priceBook] = multiples;
+      if (multiples.length !== 3) throw new Error('Incomplete valuation from the calculation engine.');
+      return { filing, marketCap, priceEarnings, priceSales, priceBook };
     },
     splitBook(instrument, csv) {
       textInput(instrument + '\n' + csv);

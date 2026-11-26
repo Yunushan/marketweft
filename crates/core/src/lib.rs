@@ -2,6 +2,7 @@
 
 mod actions;
 mod dividend;
+mod fundamentals;
 mod history;
 mod indicator;
 mod replay;
@@ -15,6 +16,7 @@ pub use actions::{parse_splits, Split, SplitBook, MAX_SPLIT_ROWS};
 pub use dividend::{
     parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind, DividendMovement,
 };
+pub use fundamentals::{Filing, FinancialBook, MarketCap, Multiple, Valuation};
 pub use history::{parse_csv, Bar};
 pub use indicator::{indicator, Average};
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
