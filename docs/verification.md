@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.15.0 · Walk-forward validation
+
+| Check | Observed result |
+| --- | --- |
+| Complete folds | The 14:08 UTC cutoff shows zero completed folds. At 14:09, the first appears with training ending at 14:07 and testing from 14:08 to 14:09. At 14:11, the second covers 14:10 to 14:11. |
+| Training selection | Pair 1:2 ranks first at 1003.4 ending training equity and 2:3 ranks second at 997.8. Changing both first test closes changes its test marks and preserves both training scores and the winner. Ties favor the lower fast window, then the lower slow window. |
+| Independent test ledger | Test cash starts at 1000 with zero shares, and every test receipt belongs to the test clock. Later folds preserve the full earlier test trace. The offline panel exposes each fold and rejects repeated candidate pairs. |
+| Regression suite | All 49 browser and six SDK tests passed on Windows x64, 48 native tests passed on Linux x64, 16 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Walk-forward contract](walk-forward.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.14.0 · Session-aware bar backtest
 
 | Check | Observed result |
