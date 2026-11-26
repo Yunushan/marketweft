@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.15.0 adds rolling walk-forward validation for the session-aware SMA backtest. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.16.0 adds seeded price and volume scenarios with a directly comparable observed baseline. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -18,10 +18,11 @@
 | Delivered · 0.13.0 | Paper cash and fills (MW-021) | Replay a long-only ledger with cash and share reservations, deterministic fees, partial fills, reasoned rejections, cancellation and a kill switch. [Paper ledger](docs/paper-ledger.md). |
 | Delivered · 0.14.0 | Session-aware bar backtest (MW-020) | Run an SMA crossover through the paper ledger using delayed close execution, participation limits and slippage. Compare every valid prefix against the longer run. [Bar backtest](docs/bar-backtest.md). |
 | Delivered · 0.15.0 | Walk-forward SMA search (MW-020, MW-025) | Rank by training equity and freeze the winner during each disjoint test fold. Verify that edits to future test prices leave the training rank intact, and that each test starts with a fresh ledger. [Walk-forward validation](docs/walk-forward.md). |
+| Delivered · 0.16.0 | Seeded scenarios (MW-025) | Report exact path statistics, nearest-rank percentiles and baseline values for ending equity, maximum drawdown and market exposure. Verify seed reproducibility and cutoff invariance. [Seeded scenarios](docs/seeded-scenarios.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend stock split identities for effective-time revisions and cancellation. Add delisting return data with explicit proceeds and missing-value treatment. Model per-distribution entitlement for trading and portfolio simulation. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Persist two chart panes with linked UTC crosshairs, one measured drawing in data coordinates, reusable indicator parameters and CSV export. Restore exact settings after a versioned migration. |
-| P1 | Simulation and research (MW-020, MW-021, MW-025) | Add seeded scenarios, cross-sectional survivorship treatment and tick-level execution. Verify all no-lookahead invariants through the same paper event contract. |
+| P1 | Simulation and research (MW-020, MW-021, MW-025) | Add cross-sectional survivorship treatment, correlated portfolio scenarios and tick-level execution. Verify all no-lookahead invariants through the same paper event contract. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Publish an independent time-series language spec, bounded interpreter and isolated Wasm execution. Test determinism, quotas and schema compatibility across SDKs. Start MCP with read-only research queries. |
 | P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Add explicit webhook configuration, authenticated delivery, bounded retry and delivery receipts. Extend annual filings with quarterly/TTM aggregation, add options exercise and dividend models, and integrate authorized data sources. |
 | P2 | Order flow and specialized visualization (MW-012, MW-019) | Add authorized trade and depth streams, sequence recovery, trade-side classification and profiles. Benchmark Canvas against WebGL/wgpu with identical traces before adopting another renderer. |
@@ -29,5 +30,5 @@
 
 ## Handoff for the next change
 
-The next research milestone adds seeded scenarios with deterministic draws, comparable baseline and scenario risk statistics, and traceable cutoff and seed inputs.
+The next research milestone adds delisting return data with revision-aware cash proceeds and a missing-proceeds state. Verify independently that an earlier replay keeps the original holding, that known proceeds settle only at the available cutoff, and that missing proceeds remain visible in the valuation.
 

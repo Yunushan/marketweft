@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.16.0 · Seeded scenarios
+
+| Check | Observed result |
+| --- | --- |
+| Default demo | Seed 20250403 with 256 paths, eight moves per path and the 14:11 UTC cutoff gives observed baseline equity of 957.8. Scenario ending equity is 975.1455 at the 5th percentile, 997.6 at the median, and 1020.476924 at the 95th percentile. A total of 145 paths end below starting cash. |
+| Seed and cutoff | Repeated inputs preserve every ordered path and percentile. A different seed changes the sampled paths and preserves the observed baseline. Modifying a bar first observable after the cutoff leaves all outputs identical. Wasm accepts the largest unsigned 64-bit seed and rejects the next value. |
+| Risk and recovery | A flat fixture keeps starting cash and yields zero drawdown and zero exposure in every path. The browser reproduces the default risk table offline, reports an insufficient horizon and retains its previous valid result. |
+| Regression suite | All 50 browser and six SDK tests passed on Windows x64, 50 native tests passed on Linux x64, 17 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Scenario contract](seeded-scenarios.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.15.0 · Walk-forward validation
 
 | Check | Observed result |
