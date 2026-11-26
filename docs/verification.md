@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.64.0 · Controlled research shutdown
+
+| Check | Observed result |
+| --- | --- |
+| Drain | A Linux SIGTERM closed research admission while a WebSocket held the only slot. A new REST request received HTTP 503. The admitted socket returned exactly `10000001` formula ticks before the process exited successfully. |
+| Deadline and receipt persistence | With a one-second deadline, the service stopped while a second socket waited for work. The ledger reopened with the first receipt completed and the second unfinished. SQLite integrity checks passed. |
+
+[Controlled shutdown](local-rest-research.md#controlled-shutdown) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.63.0 · Loopback health and metrics
 
 | Check | Observed result |

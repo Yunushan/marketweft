@@ -5,6 +5,7 @@ use crate::{
         research_server::{Research, ResearchServer},
         FormulaPage, FormulaQuery, ScreenPage, ScreenQuery,
     },
+    shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
 };
 use axum::{
@@ -16,7 +17,7 @@ use axum::{
     Router,
 };
 use std::{sync::Arc, time::Duration};
-use tokio::{sync::OwnedSemaphorePermit, time::timeout};
+use tokio::time::timeout;
 use tonic::{Code, Request as GrpcRequest, Response as GrpcResponse, Status};
 
 const CALL_TIMEOUT: Duration = Duration::from_secs(15);
@@ -135,7 +136,7 @@ async fn unary<Query: Send + 'static, Page: Send + 'static>(
 ) -> Result<GrpcResponse<Page>, Status> {
     let (_, mut extensions, query) = request.into_parts();
     let permit = extensions
-        .remove::<Arc<OwnedSemaphorePermit>>()
+        .remove::<Arc<ResearchPermit>>()
         .ok_or_else(|| Status::internal("Research authorization is missing."))?;
     tokio::task::spawn_blocking(move || {
         let _permit = permit;

@@ -44,6 +44,7 @@ services:
       retries: 4
       start_period: 5s
     restart: unless-stopped
+    stop_grace_period: 35s
 
   credential-admin:
     <<: *research-container

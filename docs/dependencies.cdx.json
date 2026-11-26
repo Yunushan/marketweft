@@ -6,7 +6,7 @@
     "component": {
       "type": "application",
       "name": "MarketWeft",
-      "version": "0.63.0"
+      "version": "0.64.0"
     }
   },
   "components": [
@@ -9048,6 +9048,30 @@
           "name": "marketweft:dependency-group",
           "value": "desktop"
         },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "signal-hook-registry",
+      "version": "1.4.8",
+      "bom-ref": "pkg:cargo/signal-hook-registry@1.4.8",
+      "purl": "pkg:cargo/signal-hook-registry@1.4.8",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+        }
+      ],
+      "properties": [
         {
           "name": "marketweft:dependency-group",
           "value": "research-service"

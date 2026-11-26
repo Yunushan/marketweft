@@ -55,9 +55,9 @@ def exercise(executable, database):
     authorization = {
         "Authorization": f"Bearer {formula_token}", "Content-Type": "application/json",
     }
-    with research_process(executable, formula_token, screen_token) as (origin, unavailable):
+    with research_process(executable, formula_token, screen_token) as (_, origin, unavailable):
         assert unavailable == "" and send(origin, "/metrics")[0] == 404
-    with research_process(executable, formula_token, screen_token, **settings) as (origin, operations):
+    with research_process(executable, formula_token, screen_token, **settings) as (_, origin, operations):
         assert operations.startswith("http://127.0.0.1:") and operations != origin
         assert send(operations, "/healthz") == (200, "ok\n")
         assert send(origin, "/metrics")[0] == 404
@@ -94,7 +94,7 @@ def exercise(executable, database):
             "admitted": 3, "busy": 1, "audit_errors": 1, "completed": 1,
             "rejected": 1, "timed_out": 0, "interrupted": 1, "failed": 0,
         }, totals
-    with research_process(executable, formula_token, screen_token, **settings) as (_, operations):
+    with research_process(executable, formula_token, screen_token, **settings) as (_, _, operations):
         assert send(operations, "/healthz") == (200, "ok\n")
         assert not any(counts(operations).values())
         with sqlite3.connect(database) as ledger:

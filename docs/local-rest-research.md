@@ -194,3 +194,11 @@ curl --fail http://127.0.0.1:4175/metrics
 `/metrics` reports eight Prometheus counters. `admitted` counts research requests accepted across REST, WebSocket and gRPC. `busy` counts rejections at a full admission limit. `audit_errors` counts failures when starting or finishing a receipt. The other counters report completed, rejected, timed out, interrupted and failed admitted requests. A failed audit write at completion counts as a failed admission outcome. Counter names start with `marketweft_research_` and end with `_total`.
 
 The response contains aggregate counts without request values, identities or credential material. Counters reset when the process restarts. SQLite audit receipts retain their existing persistence behavior.
+
+## Controlled shutdown
+
+On Unix, SIGTERM or SIGINT starts a controlled shutdown. On Windows, Ctrl+C or Ctrl+Break starts the same process. MarketWeft closes admission immediately. REST and WebSocket upgrades return HTTP 503 while draining, and gRPC reports `Unavailable`.
+
+Admitted work retains its slot and may finish during the drain. The default deadline is five seconds. Set `MARKETWEFT_RESEARCH_SHUTDOWN_SECONDS` from 1 to 30 to change it. The supplied Compose and Kubernetes manifests allow 35 seconds for the process to exit.
+
+Audit updates committed before exit survive a restart. A receipt whose outcome was still pending at exit remains unfinished for inspection in the ledger.

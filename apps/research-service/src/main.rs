@@ -1,13 +1,19 @@
 use axum_server::tls_rustls::RustlsConfig;
+use axum_server::Handle;
 use marketweft_research_service::{
-    configured_observed_research_router, copy_audit_database, issue_research_credential,
-    revoke_research_credential, ResearchOperations, Tokens, DEFAULT_RESEARCH_SLOTS,
+    configured_controlled_research_router, copy_audit_database, issue_research_credential,
+    revoke_research_credential, ResearchOperations, ResearchShutdown, Tokens,
+    DEFAULT_RESEARCH_SLOTS,
 };
 use std::env::{self, VarError};
+use std::future::{pending, Future};
 use std::io;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::Path;
+use std::time::Duration;
 use tokio::net::TcpListener;
+use tokio::sync::oneshot;
+use tokio::time::{timeout_at, Instant};
 
 fn setting(key: &str) -> Result<Option<String>, VarError> {
     match env::var(key) {
@@ -51,8 +57,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-#[tokio::main]
-async fn serve() -> Result<(), Box<dyn std::error::Error>> {
+fn serve() -> Result<(), Box<dyn std::error::Error>> {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    let result = runtime.block_on(serve_async());
+    runtime.shutdown_timeout(Duration::from_millis(750));
+    result
+}
+
+async fn serve_async() -> Result<(), Box<dyn std::error::Error>> {
     let tls = loopback_tls().await?;
     let port = setting("MARKETWEFT_RESEARCH_PORT")?
         .map(|value| value.parse::<u16>())
@@ -75,6 +89,16 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
         .map(|value| value.parse::<usize>())
         .transpose()?
         .unwrap_or(DEFAULT_RESEARCH_SLOTS);
+    let shutdown = ResearchShutdown::new(slots)?;
+    let grace = setting("MARKETWEFT_RESEARCH_SHUTDOWN_SECONDS")?
+        .map(|value| value.parse::<u64>())
+        .transpose()?
+        .unwrap_or(5);
+    if !(1..=30).contains(&grace) {
+        return Err(
+            io::Error::other("Set a research shutdown deadline between 1 and 30 seconds.").into(),
+        );
+    }
     let audit_path = env::var_os("MARKETWEFT_RESEARCH_AUDIT_DB");
     let audit_path = audit_path.as_deref().map(Path::new);
     if interface == Ipv4Addr::LOCALHOST && advertised.is_some() {
@@ -102,36 +126,94 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind((interface, port)).await?;
     let address = listener.local_addr()?;
     let operations = operations_port.map(|_| ResearchOperations::default());
-    let (endpoint, origin) = configured_observed_research_router(
+    let (endpoint, origin) = configured_controlled_research_router(
         address,
         advertised.as_deref(),
         tokens,
         audit_path,
-        slots,
+        shutdown.clone(),
         tls.is_some(),
         operations.clone(),
     )?;
-    let research = async {
-        if let Some(tls) = tls {
-            serve_tls(listener, tls, endpoint, &origin).await
-        } else {
-            println!("{origin}");
-            axum::serve(listener, endpoint).await?;
-            Ok(())
-        }
-    };
-    if let (Some(port), Some(operations)) = (operations_port, operations) {
+    let admin = if let (Some(port), Some(operations)) = (operations_port, operations) {
         let admin = TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await?;
         let address = admin.local_addr()?;
         let router = operations.router(address)?;
         eprintln!("Research operations at http://{address}");
-        tokio::select! {
-            result = research => result,
-            result = axum::serve(admin, router) => result.map_err(Into::into),
-        }
+        Some((admin, router))
     } else {
-        research.await
+        None
+    };
+    let stop = termination_signal()?;
+    let (stop_http, http_stop) = oneshot::channel();
+    let tls_handle = Handle::new();
+    let research = async {
+        if let Some(tls) = tls {
+            serve_tls(listener, tls, endpoint, &origin, tls_handle.clone()).await
+        } else {
+            println!("{origin}");
+            axum::serve(listener, endpoint)
+                .with_graceful_shutdown(async {
+                    let _ = http_stop.await;
+                })
+                .await?;
+            Ok(())
+        }
+    };
+    let operations = async {
+        match admin {
+            Some((listener, router)) => axum::serve(listener, router).await.map_err(Into::into),
+            None => pending().await,
+        }
+    };
+    tokio::pin!(research, operations, stop);
+    tokio::select! {
+        result = &mut research => return result,
+        result = &mut operations => return result,
+        _ = &mut stop => {},
     }
+    shutdown.stop_admitting();
+    let deadline = Instant::now() + Duration::from_secs(grace);
+    tokio::select! {
+        result = &mut research => return result,
+        result = &mut operations => return result,
+        result = timeout_at(deadline, shutdown.drained()) => {
+            if result.is_err() {
+                return Ok(());
+            }
+        },
+    }
+    let _ = stop_http.send(());
+    tls_handle.graceful_shutdown(Some(deadline.saturating_duration_since(Instant::now())));
+    timeout_at(deadline, &mut research).await.unwrap_or(Ok(()))
+}
+
+#[cfg(unix)]
+fn termination_signal() -> io::Result<impl Future<Output = ()>> {
+    use tokio::signal::unix::{signal, SignalKind};
+
+    let mut terminate = signal(SignalKind::terminate())?;
+    let mut interrupt = signal(SignalKind::interrupt())?;
+    Ok(async move {
+        tokio::select! {
+            _ = terminate.recv() => {},
+            _ = interrupt.recv() => {},
+        }
+    })
+}
+
+#[cfg(windows)]
+fn termination_signal() -> io::Result<impl Future<Output = ()>> {
+    use tokio::signal::windows::{ctrl_break, ctrl_c};
+
+    let mut interrupt = ctrl_c()?;
+    let mut stop = ctrl_break()?;
+    Ok(async move {
+        tokio::select! {
+            _ = interrupt.recv() => {},
+            _ = stop.recv() => {},
+        }
+    })
 }
 
 async fn serve_tls(
@@ -139,8 +221,9 @@ async fn serve_tls(
     tls: RustlsConfig,
     endpoint: axum::Router,
     origin: &str,
+    handle: Handle<SocketAddr>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let server = axum_server::from_tcp_rustls(listener.into_std()?, tls)?;
+    let server = axum_server::from_tcp_rustls(listener.into_std()?, tls)?.handle(handle);
     println!("{origin}");
     server.serve(endpoint.into_make_service()).await?;
     Ok(())

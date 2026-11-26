@@ -6,6 +6,7 @@ mod audit_recovery;
 mod credentials;
 mod grpc;
 mod operations;
+mod shutdown;
 mod websocket;
 
 /// Versioned Protobuf messages and client generated from the published schema.
@@ -16,6 +17,7 @@ pub mod proto {
 pub use audit_recovery::{copy_audit_database, AuditSummary};
 pub use credentials::{issue_research_credential, revoke_research_credential, IssuedCredential};
 pub use operations::ResearchOperations;
+pub use shutdown::ResearchShutdown;
 
 use analytics::ResearchPage;
 use audit::{Outcome, Receipt, Trail, Transport};
@@ -27,13 +29,14 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use credentials::CredentialStore;
 use serde_json::json;
+use shutdown::ResearchPermit;
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use subtle::ConstantTimeEq;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::TryAcquireError;
 
 const BODY_LIMIT: usize = 16 * 1024 * 1024;
 const BODY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -124,13 +127,13 @@ struct Server {
     default_port_alias: Option<String>,
     origin: String,
     tokens: Tokens,
-    slots: Arc<Semaphore>,
+    shutdown: ResearchShutdown,
     audit: Option<Trail>,
     operations: Option<ResearchOperations>,
 }
 
 struct Admission {
-    permit: Arc<OwnedSemaphorePermit>,
+    permit: Arc<ResearchPermit>,
     receipt: Option<Receipt>,
     observation: Option<operations::Observation>,
 }
@@ -181,7 +184,9 @@ impl IntoResponse for ApiError {
 /// Construct the v1 API for the exact IPv4 loopback address bound by the service.
 pub fn research_router(address: SocketAddr, tokens: Tokens) -> Result<Router, &'static str> {
     validate_loopback(address)?;
-    Ok(configure_router(address, tokens, None, DEFAULT_RESEARCH_SLOTS, false, None).0)
+    let shutdown = ResearchShutdown::new(DEFAULT_RESEARCH_SLOTS)
+        .expect("the default admission budget is valid");
+    Ok(configure_router(address, tokens, None, shutdown, false, None).0)
 }
 
 /// Open a local SQLite audit database before enabling the loopback research API.
@@ -253,11 +258,32 @@ pub fn configured_observed_research_router(
     tls: bool,
     operations: Option<ResearchOperations>,
 ) -> io::Result<(Router, String)> {
+    configured_controlled_research_router(
+        address,
+        advertised,
+        tokens,
+        audit_path,
+        ResearchShutdown::new(slots)?,
+        tls,
+        operations,
+    )
+}
+
+/// Configure the listener with a caller-controlled admission budget and optional metrics.
+pub fn configured_controlled_research_router(
+    address: SocketAddr,
+    advertised: Option<&str>,
+    tokens: Tokens,
+    audit_path: Option<&Path>,
+    shutdown: ResearchShutdown,
+    tls: bool,
+    operations: Option<ResearchOperations>,
+) -> io::Result<(Router, String)> {
     let Some(advertised) = advertised else {
         validate_loopback(address).map_err(io::Error::other)?;
-        let trail = open_audit(audit_path, slots)?;
+        let trail = open_audit(audit_path)?;
         return Ok(configure_router(
-            address, tokens, trail, slots, tls, operations,
+            address, tokens, trail, shutdown, tls, operations,
         ));
     };
     if !tls {
@@ -270,7 +296,7 @@ pub fn configured_observed_research_router(
             "Private-interface research requires managed credentials only.",
         ));
     }
-    let trail = open_audit(audit_path, slots)?;
+    let trail = open_audit(audit_path)?;
     let origin = format!("https://{authority}");
     let router = route_authority(
         authority,
@@ -278,19 +304,13 @@ pub fn configured_observed_research_router(
         origin.clone(),
         tokens,
         trail,
-        slots,
+        shutdown,
         operations,
     );
     Ok((router, origin))
 }
 
-fn open_audit(audit_path: Option<&Path>, slots: usize) -> io::Result<Option<Trail>> {
-    if !(1..=MAX_RESEARCH_SLOTS).contains(&slots) {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Set between one and eight research slots.",
-        ));
-    }
+fn open_audit(audit_path: Option<&Path>) -> io::Result<Option<Trail>> {
     audit_path
         .map(Trail::open)
         .transpose()
@@ -358,7 +378,7 @@ fn configure_router(
     address: SocketAddr,
     tokens: Tokens,
     audit: Option<Trail>,
-    slots: usize,
+    shutdown: ResearchShutdown,
     tls: bool,
     operations: Option<ResearchOperations>,
 ) -> (Router, String) {
@@ -375,7 +395,7 @@ fn configure_router(
         origin.clone(),
         tokens,
         audit,
-        slots,
+        shutdown,
         operations,
     );
     (router, origin)
@@ -387,7 +407,7 @@ fn route_authority(
     origin: String,
     tokens: Tokens,
     audit: Option<Trail>,
-    slots: usize,
+    shutdown: ResearchShutdown,
     operations: Option<ResearchOperations>,
 ) -> Router {
     let state = Arc::new(Server {
@@ -395,7 +415,7 @@ fn route_authority(
         default_port_alias,
         origin,
         tokens,
-        slots: Arc::new(Semaphore::new(slots)),
+        shutdown,
         audit,
         operations,
     });
@@ -417,11 +437,17 @@ fn header_value(headers: &HeaderMap, name: HeaderName) -> Option<&str> {
 
 impl Server {
     async fn admit(&self, scope: Scope, transport: Transport) -> Result<Admission, ApiError> {
-        let permit = Arc::clone(&self.slots).try_acquire_owned().map_err(|_| {
-            if let Some(operations) = &self.operations {
-                operations.busy();
+        let permit = self.shutdown.try_acquire().map_err(|error| match error {
+            TryAcquireError::Closed => ApiError::new(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Research service is shutting down.",
+            ),
+            TryAcquireError::NoPermits => {
+                if let Some(operations) = &self.operations {
+                    operations.busy();
+                }
+                ApiError::new(StatusCode::TOO_MANY_REQUESTS, "Research workers are busy.")
             }
-            ApiError::new(StatusCode::TOO_MANY_REQUESTS, "Research workers are busy.")
         })?;
         let receipt = match &self.audit {
             Some(trail) => Some(trail.begin(transport, scope).await.inspect_err(|_| {

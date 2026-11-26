@@ -88,9 +88,11 @@ def research_process(executable, formula_token, screen_token, **overrides):
         reader = Thread(target=startup, daemon=True)
         reader.start()
         try:
-            yield ready.get(timeout=15)
+            origin, operations = ready.get(timeout=15)
+            yield process, origin, operations
         finally:
-            process.terminate()
+            if process.poll() is None:
+                process.terminate()
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
@@ -101,7 +103,7 @@ def research_process(executable, formula_token, screen_token, **overrides):
 
 def main(executable):
     formula_token, screen_token = secrets.token_hex(32), secrets.token_hex(32)
-    with research_process(executable, formula_token, screen_token) as (origin, _):
+    with research_process(executable, formula_token, screen_token) as (_, origin, _):
         verify(origin, formula_token, screen_token)
     print("Verified scope separation, exact formula ticks and point-in-time ranks over loopback TCP.")
 

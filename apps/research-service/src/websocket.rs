@@ -1,6 +1,7 @@
 use crate::{
     analytics,
     audit::{Outcome, Transport},
+    shutdown::ResearchPermit,
     Admission, ApiError, Operation, Scope, Server, BODY_LIMIT, BODY_TIMEOUT,
 };
 use axum::extract::{
@@ -12,7 +13,7 @@ use axum::response::Response;
 use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, OwnedSemaphorePermit};
+use tokio::sync::mpsc;
 use tokio::time::timeout;
 
 const STREAM_TIMEOUT: Duration = Duration::from_secs(30);
@@ -75,7 +76,7 @@ async fn stream(mut socket: WebSocket, operation: Operation, admission: Admissio
 async fn stream_query(
     socket: &mut WebSocket,
     operation: Operation,
-    permit: Arc<OwnedSemaphorePermit>,
+    permit: Arc<ResearchPermit>,
 ) -> Result<Outcome, ApiError> {
     let query = timeout(BODY_TIMEOUT, async {
         loop {
