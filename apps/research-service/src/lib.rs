@@ -15,7 +15,8 @@ pub mod proto {
 }
 
 pub use audit_recovery::{
-    copy_audit_database, verify_audit_snapshot, AuditSummary, AuditVerification,
+    copy_audit_database, restore_verified_audit_snapshot, verify_audit_snapshot, AuditSummary,
+    AuditVerification,
 };
 pub use credentials::{issue_research_credential, revoke_research_credential, IssuedCredential};
 pub use operations::ResearchOperations;

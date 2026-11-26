@@ -84,7 +84,14 @@ def exercise(image, tls, peer, restore_from=None):
                 "bytes": restore_from.stat().st_size,
                 "sha256": hashlib.sha256(restore_from.read_bytes()).hexdigest(),
             }
-            restored = compose(*operator, "audit", "restore", source, f"{AUDIT}/audit.sqlite")
+            try:
+                compose(*operator, "audit", "restore", source, f"{AUDIT}/audit.sqlite", "--sha256", "0" * 64)
+            except subprocess.CalledProcessError as error:
+                assert b"did not match the expected digest" in error.stderr, error.stderr
+            else:
+                raise AssertionError("An incorrect snapshot digest was accepted.")
+            restored = compose(*operator, "audit", "restore", source, f"{AUDIT}/audit.sqlite",
+                               "--sha256", verification["sha256"])
             assert restored.strip() == b"Verified 6 audit receipts, 0 unfinished."
         start()
         container = compose("ps", "-q", "research").decode().strip()

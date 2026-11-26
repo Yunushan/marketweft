@@ -23,16 +23,66 @@ fn run(action: &str, source: &Path, target: &Path) -> Output {
 }
 
 fn run_audit(action: &str, paths: &[&Path]) -> Output {
+    audit_command(action).args(paths).output().unwrap()
+}
+
+fn audit_command(action: &str) -> Command {
     let executable = env::var_os("MARKETWEFT_TEST_BINARY")
         .unwrap_or_else(|| env!("CARGO_BIN_EXE_marketweft-research-service").into());
-    Command::new(executable)
+    let mut command = Command::new(executable);
+    command
         .args(["audit", action])
-        .args(paths)
         .env_remove("MARKETWEFT_FORMULA_TOKEN")
         .env_remove("MARKETWEFT_SCREEN_TOKEN")
-        .env_remove("MARKETWEFT_RESEARCH_AUDIT_DB")
-        .output()
+        .env_remove("MARKETWEFT_RESEARCH_AUDIT_DB");
+    command
+}
+
+#[test]
+fn restore_checks_the_digest_before_publishing_a_destination() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source.sqlite");
+    let snapshot = temp.path().join("snapshot.sqlite");
+    let changed = temp.path().join("changed.sqlite");
+    let destination = temp.path().join("destination.sqlite");
+    drop(open_service(&source));
+    successful(
+        run("backup", &source, &snapshot),
+        "Verified 0 audit receipts, 0 unfinished.",
+    );
+    let original = run_audit("verify", &[&snapshot]);
+    assert!(original.status.success());
+    let report: serde_json::Value = serde_json::from_slice(&original.stdout).unwrap();
+    let digest = report["sha256"].as_str().unwrap();
+    fs::copy(&snapshot, &changed).unwrap();
+    Connection::open(&changed)
         .unwrap()
+        .execute(
+            "INSERT INTO research_receipts (transport, scope) VALUES ('rest', 'formula')",
+            [],
+        )
+        .unwrap();
+
+    let restore = |input: &Path, expected: &str| {
+        audit_command("restore")
+            .arg(input)
+            .arg(&destination)
+            .args(["--sha256", expected])
+            .output()
+            .unwrap()
+    };
+    let failure = restore(&changed, digest);
+    assert!(!failure.status.success() && failure.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&failure.stderr).contains("did not match the expected digest"));
+    assert!(!restore(&snapshot, "short").status.success());
+    assert!(!destination.exists());
+    assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 3);
+
+    successful(
+        restore(&snapshot, &digest.to_ascii_uppercase()),
+        "Verified 0 audit receipts, 0 unfinished.",
+    );
+    assert!(rows(&Connection::open(&destination).unwrap()).is_empty());
 }
 
 #[test]

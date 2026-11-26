@@ -32,10 +32,41 @@ pub struct AuditVerification {
 
 /// Report the digest, format and receipt counts of a verified single-file snapshot.
 pub fn verify_audit_snapshot(path: &Path) -> io::Result<AuditVerification> {
-    verify_snapshot(path).map_err(io::Error::other)
+    verify_snapshot(path)
+        .map(|snapshot| snapshot.report)
+        .map_err(io::Error::other)
 }
 
-fn verify_snapshot(path: &Path) -> CopyResult<AuditVerification> {
+/// Restore a portable snapshot only when its exact bytes match a trusted SHA-256 digest.
+pub fn restore_verified_audit_snapshot(
+    source: &Path,
+    destination: &Path,
+    expected_sha256: &str,
+) -> io::Result<AuditSummary> {
+    if expected_sha256.len() != 64 || !expected_sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Supply a SHA-256 digest with 64 hexadecimal characters.",
+        ));
+    }
+    require_fresh_destination(destination)?;
+    let snapshot = verify_snapshot(source).map_err(io::Error::other)?;
+    if !snapshot.report.sha256.eq_ignore_ascii_case(expected_sha256) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The audit snapshot SHA-256 did not match the expected digest.",
+        ));
+    }
+    copy_audit_database(snapshot.file.path(), destination)
+}
+
+struct VerifiedSnapshot {
+    report: AuditVerification,
+    file: NamedTempFile,
+}
+
+fn verify_snapshot(path: &Path) -> CopyResult<VerifiedSnapshot> {
     if !path.metadata()?.is_file() {
         return Err(io::Error::other("Supply a regular SQLite snapshot file.").into());
     }
@@ -84,13 +115,18 @@ fn verify_snapshot(path: &Path) -> CopyResult<AuditVerification> {
         );
     }
     let summary = verify(&database)?;
+    database.close().map_err(|(_, error)| error)?;
     let digest: [u8; 32] = hash.finalize().into();
-    Ok(AuditVerification {
+    let report = AuditVerification {
         schema_version: version,
         receipts: summary.receipts,
         unfinished: summary.unfinished,
         bytes: temporary.as_file().metadata()?.len(),
         sha256: crate::hex(&digest),
+    };
+    Ok(VerifiedSnapshot {
+        report,
+        file: temporary,
     })
 }
 

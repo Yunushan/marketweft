@@ -2,8 +2,8 @@ use axum_server::tls_rustls::RustlsConfig;
 use axum_server::Handle;
 use marketweft_research_service::{
     configured_controlled_research_router, copy_audit_database, issue_research_credential,
-    revoke_research_credential, verify_audit_snapshot, ResearchOperations, ResearchShutdown,
-    Tokens, DEFAULT_RESEARCH_SLOTS,
+    restore_verified_audit_snapshot, revoke_research_credential, verify_audit_snapshot,
+    AuditSummary, ResearchOperations, ResearchShutdown, Tokens, DEFAULT_RESEARCH_SLOTS,
 };
 use std::env::{self, VarError};
 use std::future::{pending, Future};
@@ -36,10 +36,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if group == "audit" && (action == "backup" || action == "restore") =>
         {
             let summary = copy_audit_database(Path::new(source), Path::new(destination))?;
-            println!(
-                "Verified {} audit receipts, {} unfinished.",
-                summary.receipts, summary.unfinished
-            );
+            report_audit_copy(summary);
+            Ok(())
+        }
+        [group, action, source, destination, flag, digest]
+            if group == "audit" && action == "restore" && flag == "--sha256" =>
+        {
+            let digest = digest.to_str().ok_or_else(|| io::Error::other("Use an ASCII SHA-256 digest."))?;
+            let summary = restore_verified_audit_snapshot(Path::new(source), Path::new(destination), digest)?;
+            report_audit_copy(summary);
             Ok(())
         }
         [group, action, database, scope, lifetime] if group == "credential" && action == "issue" => {
@@ -56,10 +61,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         }
         _ => Err(io::Error::other(
-            "Use audit <backup|restore> <source> <new-destination>, audit verify <snapshot>, credential issue <database> <scope> <lifetime-seconds>, or credential revoke <database> <credential-id>.",
+            "Use audit <backup|restore> <source> <new-destination>, audit restore <snapshot> <new-destination> --sha256 <digest>, audit verify <snapshot>, credential issue <database> <scope> <lifetime-seconds>, or credential revoke <database> <credential-id>.",
         )
         .into()),
     }
+}
+
+fn report_audit_copy(summary: AuditSummary) {
+    println!(
+        "Verified {} audit receipts, {} unfinished.",
+        summary.receipts, summary.unfinished
+    );
 }
 
 fn serve() -> Result<(), Box<dyn std::error::Error>> {

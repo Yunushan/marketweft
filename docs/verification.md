@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.67.0 · Restore with an expected digest
+
+| Check | Observed result |
+| --- | --- |
+| Rejected transfer | The CLI rejected a structurally valid SQLite snapshot after a receipt changed its digest. It also rejected a malformed digest. Neither attempt left a database or sidecars at the destination. |
+| Successful retry | The original snapshot restored successfully at the same destination with its trusted digest. The Compose drill rejected an incorrect digest before restoring with the independently checked one and continued the receipt sequence. |
+
+[Restore with a SHA-256 digest](local-rest-research.md#restore-with-a-trusted-sha-256-digest) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.66.0 · Portable audit snapshot verification
 
 | Check | Observed result |

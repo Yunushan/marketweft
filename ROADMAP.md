@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.66.0 verifies portable audit snapshots and reports their SHA-256 digest before restore. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.67.0 can require a matching SHA-256 digest when restoring a portable audit snapshot. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -69,6 +69,7 @@
 | Delivered · 0.64.0 | Controlled research shutdown (MW-030) | Use SIGTERM to close admission, finish an admitted query and preserve completed or unfinished receipts through the drain deadline. [Controlled shutdown](docs/local-rest-research.md#controlled-shutdown). |
 | Delivered · 0.65.0 | Fresh-volume research audit recovery (MW-030) | Recover a snapshot in a separate Compose project using a network-isolated operator. Compare the restored receipts and verify continued receipt IDs from a private client. [Fresh-volume recovery](docs/local-rest-research.md#recover-audit-in-a-separate-compose-project). |
 | Delivered · 0.66.0 | Portable audit snapshot verification (MW-030) | Verify a snapshot's digest, schema and receipt counts before moving it into a new deployment. Reject WAL databases and invalid SQLite snapshots. [Audit snapshot verification](docs/local-rest-research.md#verify-a-portable-audit-snapshot). |
+| Delivered · 0.67.0 | Restore with an expected digest (MW-030) | Require the trusted SHA-256 before publishing the restored ledger. Verify that a valid SQLite database with changed bytes leaves the fresh destination untouched. [Restore with a SHA-256 digest](docs/local-rest-research.md#restore-with-a-trusted-sha-256-digest). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -80,5 +81,5 @@
 
 ## Handoff for the next change
 
-Allow an operator to require an expected snapshot digest during restore and verify that a mismatched transfer leaves the destination untouched.
+Report whether the research process can accept work during overload, audit storage failure and shutdown. Verify readiness independently of process liveness.
 

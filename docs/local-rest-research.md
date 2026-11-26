@@ -240,3 +240,13 @@ In the destination Compose project, run the same check on the read-only transfer
 ```sh
 docker compose -p "$RECOVERY_PROJECT" -f "$layout" run --rm --no-deps --volume "$PWD/transfer.sqlite:/transfer/snapshot.sqlite:ro" audit-admin audit verify /transfer/snapshot.sqlite
 ```
+
+## Restore with a trusted SHA-256 digest
+
+Set `EXPECTED_SHA256` to the digest recorded when the source snapshot was verified. Append `--sha256` to the restore command to require that exact digest before the destination file is created.
+
+```sh
+./marketweft-research-service audit restore ./transfer.sqlite ./recovered.sqlite --sha256 "$EXPECTED_SHA256"
+```
+
+The command restores from the private copy it verified. A valid SQLite file with a different digest fails without creating the destination or its sidecars. Supply a fresh destination and temporary disk space for the verified copy.
