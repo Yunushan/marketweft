@@ -1,12 +1,11 @@
 use axum_server::tls_rustls::RustlsConfig;
 use marketweft_research_service::{
-    configured_private_tls_research_router, configured_research_router,
-    configured_tls_research_router, copy_audit_database, issue_research_credential,
-    revoke_research_credential, Tokens, DEFAULT_RESEARCH_SLOTS,
+    configured_observed_research_router, copy_audit_database, issue_research_credential,
+    revoke_research_credential, ResearchOperations, Tokens, DEFAULT_RESEARCH_SLOTS,
 };
 use std::env::{self, VarError};
 use std::io;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::Ipv4Addr;
 use std::path::Path;
 use tokio::net::TcpListener;
 
@@ -78,44 +77,61 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(DEFAULT_RESEARCH_SLOTS);
     let audit_path = env::var_os("MARKETWEFT_RESEARCH_AUDIT_DB");
     let audit_path = audit_path.as_deref().map(Path::new);
-    if interface != Ipv4Addr::LOCALHOST {
-        let tls =
-            tls.ok_or_else(|| io::Error::other("Private-interface research requires TLS."))?;
-        let advertised =
-            advertised.ok_or_else(|| io::Error::other("Set the private research authority."))?;
-        let address = SocketAddr::from((interface, port));
-        let (endpoint, origin) = configured_private_tls_research_router(
-            address,
-            &advertised,
-            tokens,
-            audit_path,
-            slots,
-        )?;
-        let listener = TcpListener::bind(address).await?;
-        return serve_tls(listener, tls, endpoint, &origin).await;
-    }
-    if advertised.is_some() {
+    if interface == Ipv4Addr::LOCALHOST && advertised.is_some() {
         return Err(io::Error::other(
             "Set a research authority only for a private-interface listener.",
         )
         .into());
     }
+    if interface != Ipv4Addr::LOCALHOST {
+        if tls.is_none() {
+            return Err(io::Error::other("Private-interface research requires TLS.").into());
+        }
+        if advertised.is_none() {
+            return Err(io::Error::other("Set the private research authority.").into());
+        }
+        if !interface.is_private() || port == 0 {
+            return Err(
+                io::Error::other("Select a private IPv4 interface and nonzero port.").into(),
+            );
+        }
+    }
+    let operations_port = setting("MARKETWEFT_RESEARCH_OPERATIONS_PORT")?
+        .map(|value| value.parse::<u16>())
+        .transpose()?;
     let listener = TcpListener::bind((interface, port)).await?;
     let address = listener.local_addr()?;
-    if let Some(tls) = tls {
-        let endpoint = configured_tls_research_router(address, tokens, audit_path, slots)?;
-        let origin = if address.port() == 443 {
-            format!("https://{}", address.ip())
+    let operations = operations_port.map(|_| ResearchOperations::default());
+    let (endpoint, origin) = configured_observed_research_router(
+        address,
+        advertised.as_deref(),
+        tokens,
+        audit_path,
+        slots,
+        tls.is_some(),
+        operations.clone(),
+    )?;
+    let research = async {
+        if let Some(tls) = tls {
+            serve_tls(listener, tls, endpoint, &origin).await
         } else {
-            format!("https://{address}")
-        };
-        return serve_tls(listener, tls, endpoint, &origin).await;
+            println!("{origin}");
+            axum::serve(listener, endpoint).await?;
+            Ok(())
+        }
+    };
+    if let (Some(port), Some(operations)) = (operations_port, operations) {
+        let admin = TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await?;
+        let address = admin.local_addr()?;
+        let router = operations.router(address)?;
+        eprintln!("Research operations at http://{address}");
+        tokio::select! {
+            result = research => result,
+            result = axum::serve(admin, router) => result.map_err(Into::into),
+        }
     } else {
-        let endpoint = configured_research_router(address, tokens, audit_path, slots)?;
-        println!("http://{address}");
-        axum::serve(listener, endpoint).await?;
+        research.await
     }
-    Ok(())
 }
 
 async fn serve_tls(

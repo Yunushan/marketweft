@@ -1,4 +1,5 @@
 """Verify the standalone research process over a real loopback connection."""
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -64,29 +65,30 @@ def verify(origin, formula_token, screen_token):
     assert ranks("14:20", "14:25") == [("BETA-001", 1, "80000")]
 
 
-def main(executable):
-    formula_token, screen_token = secrets.token_hex(32), secrets.token_hex(32)
+@contextmanager
+def research_process(executable, formula_token, screen_token, **overrides):
     settings = dict(
-        os.environ,
+        {key: value for key, value in os.environ.items() if not key.startswith("MARKETWEFT_RESEARCH_")},
         MARKETWEFT_RESEARCH_PORT="0",
         MARKETWEFT_FORMULA_TOKEN=formula_token,
         MARKETWEFT_SCREEN_TOKEN=screen_token,
     )
-    settings.pop("MARKETWEFT_RESEARCH_AUDIT_DB", None)
-    settings.pop("MARKETWEFT_RESEARCH_SLOTS", None)
-    settings.pop("MARKETWEFT_RESEARCH_CREDENTIALS_DB", None)
-    settings.pop("MARKETWEFT_RESEARCH_TLS_CERT", None)
-    settings.pop("MARKETWEFT_RESEARCH_TLS_KEY", None)
-    settings.pop("MARKETWEFT_RESEARCH_BIND_IP", None)
-    settings.pop("MARKETWEFT_RESEARCH_AUTHORITY", None)
+    settings.update(overrides)
+    operations_enabled = "MARKETWEFT_RESEARCH_OPERATIONS_PORT" in overrides
     with subprocess.Popen(
         [str(Path(executable).resolve())], env=settings, text=True, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE if operations_enabled else None,
     ) as process:
         ready = Queue()
-        reader = Thread(target=lambda: ready.put(process.stdout.readline().strip()), daemon=True)
+        def startup():
+            origin = process.stdout.readline().strip()
+            operations = process.stderr.readline().strip() if operations_enabled else ""
+            ready.put((origin, operations.removeprefix("Research operations at ")))
+
+        reader = Thread(target=startup, daemon=True)
         reader.start()
         try:
-            verify(ready.get(timeout=15), formula_token, screen_token)
+            yield ready.get(timeout=15)
         finally:
             process.terminate()
             try:
@@ -95,6 +97,12 @@ def main(executable):
                 process.kill()
                 process.wait()
             reader.join(timeout=5)
+
+
+def main(executable):
+    formula_token, screen_token = secrets.token_hex(32), secrets.token_hex(32)
+    with research_process(executable, formula_token, screen_token) as (origin, _):
+        verify(origin, formula_token, screen_token)
     print("Verified scope separation, exact formula ticks and point-in-time ranks over loopback TCP.")
 
 

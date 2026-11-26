@@ -5,6 +5,7 @@ mod audit;
 mod audit_recovery;
 mod credentials;
 mod grpc;
+mod operations;
 mod websocket;
 
 /// Versioned Protobuf messages and client generated from the published schema.
@@ -14,6 +15,7 @@ pub mod proto {
 
 pub use audit_recovery::{copy_audit_database, AuditSummary};
 pub use credentials::{issue_research_credential, revoke_research_credential, IssuedCredential};
+pub use operations::ResearchOperations;
 
 use analytics::ResearchPage;
 use audit::{Outcome, Receipt, Trail, Transport};
@@ -124,19 +126,25 @@ struct Server {
     tokens: Tokens,
     slots: Arc<Semaphore>,
     audit: Option<Trail>,
+    operations: Option<ResearchOperations>,
 }
 
 struct Admission {
     permit: Arc<OwnedSemaphorePermit>,
     receipt: Option<Receipt>,
+    observation: Option<operations::Observation>,
 }
 
 impl Admission {
     async fn finish(self, outcome: Outcome) -> Result<(), ApiError> {
-        match self.receipt {
+        let result = match self.receipt {
             Some(receipt) => receipt.finish(outcome).await,
             None => Ok(()),
+        };
+        if let Some(observation) = self.observation {
+            observation.finish(outcome, result.is_err());
         }
+        result
     }
 }
 
@@ -173,13 +181,7 @@ impl IntoResponse for ApiError {
 /// Construct the v1 API for the exact IPv4 loopback address bound by the service.
 pub fn research_router(address: SocketAddr, tokens: Tokens) -> Result<Router, &'static str> {
     validate_loopback(address)?;
-    Ok(configure_router(
-        address,
-        tokens,
-        None,
-        DEFAULT_RESEARCH_SLOTS,
-        false,
-    ))
+    Ok(configure_router(address, tokens, None, DEFAULT_RESEARCH_SLOTS, false, None).0)
 }
 
 /// Open a local SQLite audit database before enabling the loopback research API.
@@ -218,9 +220,8 @@ fn configured_router_for_transport(
     slots: usize,
     tls: bool,
 ) -> io::Result<Router> {
-    validate_loopback(address).map_err(io::Error::other)?;
-    let trail = open_audit(audit_path, slots)?;
-    Ok(configure_router(address, tokens, trail, slots, tls))
+    configured_observed_research_router(address, None, tokens, audit_path, slots, tls, None)
+        .map(|(router, _)| router)
 }
 
 /// Build the TLS-only private-interface router and return its advertised HTTPS origin.
@@ -231,6 +232,37 @@ pub fn configured_private_tls_research_router(
     audit_path: Option<&Path>,
     slots: usize,
 ) -> io::Result<(Router, String)> {
+    configured_observed_research_router(
+        address,
+        Some(advertised),
+        tokens,
+        audit_path,
+        slots,
+        true,
+        None,
+    )
+}
+
+/// Configure the research listener and optionally collect process-local operations counters.
+pub fn configured_observed_research_router(
+    address: SocketAddr,
+    advertised: Option<&str>,
+    tokens: Tokens,
+    audit_path: Option<&Path>,
+    slots: usize,
+    tls: bool,
+    operations: Option<ResearchOperations>,
+) -> io::Result<(Router, String)> {
+    let Some(advertised) = advertised else {
+        validate_loopback(address).map_err(io::Error::other)?;
+        let trail = open_audit(audit_path, slots)?;
+        return Ok(configure_router(
+            address, tokens, trail, slots, tls, operations,
+        ));
+    };
+    if !tls {
+        return Err(io::Error::other("Private-interface research requires TLS."));
+    }
     let (authority, default_port_alias) = private_authority(address, advertised)?;
     if tokens.managed.is_none() || tokens.formula.is_some() || tokens.screen.is_some() {
         return Err(io::Error::new(
@@ -247,6 +279,7 @@ pub fn configured_private_tls_research_router(
         tokens,
         trail,
         slots,
+        operations,
     );
     Ok((router, origin))
 }
@@ -327,7 +360,8 @@ fn configure_router(
     audit: Option<Trail>,
     slots: usize,
     tls: bool,
-) -> Router {
+    operations: Option<ResearchOperations>,
+) -> (Router, String) {
     let (scheme, default_port) = if tls { ("https", 443) } else { ("http", 80) };
     let (authority, default_port_alias) = if address.port() == default_port {
         ("127.0.0.1".to_owned(), Some(address.to_string()))
@@ -335,7 +369,16 @@ fn configure_router(
         (address.to_string(), None)
     };
     let origin = format!("{scheme}://{authority}");
-    route_authority(authority, default_port_alias, origin, tokens, audit, slots)
+    let router = route_authority(
+        authority,
+        default_port_alias,
+        origin.clone(),
+        tokens,
+        audit,
+        slots,
+        operations,
+    );
+    (router, origin)
 }
 
 fn route_authority(
@@ -345,6 +388,7 @@ fn route_authority(
     tokens: Tokens,
     audit: Option<Trail>,
     slots: usize,
+    operations: Option<ResearchOperations>,
 ) -> Router {
     let state = Arc::new(Server {
         authority,
@@ -353,6 +397,7 @@ fn route_authority(
         tokens,
         slots: Arc::new(Semaphore::new(slots)),
         audit,
+        operations,
     });
     let grpc_routes = grpc::routes(Arc::clone(&state));
     Router::new()
@@ -373,15 +418,23 @@ fn header_value(headers: &HeaderMap, name: HeaderName) -> Option<&str> {
 impl Server {
     async fn admit(&self, scope: Scope, transport: Transport) -> Result<Admission, ApiError> {
         let permit = Arc::clone(&self.slots).try_acquire_owned().map_err(|_| {
+            if let Some(operations) = &self.operations {
+                operations.busy();
+            }
             ApiError::new(StatusCode::TOO_MANY_REQUESTS, "Research workers are busy.")
         })?;
         let receipt = match &self.audit {
-            Some(trail) => Some(trail.begin(transport, scope).await?),
+            Some(trail) => Some(trail.begin(transport, scope).await.inspect_err(|_| {
+                if let Some(operations) = &self.operations {
+                    operations.audit_error();
+                }
+            })?),
             None => None,
         };
         Ok(Admission {
             permit: Arc::new(permit),
             receipt,
+            observation: self.operations.as_ref().map(ResearchOperations::admit),
         })
     }
 

@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.63.0 · Loopback health and metrics
+
+| Check | Observed result |
+| --- | --- |
+| Listener isolation | Health and metrics are disabled by default. Enabling them creates a separate IPv4 loopback listener. The research port returns 404 for the metrics route. The operations listener rejects an unexpected Host or Origin. |
+| Outcomes | The executable reports one completed query, one malformed request, one disconnected WebSocket and one overload denial while the socket holds the sole worker. An exclusive SQLite lock produces one audit write failure. The metrics body contains only the eight defined counters. |
+| Restart | A fresh process starts with zero counters. The three audit receipts retain their completed, rejected and interrupted outcomes. |
+
+[Health and metrics](local-rest-research.md#loopback-health-and-metrics) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.62.0 · Private Kubernetes deployment
 
 | Check | Observed result |

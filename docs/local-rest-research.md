@@ -178,3 +178,19 @@ kubectl --context "$KUBE_CONTEXT" -n marketweft-research exec deployment/marketw
 kubectl --context "$KUBE_CONTEXT" -n marketweft-research set env deployment/marketweft-research MARKETWEFT_RESEARCH_AUDIT_DB=/var/lib/marketweft/audit/recovered.sqlite
 kubectl --context "$KUBE_CONTEXT" -n marketweft-research rollout status deployment/marketweft-research
 ```
+
+## Loopback health and metrics
+
+Set `MARKETWEFT_RESEARCH_OPERATIONS_PORT` to enable a separate HTTP listener on `127.0.0.1`. The default leaves the listener disabled. With Docker Compose or Kubernetes, set the variable in the research process environment and access the port from its container or pod network namespace.
+
+```sh
+export MARKETWEFT_RESEARCH_OPERATIONS_PORT=4175
+curl --fail http://127.0.0.1:4175/healthz
+curl --fail http://127.0.0.1:4175/metrics
+```
+
+`/healthz` returns `ok` when the operations listener is responding. It checks process liveness. Research can still return overload or storage errors while the process is alive.
+
+`/metrics` reports eight Prometheus counters. `admitted` counts research requests accepted across REST, WebSocket and gRPC. `busy` counts rejections at a full admission limit. `audit_errors` counts failures when starting or finishing a receipt. The other counters report completed, rejected, timed out, interrupted and failed admitted requests. A failed audit write at completion counts as a failed admission outcome. Counter names start with `marketweft_research_` and end with `_total`.
+
+The response contains aggregate counts without request values, identities or credential material. Counters reset when the process restarts. SQLite audit receipts retain their existing persistence behavior.

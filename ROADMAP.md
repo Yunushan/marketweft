@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.62.0 adds a private Kubernetes deployment with credential persistence and audit recovery. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.63.0 adds optional loopback health and operational metrics for the research service. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -65,6 +65,7 @@
 | Delivered · 0.60.0 | Non-root research OCI image (MW-030) | Verify the archive layout, exact binary, read-only credentials and external audit receipts in an isolated container. [Research OCI image](docs/local-rest-research.md#research-oci-image). |
 | Delivered · 0.61.0 | Private Docker Compose deployment (MW-030) | Verify the non-root OCI image on an internal network with a separate TLS client. Restart, restore the audit ledger and persist new receipts. [Docker Compose](docs/local-rest-research.md#private-docker-compose-deployment). |
 | Delivered · 0.62.0 | Private Kubernetes deployment (MW-030) | Run the release image on a ClusterIP service with TLS, mounted credentials and persistent audit storage. Verify a restart, restore and new receipts from a separate client pod. [Kubernetes](docs/local-rest-research.md#private-kubernetes-deployment). |
+| Delivered · 0.63.0 | Loopback research operations (MW-030) | Verify private health and bounded counters for research admission, overload and outcomes. Exercise an audit write failure and reset the counters on restart. [Health and metrics](docs/local-rest-research.md#loopback-health-and-metrics). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -76,5 +77,5 @@
 
 ## Handoff for the next change
 
-Add bounded service health and operational metrics for the private research deployments. Verify admission, failures and restart behavior without including request data or credential material.
+Drain admitted research requests during a controlled service shutdown. Verify new admission stops, completed receipts persist and an interrupted worker respects the shutdown deadline.
 
