@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.36.0 · Correlated portfolio scenarios
+
+| Check | Observed result |
+| --- | --- |
+| Joint coverage | The six-interval demo supplies four complete vectors at 14:06 knowledge, six at 14:07 after a late close, and four at 14:08 after a removal. A third listing adds a joint vector only when both of its required closes are known. |
+| Exact rebalancing | Opposite moves preserve a 100-unit fixed-weight portfolio without fees. A 100-basis-point fee on one eligible move changes each path to 99.95 with fees of 0.05 and a peak-to-trough drawdown of 0.05%. |
+| Offline export | Chromium verifies complete vector and listing counts, a 64-bit seed above the safe JavaScript integer range, allocation validation and exact CSV after rewind. |
+| Regression suite | All 77 browser, six SDK and four launcher tests passed on Windows x64. All 84 native tests passed on Linux x64, all 32 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Correlated portfolio scenarios](portfolio-scenarios.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.35.0 · Rolling listing risk
 
 | Check | Observed result |
