@@ -1,9 +1,11 @@
 import type { SeriesMetadata } from './catalog-schema'
 import { fixed } from './fixed-point'
+import type { TimeframeBar } from './market-core'
 import type { Asset } from './workspace'
 
 export type BarRange = { start: number; end: number }
 export type ExportOverlay = { name: string; series: readonly (number | null)[] }
+export type TimeframeView = { sourceSeconds: number; targetSeconds: number; buckets: TimeframeBar[] }
 
 function quoteText(text: string) {
   const safe = /^[\t\r\n]|^[\s\uFEFF]*[=+@-]/.test(text) ? "'" + text : text
@@ -17,7 +19,7 @@ function decimal(value: number) {
 export function chartCsv(
   asset: Asset,
   range: BarRange,
-  analysis: { metadata?: SeriesMetadata; overlays: ExportOverlay[] } | undefined,
+  analysis: { metadata?: SeriesMetadata; overlays: ExportOverlay[]; timeframe?: TimeframeView } | undefined,
 ) {
   const fields = ['time', 'open', 'high', 'low', 'close', 'volume']
   let provenance = ''
@@ -25,13 +27,16 @@ export function chartCsv(
     const metadata = analysis.metadata
     const synthetic = asset.source === 'sample'
     fields.push('venue', 'symbol', 'source_kind', 'source', 'bar_interval', 'usage_grant', 'adjustment_policy')
+    if (analysis.timeframe) fields.push('source_interval_seconds', 'target_interval_seconds',
+      'observed_source_bars', 'expected_source_bars')
     fields.push(...analysis.overlays.map(item => item.name))
     provenance = ',' + [
       asset.venue,
       asset.symbol,
       synthetic ? 'synthetic' : 'import',
       metadata?.source ?? asset.name,
-      metadata?.barInterval ?? (synthetic ? '86400 seconds' : 'unspecified'),
+      analysis.timeframe ? analysis.timeframe.targetSeconds + ' seconds' :
+        metadata?.barInterval ?? (synthetic ? '86400 seconds' : 'unspecified'),
       metadata?.usageGrant ?? (synthetic ? 'generated example' : 'unspecified'),
       metadata?.adjustmentPolicy ?? (synthetic ? 'synthetic' : 'unspecified'),
     ].map(quoteText).join(',')
@@ -41,6 +46,11 @@ export function chartCsv(
     const { time, open, high, low, close, volume } = asset.bars[index]
     let row = [time, ...[open, high, low, close, volume].map(decimal)].join(',') + provenance
     if (analysis) {
+      if (analysis.timeframe) {
+        const { sourceSeconds, targetSeconds, buckets } = analysis.timeframe
+        row += ',' + [sourceSeconds, targetSeconds, buckets[index].observedBars,
+          buckets[index].expectedBars].join(',')
+      }
       for (const { series } of analysis.overlays) {
         const value = series[index]
         row += ',' + (value == null ? '' : decimal(value))

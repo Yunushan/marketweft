@@ -839,7 +839,8 @@ h1 {
   min-width: 0;
   color: var(--soft);
 }
-.chart-export select {
+.chart-export select,
+.timeframe-control input {
   display: block;
   width: 100%;
   max-width: 100%;
@@ -854,6 +855,9 @@ h1 {
 .chart-export p {
   margin: 0;
   color: #ec817e;
+}
+.timeframe-control input {
+  max-width: 170px;
 }
 .drawing-tools button {
   padding: 5px 8px;

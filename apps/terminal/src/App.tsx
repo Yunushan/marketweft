@@ -10,7 +10,8 @@ import {
 import type { ReactNode, FormEvent } from 'react'
 import type { MarketCore, MeasuredDrawing } from './market-core'
 import { DEFAULT_INDICATOR_PERIODS } from './market-core'
-import { Chart, Spark } from './Chart'
+import { Spark } from './Chart'
+import { TimeframeChart } from './TimeframeChart'
 import { IndicatorPeriods } from './IndicatorPeriods'
 import { Icon, Mark } from './Icons'
 import { changeString, dateLabel, movement, price, volume } from './workspace'
@@ -347,25 +348,9 @@ export function App({
   const color = move.delta === null ? 'muted' : move.delta < 0 ? 'down' : 'up'
   const primaryPeriods = ws.overlayPeriods?.primary ?? DEFAULT_INDICATOR_PERIODS
   const comparisonPeriods = ws.overlayPeriods?.comparison ?? DEFAULT_INDICATOR_PERIODS
-  const sma = useMemo(
-    () => (ws.sma ? core.indicator('sma', primaryPeriods.sma, bars) : []),
-    [core, ws.sma, bars, primaryPeriods.sma],
-  )
-  const ema = useMemo(
-    () => (ws.ema ? core.indicator('ema', primaryPeriods.ema, bars) : []),
-    [core, ws.ema, bars, primaryPeriods.ema],
-  )
   const comparison = ws.comparison
   const other = comparison && assets.find((item) => item.id === comparison.selected)
   const otherBars = other?.bars
-  const otherSma = useMemo(
-    () => comparison?.sma && otherBars ? core.indicator('sma', comparisonPeriods.sma, otherBars) : [],
-    [comparison?.sma, core, otherBars, comparisonPeriods.sma],
-  )
-  const otherEma = useMemo(
-    () => comparison?.ema && otherBars ? core.indicator('ema', comparisonPeriods.ema, otherBars) : [],
-    [comparison?.ema, core, otherBars, comparisonPeriods.ema],
-  )
   const chartIdentity =
     asset.id + ':' + bars.length + '|' + (other?.id ?? '') + ':' + (otherBars?.length ?? 0)
   const onCrosshair = useCallback((time: number | null) => {
@@ -709,7 +694,8 @@ export function App({
             <div className={other ? 'chart-panes is-comparison' : 'chart-panes'}>
               <section aria-label="Primary chart pane">
                 {/* Replacing the history can invalidate bar-indexed viewport and crosshair state. */}
-                <Chart key={`${asset.id}:${bars.length}`} asset={asset} sma={sma} ema={ema}
+                <TimeframeChart key={`${asset.id}:${bars.length}`} asset={asset}
+                  core={core} activeSma={ws.sma} activeEma={ws.ema}
                   linkedTimestamp={cursor} onTimestamp={comparison?.linked ? onCrosshair : undefined}
                   drawingTools={drawingTools(asset.id)} periods={primaryPeriods}
                   type={ws.chartTypes?.primary}
@@ -717,7 +703,8 @@ export function App({
               </section>
               {comparison && other && (
                 <section aria-label="Comparison chart pane">
-                  <Chart key={`${other.id}:${other.bars.length}`} asset={other} sma={otherSma} ema={otherEma}
+                  <TimeframeChart key={`${other.id}:${other.bars.length}`} asset={other}
+                    core={core} activeSma={comparison.sma} activeEma={comparison.ema}
                     linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined}
                     drawingTools={drawingTools(other.id)} periods={comparisonPeriods}
                     type={ws.chartTypes?.comparison}

@@ -9,6 +9,25 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('timeframe Wasm rolls exact signed OHLCV, omits empty buckets and reports coverage', () => {
+  const source = core.parseCsv([
+    'time,open,high,low,close,volume',
+    '-60,-10,-5,-11,-7,0.000001',
+    '0,-7,-6,-8,-6,0.1',
+    '120,-6,1,-9,0,0.000002',
+    '360,2,2,2,2,3',
+  ].join('\n'));
+  const rolled = core.aggregateTimeframe(source, 60, 180);
+  assert.deepEqual(rolled, [
+    { bar: { ...source[0], time: -180 }, observedBars: 1, expectedBars: 3 },
+    { bar: { time: 0, open: -7, high: 1, low: -9, close: 0, volume: 0.100002 },
+      observedBars: 2, expectedBars: 3 },
+    { bar: source[3], observedBars: 1, expectedBars: 3 },
+  ]);
+  assert.deepEqual(core.aggregateTimeframe(source.slice(0, 3), 60, 180), rolled.slice(0, 2));
+  assert.throws(() => core.aggregateTimeframe(source, 60, 181), /larger whole multiple/);
+});
+
 test('drawing Wasm retains signed measurement and percentages outside the safe JS integer range', () => {
   assert.deepEqual(core.measureDrawing({
     start: { time: 10, ticks: 1 }, end: { time: 5, ticks: 2_000_000_000_000_000 },

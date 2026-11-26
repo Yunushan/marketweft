@@ -1,27 +1,29 @@
 import { useState } from 'react'
 import type { SeriesMetadata } from './catalog-schema'
 import { chartCsv } from './chart-export'
-import type { BarRange, ExportOverlay } from './chart-export'
+import type { BarRange, ExportOverlay, TimeframeView } from './chart-export'
 import { downloadFile } from './download'
 import type { Asset } from './workspace'
 
-export function ChartExport({ asset, visible, metadata, overlays }: {
+export function ChartExport({ asset, visible, metadata, overlays, timeframe }: {
   asset: Asset
   visible: BarRange
   metadata?: SeriesMetadata
   overlays: ExportOverlay[]
+  timeframe?: TimeframeView
 }) {
   const [range, setRange] = useState('visible')
   const [format, setFormat] = useState('bars')
   const [error, setError] = useState('')
   function download() {
     const interval = range === 'visible' ? visible : { start: 0, end: asset.bars.length }
-    const analysis = format === 'analysis' ? { metadata, overlays } : undefined
+    const analysis = format === 'analysis' ? { metadata, overlays, timeframe } : undefined
     const identity = (asset.venue + '-' + asset.symbol).replace(/[^A-Za-z0-9_.-]/g, '_')
+    const intervalName = timeframe ? '-' + timeframe.targetSeconds + 's' : ''
     setError('')
     try {
       const csv = chartCsv(asset, interval, analysis)
-      downloadFile(identity + '-' + range + '-' + format + '.csv',
+      downloadFile(identity + intervalName + '-' + range + '-' + format + '.csv',
         new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not export chart data.')

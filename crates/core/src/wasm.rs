@@ -1,6 +1,9 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
 use crate::{
+    aggregate_timeframe, measure_drawing, AlertBook, AlertDirection, Comparator, DrawingEndpoint,
+};
+use crate::{
     history::exact_utc, parse_universe, FinancialBook, MacroCalendar, Multiple, PriceBook,
     ReportKind,
 };
@@ -8,7 +11,6 @@ use crate::{
     indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
     Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
 };
-use crate::{measure_drawing, AlertBook, AlertDirection, Comparator, DrawingEndpoint};
 use crate::{
     parse_paper_config, PaperAction, PaperError, PaperOrderStatus, PaperRejection, PaperReplay,
     PaperSide,
@@ -567,12 +569,16 @@ pub extern "C" fn mw_financial_as_of(filing_bytes: usize) -> u32 {
     })
 }
 
+fn push_bar(bytes: &mut Vec<u8>, bar: Bar) {
+    for value in [bar.time, bar.open, bar.high, bar.low, bar.close, bar.volume] {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+}
+
 fn encode_bars(bars: Vec<Bar>) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(48 * bars.len());
     for bar in bars {
-        for value in [bar.time, bar.open, bar.high, bar.low, bar.close, bar.volume] {
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
+        push_bar(&mut bytes, bar);
     }
     bytes
 }
@@ -1226,6 +1232,21 @@ pub extern "C" fn mw_parse() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_aggregate_timeframe(source_seconds: u32, target_seconds: u32) -> u32 {
+    process(|input| {
+        let bars = decode_bars(input)?;
+        let rolled = aggregate_timeframe(&bars, source_seconds, target_seconds)?;
+        let mut bytes = Vec::with_capacity(56 * rolled.len());
+        for entry in rolled {
+            push_bar(&mut bytes, entry.bar);
+            bytes.extend_from_slice(&entry.observed_bars.to_le_bytes());
+            bytes.extend_from_slice(&entry.expected_bars.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_instrument() -> u32 {
     process(|input| {
         let (venue, symbol) = utf8(input)?
@@ -1304,6 +1325,24 @@ fn split_u32(bytes: &[u8], offset: usize) -> u32 {
     u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
 }
 
+fn decode_bars(bars: &[u8]) -> Result<Vec<Bar>, String> {
+    let (bar_rows, trailing) = bars.as_chunks::<48>();
+    if !trailing.is_empty() || bar_rows.len() > MAX_BARS {
+        return Err("Invalid series length.".into());
+    }
+    Ok(bar_rows
+        .iter()
+        .map(|row| Bar {
+            time: split_i64(row, 0),
+            open: split_i64(row, 8),
+            high: split_i64(row, 16),
+            low: split_i64(row, 24),
+            close: split_i64(row, 32),
+            volume: split_i64(row, 40),
+        })
+        .collect())
+}
+
 fn split_adjustment_input(
     input: &[u8],
     count: usize,
@@ -1318,22 +1357,7 @@ fn split_adjustment_input(
     let (splits, bars) = input
         .split_at_checked(count * width)
         .ok_or("Invalid split record count.")?;
-    let (bar_rows, trailing) = bars.as_chunks::<48>();
-    if !trailing.is_empty() || bar_rows.len() > MAX_BARS {
-        return Err("Invalid series length.".into());
-    }
-    let bars = bar_rows
-        .iter()
-        .map(|row| Bar {
-            time: split_i64(row, 0),
-            open: split_i64(row, 8),
-            high: split_i64(row, 16),
-            low: split_i64(row, 24),
-            close: split_i64(row, 32),
-            volume: split_i64(row, 40),
-        })
-        .collect();
-    Ok((i64::from_le_bytes(*clock), splits, bars))
+    Ok((i64::from_le_bytes(*clock), splits, decode_bars(bars)?))
 }
 
 #[no_mangle]

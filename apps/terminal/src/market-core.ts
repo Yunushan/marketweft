@@ -8,6 +8,12 @@ export interface Bar {
   volume: number;
 }
 
+export interface TimeframeBar {
+  bar: Bar;
+  observedBars: number;
+  expectedBars: number;
+}
+
 export interface DrawingEndpoint {
   time: number;
   ticks: number;
@@ -401,6 +407,7 @@ export interface PortfolioSnapshot {
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
+  aggregateTimeframe(bars: readonly Bar[], sourceSeconds: number, targetSeconds: number): TimeframeBar[];
   measureDrawing(drawing: MeasuredDrawing): DrawingMeasurement;
   indicator(kind: 'sma' | 'ema', period: number, bars: readonly Bar[]): (number | null)[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
@@ -445,6 +452,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_output_len(): number;
   mw_instrument(): number;
   mw_parse(): number;
+  mw_aggregate_timeframe(sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
   mw_indicator(kind: number, period: number): number;
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
@@ -619,14 +627,27 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     textInput([...times, files.join('')].join('\n'));
   }
 
+  function decodeBar(out: DataView, start: number): Bar {
+    const fixed = (offset: number) => Number(out.getBigInt64(start + offset, true)) / SCALE;
+    return { time: Number(out.getBigInt64(start, true)), open: fixed(8), high: fixed(16),
+      low: fixed(24), close: fixed(32), volume: fixed(40) };
+  }
+
   function decodeBars(out: DataView): Bar[] {
-    const fixed = (offset: number) => Number(out.getBigInt64(offset, true)) / SCALE;
-    const bars: Bar[] = [];
-    for (let i = 0; i < out.byteLength; i += 48) {
-      bars.push({ time: Number(out.getBigInt64(i, true)), open: fixed(i + 8), high: fixed(i + 16),
-        low: fixed(i + 24), close: fixed(i + 32), volume: fixed(i + 40) });
+    return Array.from({ length: out.byteLength / 48 }, (_, i) => decodeBar(out, i * 48));
+  }
+
+  function putBar(dest: DataView, start: number, bar: Bar, operation: string) {
+    if (!Number.isSafeInteger(bar.time)) throw new Error(operation + ' requires integer UTC seconds.');
+    dest.setBigInt64(start, BigInt(bar.time), true);
+    for (const [index, value] of [bar.open, bar.high, bar.low, bar.close, bar.volume].entries()) {
+      const ticks = Math.round(value * SCALE);
+      if (!Number.isSafeInteger(ticks) || Math.abs(value) > 2_000_000_000 ||
+          value !== ticks / SCALE || (index === 4 && value < 0)) {
+        throw new Error(operation + ' requires valid six-place OHLCV values.');
+      }
+      dest.setBigInt64(start + 8 + index * 8, BigInt(ticks), true);
     }
-    return bars;
   }
 
   return {
@@ -647,6 +668,20 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     parseCsv(csv) {
       textInput(csv);
       return decodeBars(output(api.mw_parse()));
+    },
+    aggregateTimeframe(bars, sourceSeconds, targetSeconds) {
+      if (![sourceSeconds, targetSeconds].every(n => Number.isInteger(n) && n > 0 && n <= 0xffffffff) ||
+        bars.length > 100_000) {
+        throw new Error('Use positive integer UTC intervals and at most 100,000 bars.');
+      }
+      const dest = input(bars.length * 48);
+      bars.forEach((bar, index) => putBar(dest, index * 48, bar, 'Timeframe aggregation'));
+      const out = output(api.mw_aggregate_timeframe(sourceSeconds, targetSeconds));
+      return Array.from({ length: out.byteLength / 56 }, (_, i) => {
+        const start = i * 56;
+        return { bar: decodeBar(out, start), observedBars: out.getUint32(start + 48, true),
+          expectedBars: out.getUint32(start + 52, true) };
+      });
     },
     indicator(kind, period, bars) {
       if (kind !== 'sma' && kind !== 'ema') throw new Error('Unknown indicator.');
@@ -1123,16 +1158,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         offset += width;
       }
       for (const bar of bars) {
-        timestamp(offset, bar.time);
-        const fields = [bar.open, bar.high, bar.low, bar.close, bar.volume];
-        for (const [index, value] of fields.entries()) {
-          const ticks = Math.round(value * SCALE);
-          if (!Number.isSafeInteger(ticks) || Math.abs(value) > 2_000_000_000 ||
-              value !== ticks / SCALE || (index === 4 && value < 0)) {
-            throw new Error('Split adjustment requires valid six-place OHLCV values.');
-          }
-          dest.setBigInt64(offset + 8 + index * 8, BigInt(ticks), true);
-        }
+        putBar(dest, offset, bar, 'Split adjustment');
         offset += 48;
       }
       return decodeBars(output(revised ? api.mw_adjust_split_revisions(splits.length) : api.mw_adjust_splits(splits.length)));

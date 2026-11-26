@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from './Icons'
 import { ChartExport } from './ChartExport'
+import type { TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
@@ -342,6 +343,7 @@ export function Chart({
   periods,
   exportOptions,
   type = 'candles',
+  timeframe,
 }: {
   asset: Asset
   sma: Series
@@ -352,6 +354,7 @@ export function Chart({
   periods?: OverlayPeriods
   exportOptions?: { metadata?: SeriesMetadata }
   type?: ChartType
+  timeframe?: TimeframeView
 }) {
   const { bars } = asset,
     n = bars.length
@@ -374,6 +377,7 @@ export function Chart({
   const active = pointerIndex ?? linkedIndex
   const readoutIndex = active ?? view.end - 1
   const b = bars[readoutIndex]
+  const coverage = timeframe?.buckets[readoutIndex]
   const indicatorValues = sma.length > 0 || ema.length > 0
   function stopEditing() {
     setDrawingFields(null)
@@ -502,6 +506,9 @@ export function Chart({
         <span className="ohlc-vol">
           <small>Vol</small> {volume(b.volume)}
         </span>
+        {coverage && <span className="timeframe-coverage">
+          {coverage.observedBars}/{coverage.expectedBars} source bars
+        </span>}
       </div>
       {periods && (
         <div className="ohlc chart-overlay-values" role={indicatorValues ? 'group' : undefined}
@@ -643,6 +650,7 @@ export function Chart({
       )}
       {exportOptions && (
         <ChartExport asset={asset} visible={{ start, end: view.end }} metadata={exportOptions.metadata}
+          timeframe={timeframe}
           overlays={periods ? ([
             { name: 'sma_' + periods.sma, series: sma },
             { name: 'ema_' + periods.ema, series: ema },
