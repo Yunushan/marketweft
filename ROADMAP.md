@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.18.0 adds stable split action IDs, effective-time revisions and cancellations. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.19.0 adds dividend entitlements from dated position observations. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -21,8 +21,9 @@
 | Delivered · 0.16.0 | Seeded scenarios (MW-025) | Report exact path statistics, nearest-rank percentiles and baseline values for ending equity, maximum drawdown and market exposure. Verify seed reproducibility and cutoff invariance. [Seeded scenarios](docs/seeded-scenarios.md). |
 | Delivered · 0.17.0 | Delisting proceeds for a held listing (MW-017) | Reconstruct missing, receivable and settled value, preserve stable listing identity, and trace cash amount and currency revisions. [Delisting proceeds](docs/delisting-proceeds.md). |
 | Delivered · 0.18.0 | Split rescheduling and cancellation (MW-013, MW-017) | Verify that a later effective time withdraws the old adjustment, same-time IDs compound, and cancellation affects only its ID. Rewind to the original price and volume snapshots. [Stock splits](docs/corporate-actions.md). |
+| Delivered · 0.19.0 | Dividend entitlement from dated positions (MW-017) | Select holdings before each ex-date and preserve missing versus explicit zero. Reconcile cash corrections from late holdings reports and rescheduled ex-dates. [Cash dividends](docs/cash-dividends.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
-| P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Apply delisting proceeds in portfolio replay. Model per-distribution entitlement for trading and portfolio simulation. Extend the source and rights model to live providers. |
+| P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Apply delisting proceeds and dividend entries in portfolio execution replay. Extend the source and rights model to live providers. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Persist two chart panes with linked UTC crosshairs, one measured drawing in data coordinates, reusable indicator parameters and CSV export. Restore exact settings after a versioned migration. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Add cross-sectional survivorship treatment, correlated portfolio scenarios and tick-level execution. Verify all no-lookahead invariants through the same paper event contract. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Publish an independent time-series language spec, bounded interpreter and isolated Wasm execution. Test determinism, quotas and schema compatibility across SDKs. Start MCP with read-only research queries. |
@@ -32,5 +33,5 @@
 
 ## Handoff for the next change
 
-The next portfolio milestone uses dated position evidence to calculate dividend entitlement per distribution at its ex-date. Verify purchase and sale boundaries and reconcile corrections to the existing cash ledger.
+The next portfolio milestone applies delisting proceeds to a portfolio of holdings identified by stable listing IDs. Verify missing proceeds, late cash and ticker reuse against the portfolio valuation at every cutoff.
 

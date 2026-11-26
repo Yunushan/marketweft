@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.19.0 · Dated dividend entitlements
+
+| Check | Observed result |
+| --- | --- |
+| Ex-date selection | ALPHA starts at 100 shares and 25 USD receivable. A same-timestamp holding change and a later sale leave the earlier entitlement intact. BETA independently uses 40 shares and credits 4 EUR. |
+| Late corrections | A late **pre-ex** position revision changes ALPHA to 120 and adds 5 USD to the receivable. The revised dividend pays 36 USD. A post-pay position correction to 110 shares reverses 3 USD. The later rate correction leaves 30.80 USD cash. Rewinding restores the older settled and receivable balances. |
+| Missing, zero and changed ex-date | Native and Wasm tests distinguish a missing position from reported zero. Native tests move a dividend ex-date at the same cutoff as a position correction and confirm that both observations apply exactly once. |
+| Regression suite | All 53 browser and six SDK tests passed on Windows x64, 58 native tests passed on Linux x64, 20 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Dividend entitlement contract](cash-dividends.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.18.0 · Split revisions and cancellations
 
 | Check | Observed result |

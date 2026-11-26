@@ -17,7 +17,7 @@ The ledger starts at zero and includes only dividend movements from the input. C
 
 ## Replay your own dividend reports
 
-Import your historical candle file and select its instrument and session calendar. Upload **Cash dividends CSV (optional)** and supply **Entitled shares per distribution**. Use the number of whole shares entitled to each distribution in that run. This is a fixed scenario input. Trading, split-driven share changes, withholding, broker settlement, due bills, reinvestment and FX require their own models. For an ordinary cash dividend, the ex-date and payable date describe different stages. [Investor.gov explanation of ex-dividend and payable dates](https://www.investor.gov/introduction-investing/investing-basics/glossary/ex-dividend-dates-when-are-you-entitled-stock-and) · [FINRA treatment of distributions and exceptions](https://www.finra.org/rules-guidance/notices/24-04).
+Import your historical candle file and select its instrument and session calendar. Upload **Cash dividends CSV (optional)**. Supply **Entitled shares per distribution** for a fixed scenario, or upload **Dividend positions CSV (optional)** to resolve each entitlement from dated positions. The model leaves withholding, broker settlement, due bills, reinvestment and FX to later work. [Investor.gov explanation of ex-dividend and payable dates](https://www.investor.gov/introduction-investing/investing-basics/glossary/ex-dividend-dates-when-are-you-entitled-stock-and) · [FINRA treatment of distributions and exceptions](https://www.finra.org/rules-guidance/notices/24-04).
 
 ```csv
 instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
@@ -29,9 +29,25 @@ DEMO:DIVIDEND,ALPHA,2025-06-02T14:03:00Z,2025-06-03T14:00:00Z,2025-06-04T12:00:0
 - Use a three-letter uppercase currency code and a nonnegative amount per share with up to six decimal places. A zero amount cancels the modeled entitlement at that observation. Up to 1,000 reports may fit in a 1 MiB UTF-8 file. Keep up to 1,000,000 whole shares in the run input.
 - The ZIP provides `cash-dividends.csv`. Import `split-ohlcv.csv` under `DEMO:DIVIDEND` and use `split-sessions.csv`, a 600-second interval and 100 shares to reconstruct the demo through the file-import path.
 
+## Entitlement from dated positions
+
+Open **Historical replay → Start dividend entitlement demo** to use different quantities for each distribution. Each position row supplies the total whole shares held from its effective timestamp, as known at its observation timestamp. A later observation at the same effective timestamp revises that total. The position observation time must be at or after its effective time.
+
+```csv
+instrument,effective_at,observed_at,shares
+DEMO:DIVIDEND,2025-06-03T13:55:00Z,2025-06-03T13:56:00Z,100
+DEMO:DIVIDEND,2025-06-03T13:55:00Z,2025-06-03T14:40:00Z,120
+```
+
+At the ex-date, choose the latest effective position **strictly before** the ex timestamp among position revisions observed by the replay cutoff. A position change at the ex timestamp can apply to later distributions. Before the ex date the entitlement is pending. Without a qualifying position report it is unavailable. An explicit zero reports a known quantity of zero. Holdings changes after the ex cutoff leave that distribution's entitlement intact. Late evidence about a position effective before the ex cutoff adjusts the entitlement when that evidence arrives, including after pay. A revised ex-date selects again from the holdings known at the correction.
+
+In the demo, the ALPHA ex-date assigns 100 shares and 25 USD receivable. Late evidence raises it to 120 shares and adds 5 USD at 14:40 on June 3. The later amount revision makes the receivable 36 USD. BETA uses 40 shares and records 4 EUR. The revised ALPHA pay date posts 36 USD. A late correction to 110 shares at 14:30 on June 4 reverses 3 USD, and the final rate revision leaves 30.80 USD cash.
+
+Supply 0–1,000,000 whole shares per observation and up to 5,000 position rows in 1 MiB. A header-only file preserves an unknown position history. Use one canonical instrument and unique observation times for each effective timestamp. Very large reports can be narrowed after two million entitlement checks or 50,000 ledger events. The input may be derived from authorized trade and split records. The replay expects those holdings as evidence. [Position fixture](../crates/core/tests/fixtures/synthetic-dividend-positions.csv).
+
 ## Accounting and revisions
 
-At each inclusive cutoff use the latest observed report per ID. Gross value equals the fixed entitled shares multiplied by the per-share amount in integer millionths. Before ex time the target is zero. From ex time until pay time it is a receivable. From pay time onward it is cash. A report arriving after pay time credits cash at the report's observation time.
+At each inclusive cutoff use the latest observed report per ID. Gross value equals the entitled shares multiplied by the per-share amount in integer millionths. From ex time until pay time it is a receivable. From pay time onward it is cash. Reports arriving after pay time adjust cash at their observation time.
 
 Each new target creates only the difference from the previous target. A later revision can change the pending amount, reverse a prior cash posting or rebook it under another currency. The original posting remains visible at its original observation. A revision at the exact time of an older scheduled transition supersedes that transition. All dividend changes at the same UTC second apply before market events at that second. Currencies remain separate throughout. The Rust engine calculates exact amounts and currency balances. The browser preserves them as BigInt through display.
 
