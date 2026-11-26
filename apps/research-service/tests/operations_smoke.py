@@ -60,9 +60,12 @@ def exercise(executable, database):
     with research_process(executable, formula_token, screen_token, **settings) as (_, origin, operations):
         assert operations.startswith("http://127.0.0.1:") and operations != origin
         assert send(operations, "/healthz") == (200, "ok\n")
+        assert send(operations, "/readyz") == (200, "ready\n")
+        assert send(origin, "/readyz")[0] == 404
         assert send(origin, "/metrics")[0] == 404
         assert send(operations, "/metrics", headers={"Host": "wrong.marketweft.test"})[0] == 403
         assert send(operations, "/metrics", headers={"Origin": "https://wrong.marketweft.test"})[0] == 403
+        assert send(operations, "/readyz", headers={"Origin": "https://wrong.marketweft.test"})[0] == 403
         assert not any(counts(operations).values())
         status, body = send(origin, "/v1/formula", valid, authorization)
         assert status == 200 and json.loads(body)["rows"][0]["value_ticks"] == "10000001"
@@ -70,9 +73,12 @@ def exercise(executable, database):
         assert send(origin, "/v1/formula", valid)[0] == 401
         with sqlite3.connect(database) as lock:
             lock.execute("BEGIN EXCLUSIVE")
+            assert send(operations, "/readyz") == (503, "audit unavailable\n")
+            assert send(operations, "/healthz") == (200, "ok\n")
             assert send(origin, "/v1/formula", valid, authorization)[0] == 503
             lock.rollback()
         assert send(operations, "/healthz") == (200, "ok\n")
+        assert send(operations, "/readyz") == (200, "ready\n")
         address = urlsplit(origin)
         with socket.create_connection((address.hostname, address.port), timeout=5) as stream:
             handshake = (
@@ -84,6 +90,8 @@ def exercise(executable, database):
             stream.sendall(handshake.encode())
             with stream.makefile("rb") as response:
                 assert response.readline().startswith(b"HTTP/1.1 101 ")
+            assert send(operations, "/readyz") == (503, "busy\n")
+            assert send(operations, "/healthz") == (200, "ok\n")
             assert send(origin, "/v1/formula", valid, authorization)[0] == 429
         deadline = time.monotonic() + 5
         totals = counts(operations)
@@ -96,6 +104,7 @@ def exercise(executable, database):
         }, totals
     with research_process(executable, formula_token, screen_token, **settings) as (_, _, operations):
         assert send(operations, "/healthz") == (200, "ok\n")
+        assert send(operations, "/readyz") == (200, "ready\n")
         assert not any(counts(operations).values())
         with sqlite3.connect(database) as ledger:
             grouped = ledger.execute("SELECT outcome FROM research_receipts ORDER BY receipt_id").fetchall()
@@ -105,4 +114,4 @@ def exercise(executable, database):
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="marketweft-operations-") as directory:
         exercise(sys.argv[1], Path(directory) / "audit.sqlite")
-    print("Verified separate health and metrics, exact outcomes, overload, audit failure and restart.")
+    print("Verified liveness, readiness, exact outcomes, overload, audit failure and restart.")

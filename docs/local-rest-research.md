@@ -250,3 +250,13 @@ Set `EXPECTED_SHA256` to the digest recorded when the source snapshot was verifi
 ```
 
 The command restores from the private copy it verified. A valid SQLite file with a different digest fails without creating the destination or its sidecars. Supply a fresh destination and temporary disk space for the verified copy.
+
+## Research readiness
+
+On the optional operations listener, `/readyz` reports whether admission has capacity at the time of the check. It returns HTTP 200 with `ready` while the process is accepting research, a worker slot is free and the configured audit store can acquire its SQLite write lock.
+
+```sh
+curl -i http://127.0.0.1:4175/readyz
+```
+
+The route returns HTTP 503 with `busy`, `draining`, `audit unavailable` or `audit probe busy`. The audit check allows one probe at a time and rolls back without adding a receipt. `/healthz` continues to report process liveness. `/readyz` reflects the current state and reserves no worker slot.

@@ -82,6 +82,20 @@ pub(crate) fn schema_version(database: &Connection) -> rusqlite::Result<(i32, i3
     Ok((application, version))
 }
 
+pub(crate) fn writable_for_admission(path: &Path) -> rusqlite::Result<bool> {
+    let flags = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    let mut database = Connection::open_with_flags(path, flags)?;
+    if database.is_readonly(rusqlite::MAIN_DB)? {
+        return Ok(false);
+    }
+    database.busy_timeout(Duration::from_millis(125))?;
+    database.pragma_update(None, "trusted_schema", false)?;
+    let probe = database.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let valid = schema_version(&probe)? == (APPLICATION_ID, SCHEMA_VERSION);
+    probe.rollback()?;
+    Ok(valid)
+}
+
 impl Trail {
     pub(crate) fn open(path: &Path) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         if path.as_os_str().is_empty() || path == Path::new(":memory:") {

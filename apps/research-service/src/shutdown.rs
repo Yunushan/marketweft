@@ -44,6 +44,16 @@ impl ResearchShutdown {
         }
     }
 
+    pub(crate) fn admission_unavailable(&self) -> Option<&'static str> {
+        if self.slots.is_closed() {
+            Some("draining\n")
+        } else if self.slots.available_permits() == 0 {
+            Some("busy\n")
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn try_acquire(&self) -> Result<ResearchPermit, TryAcquireError> {
         Arc::clone(&self.slots)
             .try_acquire_owned()

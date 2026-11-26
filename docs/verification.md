@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.68.0 · Research readiness
+
+| Check | Observed result |
+| --- | --- |
+| Capacity and storage | The operations listener reported ready while a slot was free. It returned HTTP 503 under an exclusive SQLite lock, recovered when the lock was released and reported busy while a WebSocket held the only worker. |
+| Drain and liveness | SIGTERM changed readiness to draining before the admitted request completed. Liveness stayed healthy while storage was locked, the worker was occupied and shutdown drained the admitted request. |
+
+[Research readiness](local-rest-research.md#research-readiness) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.67.0 · Restore with an expected digest
 
 | Check | Observed result |

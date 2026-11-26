@@ -155,7 +155,7 @@ async fn serve_async() -> Result<(), Box<dyn std::error::Error>> {
     let admin = if let (Some(port), Some(operations)) = (operations_port, operations) {
         let admin = TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await?;
         let address = admin.local_addr()?;
-        let router = operations.router(address)?;
+        let router = operations.router_with_readiness(address, shutdown.clone(), audit_path)?;
         eprintln!("Research operations at http://{address}");
         Some((admin, router))
     } else {

@@ -79,11 +79,22 @@ def exercise(executable, database):
         "MARKETWEFT_RESEARCH_AUDIT_DB": str(database),
         "MARKETWEFT_RESEARCH_SLOTS": "1",
         "MARKETWEFT_RESEARCH_SHUTDOWN_SECONDS": "5",
+        "MARKETWEFT_RESEARCH_OPERATIONS_PORT": "0",
     }
-    with research_process(executable, formula, screen, **settings) as (process, origin, _):
+    with research_process(executable, formula, screen, **settings) as (process, origin, operations):
         with admitted_stream(origin, formula) as (socket, reply):
             process.terminate()
             wait_for_closed_admission(origin, formula)
+            monitor = build_opener(ProxyHandler({}))
+            try:
+                monitor.open(operations + "/readyz", timeout=2).close()
+            except HTTPError as error:
+                with error:
+                    assert error.code == 503 and error.read() == b"draining\n"
+            else:
+                raise AssertionError("A draining service reported ready.")
+            with monitor.open(operations + "/healthz", timeout=2) as health:
+                assert health.status == 200
             send_query(socket, reply)
             assert process.wait(timeout=4) == 0
     settings["MARKETWEFT_RESEARCH_SHUTDOWN_SECONDS"] = "1"
@@ -104,4 +115,4 @@ def exercise(executable, database):
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="marketweft-shutdown-") as directory:
         exercise(sys.argv[1], Path(directory) / "audit.sqlite")
-    print("Verified SIGTERM stops admissions, drains a completed query and preserves an unfinished receipt on deadline.")
+    print("Verified SIGTERM changes readiness, closes admission and preserves completed and unfinished receipts.")
