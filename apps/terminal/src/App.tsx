@@ -24,7 +24,7 @@ import type {
   Preferences,
   SeriesDescriptor,
 } from './catalog'
-import type { ChartPane, OverlayPeriods } from './catalog-schema'
+import type { ChartPane, ChartType, OverlayPeriods } from './catalog-schema'
 import { WorkspaceBackup } from './WorkspaceBackup'
 import { HistoricalReplay } from './HistoricalReplay'
 import { checkImportRows, type ImportPolicy } from './import-policy'
@@ -487,6 +487,13 @@ export function App({
     }
     update(Object.keys(overlayPeriods).length ? { ...preferences, overlayPeriods } : preferences)
   }
+  function setChartType(pane: ChartPane, type: ChartType) {
+    const { chartTypes: current, ...preferences } = ws
+    const chartTypes = { ...current }
+    if (type === 'line') chartTypes[pane] = 'line'
+    else delete chartTypes[pane]
+    update(Object.keys(chartTypes).length ? { ...preferences, chartTypes } : preferences)
+  }
   function drawingTools(id: string) {
     return {
       core,
@@ -620,7 +627,12 @@ export function App({
             <div className="plot-toolbar">
               <div className="chart-kind">
                 <Icon name="chart" />
-                <b>Candles</b>
+                <select aria-label="Primary chart type" value={ws.chartTypes?.primary ?? 'candles'}
+                  disabled={saving}
+                  onChange={event => setChartType('primary', event.target.value === 'line' ? 'line' : 'candles')}>
+                  <option value="candles">Candles</option>
+                  <option value="line">Close line</option>
+                </select>
                 <i />
                 {asset.source === 'sample' ? 'Daily bars' : 'Source bars'}
               </div>
@@ -662,6 +674,14 @@ export function App({
                     ))}
                   </select>
                 </label>
+                <label>
+                  Comparison chart type
+                  <select value={ws.chartTypes?.comparison ?? 'candles'} disabled={saving}
+                    onChange={event => setChartType('comparison', event.target.value === 'line' ? 'line' : 'candles')}>
+                    <option value="candles">Candles</option>
+                    <option value="line">Close line</option>
+                  </select>
+                </label>
                 <div className="comparison-toggles">
                   <label>
                     <input type="checkbox" checked={comparison.sma} disabled={saving}
@@ -687,6 +707,7 @@ export function App({
                 <Chart key={`${asset.id}:${bars.length}`} asset={asset} sma={sma} ema={ema}
                   linkedTimestamp={cursor} onTimestamp={comparison?.linked ? onCrosshair : undefined}
                   drawingTools={drawingTools(asset.id)} periods={primaryPeriods}
+                  type={ws.chartTypes?.primary}
                   exportOptions={{ metadata: descriptor }} />
               </section>
               {comparison && other && (
@@ -694,6 +715,7 @@ export function App({
                   <Chart key={`${other.id}:${other.bars.length}`} asset={other} sma={otherSma} ema={otherEma}
                     linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined}
                     drawingTools={drawingTools(other.id)} periods={comparisonPeriods}
+                    type={ws.chartTypes?.comparison}
                     exportOptions={{ metadata: comparisonDescriptor }} />
                 </section>
               )}

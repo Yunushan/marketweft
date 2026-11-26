@@ -10,9 +10,11 @@ export type Preferences = {
   comparison?: ComparisonPreferences
   drawings?: Record<string, MeasuredDrawing>
   overlayPeriods?: Partial<Record<ChartPane, OverlayPeriods>>
+  chartTypes?: Partial<Record<ChartPane, 'line'>>
 }
 
 export type ChartPane = 'primary' | 'comparison'
+export type ChartType = 'candles' | 'line'
 export type OverlayPeriods = { sma: number; ema: number }
 
 export type ComparisonPreferences = {
@@ -83,6 +85,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   if (value && typeof value === 'object' && Object.hasOwn(value, 'comparison')) keys.push('comparison')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'drawings')) keys.push('drawings')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'overlayPeriods')) keys.push('overlayPeriods')
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'chartTypes')) keys.push('chartTypes')
   fields(value, keys, 'workspace preference')
   const { selected, watchlist, sma, ema } = value
   if (
@@ -139,6 +142,17 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       periods[pane] = { sma: pair.sma, ema: pair.ema }
     }
     result.overlayPeriods = periods
+  }
+  if (keys.includes('chartTypes')) {
+    const settings = value.chartTypes
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings))
+      throw Error('Invalid workspace chart types.')
+    const entries = Object.entries(settings)
+    if (!entries.length || entries.some(([pane, type]) =>
+      (pane !== 'primary' && pane !== 'comparison') || type !== 'line')) {
+      throw Error('Unknown pane or chart type in the workspace.')
+    }
+    result.chartTypes = Object.fromEntries(entries)
   }
   return result
 }

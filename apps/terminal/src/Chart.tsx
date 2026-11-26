@@ -7,7 +7,7 @@ import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
 import type { Bar, MarketCore, MeasuredDrawing } from './market-core'
-import type { OverlayPeriods, SeriesMetadata } from './catalog-schema'
+import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 type View = { end: number; count: number }
 type Series = (number | null)[]
@@ -21,7 +21,8 @@ type DrawingTools = {
 const UP = '#68d7b1',
   DOWN = '#ec817e',
   GOLD = '#e8ba70',
-  LILAC = '#b59be6'
+  LILAC = '#b59be6',
+  CLOSE_LINE = '#55b5ee'
 const defaultView = (n: number) => ({ end: n, count: Math.min(n, 60) })
 const clamp = (x: number, min: number, max: number) =>
   Math.min(max, Math.max(min, x))
@@ -61,6 +62,7 @@ function draw(
   ema: Series,
   active: number | null,
   drawing: MeasuredDrawing | undefined,
+  type: ChartType,
 ): Plot | undefined {
   const ctx = canvas.getContext('2d')
   if (!ctx || width < 80 || height < 100) return
@@ -79,8 +81,8 @@ function draw(
     maxVol = 0
   for (let i = start; i < view.end; i++) {
     const b = bars[i]
-    low = Math.min(low, b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
-    high = Math.max(high, b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
+    low = Math.min(low, type === 'line' ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
+    high = Math.max(high, type === 'line' ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
   }
   const delta =
     high === low
@@ -157,16 +159,22 @@ function draw(
     low: number
     high: number
     volume: number
+    lowestClose: number
+    highestClose: number
   }[] = []
   for (let first = start; first < view.end; first += stride) {
     const last = Math.min(first + stride, view.end) - 1
     let hi = bars[first].high,
       lo = bars[first].low,
-      vol = 0
+      vol = 0,
+      lowestClose = first,
+      highestClose = first
     for (let i = first; i <= last; i++) {
       hi = Math.max(hi, bars[i].high)
       lo = Math.min(lo, bars[i].low)
       vol += bars[i].volume
+      if (bars[i].close < bars[lowestClose].close) lowestClose = i
+      if (bars[i].close > bars[highestClose].close) highestClose = i
     }
     groups.push({
       first,
@@ -176,6 +184,8 @@ function draw(
       high: hi,
       low: lo,
       volume: vol,
+      lowestClose,
+      highestClose,
     })
     maxVol = Math.max(maxVol, vol)
   }
@@ -183,18 +193,41 @@ function draw(
     const axis = (x(b.first) + x(b.last)) / 2,
       w = Math.max(1, dx * (b.last - b.first + 1) * 0.68)
     const col = b.close >= b.open ? UP : DOWN
-    line(axis, y(b.high), axis, y(b.low), col)
     ctx.fillStyle = col
-    ctx.fillRect(
-      axis - w / 2,
-      Math.min(y(b.open), y(b.close)),
-      w,
-      Math.max(1.2, Math.abs(y(b.open) - y(b.close))),
-    )
+    if (type === 'candles') {
+      line(axis, y(b.high), axis, y(b.low), col)
+      ctx.fillRect(
+        axis - w / 2,
+        Math.min(y(b.open), y(b.close)),
+        w,
+        Math.max(1.2, Math.abs(y(b.open) - y(b.close))),
+      )
+    }
     const h = maxVol > 0 ? (b.volume / maxVol) * (bottom - volTop) : 0
     ctx.globalAlpha = 0.46
     ctx.fillRect(axis - w / 2, bottom - h, w, h)
     ctx.globalAlpha = 1
+  }
+  if (type === 'line') {
+    ctx.beginPath()
+    ctx.strokeStyle = CLOSE_LINE
+    ctx.fillStyle = CLOSE_LINE
+    ctx.lineWidth = 2
+    ctx.moveTo(x(start), y(bars[start].close))
+    for (const { first, last, lowestClose, highestClose } of groups) {
+      if (first === last) {
+        ctx.lineTo(x(first), y(bars[first].close))
+      } else {
+        const indices = [...new Set([first, lowestClose, highestClose, last])].sort((a, b) => a - b)
+        for (const index of indices) ctx.lineTo(x(index), y(bars[index].close))
+      }
+    }
+    ctx.stroke()
+    if (view.count === 1) {
+      ctx.beginPath()
+      ctx.arc(x(start), y(bars[start].close), 3, 0, Math.PI * 2)
+      ctx.fill()
+    }
   }
   for (const [values, color] of [
     [sma, GOLD],
@@ -301,6 +334,7 @@ export function Chart({
   drawingTools,
   periods,
   exportOptions,
+  type = 'candles',
 }: {
   asset: Asset
   sma: Series
@@ -310,6 +344,7 @@ export function Chart({
   drawingTools?: DrawingTools
   periods?: OverlayPeriods
   exportOptions?: { metadata?: SeriesMetadata }
+  type?: ChartType
 }) {
   const { bars } = asset,
     n = bars.length
@@ -393,8 +428,9 @@ export function Chart({
           ema,
           active,
           drawing,
+          type,
         )
-  }, [bars, view, sma, ema, active, size, drawing])
+  }, [bars, view, sma, ema, active, size, drawing, type])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -476,7 +512,7 @@ export function Chart({
         <canvas
           tabIndex={0}
           aria-label={
-            asset.symbol + ' interactive candlestick and volume chart'
+            asset.symbol + (type === 'line' ? ' interactive close line' : ' interactive candlestick') + ' and volume chart'
           }
           ref={ref}
           onPointerDown={(e) => {

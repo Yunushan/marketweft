@@ -648,8 +648,13 @@ h1 {
   gap: 8px;
   font-size: 11px;
 }
-.chart-kind b {
+.chart-kind select {
+  padding: 3px 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #151c1f;
   color: var(--text);
+  font: inherit;
   font-weight: 550;
 }
 .chart-kind i {

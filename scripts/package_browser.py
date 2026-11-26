@@ -44,6 +44,8 @@ Open Indicators to save separate SMA and EMA periods for each pane. The chart
 readout shows the results at the selected bar when enough closes are available.
 Open Export CSV beneath either pane to download visible or all bars. The
 research format also includes provenance and enabled moving averages.
+Choose Close line to plot observed closing prices, or Candles for OHLC.
+Choose a chart type independently in each pane.
 
 Choose Historical replay and Start demo for the NYSE session example. Replay
 reveals each bar at its scheduled close and marks missing intervals in-session.
