@@ -1,4 +1,4 @@
-use crate::{history::timestamp, Instrument};
+use crate::{history::exact_utc, Instrument};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_ROWS: usize = 5_000;
@@ -77,6 +77,13 @@ impl UniverseBook {
         &self.name
     }
 
+    pub(crate) fn listing_ids(&self) -> BTreeSet<&str> {
+        self.rows
+            .iter()
+            .map(|row| row.listing_id.as_str())
+            .collect()
+    }
+
     /// Distinct points where a report becomes known or its known schedule becomes effective.
     pub fn checkpoints(&self) -> Vec<i64> {
         let mut checkpoints = BTreeSet::new();
@@ -123,7 +130,7 @@ impl UniverseBook {
     }
 }
 
-fn valid_id(value: &str) -> bool {
+pub(crate) fn valid_id(value: &str) -> bool {
     (1..=40).contains(&value.len())
         && value
             .bytes()
@@ -177,8 +184,7 @@ pub fn parse_universe(csv: &str) -> Result<UniverseBook, String> {
         let mut time = || {
             fields
                 .next()
-                .filter(|value| value.len() == 20 && value.ends_with('Z'))
-                .and_then(timestamp)
+                .and_then(exact_utc)
                 .ok_or_else(|| error("Use exact UTC timestamps in YYYY-MM-DDTHH:MM:SSZ format."))
         };
         let effective_at = time()?;

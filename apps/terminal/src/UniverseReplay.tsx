@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { MarketCore, UniverseListing } from './market-core'
 import { Mark } from './Icons'
+import { UniverseScreen } from './UniverseScreen'
 import { utc } from './workspace'
 import demo from '../../../crates/core/tests/fixtures/synthetic-universe.csv?raw'
 
@@ -12,6 +13,7 @@ type Dataset = {
   csv: string
   checkpoints: number[]
   source: string
+  demo: boolean
 }
 type Result = Cutoffs & {
   listings: UniverseListing[]
@@ -54,11 +56,11 @@ export function UniverseReplay({
     }
   }
 
-  function start(csv: string, source: string) {
+  function start(csv: string, source: string, demo = false) {
     const book = core.universeIndex(csv)
     const first = atCheckpoint(book.checkpoints[0])
     const initial = snapshot(csv, first, 0)
-    setDataset({ ...book, csv, source })
+    setDataset({ ...book, csv, source, demo })
     setResult(initial)
     setDraft(first)
     setCursor(0)
@@ -67,7 +69,7 @@ export function UniverseReplay({
   function tryDemo() {
     setError('')
     try {
-      start(demo, 'Synthetic membership reports')
+      start(demo, 'Synthetic membership reports', true)
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -332,6 +334,14 @@ export function UniverseReplay({
                 </div>
               )}
             </section>
+            <UniverseScreen
+              core={core}
+              membership={dataset.csv}
+              demo={dataset.demo}
+              firstCutoff={utc(dataset.checkpoints[0])}
+              effective={result.effective}
+              known={result.known}
+            />
           </>
         )}
       </main>

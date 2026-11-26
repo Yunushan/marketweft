@@ -58,6 +58,20 @@ export interface UniverseListing {
   observedAt: number;
 }
 
+export interface ScreenPrice {
+  ticks: bigint;
+  observedAt: number;
+}
+
+export interface ScreenRow {
+  listingId: string;
+  instrument: string;
+  rank: number | null;
+  returnUnits: bigint | null;
+  baseline: ScreenPrice | null;
+  current: ScreenPrice | null;
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -68,6 +82,8 @@ export interface MarketCore {
   dividendLedger(instrument: string, csv: string, entitledShares: number): DividendEvent[];
   universeIndex(csv: string): { name: string; checkpoints: number[] };
   universeAsOf(csv: string, effectiveAt: string, knownAt: string): UniverseListing[];
+  universeScreen(membership: string, prices: string, baselineAt: string,
+    effectiveAt: string, knownAt: string): ScreenRow[];
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -85,6 +101,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_dividend_ledger(shares: number): number;
   mw_universe_index(): number;
   mw_universe_as_of(): number;
+  mw_universe_screen(membershipBytes: number): number;
 }
 
 const SCALE = 1_000_000;
@@ -205,6 +222,27 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         const [listingId, instrument, status, changeId, effectiveAt, observedAt] = line.split('\t');
         return { listingId, instrument, status: universeStatuses[Number(status)], changeId,
           effectiveAt: Number(effectiveAt), observedAt: Number(observedAt) };
+      });
+    },
+    universeScreen(membership, prices, baselineAt, effectiveAt, knownAt) {
+      const times = [baselineAt, effectiveAt, knownAt];
+      if (times.some(value => value.length !== 20 || /[\n\r]/.test(value))) {
+        throw new Error('Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
+      }
+      const membershipBytes = encoder.encode(membership).length;
+      textInput([...times, membership + prices].join('\n'));
+      const text = decoder.decode(output(api.mw_universe_screen(membershipBytes)));
+      if (!text) return [];
+      const price = (field: string): ScreenPrice | null => {
+        if (field === '') return null;
+        const [ticks, observedAt] = field.split(',');
+        return { ticks: BigInt(ticks), observedAt: Number(observedAt) };
+      };
+      return text.slice(0, -1).split('\n').map(line => {
+        const [listingId, instrument, rank, change, baseline, current] = line.split('\t');
+        return { listingId, instrument, rank: rank === '' ? null : Number(rank),
+          returnUnits: change === '' ? null : BigInt(change), baseline: price(baseline),
+          current: price(current) };
       });
     },
     splitBook(instrument, csv) {
