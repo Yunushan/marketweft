@@ -17,7 +17,7 @@ use crate::{
     PaperSide,
 };
 use crate::{parse_split_revisions, ShareRatio, SplitRevision, SplitRevisionBook};
-use crate::{ModelError, OptionBook, OptionSide, QuoteStatus};
+use crate::{ExerciseStyle, ModelError, OptionBook, OptionSide, QuoteStatus};
 use std::cell::RefCell;
 
 thread_local! {
@@ -2042,14 +2042,8 @@ pub extern "C" fn mw_option_snapshot(underlying_bytes: usize, max_age: u32) -> u
     use std::fmt::Write;
     process(|input| {
         let mut parts = utf8(input)?.splitn(3, '\n');
-        let mut cutoff = || {
-            parts
-                .next()
-                .and_then(exact_utc)
-                .ok_or("Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
-        };
-        let effective = cutoff()?;
-        let known = cutoff()?;
+        let effective = option_cutoff(parts.next())?;
+        let known = option_cutoff(parts.next())?;
         let book = option_book(
             parts.next().ok_or("Supply option chain reports.")?,
             underlying_bytes,
@@ -2085,7 +2079,9 @@ pub extern "C" fn mw_option_snapshot(underlying_bytes: usize, max_age: u32) -> u
                 quote.observed_at,
                 optional_number(quote.bid),
                 optional_number(quote.ask),
-                option_status(&row.analytics)
+                row.analytics
+                    .as_ref()
+                    .map_or_else(|status| option_status(*status), |_| "ok")
             )
             .unwrap();
             if let Ok(a) = row.analytics {
@@ -2096,24 +2092,61 @@ pub extern "C" fn mw_option_snapshot(underlying_bytes: usize, max_age: u32) -> u
                 )
                 .unwrap();
             }
-            text.push('\n');
+            let style = match contract.exercise_style {
+                ExerciseStyle::European => "european",
+                ExerciseStyle::American => "american",
+            };
+            writeln!(text, "\t{style}").unwrap();
         }
         Ok(text.into_bytes())
     })
 }
 
-fn option_status(analysis: &Result<crate::OptionAnalytics, QuoteStatus>) -> &'static str {
-    match analysis {
-        Ok(_) => "ok",
-        Err(QuoteStatus::Expired) => "expired",
-        Err(QuoteStatus::StaleQuote) => "stale-option",
-        Err(QuoteStatus::MissingBidAsk) => "missing-bid-ask",
-        Err(QuoteStatus::CrossedQuote) => "crossed",
-        Err(QuoteStatus::MissingUnderlying) => "missing-underlying",
-        Err(QuoteStatus::StaleUnderlying) => "stale-underlying",
-        Err(QuoteStatus::Model(ModelError::InputsOutOfRange)) => "model-range",
-        Err(QuoteStatus::Model(ModelError::PriceOutsideBounds)) => "price-bounds",
-        Err(QuoteStatus::Model(ModelError::VolatilityUnresolved)) => "unresolved-vol",
+#[no_mangle]
+pub extern "C" fn mw_american_option_price(
+    underlying_bytes: usize,
+    max_age: u32,
+    volatility: f64,
+    steps: u32,
+) -> u32 {
+    process(|input| {
+        let mut parts = utf8(input)?.splitn(4, '\n');
+        let contract = parts.next().ok_or("Select an American contract.")?;
+        let effective = option_cutoff(parts.next())?;
+        let known = option_cutoff(parts.next())?;
+        let book = option_book(
+            parts.next().ok_or("Supply option chain reports.")?,
+            underlying_bytes,
+        )?;
+        let steps = u16::try_from(steps).unwrap_or(0);
+        let result = book.price_american(contract, effective, known, max_age, volatility, steps);
+        Ok(match result {
+            Ok(price) => format!("value\t{price}"),
+            Err(status) => option_status(status).to_owned(),
+        }
+        .into_bytes())
+    })
+}
+
+fn option_cutoff(raw: Option<&str>) -> Result<i64, &'static str> {
+    raw.and_then(exact_utc)
+        .ok_or("Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+}
+
+fn option_status(status: QuoteStatus) -> &'static str {
+    match status {
+        QuoteStatus::Expired => "expired",
+        QuoteStatus::StaleQuote => "stale-option",
+        QuoteStatus::MissingBidAsk => "missing-bid-ask",
+        QuoteStatus::CrossedQuote => "crossed",
+        QuoteStatus::MissingUnderlying => "missing-underlying",
+        QuoteStatus::StaleUnderlying => "stale-underlying",
+        QuoteStatus::AmericanVolatilityRequired => "american-volatility-required",
+        QuoteStatus::MissingContract => "missing-contract",
+        QuoteStatus::EuropeanContract => "european-contract",
+        QuoteStatus::Model(ModelError::InputsOutOfRange) => "model-range",
+        QuoteStatus::Model(ModelError::PriceOutsideBounds) => "price-bounds",
+        QuoteStatus::Model(ModelError::VolatilityUnresolved) => "unresolved-vol",
     }
 }
 

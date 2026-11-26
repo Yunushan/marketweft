@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.90.0 · American exercise pricing
+
+| Check | Observed result |
+| --- | --- |
+| Independent lattice | Native Rust matched independent 60-digit decimal references for American calls and puts. The cases include immediate exercise, positive dividend yield and a negative interest rate. |
+| Observation cutoffs | Wasm and offline Chromium hid the American contract before 14:02 UTC. At 25% volatility and 128 steps it priced at USD 16.247756 after the quote appeared and USD 16.614676 after the 14:03 UTC underlying report. |
+| Compatibility and validation | European IV and Greeks still passed their existing fixtures. The tests rejected exercise-style changes for a contract ID and out-of-range lattice inputs. |
+
+[American exercise pricing](option-chain.md#american-exercise-pricing) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.89.0 · MCP financial snapshots
 
 | Check | Observed result |

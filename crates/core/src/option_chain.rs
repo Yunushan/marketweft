@@ -1,7 +1,7 @@
 use crate::{
     history::{decimal, exact_utc},
     universe::valid_id,
-    EuropeanOption, Instrument, ModelError, OptionAnalytics, OptionSide, SCALE,
+    Instrument, ModelError, OptionAnalytics, OptionSide, OptionTerms, SCALE,
 };
 use std::collections::BTreeMap;
 use std::fmt;
@@ -9,6 +9,10 @@ use std::fmt;
 const MAX_ROWS: usize = 20_000;
 const MAX_BYTES: usize = 2 * 1024 * 1024;
 const YEAR_SECONDS: f64 = 365.0 * 86_400.0;
+const OPTION_HEADER: &str =
+    "contract_id,underlying,currency,side,expiry,strike,quote_at,observed_at,bid,ask";
+const EXERCISE_HEADER: &str =
+    "contract_id,underlying,currency,side,exercise_style,expiry,strike,quote_at,observed_at,bid,ask";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Underlying {
@@ -22,6 +26,13 @@ pub struct Contract {
     pub expiration: i64,
     pub strike: i64,
     pub side: OptionSide,
+    pub exercise_style: ExerciseStyle,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExerciseStyle {
+    European,
+    American,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -49,6 +60,9 @@ pub enum QuoteStatus {
     CrossedQuote,
     MissingUnderlying,
     StaleUnderlying,
+    AmericanVolatilityRequired,
+    MissingContract,
+    EuropeanContract,
     Model(ModelError),
 }
 
@@ -89,11 +103,12 @@ impl OptionBook {
     pub fn parse(inputs: &str, quote_csv: &str) -> Result<Self, OptionBookError> {
         let mut identity = None;
         let mut market = Vec::new();
-        for (line, row) in rows(
+        let (_, reports) = rows(
             inputs,
-            "underlying,currency,quote_at,observed_at,spot,rate,dividend_yield",
+            &["underlying,currency,quote_at,observed_at,spot,rate,dividend_yield"],
             "Underlying",
-        )? {
+        )?;
+        for (line, row) in reports {
             let error = |message| row_error("Underlying", line, message);
             let fields: Vec<_> = row.split(',').map(str::trim).collect();
             let [symbol, currency, at, observed, spot, rate, yield_rate] = fields.as_slice() else {
@@ -133,17 +148,24 @@ impl OptionBook {
         )?;
 
         let mut contracts = BTreeMap::<String, Listing>::new();
-        for (line, row) in rows(
-            quote_csv,
-            "contract_id,underlying,currency,side,expiry,strike,quote_at,observed_at,bid,ask",
-            "Option",
-        )? {
+        let (format, reports) = rows(quote_csv, &[OPTION_HEADER, EXERCISE_HEADER], "Option")?;
+        for (line, row) in reports {
             let error = |message| row_error("Option", line, message);
             let fields: Vec<_> = row.split(',').map(str::trim).collect();
-            let [id, symbol, currency, side, expiry, strike, at, observed, bid, ask] =
-                fields.as_slice()
-            else {
-                return Err(error("Expected ten fields."));
+            let [id, symbol, currency, side, tail @ ..] = fields.as_slice() else {
+                return Err(error(
+                    "Supply a contract ID, underlying, currency and side.",
+                ));
+            };
+            let (exercise_style, terms) = match (format, tail) {
+                (0, terms) | (_, ["european", terms @ ..]) => (ExerciseStyle::European, terms),
+                (_, ["american", terms @ ..]) => (ExerciseStyle::American, terms),
+                _ => return Err(error("Exercise style must be european or american.")),
+            };
+            let [expiry, strike, at, observed, bid, ask] = terms else {
+                return Err(error(
+                    "Supply expiry, strike, quote and observation times, bid and ask.",
+                ));
             };
             if !valid_id(id) || parse_identity(symbol, currency).as_ref() != Some(&underlying) {
                 return Err(error(
@@ -179,6 +201,7 @@ impl OptionBook {
                 expiration,
                 strike,
                 side,
+                exercise_style,
             };
             let listing = contracts.entry((*id).into()).or_insert_with(|| Listing {
                 contract: contract.clone(),
@@ -186,7 +209,7 @@ impl OptionBook {
             });
             if listing.contract != contract {
                 return Err(error(
-                    "A contract ID must keep its expiry, strike and side.",
+                    "A contract ID must keep its expiry, strike, side and exercise style.",
                 ));
             }
             listing.quotes.push(OptionQuote {
@@ -232,19 +255,10 @@ impl OptionBook {
 
     /// Marks use the chosen price time, with every input known by the independent knowledge cutoff.
     pub fn snapshot(&self, at: i64, known_at: i64, max_age: u32) -> ChainSnapshot<'_> {
-        let latest = self.inputs.partition_point(|q| q.at <= at);
-        let underlying = self.inputs[..latest]
-            .iter()
-            .rev()
-            .find(|q| q.observed_at <= known_at);
+        let underlying = self.underlying_as_of(at, known_at);
         let mut options = Vec::new();
         for listing in self.contracts.values() {
-            let latest = listing.quotes.partition_point(|q| q.at <= at);
-            if let Some(quote) = listing.quotes[..latest]
-                .iter()
-                .rev()
-                .find(|q| q.observed_at <= known_at)
-            {
+            if let Some(quote) = option_as_of(listing, at, known_at) {
                 options.push(OptionRow {
                     contract: &listing.contract,
                     quote,
@@ -265,6 +279,47 @@ impl OptionBook {
             options,
         }
     }
+
+    /// Price an observed American contract at a supplied positive or zero volatility.
+    pub fn price_american(
+        &self,
+        contract_id: &str,
+        at: i64,
+        known_at: i64,
+        max_age: u32,
+        volatility: f64,
+        steps: u16,
+    ) -> Result<f64, QuoteStatus> {
+        let listing = self
+            .contracts
+            .get(contract_id)
+            .ok_or(QuoteStatus::MissingContract)?;
+        let quote = option_as_of(listing, at, known_at).ok_or(QuoteStatus::MissingContract)?;
+        if listing.contract.exercise_style != ExerciseStyle::American {
+            return Err(QuoteStatus::EuropeanContract);
+        }
+        validate_quote_time(&listing.contract, quote, at, max_age)?;
+        let market = fresh_market(self.underlying_as_of(at, known_at), at, max_age)?;
+        priced_terms(&listing.contract, market, at)
+            .american_price(volatility, steps)
+            .map_err(QuoteStatus::Model)
+    }
+
+    fn underlying_as_of(&self, at: i64, known_at: i64) -> Option<&UnderlyingQuote> {
+        let latest = self.inputs.partition_point(|q| q.at <= at);
+        self.inputs[..latest]
+            .iter()
+            .rev()
+            .find(|q| q.observed_at <= known_at)
+    }
+}
+
+fn option_as_of(listing: &Listing, at: i64, known_at: i64) -> Option<&OptionQuote> {
+    let latest = listing.quotes.partition_point(|q| q.at <= at);
+    listing.quotes[..latest]
+        .iter()
+        .rev()
+        .find(|q| q.observed_at <= known_at)
 }
 
 fn analyze(
@@ -274,22 +329,51 @@ fn analyze(
     at: i64,
     max_age: u32,
 ) -> Result<OptionAnalytics, QuoteStatus> {
+    validate_quote_time(contract, quote, at, max_age)?;
+    let (bid, ask) = quote.bid.zip(quote.ask).ok_or(QuoteStatus::MissingBidAsk)?;
+    if bid > ask {
+        return Err(QuoteStatus::CrossedQuote);
+    }
+    let market = fresh_market(underlying, at, max_age)?;
+    if contract.exercise_style == ExerciseStyle::American {
+        return Err(QuoteStatus::AmericanVolatilityRequired);
+    }
+    let midpoint = (bid + ask) as f64 / (2.0 * SCALE as f64);
+    priced_terms(contract, market, at)
+        .implied(midpoint)
+        .map_err(QuoteStatus::Model)
+}
+
+fn validate_quote_time(
+    contract: &Contract,
+    quote: &OptionQuote,
+    at: i64,
+    max_age: u32,
+) -> Result<(), QuoteStatus> {
     if contract.expiration <= at {
         return Err(QuoteStatus::Expired);
     }
     if at.saturating_sub(quote.at) > i64::from(max_age) {
         return Err(QuoteStatus::StaleQuote);
     }
-    let (bid, ask) = quote.bid.zip(quote.ask).ok_or(QuoteStatus::MissingBidAsk)?;
-    if bid > ask {
-        return Err(QuoteStatus::CrossedQuote);
-    }
+    Ok(())
+}
+
+fn fresh_market(
+    underlying: Option<&UnderlyingQuote>,
+    at: i64,
+    max_age: u32,
+) -> Result<&UnderlyingQuote, QuoteStatus> {
     let market = underlying.ok_or(QuoteStatus::MissingUnderlying)?;
     if at.saturating_sub(market.at) > i64::from(max_age) {
         return Err(QuoteStatus::StaleUnderlying);
     }
+    Ok(market)
+}
+
+fn priced_terms(contract: &Contract, market: &UnderlyingQuote, at: i64) -> OptionTerms {
     let amount = |ticks: i64| ticks as f64 / SCALE as f64;
-    EuropeanOption {
+    OptionTerms {
         spot: amount(market.spot),
         strike: amount(contract.strike),
         years: contract.expiration.saturating_sub(at) as f64 / YEAR_SECONDS,
@@ -297,8 +381,6 @@ fn analyze(
         dividend_yield: amount(market.yield_rate),
         side: contract.side,
     }
-    .implied(amount(bid + ask) / 2.0)
-    .map_err(QuoteStatus::Model)
 }
 
 fn parse_identity(symbol: &str, currency: &str) -> Option<Underlying> {
@@ -339,9 +421,9 @@ fn row_error(source: &str, line: usize, message: &str) -> OptionBookError {
 
 fn rows<'a>(
     csv: &'a str,
-    header: &str,
+    headers: &[&str],
     source: &str,
-) -> Result<impl Iterator<Item = (usize, &'a str)> + 'a, OptionBookError> {
+) -> Result<(usize, impl Iterator<Item = (usize, &'a str)> + 'a), OptionBookError> {
     if csv.len() > MAX_BYTES {
         return Err(OptionBookError(format!("{source} CSV exceeds 2 MiB.")));
     }
@@ -350,11 +432,16 @@ fn rows<'a>(
         .lines()
         .enumerate()
         .filter(|(_, row)| !row.trim().is_empty());
-    if lines.next().map(|(_, row)| row.trim()) != Some(header) {
-        return Err(OptionBookError(format!(
-            "Expected {source} header {header}."
-        )));
-    }
+    let header = lines.next().map(|(_, row)| row.trim());
+    let format = headers
+        .iter()
+        .position(|expected| Some(*expected) == header)
+        .ok_or_else(|| {
+            OptionBookError(format!(
+                "Expected {source} header {}.",
+                headers.join(" or ")
+            ))
+        })?;
     let lines = lines.map(|(line, row)| (line + 1, row));
     // Count loosely formatted files while retaining accurate input line numbers.
     if lines.clone().nth(MAX_ROWS).is_some() {
@@ -362,5 +449,5 @@ fn rows<'a>(
             "Supply at most {MAX_ROWS} {source} reports."
         )));
     }
-    Ok(lines)
+    Ok((format, lines))
 }

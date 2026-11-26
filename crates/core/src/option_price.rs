@@ -1,5 +1,6 @@
 const DAYS_IN_YEAR: f64 = 365.0;
 const MAX_VOLATILITY: f64 = 10.0;
+pub const MAX_AMERICAN_STEPS: u16 = 256;
 const SQRT_TWO_PI: f64 = 2.506_628_274_631_000_7;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -39,7 +40,7 @@ pub struct OptionAnalytics {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct EuropeanOption {
+pub struct OptionTerms {
     pub spot: f64,
     pub strike: f64,
     pub years: f64,
@@ -47,6 +48,8 @@ pub struct EuropeanOption {
     pub dividend_yield: f64,
     pub side: OptionSide,
 }
+
+pub type EuropeanOption = OptionTerms;
 
 struct Terms {
     input: EuropeanOption,
@@ -56,7 +59,57 @@ struct Terms {
     log_moneyness: f64,
 }
 
-impl EuropeanOption {
+impl OptionTerms {
+    /// Price American exercise on a recombining Cox–Ross–Rubinstein lattice.
+    ///
+    /// Each node compares discounted continuation with immediate exercise. Zero volatility
+    /// prices the same exercise dates on a single deterministic forward path.
+    pub fn american_price(self, volatility: f64, steps: u16) -> Result<f64, ModelError> {
+        self.validate()?;
+        if !(0.0..=MAX_VOLATILITY).contains(&volatility)
+            || !(1..=MAX_AMERICAN_STEPS).contains(&steps)
+        {
+            return Err(ModelError::InputsOutOfRange);
+        }
+        let dt = self.years / f64::from(steps);
+        let drift = self.rate - self.dividend_yield;
+        let exercise = |spot: f64| (self.side.sign() * (spot - self.strike)).max(0.0);
+        if volatility == 0.0 {
+            return Ok((0..=steps)
+                .map(|step| {
+                    let time = f64::from(step) * dt;
+                    (-self.rate * time).exp() * exercise(self.spot * (drift * time).exp())
+                })
+                .fold(0.0, f64::max));
+        }
+        let jump = volatility * dt.sqrt();
+        let probability_up = (drift * dt + jump).exp_m1() / (2.0 * jump).exp_m1();
+        if !(0.0..=1.0).contains(&probability_up) {
+            return Err(ModelError::InputsOutOfRange);
+        }
+        let discount = (-self.rate * dt).exp();
+        let up = discount * probability_up;
+        let down = discount * (1.0 - probability_up);
+        let node_ratio = (2.0 * jump).exp();
+        let mut spot = self.spot * (-f64::from(steps) * jump).exp();
+        let mut lattice = (0..=steps)
+            .map(|_| {
+                let payoff = exercise(spot);
+                spot *= node_ratio;
+                payoff
+            })
+            .collect::<Vec<_>>();
+        for depth in (0..steps).rev() {
+            let mut spot = self.spot * (-f64::from(depth) * jump).exp();
+            for node in 0..=usize::from(depth) {
+                let continuation = down * lattice[node] + up * lattice[node + 1];
+                lattice[node] = continuation.max(exercise(spot));
+                spot *= node_ratio;
+            }
+        }
+        Ok(lattice[0])
+    }
+
     pub fn analytics(self, volatility: f64) -> Result<OptionAnalytics, ModelError> {
         if !volatility.is_finite() || volatility <= 0.0 || volatility > MAX_VOLATILITY {
             return Err(ModelError::InputsOutOfRange);
@@ -99,18 +152,23 @@ impl EuropeanOption {
         }
         Ok(result)
     }
+
+    fn validate(self) -> Result<(), ModelError> {
+        if !(0.000_001..=2_000_000_000.0).contains(&self.spot)
+            || !(0.000_001..=2_000_000_000.0).contains(&self.strike)
+            || !(1.0 / (DAYS_IN_YEAR * 86_400.0)..=10.0).contains(&self.years)
+            || !(-1.0..=1.0).contains(&self.rate)
+            || !(0.0..=1.0).contains(&self.dividend_yield)
+        {
+            return Err(ModelError::InputsOutOfRange);
+        }
+        Ok(())
+    }
 }
 
 impl Terms {
     fn new(input: EuropeanOption) -> Result<Self, ModelError> {
-        if !(0.000_001..=2_000_000_000.0).contains(&input.spot)
-            || !(0.000_001..=2_000_000_000.0).contains(&input.strike)
-            || !(1.0 / (DAYS_IN_YEAR * 86_400.0)..=10.0).contains(&input.years)
-            || !(-1.0..=1.0).contains(&input.rate)
-            || !(0.0..=1.0).contains(&input.dividend_yield)
-        {
-            return Err(ModelError::InputsOutOfRange);
-        }
+        input.validate()?;
         Ok(Self {
             discounted_spot: input.spot * (-input.dividend_yield * input.years).exp(),
             discounted_strike: input.strike * (-input.rate * input.years).exp(),

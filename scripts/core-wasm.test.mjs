@@ -636,6 +636,7 @@ test('option chain Wasm exposes correct IV, gated underlying and invalid spread 
   const current = snapshot('14:00:00', '14:00:00');
   const row = id => current.options.find(item => item.id === id);
   assert.equal(current.underlying.spot, 100000000n);
+  assert.equal(row('APR-C100').exerciseStyle, 'european');
   assert.ok(Math.abs(row('APR-C100').result.volatility - 0.2) < 2e-8);
   assert.ok(Math.abs(row('APR-P100').result.delta + 0.416553855) < 2e-8);
   assert.equal(row('APR-C100').bid, 8807321n);
@@ -647,6 +648,24 @@ test('option chain Wasm exposes correct IV, gated underlying and invalid spread 
   assert.equal(snapshot('14:01:00', '14:05:00').underlying.spot, 101000000n);
   assert.equal(snapshot('14:00:00', '14:00:00', 0).options.find(item => item.id === 'APR-C100').result, 'stale-underlying');
   assert.throws(() => snapshot('14:00:00', '14:00:00', -1), /Maximum quote age/);
+});
+
+test('American option Wasm pricing uses the observed contract and underlying at separate cutoffs', async () => {
+  const read = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-option-' + name + '.csv', import.meta.url), 'utf8');
+  const [underlying, quotes] = await Promise.all([read('underlying'), read('exercise-quotes')]);
+  const iso = t => '2025-04-03T' + t + 'Z';
+  const value = (known, contract = 'APR-AM-C90') =>
+    core.americanOptionPrice(underlying, quotes, contract, iso('14:00:00'), iso(known), 300, 0.25, 128);
+  assert.equal(value('14:01:59'), 'missing-contract');
+  assert.equal(value('14:02:00', 'APR-C100'), 'european-contract');
+  const snapshot = core.optionSnapshot(underlying, quotes, iso('14:00:00'), iso('14:02:00'), 300);
+  const american = snapshot.options.find(row => row.id === 'APR-AM-C90');
+  assert.equal(american.exerciseStyle, 'american');
+  assert.equal(american.result, 'american-volatility-required');
+  const before = value('14:02:00');
+  assert.ok(Math.abs(before - 16.24775629746149) < 1e-10);
+  assert.ok(value('14:03:00') > before);
+  assert.equal(value('14:02:00'), before);
 });
 
 test('macro calendar Wasm preserves public and observed times and revision lineage', async () => {

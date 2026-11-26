@@ -5,7 +5,7 @@ import { Mark } from './Icons'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoUnderlying from '../../../crates/core/tests/fixtures/synthetic-option-underlying.csv?raw'
-import demoQuotes from '../../../crates/core/tests/fixtures/synthetic-option-quotes.csv?raw'
+import demoQuotes from '../../../crates/core/tests/fixtures/synthetic-option-exercise-quotes.csv?raw'
 
 const statusText: Record<OptionUnavailable, string> = {
   expired: 'Expired',
@@ -17,6 +17,9 @@ const statusText: Record<OptionUnavailable, string> = {
   'model-range': 'Input outside model range',
   'price-bounds': 'Midpoint outside model bounds',
   'unresolved-vol': 'Implied volatility unresolved',
+  'american-volatility-required': 'American model needs a volatility input',
+  'missing-contract': 'No contract observation at these cutoffs',
+  'european-contract': 'Select an American contract',
 }
 const price = (value: bigint | null) => value === null ? '—' : fixed(value, 6)
 const volatility = (value: number) => (value * 100).toFixed(2) + '%'
@@ -24,6 +27,59 @@ const metric = (value: number) => value.toFixed(6)
 
 type Query = { effective: string; known: string; age: string }
 type Dataset = OptionSource & { underlying: string; quotes: string; source: string; demo: boolean }
+
+function AmericanPricing({ core, dataset, query, contracts }: {
+  core: MarketCore
+  dataset: Dataset
+  query: Query
+  contracts: OptionReport[]
+}) {
+  const [contract, setContract] = useState(contracts[0].id)
+  const [annualVolatility, setAnnualVolatility] = useState('25')
+  const [steps, setSteps] = useState('128')
+  const [estimate, setEstimate] = useState<{ contract: string; value: number } | null>(null)
+  const [error, setError] = useState('')
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    setEstimate(null)
+    setError('')
+    try {
+      const value = core.americanOptionPrice(dataset.underlying, dataset.quotes, contract,
+        query.effective, query.known, Number(query.age), Number(annualVolatility) / 100, Number(steps))
+      if (typeof value === 'number') setEstimate({ contract, value })
+      else setError(statusText[value])
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not price the American option.')
+    }
+  }
+
+  return <section className="side-card replay-panel" aria-labelledby="american-pricing-title">
+    <h2 id="american-pricing-title">American exercise pricing</h2>
+    <form className="universe-query" onSubmit={submit}>
+      <label>American contract
+        <select value={contract} onChange={event => {
+          setContract(event.target.value)
+          setEstimate(null)
+          setError('')
+        }}>
+          {contracts.map(row => <option key={row.id}>{row.id}</option>)}
+        </select>
+      </label>
+      <label>Annual volatility (%)
+        <input required type="number" min="0" max="1000" step="any" value={annualVolatility}
+          onChange={event => { setAnnualVolatility(event.target.value); setEstimate(null); setError('') }} />
+      </label>
+      <label>Lattice steps
+        <input required type="number" min="1" max="256" step="1" value={steps}
+          onChange={event => { setSteps(event.target.value); setEstimate(null); setError('') }} />
+      </label>
+      <button className="primary">Price American option</button>
+    </form>
+    {estimate && <p role="status">{estimate.contract} model price {metric(estimate.value)} {dataset.currency}</p>}
+    {error && <p className="warning" role="alert">{error}</p>}
+  </section>
+}
 
 function Surface({ rows }: { rows: OptionReport[] }) {
   const maturities = new Map<number, Map<bigint, { call: OptionReport[]; put: OptionReport[] }>>()
@@ -132,6 +188,7 @@ export function OptionReplay({ core, close }: { core: MarketCore; close: () => v
   }
 
   const underlying = result?.snapshot.underlying
+  const american = result?.snapshot.options.filter(row => row.exerciseStyle === 'american') ?? []
   return (
     <>
       <header className="app-header">
@@ -148,7 +205,7 @@ export function OptionReplay({ core, close }: { core: MarketCore; close: () => v
               <button className="primary" disabled={busy} onClick={startDemo}>Start option demo</button>
             </section>
             <form className="side-card replay-panel" onSubmit={load}>
-              <h2>Open European option quotes</h2>
+              <h2>Open option quotes</h2>
               <label>Underlying CSV
                 <input type="file" accept=".csv,text/csv" required disabled={busy}
                   onChange={event => setUnderlyingFile(event.target.files?.[0] ?? null)} />
@@ -223,7 +280,7 @@ export function OptionReplay({ core, close }: { core: MarketCore; close: () => v
                     <table className="universe-table" aria-label="Option chain results">
                       <thead>
                         <tr>
-                          {['Contract', 'Expiry UTC', 'Side', 'Strike', 'Bid', 'Ask', 'IV', 'Delta', 'Gamma',
+                          {['Contract', 'Expiry UTC', 'Side', 'Exercise', 'Strike', 'Bid', 'Ask', 'IV', 'Delta', 'Gamma',
                             'Vega / point', 'Theta / day', 'Rho / point', 'Quoted UTC', 'Observed UTC'].map(name =>
                             <th scope="col" key={name}>{name}</th>)}
                         </tr>
@@ -232,7 +289,7 @@ export function OptionReplay({ core, close }: { core: MarketCore; close: () => v
                         {result.snapshot.options.map(row => (
                           <tr key={row.id}>
                             <th scope="row">{row.id}</th><td>{utc(row.expiration)}</td>
-                            <td>{row.side}</td><td>{price(row.strike)}</td>
+                            <td>{row.side}</td><td>{row.exerciseStyle}</td><td>{price(row.strike)}</td>
                             <td>{price(row.bid)}</td><td>{price(row.ask)}</td>
                             {typeof row.result === 'string' ? (
                               <td colSpan={6}>{statusText[row.result]}</td>
@@ -257,6 +314,9 @@ export function OptionReplay({ core, close }: { core: MarketCore; close: () => v
                 </>
               )}
             </section>
+            {american.length > 0 && <AmericanPricing
+              key={[result.query.effective, result.query.known, result.query.age].join('/')}
+              core={core} dataset={dataset} query={result.query} contracts={american} />}
           </>
         )}
         {error && <p className="warning replay-error" role="alert">{error}</p>}

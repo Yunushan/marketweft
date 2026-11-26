@@ -1,4 +1,153 @@
-use marketweft_core::{EuropeanOption, ModelError, OptionBook, OptionSide, QuoteStatus};
+use marketweft_core::{
+    EuropeanOption, ExerciseStyle, ModelError, OptionBook, OptionSide, OptionTerms, QuoteStatus,
+    MAX_AMERICAN_STEPS,
+};
+
+#[test]
+fn american_contracts_keep_their_style_and_both_observation_cutoffs() {
+    let quotes = include_str!("fixtures/synthetic-option-quotes.csv");
+    let underlying = include_str!("fixtures/synthetic-option-underlying.csv");
+    let mixed = quotes
+        .replacen("side,expiry", "side,exercise_style,expiry", 1)
+        .replace(",call,", ",call,european,")
+        .replace(",put,", ",put,european,")
+        .replace(
+            "APR-C90,DEMO:OPT,USD,call,european,",
+            "APR-C90,DEMO:OPT,USD,call,american,",
+        );
+    let book = OptionBook::parse(underlying, &mixed).unwrap();
+    let at = marketweft_core::parse_exact_utc("2025-04-03T14:00:00Z").unwrap();
+    let price = |contract, known| book.price_american(contract, at, at + known, 300, 0.25, 128);
+    assert_eq!(price("APR-C90", 119), Err(QuoteStatus::MissingContract));
+    assert_eq!(price("APR-C100", 120), Err(QuoteStatus::EuropeanContract));
+    let first = price("APR-C90", 120).unwrap();
+    let snapshot = book.snapshot(at, at + 120, 300);
+    let row = snapshot
+        .options
+        .iter()
+        .find(|row| row.contract.id == "APR-C90")
+        .unwrap();
+    assert_eq!(row.contract.exercise_style, ExerciseStyle::American);
+    assert_eq!(row.analytics, Err(QuoteStatus::AmericanVolatilityRequired));
+    assert!(price("APR-C90", 180).unwrap() > first);
+    assert_eq!(price("APR-C90", 120), Ok(first));
+    let changed_style = mixed.replacen(
+        "APR-P110,DEMO:OPT,USD,put,european,",
+        "APR-P110,DEMO:OPT,USD,put,american,",
+        1,
+    );
+    assert!(OptionBook::parse(underlying, &changed_style)
+        .err()
+        .unwrap()
+        .to_string()
+        .contains("exercise style"));
+}
+
+#[test]
+fn american_prices_match_independent_decimal_lattices() {
+    // Reference values used a 60-digit decimal implementation that builds each node from its coordinates.
+    let cases = [
+        (
+            100.0,
+            100.0,
+            1.0,
+            0.05,
+            0.0,
+            0.20,
+            OptionSide::Put,
+            128,
+            6.084_087_099_109_57,
+        ),
+        (
+            100.0,
+            95.0,
+            0.5,
+            0.02,
+            0.08,
+            0.25,
+            OptionSide::Call,
+            256,
+            8.268_231_503_776_233,
+        ),
+        (20.0, 40.0, 1.0, 0.05, 0.0, 0.20, OptionSide::Put, 128, 20.0),
+        (
+            100.0,
+            110.0,
+            1.0,
+            -0.015,
+            0.01,
+            0.30,
+            OptionSide::Put,
+            128,
+            19.882_242_135_513_32,
+        ),
+        (
+            100.0,
+            100.0,
+            1.0,
+            0.05,
+            0.0,
+            0.20,
+            OptionSide::Call,
+            256,
+            10.442_775_999_825_86,
+        ),
+    ];
+    for (spot, strike, years, rate, dividend_yield, volatility, side, steps, expected) in cases {
+        let terms = OptionTerms {
+            spot,
+            strike,
+            years,
+            rate,
+            dividend_yield,
+            side,
+        };
+        let actual = terms.american_price(volatility, steps).unwrap();
+        assert!((actual - expected).abs() < 1e-10, "{actual} != {expected}");
+    }
+}
+
+#[test]
+fn american_pricing_bounds_and_deterministic_exercise_are_explicit() {
+    let put = OptionTerms {
+        spot: 20.0,
+        strike: 40.0,
+        years: 1.0,
+        rate: 0.05,
+        dividend_yield: 0.0,
+        side: OptionSide::Put,
+    };
+    assert_eq!(put.american_price(0.0, 128), Ok(20.0));
+    let call = OptionTerms {
+        spot: 110.0,
+        strike: 100.0,
+        side: OptionSide::Call,
+        ..put
+    };
+    let terminal = call.spot - call.strike * (-call.rate * call.years).exp();
+    assert!((call.american_price(0.0, 128).unwrap() - terminal).abs() < 1e-12);
+    for (volatility, steps) in [
+        (f64::NAN, 128),
+        (-0.1, 128),
+        (0.2, 0),
+        (0.2, MAX_AMERICAN_STEPS + 1),
+        (0.001, 1),
+    ] {
+        assert_eq!(
+            put.american_price(volatility, steps),
+            Err(ModelError::InputsOutOfRange)
+        );
+    }
+    let extreme = OptionTerms {
+        spot: 2_000_000_000.0,
+        years: 10.0,
+        ..call
+    };
+    assert!(extreme
+        .american_price(10.0, MAX_AMERICAN_STEPS)
+        .unwrap()
+        .is_finite());
+}
 
 const INPUTS: &str = include_str!("fixtures/synthetic-option-underlying.csv");
 const QUOTES: &str = include_str!("fixtures/synthetic-option-quotes.csv");

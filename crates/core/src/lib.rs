@@ -77,10 +77,12 @@ pub use history::{exact_utc as parse_exact_utc, parse_csv, Bar};
 pub use indicator::{indicator, Average};
 pub use macro_calendar::{MacroCalendar, ReleaseRecord, ReleaseSnapshot, ReportKind};
 pub use option_chain::{
-    ChainSnapshot, Contract, OptionBook, OptionBookError, OptionQuote, OptionRow, QuoteStatus,
-    Underlying, UnderlyingQuote,
+    ChainSnapshot, Contract, ExerciseStyle, OptionBook, OptionBookError, OptionQuote, OptionRow,
+    QuoteStatus, Underlying, UnderlyingQuote,
 };
-pub use option_price::{EuropeanOption, ModelError, OptionAnalytics, OptionSide};
+pub use option_price::{
+    EuropeanOption, ModelError, OptionAnalytics, OptionSide, OptionTerms, MAX_AMERICAN_STEPS,
+};
 pub use paper::{
     Action as PaperAction, Apply as PaperApply, LedgerError as PaperError, Order as PaperOrder,
     OrderStatus as PaperOrderStatus, PaperAccount, PaperConfig, PaperEvent, PaperReceipt,

@@ -416,6 +416,7 @@ export interface OptionAnalytics {
 const unavailableOptions = [
   'expired', 'stale-option', 'missing-bid-ask', 'crossed', 'missing-underlying',
   'stale-underlying', 'model-range', 'price-bounds', 'unresolved-vol',
+  'american-volatility-required', 'missing-contract', 'european-contract',
 ] as const;
 
 export type OptionUnavailable = typeof unavailableOptions[number];
@@ -425,6 +426,7 @@ export interface OptionReport {
   expiration: number;
   strike: bigint;
   side: 'call' | 'put';
+  exerciseStyle: 'european' | 'american';
   at: number;
   observedAt: number;
   bid: bigint | null;
@@ -811,6 +813,8 @@ export interface MarketCore {
   macroAsOf(csv: string, published: string, known: string): MacroRelease[];
   optionIndex(underlying: string, quotes: string): OptionSource;
   optionSnapshot(underlying: string, quotes: string, effective: string, known: string, maxAge: number): OptionSnapshot;
+  americanOptionPrice(underlying: string, quotes: string, contract: string, effective: string, known: string,
+    maxAge: number, volatility: number, steps: number): number | OptionUnavailable;
   alertIndex(rules: string, observations: string): number;
   alertReplay(rules: string, observations: string, effective: string, known: string): AlertCrossing[];
   paperIndex(csv: string): number[];
@@ -879,6 +883,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_macro_as_of(): number;
   mw_option_index(underlyingBytes: number): number;
   mw_option_snapshot(underlyingBytes: number, maxAge: number): number;
+  mw_american_option_price(underlyingBytes: number, maxAge: number, volatility: number, steps: number): number;
   mw_alert_index(ruleBytes: number): number;
   mw_alert_replay(ruleBytes: number): number;
   mw_paper_index(): number;
@@ -1880,6 +1885,10 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
             rate: BigInt(rate), dividendYield: BigInt(dividendYield) };
         } else if (type === 'Q') {
           const [id, expiration, strike, side, at, observedAt, bid, ask, status, ...values] = fields;
+          const analyticsFields = status === 'ok' ? 7 : 0;
+          const exerciseStyle = values.length === analyticsFields ? 'european' : values.pop();
+          if ((exerciseStyle !== 'european' && exerciseStyle !== 'american') || values.length !== analyticsFields)
+            throw new Error('Invalid option exercise style from the calculation engine.');
           let result: OptionAnalytics | OptionUnavailable;
           if (status === 'ok') {
             const [volatility, price, delta, gamma, vega, theta, rho] = values.map(Number);
@@ -1890,7 +1899,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
             result = issue;
           }
           if (side !== 'call' && side !== 'put') throw new Error('Invalid option side from the calculation engine.');
-          snapshot.options.push({ id, expiration: Number(expiration), strike: BigInt(strike), side,
+          snapshot.options.push({ id, expiration: Number(expiration), strike: BigInt(strike), side, exerciseStyle,
             at: Number(at), observedAt: Number(observedAt),
             bid: bid === '' ? null : BigInt(bid), ask: ask === '' ? null : BigInt(ask), result });
         } else {
@@ -1898,6 +1907,26 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         }
       }
       return snapshot;
+    },
+    americanOptionPrice(underlying, quotes, contract, effective, known, maxAge, volatility, steps) {
+      if (!/^[A-Za-z0-9._-]{1,40}$/.test(contract))
+        throw new Error('Select a valid American contract ID.');
+      if ([effective, known].some(value => value.length !== 20 || /[\n\r]/.test(value)))
+        throw new Error('Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
+      if (!Number.isInteger(maxAge) || maxAge < 0 || maxAge > 0xffffffff)
+        throw new Error('Maximum quote age must be a whole number from 0 to 4,294,967,295 seconds.');
+      if (!Number.isFinite(volatility) || volatility < 0 || volatility > 10 ||
+          !Number.isInteger(steps) || steps < 1 || steps > 256)
+        throw new Error('Use annual volatility from 0 to 10 and 1 to 256 whole pricing steps.');
+      textInput([contract, effective, known, underlying + quotes].join('\n'));
+      const text = decoder.decode(output(api.mw_american_option_price(
+        encoder.encode(underlying).length, maxAge, volatility, steps,
+      )));
+      const [status, value] = text.split('\t');
+      if (status === 'value' && value && Number.isFinite(Number(value))) return Number(value);
+      const issue = unavailableOptions.find(candidate => candidate === status);
+      if (issue) return issue;
+      throw new Error('Invalid American option price from the calculation engine.');
     },
     alertIndex(rules, observations) {
       textInput(rules + observations);
