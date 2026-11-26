@@ -16,6 +16,7 @@ mod replay;
 mod screen;
 mod sector;
 mod universe;
+mod walk_forward;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
@@ -46,6 +47,9 @@ pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use screen::{PriceBook, PriceObservation, ScreenRow};
 pub use sector::{Classification, Heatmap, HeatmapListing, SectorGroup};
 pub use universe::{parse_universe, UniverseAction, UniverseBook, UniverseChange};
+pub use walk_forward::{
+    walk_forward, CandidateScore, SmaCandidate, WalkForwardConfig, WalkForwardFold,
+};
 
 pub const SCALE: i64 = 1_000_000;
 /// Bound keeps each six-place tick distinguishable through the browser number boundary.

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { BacktestConfig, BacktestResult, MarketCore, PaperConfig } from './market-core'
+import type { BacktestConfig, BacktestResult, MarketCore, PaperConfig, WalkForwardConfig, WalkForwardFold } from './market-core'
 import { Mark } from './Icons'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
@@ -74,6 +74,91 @@ function Equity({ marks }: { marks: BacktestResult['marks'] }) {
     return () => resize.disconnect()
   }, [marks])
   return <canvas ref={ref} className="backtest-equity" role="img" aria-label="Equity over observed bar closes" />
+}
+
+function WalkForward({ book, execution, core }: { book: Book; execution: BacktestConfig; core: MarketCore }) {
+  const [at, setAt] = useState(() => utc(book.times[book.times.length - 1]))
+  const [config, setConfig] = useState<WalkForwardConfig>({ trainingBars: '6', testBars: '2', candidates: '1:2, 2:3' })
+  const [search, setSearch] = useState<{ at: string; folds: WalkForwardFold[] } | null>(null)
+  const [selected, setSelected] = useState(0)
+  const [error, setError] = useState('')
+  const fold = search?.folds[selected]
+  const end = fold?.test.marks.at(-1)
+
+  function run(event: FormEvent) {
+    event.preventDefault()
+    try {
+      const cutoff = at.trim()
+      const folds = core.walkForward(book.instrument, book.calendar, book.bars, book.interval, cutoff, execution, config)
+      setSearch({ at: cutoff, folds })
+      setSelected(0)
+      setError('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not run walk-forward validation.')
+    }
+  }
+
+  return (
+    <section className="side-card replay-panel replay-results" aria-labelledby="walk-forward-title">
+      <h2 id="walk-forward-title">Walk-forward validation</h2>
+      <p>Choose SMA pairs on training bars and test the winner on the following bars. Each test starts with the configured cash and an empty portfolio.</p>
+      <form onSubmit={run} className="universe-query">
+        <label>Walk-forward cutoff (UTC)
+          <input required value={at} onChange={event => setAt(event.target.value)} />
+        </label>
+        <label>Training bars
+          <input required type="number" min="3" max="5000" value={config.trainingBars}
+            onChange={event => setConfig({ ...config, trainingBars: event.target.value })} />
+        </label>
+        <label>Test bars
+          <input required type="number" min="1" max="5000" value={config.testBars}
+            onChange={event => setConfig({ ...config, testBars: event.target.value })} />
+        </label>
+        <label>Candidate SMA pairs (fast:slow)
+          <input required value={config.candidates}
+            onChange={event => setConfig({ ...config, candidates: event.target.value })} />
+        </label>
+        <button className="primary">Run walk-forward validation</button>
+      </form>
+      {error && <p role="alert" className="warning replay-error">{error}</p>}
+      {search && <p role="status">
+        {search.folds.length} completed {search.folds.length === 1 ? 'fold' : 'folds'} · Known through {search.at}
+      </p>}
+      {search && fold && (
+        <>
+          <label>Completed fold
+            <select value={selected} onChange={event => setSelected(Number(event.target.value))}>
+              {search.folds.map((item, index) => (
+                <option key={item.testStart} value={index}>{index + 1} · Test begins {utc(item.testStart)}</option>
+              ))}
+            </select>
+          </label>
+          <dl className="replay-times">
+            <div><dt>Training started (UTC)</dt><dd>{utc(fold.trainingStart)}</dd></div>
+            <div><dt>Training ended (UTC)</dt><dd>{utc(fold.trainingEnd)}</dd></div>
+            <div><dt>Test started (UTC)</dt><dd>{utc(fold.testStart)}</dd></div>
+            <div><dt>Test ended (UTC)</dt><dd>{utc(fold.testEnd)}</dd></div>
+            <div><dt>Selected SMA pair</dt><dd>{fold.selected.fast}:{fold.selected.slow}</dd></div>
+            <div><dt>Test ending equity</dt><dd>{money(end?.equity ?? fold.test.ledger.cash)}</dd></div>
+            <div><dt>Test maximum drawdown</dt><dd>{money(fold.test.drawdown)}</dd></div>
+          </dl>
+          <div className="replay-table-scroll">
+            <table className="universe-table" aria-label="Training candidate scores">
+              <thead><tr><th scope="col">SMA pair</th><th scope="col">Ending equity</th>
+                <th scope="col">Maximum drawdown</th><th scope="col">Accepted fills</th></tr></thead>
+              <tbody>{fold.scores.map(score => (
+                <tr key={score.fast + ':' + score.slow}>
+                  <th scope="row">{score.fast}:{score.slow}</th><td>{money(score.equity)}</td>
+                  <td>{money(score.drawdown)}</td><td>{score.fills}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          <Equity marks={fold.test.marks} />
+        </>
+      )}
+    </section>
+  )
 }
 
 export function BacktestReplay({ core, close }: { core: MarketCore; close: () => void }) {
@@ -264,6 +349,7 @@ export function BacktestReplay({ core, close }: { core: MarketCore; close: () =>
                 </table>
               </div>
             </section>
+            <WalkForward book={book} execution={view.query.config} core={core} />
           </>
         )}
         {error && <p role="alert" className="warning replay-error">{error}</p>}

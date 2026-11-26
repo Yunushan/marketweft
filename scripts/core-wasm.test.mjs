@@ -32,6 +32,30 @@ test('backtest Wasm waits for observed liquidity and preserves marks and paper r
   assert.deepEqual(end.marks.slice(0, partial.marks.length), partial.marks);
 });
 
+test('walk-forward Wasm decodes complete chronological folds and training-only scores', async () => {
+  const read = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');
+  const [calendar, bars] = await Promise.all([read('sessions'), read('bars')]);
+  const paper = { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' };
+  const execution = { paper, fastWindow: '2', slowWindow: '3', targetShares: '6', participation: '1000',
+    slippage: '0', limitBuffer: '2000', maxWait: '3' };
+  const config = { trainingBars: '6', testBars: '2', candidates: '2:3, 1:2' };
+  const run = (at, settings = config) => core.walkForward('DEMO:SMA', calendar, bars, 60,
+    '2025-04-03T' + at + 'Z', execution, settings);
+  assert.deepEqual(run('14:08:00'), []);
+  const [first] = run('14:09:00');
+  assert.deepEqual(first.selected, { fast: 1, slow: 2 });
+  assert.deepEqual(first.scores.map(score => [score.fast, score.slow, score.equity, score.fills]), [
+    [1, 2, 1003400000n, 1], [2, 3, 997800000n, 1],
+  ]);
+  assert.equal(first.test.marks[0].cash, 1000000000n);
+  assert.deepEqual(first.test.marks.map(mark => mark.at), [first.testStart, first.testEnd]);
+  const final = run('14:11:00');
+  assert.equal(final.length, 2);
+  assert.deepEqual(final[0], first);
+  assert.ok(final[1].testStart > first.testEnd);
+  assert.throws(() => run('14:11:00', { ...config, candidates: '1:2, 1:2' }), /unique SMA pairs/);
+});
+
 test('paper replay Wasm reconciles cash, fees and observed unique fills', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-paper-events.csv', import.meta.url), 'utf8');
   const config = { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' };

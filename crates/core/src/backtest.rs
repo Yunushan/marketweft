@@ -50,12 +50,60 @@ struct Pending {
     side: PaperSide,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct ObservedBar<'a> {
+    pub index: usize,
+    pub at: i64,
+    bar: &'a Bar,
+}
+
 pub fn backtest(
     instrument: &Instrument,
     sessions: &[Session],
     bars: &[Bar],
     interval: u32,
     through: i64,
+    config: BacktestConfig,
+) -> Result<BacktestReport, String> {
+    let mut observations = prepare_observations(instrument, sessions, bars, interval)?;
+    observations.truncate(observations.partition_point(|row| row.at <= through));
+    evaluate(instrument, &observations, 0, config)
+}
+
+pub(crate) fn prepare_observations<'a>(
+    instrument: &Instrument,
+    sessions: &[Session],
+    bars: &'a [Bar],
+    interval: u32,
+) -> Result<Vec<ObservedBar<'a>>, String> {
+    if bars.len() > MAX_REPLAY_BARS
+        || bars.iter().any(|bar| {
+            !(1..=MAX_TICKS).contains(&bar.close) || !(0..=MAX_TICKS).contains(&bar.volume)
+        })
+    {
+        return Err("Supply up to 5,000 bars with positive close and nonnegative volume.".into());
+    }
+    if Instrument::new(&instrument.venue, &instrument.symbol)? != *instrument {
+        return Err("Use a canonical VENUE:SYMBOL for backtesting.".into());
+    }
+    let times: Vec<_> = bars.iter().map(|bar| bar.time).collect();
+    Ok(replay(sessions, &times, interval)?
+        .into_iter()
+        .filter_map(|event| {
+            let index = event.bar_index?;
+            Some(ObservedBar {
+                index,
+                at: event.observed_at,
+                bar: &bars[index],
+            })
+        })
+        .collect())
+}
+
+pub(crate) fn evaluate(
+    instrument: &Instrument,
+    observations: &[ObservedBar<'_>],
+    trade_from: usize,
     config: BacktestConfig,
 ) -> Result<BacktestReport, String> {
     if config.fast_window == 0
@@ -71,18 +119,6 @@ pub fn backtest(
             "Invalid backtest windows, target, participation, slippage, buffer or wait.".into(),
         );
     }
-    if bars.len() > MAX_REPLAY_BARS
-        || bars.iter().any(|bar| {
-            !(1..=MAX_TICKS).contains(&bar.close) || !(0..=MAX_TICKS).contains(&bar.volume)
-        })
-    {
-        return Err("Supply up to 5,000 bars with positive close and nonnegative volume.".into());
-    }
-    if Instrument::new(&instrument.venue, &instrument.symbol)? != *instrument {
-        return Err("Use a canonical VENUE:SYMBOL for backtesting.".into());
-    }
-    let times: Vec<_> = bars.iter().map(|bar| bar.time).collect();
-    let events = replay(sessions, &times, interval)?;
     let mut ledger = PaperAccount::new(config.paper).map_err(|_| "Invalid paper configuration.")?;
     let mut pending: Option<Pending> = None;
     let mut sums = vec![0_i128];
@@ -92,15 +128,8 @@ pub fn backtest(
     let instrument_key = instrument.to_string();
     let mut peak = config.paper.starting_cash;
     let mut largest_drawdown = 0;
-    for event in events
-        .into_iter()
-        .take_while(|event| event.observed_at <= through)
-    {
-        let Some(index) = event.bar_index else {
-            continue;
-        };
-        let bar = &bars[index];
-        let at = event.observed_at;
+    for (cursor, &ObservedBar { index, at, bar }) in observations.iter().enumerate() {
+        let trading = cursor >= trade_from;
         let observed_bar = marks.len();
         if let Some(order) = &pending {
             if observed_bar - order.started > config.max_wait_bars {
@@ -153,7 +182,7 @@ pub fn backtest(
                 _ => None,
             };
             previous_relation = Some(relation);
-            if let Some(side) = side {
+            if let Some(side) = side.filter(|_| trading) {
                 signals.push(BacktestSignal {
                     at,
                     bar_index: index,
@@ -202,6 +231,9 @@ pub fn backtest(
                     }
                 }
             }
+        }
+        if !trading {
+            continue;
         }
         let shares = ledger
             .positions()

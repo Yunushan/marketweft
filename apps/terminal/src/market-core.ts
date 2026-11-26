@@ -295,6 +295,22 @@ export interface BacktestResult {
   marks: { at: number; close: bigint; cash: bigint; shares: bigint; equity: bigint }[];
 }
 
+export interface WalkForwardConfig {
+  trainingBars: string;
+  testBars: string;
+  candidates: string;
+}
+
+export interface WalkForwardFold {
+  trainingStart: number;
+  trainingEnd: number;
+  testStart: number;
+  testEnd: number;
+  selected: { fast: number; slow: number };
+  scores: { fast: number; slow: number; equity: bigint; drawdown: bigint; fills: number }[];
+  test: BacktestResult;
+}
+
 export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
@@ -322,6 +338,8 @@ export interface MarketCore {
   backtestIndex(calendar: string, bars: string, interval: number): number[];
   backtest(instrument: string, calendar: string, bars: string, interval: number,
     cutoff: string, config: BacktestConfig): BacktestResult;
+  walkForward(instrument: string, calendar: string, bars: string, interval: number,
+    cutoff: string, execution: BacktestConfig, config: WalkForwardConfig): WalkForwardFold[];
 }
 
 interface MarketExports extends WebAssembly.Exports {
@@ -353,6 +371,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_paper_replay(): number;
   mw_backtest_index(calendarBytes: number, interval: number): number;
   mw_backtest(calendarBytes: number, interval: number): number;
+  mw_walk_forward(calendarBytes: number, interval: number): number;
 }
 
 const SCALE = 1_000_000;
@@ -360,6 +379,40 @@ const MISSING = -(1n << 63n);
 const LIMIT = 8 * 1024 * 1024;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+
+function backtestHeader(instrument: string, cutoff: string, config: BacktestConfig) {
+  if (cutoff.length !== 20 || /[\n\r]/.test(instrument + cutoff)) {
+    throw new Error('Use an instrument and a YYYY-MM-DDTHH:MM:SSZ UTC observation cutoff.');
+  }
+  const settings = [config.fastWindow, config.slowWindow, config.targetShares,
+    config.participation, config.slippage, config.limitBuffer, config.maxWait].map(value => value.trim());
+  if (settings.some(value => !/^\d+$/.test(value))) {
+    throw new Error('Use whole-number strategy settings.');
+  }
+  return [instrument, cutoff, paperSettings(config.paper), settings.join(',')];
+}
+
+function decodeBacktest(lines: string[]): BacktestResult {
+  const paper: string[] = [];
+  const signals: BacktestResult['signals'] = [];
+  const marks: BacktestResult['marks'] = [];
+  let drawdown = 0n;
+  for (const line of lines) {
+    const [type, ...fields] = line.split('\t');
+    if (type === 'D') {
+      drawdown = BigInt(fields[0]);
+    } else if (type === 'S') {
+      const [at, index, side] = fields;
+      signals.push({ at: Number(at), barIndex: Number(index), side });
+    } else if (type === 'M') {
+      const [at, close, cash, shares, equity] = fields;
+      marks.push({ at: Number(at), close: BigInt(close), cash: BigInt(cash), shares: BigInt(shares), equity: BigInt(equity) });
+    } else {
+      paper.push(line);
+    }
+  }
+  return { ledger: decodePaper(paper.join('\n') + '\n'), drawdown, signals, marks };
+}
 
 function decodePaper(text: string): PaperSnapshot {
   const [header, ...rows] = text.slice(0, -1).split('\n');
@@ -748,35 +801,35 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     },
     backtest(instrument, calendar, bars, interval, cutoff, config) {
       validateInterval(interval);
-      if (cutoff.length !== 20 || /[\n\r]/.test(instrument + cutoff)) {
-        throw new Error('Use an instrument and a YYYY-MM-DDTHH:MM:SSZ UTC observation cutoff.');
-      }
-      const settings = [config.fastWindow, config.slowWindow, config.targetShares,
-        config.participation, config.slippage, config.limitBuffer, config.maxWait].map(value => value.trim());
-      if (settings.some(value => !/^\d+$/.test(value))) {
-        throw new Error('Use whole-number strategy settings.');
-      }
-      textInput([instrument, cutoff, paperSettings(config.paper), settings.join(','), calendar + bars].join('\n'));
+      textInput([...backtestHeader(instrument, cutoff, config), calendar + bars].join('\n'));
       const text = decoder.decode(output(api.mw_backtest(encoder.encode(calendar).length, interval)));
-      const paper: string[] = [];
-      const signals: BacktestResult['signals'] = [];
-      const marks: BacktestResult['marks'] = [];
-      let drawdown = 0n;
-      for (const line of text.slice(0, -1).split('\n')) {
-        const [type, ...fields] = line.split('\t');
-        if (type === 'D') {
-          drawdown = BigInt(fields[0]);
-        } else if (type === 'S') {
-          const [at, index, side] = fields;
-          signals.push({ at: Number(at), barIndex: Number(index), side });
-        } else if (type === 'M') {
-          const [at, close, cash, shares, equity] = fields;
-          marks.push({ at: Number(at), close: BigInt(close), cash: BigInt(cash), shares: BigInt(shares), equity: BigInt(equity) });
-        } else {
-          paper.push(line);
-        }
+      return decodeBacktest(text.slice(0, -1).split('\n'));
+    },
+    walkForward(instrument, calendar, bars, interval, cutoff, execution, config) {
+      validateInterval(interval);
+      const lengths = [config.trainingBars.trim(), config.testBars.trim()];
+      const candidates = config.candidates.split(',').map(pair => pair.trim());
+      if (lengths.some(length => !/^\d+$/.test(length)) || candidates.some(pair => !/^\d+:\d+$/.test(pair))) {
+        throw new Error('Use whole-number fold lengths and comma-separated fast:slow candidate pairs.');
       }
-      return { ledger: decodePaper(paper.join('\n') + '\n'), drawdown, signals, marks };
+      const header = backtestHeader(instrument, cutoff, { ...execution, fastWindow: '1', slowWindow: '2' });
+      textInput([...header, [...lengths, ...candidates].join(','), calendar + bars].join('\n'));
+      const text = decoder.decode(output(api.mw_walk_forward(encoder.encode(calendar).length, interval)));
+      if (!text) return [];
+      return text.slice(2, -1).split('\nF\t').map(block => {
+        const [heading, ...lines] = block.split('\n');
+        const [trainingStart, trainingEnd, testStart, testEnd, fast, slow] = heading.split('\t').map(Number);
+        const scores: WalkForwardFold['scores'] = [];
+        let result = 0;
+        while (lines[result]?.startsWith('C\t')) {
+          const [, candidateFast, candidateSlow, equity, drawdown, fills] = lines[result].split('\t');
+          scores.push({ fast: Number(candidateFast), slow: Number(candidateSlow), equity: BigInt(equity),
+            drawdown: BigInt(drawdown), fills: Number(fills) });
+          result += 1;
+        }
+        return { trainingStart, trainingEnd, testStart, testEnd, selected: { fast, slow }, scores,
+          test: decodeBacktest(lines.slice(result)) };
+      });
     },
     splitBook(instrument, csv) {
       textInput(instrument + '\n' + csv);

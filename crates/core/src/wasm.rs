@@ -540,67 +540,151 @@ pub extern "C" fn mw_backtest_index(calendar_bytes: usize, interval: u32) -> u32
     })
 }
 
+fn backtest_request(input: &str) -> Result<(Instrument, i64, crate::BacktestConfig, &str), String> {
+    let mut parts = input.splitn(5, '\n');
+    let (venue, symbol) = parts
+        .next()
+        .and_then(|identity| identity.split_once(':'))
+        .ok_or("Use a backtest venue and symbol.")?;
+    let instrument = Instrument::new(venue, symbol)?;
+    let through = parts
+        .next()
+        .and_then(exact_utc)
+        .ok_or("Use a YYYY-MM-DDTHH:MM:SSZ UTC observation cutoff.")?;
+    let paper = parse_paper_config(parts.next().ok_or("Supply paper account settings.")?)?;
+    let settings = parts
+        .next()
+        .ok_or("Supply backtest strategy settings.")?
+        .split(',')
+        .map(|value| value.parse::<u32>())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Use whole-number strategy settings.")?;
+    let [fast, slow, target, participation, slippage, buffer, wait] = settings.as_slice() else {
+        return Err("Expected seven strategy settings.".into());
+    };
+    let basis_points = |value: u32| {
+        u16::try_from(value).map_err(|_| "Basis points are outside the allowed range.")
+    };
+    let config = crate::BacktestConfig {
+        paper,
+        fast_window: *fast as usize,
+        slow_window: *slow as usize,
+        target_shares: u64::from(*target),
+        participation_bps: basis_points(*participation)?,
+        slippage_bps: basis_points(*slippage)?,
+        limit_buffer_bps: basis_points(*buffer)?,
+        max_wait_bars: *wait as usize,
+    };
+    Ok((
+        instrument,
+        through,
+        config,
+        parts.next().ok_or("Supply backtest history.")?,
+    ))
+}
+
+fn encode_backtest(text: &mut String, report: crate::BacktestReport) {
+    use std::fmt::Write;
+    text.push_str(&encode_paper(&report.ledger));
+    writeln!(text, "D\t{}", report.largest_drawdown).unwrap();
+    for signal in report.signals {
+        let side = if signal.side == PaperSide::Buy {
+            "buy"
+        } else {
+            "sell"
+        };
+        writeln!(text, "S\t{}\t{}\t{side}", signal.at, signal.bar_index).unwrap();
+    }
+    for mark in report.marks {
+        writeln!(
+            text,
+            "M\t{}\t{}\t{}\t{}\t{}",
+            mark.at, mark.close, mark.cash, mark.shares, mark.equity
+        )
+        .unwrap();
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn mw_backtest(calendar_bytes: usize, interval: u32) -> u32 {
+    process(|input| {
+        let (instrument, through, config, history) = backtest_request(utf8(input)?)?;
+        let (sessions, bars) = backtest_inputs(history, calendar_bytes)?;
+        let report = crate::backtest(&instrument, &sessions, &bars, interval, through, config)?;
+        let mut text = String::new();
+        encode_backtest(&mut text, report);
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_walk_forward(calendar_bytes: usize, interval: u32) -> u32 {
     use std::fmt::Write;
     process(|input| {
-        let mut parts = utf8(input)?.splitn(5, '\n');
-        let (venue, symbol) = parts
-            .next()
-            .and_then(|identity| identity.split_once(':'))
-            .ok_or("Use a backtest venue and symbol.")?;
-        let instrument = Instrument::new(venue, symbol)?;
-        let through = parts
-            .next()
-            .and_then(exact_utc)
-            .ok_or("Use a YYYY-MM-DDTHH:MM:SSZ UTC observation cutoff.")?;
-        let paper = parse_paper_config(parts.next().ok_or("Supply paper account settings.")?)?;
-        let settings = parts
-            .next()
-            .ok_or("Supply backtest strategy settings.")?
-            .split(',')
-            .map(|value| value.parse::<u32>())
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| "Use whole-number strategy settings.")?;
-        let [fast, slow, target, participation, slippage, buffer, wait] = settings.as_slice()
-        else {
-            return Err("Expected seven strategy settings.".into());
+        let (instrument, through, execution, remainder) = backtest_request(utf8(input)?)?;
+        let (settings, history) = remainder
+            .split_once('\n')
+            .ok_or("Supply walk-forward settings.")?;
+        let mut fields = settings.split(',');
+        let mut length = || {
+            fields
+                .next()
+                .and_then(|value| value.parse().ok())
+                .ok_or("Supply whole-number fold lengths.")
         };
-        let basis_points = |value: u32| {
-            u16::try_from(value).map_err(|_| "Basis points are outside the allowed range.")
-        };
-        let config = crate::BacktestConfig {
-            paper,
-            fast_window: *fast as usize,
-            slow_window: *slow as usize,
-            target_shares: u64::from(*target),
-            participation_bps: basis_points(*participation)?,
-            slippage_bps: basis_points(*slippage)?,
-            limit_buffer_bps: basis_points(*buffer)?,
-            max_wait_bars: *wait as usize,
-        };
-        let (sessions, bars) = backtest_inputs(
-            parts.next().ok_or("Supply backtest history.")?,
-            calendar_bytes,
-        )?;
-        let report = crate::backtest(&instrument, &sessions, &bars, interval, through, config)?;
-        let mut text = encode_paper(&report.ledger);
-        writeln!(&mut text, "D\t{}", report.largest_drawdown).unwrap();
-        for signal in report.signals {
-            let side = if signal.side == PaperSide::Buy {
-                "buy"
-            } else {
-                "sell"
-            };
-            writeln!(&mut text, "S\t{}\t{}\t{side}", signal.at, signal.bar_index).unwrap();
+        let training_bars = length()?;
+        let test_bars = length()?;
+        let mut candidates = Vec::new();
+        for field in fields {
+            if candidates.len() == 64 {
+                return Err("Supply at most 64 candidate SMA pairs.".into());
+            }
+            let (fast, slow) = field
+                .split_once(':')
+                .ok_or("Supply candidate pairs as fast:slow.")?;
+            candidates.push(crate::SmaCandidate {
+                fast: fast
+                    .parse()
+                    .map_err(|_| "Use whole-number candidate windows.")?,
+                slow: slow
+                    .parse()
+                    .map_err(|_| "Use whole-number candidate windows.")?,
+            });
         }
-        for mark in report.marks {
+        let (sessions, bars) = backtest_inputs(history, calendar_bytes)?;
+        let mut text = String::new();
+        let policy = crate::WalkForwardConfig {
+            training_bars,
+            test_bars,
+            candidates: &candidates,
+            execution,
+        };
+        for fold in crate::walk_forward(&instrument, &sessions, &bars, interval, through, &policy)?
+        {
             writeln!(
-                &mut text,
-                "M\t{}\t{}\t{}\t{}\t{}",
-                mark.at, mark.close, mark.cash, mark.shares, mark.equity
+                text,
+                "F\t{}\t{}\t{}\t{}\t{}\t{}",
+                fold.training_start,
+                fold.training_end,
+                fold.test_start,
+                fold.test_end,
+                fold.selected.fast,
+                fold.selected.slow
             )
             .unwrap();
+            for score in fold.scores {
+                writeln!(
+                    text,
+                    "C\t{}\t{}\t{}\t{}\t{}",
+                    score.window.fast,
+                    score.window.slow,
+                    score.equity,
+                    score.drawdown,
+                    score.accepted_fills
+                )
+                .unwrap();
+            }
+            encode_backtest(&mut text, fold.out_of_sample);
         }
         Ok(text.into_bytes())
     })
