@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.32.0 · Recorded market depth
+
+| Check | Observed result |
+| --- | --- |
+| Exact frame replay | The first eligible snapshot appears at 14:00:02 UTC. The next update removes the old best bid and yields a best bid of 99.5 with size 4, and a best ask of 100.25 with size 3.25. Observation and event timestamps remain distinct. |
+| Gap and recovery | At 14:00:05 UTC the missing sequence 9007199254740995 suppresses both sides. At 14:00:09 UTC a full snapshot and a same-second update recover a signed bid with size 0.000001. A later crossed book stays unavailable until an explicit empty snapshot resets it. |
+| Offline export | CSV preserves sequences above the JavaScript safe integer range, exact level sizes, source labels and the lack of levels during a gap. The ladder limits display to 50 levels per side while export retains all observations. Invalid files preserve the prior view and the saved catalog. |
+| Regression suite | All 73 browser, six SDK and four launcher tests passed on Windows x64. All 74 native tests passed on Linux x64, all 28 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Recorded market depth](recorded-depth.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.31.0 · Aligned relative returns
 
 | Check | Observed result |
