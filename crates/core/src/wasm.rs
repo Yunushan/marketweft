@@ -656,6 +656,95 @@ pub extern "C" fn mw_portfolio_scenarios(membership_bytes: usize) -> u32 {
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_cross_section_replay(membership_bytes: usize, price_bytes: usize) -> u32 {
+    process(|input| {
+        let ([from_at, through_at, known_at], rest) = screen_inputs(input)?;
+        let mut fields = rest.splitn(3, '\n');
+        let settings = fields.next().ok_or("Supply ranking settings.")?;
+        let paper = parse_paper_config(fields.next().ok_or("Supply paper settings.")?)?;
+        let csvs = fields
+            .next()
+            .ok_or("Supply membership, price and liquidity reports.")?;
+        let (membership, rest) = csvs
+            .split_at_checked(membership_bytes)
+            .ok_or("Invalid membership data.")?;
+        let (prices, liquidity) = rest
+            .split_at_checked(price_bytes)
+            .ok_or("Invalid price data.")?;
+        let [decision, lookback, top, target, buffer, participation] = settings
+            .split(',')
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|_| "Supply six ranking settings.")?;
+        let error = |_| "Use whole numbers for ranking settings.";
+        let query = crate::CrossSectionConfig {
+            from_at,
+            through_at,
+            known_at,
+            paper,
+            decision_seconds: decision.parse().map_err(error)?,
+            lookback_seconds: lookback.parse().map_err(error)?,
+            top_listings: top.parse().map_err(error)?,
+            target_shares: target.parse().map_err(error)?,
+            limit_buffer_bps: buffer.parse().map_err(error)?,
+            participation_bps: participation.parse().map_err(error)?,
+        };
+        let universe = parse_universe(membership)?;
+        let book = PriceBook::parse(&universe, prices)?;
+        let tape = crate::LiquidityTape::parse(&universe, liquidity)?;
+        Ok(encode_cross_section(book.cross_section_replay(&tape, query)?).into_bytes())
+    })
+}
+
+fn encode_cross_section(report: crate::CrossSectionReport) -> String {
+    use std::fmt::Write;
+    let mut text = String::new();
+    writeln!(
+        &mut text,
+        "H\t{}\t{}\t{}\t{}\t{}",
+        report.cash,
+        report.reserved_cash,
+        report.fees,
+        report.turnover,
+        optional_number(report.equity)
+    )
+    .unwrap();
+    for row in report.decisions {
+        writeln!(
+            &mut text,
+            "D\t{}\t{}\t{}\t{}",
+            row.at,
+            row.eligible_count,
+            row.missing_count,
+            row.selected.join(",")
+        )
+        .unwrap();
+    }
+    for row in report.positions {
+        writeln!(
+            &mut text,
+            "P\t{}\t{}\t{}\t{}",
+            row.listing_id,
+            row.shares,
+            row.cost,
+            optional_number(row.mark)
+        )
+        .unwrap();
+    }
+    for row in report.events {
+        let side = match row.side {
+            Some(PaperSide::Buy) => "buy",
+            Some(PaperSide::Sell) => "sell",
+            None => "",
+        };
+        let fields = paper_event_fields(&row.event.action);
+        write!(&mut text, "E\t{}\t{side}\t", row.listing_id).unwrap();
+        write_paper_receipt(&mut text, &row.event, &row.receipt, fields);
+    }
+    text
+}
+
 struct PairInputs<'a> {
     times: [i64; 3],
     listing_ids: [&'a str; 2],
@@ -939,53 +1028,76 @@ fn encode_paper(ledger: &crate::PaperAccount) -> String {
         .unwrap();
     }
     for (event, receipt) in ledger.history() {
-        let (order, kind, source, price_at, shares, price) = match &event.action {
-            PaperAction::Submit {
-                order_id,
-                shares,
-                limit,
-                ..
-            } => (
-                order_id.as_str(),
-                "submit",
-                "",
-                None,
-                Some(*shares),
-                Some(*limit),
-            ),
-            PaperAction::Fill {
-                order_id,
-                source_id,
-                price_at,
-                shares,
-                price,
-            } => (
-                order_id.as_str(),
-                "fill",
-                source_id.as_str(),
-                Some(*price_at),
-                Some(*shares),
-                Some(*price),
-            ),
-            PaperAction::Cancel { order_id } => (order_id.as_str(), "cancel", "", None, None, None),
-            PaperAction::Halt => ("", "halt", "", None, None, None),
-        };
-        let rejection = receipt.rejection.map_or("accepted", paper_rejection);
-        writeln!(
-            &mut text,
-            "E\t{}\t{}\t{kind}\t{order}\t{source}\t{}\t{}\t{}\t{rejection}\t{}\t{}\t{}",
-            event.id,
-            event.observed_at,
-            optional_number(price_at),
-            optional_number(shares),
-            optional_number(price),
-            receipt.cash_delta,
-            receipt.fee,
-            receipt.realized_delta
-        )
-        .unwrap();
+        text.push_str("E\t");
+        write_paper_receipt(&mut text, event, receipt, paper_event_fields(&event.action));
     }
     text
+}
+
+type PaperEventFields<'a> = (
+    &'a str,
+    &'a str,
+    &'a str,
+    Option<i64>,
+    Option<u64>,
+    Option<i64>,
+);
+
+fn paper_event_fields(action: &PaperAction) -> PaperEventFields<'_> {
+    match action {
+        PaperAction::Submit {
+            order_id,
+            shares,
+            limit,
+            ..
+        } => (
+            order_id.as_str(),
+            "submit",
+            "",
+            None,
+            Some(*shares),
+            Some(*limit),
+        ),
+        PaperAction::Fill {
+            order_id,
+            source_id,
+            price_at,
+            shares,
+            price,
+        } => (
+            order_id.as_str(),
+            "fill",
+            source_id.as_str(),
+            Some(*price_at),
+            Some(*shares),
+            Some(*price),
+        ),
+        PaperAction::Cancel { order_id } => (order_id.as_str(), "cancel", "", None, None, None),
+        PaperAction::Halt => ("", "halt", "", None, None, None),
+    }
+}
+
+fn write_paper_receipt(
+    text: &mut String,
+    event: &crate::PaperEvent,
+    receipt: &crate::PaperReceipt,
+    (order, kind, source, price_at, shares, price): PaperEventFields<'_>,
+) {
+    use std::fmt::Write;
+    let rejection = receipt.rejection.map_or("accepted", paper_rejection);
+    writeln!(
+        text,
+        "{}\t{}\t{kind}\t{order}\t{source}\t{}\t{}\t{}\t{rejection}\t{}\t{}\t{}",
+        event.id,
+        event.observed_at,
+        optional_number(price_at),
+        optional_number(shares),
+        optional_number(price),
+        receipt.cash_delta,
+        receipt.fee,
+        receipt.realized_delta
+    )
+    .unwrap();
 }
 
 fn paper_rejection(reason: PaperRejection) -> &'static str {

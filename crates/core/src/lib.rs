@@ -3,6 +3,8 @@
 mod actions;
 mod alerts;
 mod backtest;
+mod cross_section;
+mod cross_section_liquidity;
 mod delisting;
 mod depth;
 mod dividend;
@@ -35,6 +37,11 @@ pub use alerts::{
     AlertBook, AlertDirection, AlertNotification, AlertRule, Comparator, Observation,
 };
 pub use backtest::{backtest, BacktestConfig, BacktestMark, BacktestReport, BacktestSignal};
+pub use cross_section::{
+    CrossSectionConfig, CrossSectionEvent, CrossSectionPosition, CrossSectionReport,
+    RankingDecision,
+};
+pub use cross_section_liquidity::{LiquidityTape, ReplayLiquidity};
 pub use delisting::{
     parse_delistings, CashOffer, DelistingBook, DelistingCashPosting, DelistingState,
     DelistingTerms, DelistingValuation, ReferenceClose,

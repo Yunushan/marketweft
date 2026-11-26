@@ -90,6 +90,9 @@ compare knowledge at 14:06, 14:07 and 14:08 to inspect paired coverage.
 Expand Correlated portfolio scenarios in the same view. Choose A and B
 with 5,000 basis points each. Run the same windows, then use 14:01 UTC
 for one move with a 100-basis-point rebalance fee to reconcile net value.
+Open Cross-sectional paper replay and use the sample liquidity, or load
+cross-section-liquidity.csv with the listing risk membership and prices.
+Rewind knowledge from 14:06 to 14:01 UTC to compare reserved cash and fills.
 
 Select the NVDA chart and open Recorded market depth. Choose Load depth demo
 or open depth.csv. Inspect the sequence gap at 14:00:05 UTC and the recovered
@@ -176,6 +179,7 @@ def main():
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()
     files["listing-risk-membership.csv"] = (fixture / "synthetic-listing-risk-membership.csv").read_bytes()
     files["listing-risk-prices.csv"] = (fixture / "synthetic-listing-risk-prices.csv").read_bytes()
+    files["cross-section-liquidity.csv"] = (fixture / "synthetic-cross-section-liquidity.csv").read_bytes()
     files["universe-sectors.csv"] = (fixture / "synthetic-universe-sectors.csv").read_bytes()
     files["financial-filings.csv"] = (fixture / "synthetic-financial-filings.csv").read_bytes()
     files["financial-market-caps.csv"] = (fixture / "synthetic-financial-market-caps.csv").read_bytes()

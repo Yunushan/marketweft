@@ -2,7 +2,7 @@ use crate::{universe::valid_id, Instrument, MAX_TICKS};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_EVENTS: usize = 20_000;
-const MAX_SHARES: u64 = 1_000_000_000;
+pub(crate) const MAX_SHARES: u64 = 1_000_000_000;
 const MAX_CASH_TICKS: i128 = 10_i128.pow(27);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

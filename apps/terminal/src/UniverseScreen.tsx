@@ -6,6 +6,7 @@ import { fixed } from './fixed-point'
 import { SectorHeatmap } from './SectorHeatmap'
 import { RelativeReturns } from './RelativeReturns'
 import { JointScenarios } from './JointScenarios'
+import { CrossSectionReplay } from './CrossSectionReplay'
 import demoPrices from '../../../crates/core/tests/fixtures/synthetic-universe-prices.csv?raw'
 
 function PriceCell({ price }: { price: ScreenPrice | null }) {
@@ -167,6 +168,9 @@ export function UniverseScreen({
       {prices && <JointScenarios core={core} membership={membership} membershipSource={membershipSource}
         prices={prices.csv} priceSource={prices.source} listings={listings} firstCutoff={firstCutoff}
         effective={effective} known={known} />}
+      {prices && <CrossSectionReplay core={core} membership={membership} membershipSource={membershipSource}
+        prices={prices.csv} priceSource={prices.source} firstCutoff={firstCutoff}
+        effective={effective} known={known} demo={initialPrices !== undefined} />}
       {prices && <SectorHeatmap core={core} membership={membership} prices={prices.csv}
         baseline={baseline} effective={effective} known={known} demo={demo} />}
     </section>
