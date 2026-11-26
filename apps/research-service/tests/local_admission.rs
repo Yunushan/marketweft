@@ -8,7 +8,7 @@ use marketweft_research_service::{
 };
 use serde_json::{json, Value};
 use std::time::Duration;
-use support::{ResearchProcess, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
+use support::{ResearchProcess, Settings, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
@@ -93,7 +93,10 @@ fn rejects_invalid_slot_limits_before_creating_an_audit_database() {
 
 #[tokio::test]
 async fn shared_limits_reject_a_burst_and_release_capacity_on_disconnect() {
-    let server = ResearchProcess::start(None, Some(3), None);
+    let server = ResearchProcess::start(Settings {
+        slots: Some(3),
+        ..Settings::default()
+    });
     let first = websocket(&server).await.unwrap();
     let second = websocket(&server).await.unwrap();
     let third = websocket(&server).await.unwrap();

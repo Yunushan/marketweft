@@ -13,7 +13,7 @@ use marketweft_research_service::{
 use rusqlite::Connection;
 use serde_json::json;
 use std::path::Path;
-use support::{ResearchProcess, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
+use support::{ResearchProcess, Settings, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
 use tokio::time::timeout;
 use tokio_tungstenite::{
     connect_async,
@@ -151,7 +151,10 @@ fn existing_unrelated_database_is_rejected_without_modifying_its_schema() {
 async fn records_grpc_and_websocket_outcomes_and_preserves_interrupted_admissions() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("research.sqlite");
-    let server = ResearchProcess::start(Some(&path), None, None);
+    let server = ResearchProcess::start(Settings {
+        audit: Some(&path),
+        ..Settings::default()
+    });
     let channel = Endpoint::from_shared(server.origin.clone())
         .unwrap()
         .connect_timeout(IO_DEADLINE)
@@ -225,7 +228,10 @@ async fn records_grpc_and_websocket_outcomes_and_preserves_interrupted_admission
         .unwrap()
         .unwrap();
     drop(server);
-    let _restarted = ResearchProcess::start(Some(&path), None, None);
+    let _restarted = ResearchProcess::start(Settings {
+        audit: Some(&path),
+        ..Settings::default()
+    });
     assert_eq!(
         receipts(&path),
         [

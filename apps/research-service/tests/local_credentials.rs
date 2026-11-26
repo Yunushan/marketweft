@@ -8,7 +8,7 @@ use std::{
     path::Path,
     process::{Command, Output},
 };
-use support::{ResearchProcess, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
+use support::{ResearchProcess, Settings, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
 use tokio::time::timeout;
 use tokio_tungstenite::{
     connect_async,
@@ -76,7 +76,10 @@ async fn issues_scoped_tokens_and_refreshes_revocation_and_expiration_during_ser
     ).unwrap();
     assert_eq!((length, ttl), (32, 600));
 
-    let server = ResearchProcess::start(None, None, Some(&path));
+    let server = ResearchProcess::start(Settings {
+        credentials: Some(&path),
+        ..Settings::default()
+    });
     let channel = Endpoint::from_shared(server.origin.clone())
         .unwrap()
         .connect_timeout(IO_DEADLINE)

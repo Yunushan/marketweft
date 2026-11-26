@@ -119,6 +119,7 @@ enum Scope {
 
 struct Server {
     authority: String,
+    default_port_alias: Option<String>,
     origin: String,
     tokens: Tokens,
     slots: Arc<Semaphore>,
@@ -171,11 +172,13 @@ impl IntoResponse for ApiError {
 
 /// Construct the v1 API for the exact IPv4 loopback address bound by the service.
 pub fn research_router(address: SocketAddr, tokens: Tokens) -> Result<Router, &'static str> {
+    validate_loopback(address)?;
     Ok(configure_router(
-        authority(address)?,
+        address,
         tokens,
         None,
         DEFAULT_RESEARCH_SLOTS,
+        false,
     ))
 }
 
@@ -195,7 +198,27 @@ pub fn configured_research_router(
     audit_path: Option<&Path>,
     slots: usize,
 ) -> io::Result<Router> {
-    let authority = authority(address).map_err(io::Error::other)?;
+    configured_router_for_transport(address, tokens, audit_path, slots, false)
+}
+
+/// Configure the loopback research router for an HTTPS listener.
+pub fn configured_tls_research_router(
+    address: SocketAddr,
+    tokens: Tokens,
+    audit_path: Option<&Path>,
+    slots: usize,
+) -> io::Result<Router> {
+    configured_router_for_transport(address, tokens, audit_path, slots, true)
+}
+
+fn configured_router_for_transport(
+    address: SocketAddr,
+    tokens: Tokens,
+    audit_path: Option<&Path>,
+    slots: usize,
+    tls: bool,
+) -> io::Result<Router> {
+    validate_loopback(address).map_err(io::Error::other)?;
     if !(1..=MAX_RESEARCH_SLOTS).contains(&slots) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -206,29 +229,33 @@ pub fn configured_research_router(
         .map(Trail::open)
         .transpose()
         .map_err(io::Error::other)?;
-    Ok(configure_router(authority, tokens, trail, slots))
+    Ok(configure_router(address, tokens, trail, slots, tls))
 }
 
-fn authority(address: SocketAddr) -> Result<String, &'static str> {
+fn validate_loopback(address: SocketAddr) -> Result<(), &'static str> {
     if address.ip() != Ipv4Addr::LOCALHOST || address.port() == 0 {
         return Err("Bind the research service to 127.0.0.1 with an assigned port.");
     }
-    Ok(if address.port() == 80 {
-        "127.0.0.1".to_owned()
-    } else {
-        address.to_string()
-    })
+    Ok(())
 }
 
 fn configure_router(
-    authority: String,
+    address: SocketAddr,
     tokens: Tokens,
     audit: Option<Trail>,
     slots: usize,
+    tls: bool,
 ) -> Router {
-    let origin = format!("http://{authority}");
+    let (scheme, default_port) = if tls { ("https", 443) } else { ("http", 80) };
+    let (authority, default_port_alias) = if address.port() == default_port {
+        ("127.0.0.1".to_owned(), Some(address.to_string()))
+    } else {
+        (address.to_string(), None)
+    };
+    let origin = format!("{scheme}://{authority}");
     let state = Arc::new(Server {
         authority,
+        default_port_alias,
         origin,
         tokens,
         slots: Arc::new(Semaphore::new(slots)),
@@ -272,9 +299,9 @@ impl Server {
         scope: Scope,
     ) -> Result<(), ApiError> {
         let host = header_value(headers, header::HOST);
-        let matches_authority = |value| {
+        let matches_authority = |value: Option<&str>| {
             value == Some(self.authority.as_str())
-                || (self.authority == "127.0.0.1" && value == Some("127.0.0.1:80"))
+                || value.is_some_and(|value| self.default_port_alias.as_deref() == Some(value))
         };
         if !matches_authority(authority.or(host))
             || (headers.contains_key(header::HOST) && !matches_authority(host))

@@ -3,7 +3,7 @@ mod support;
 use marketweft_research_service::proto::{
     research_client::ResearchClient, FormulaQuery, ScreenQuery,
 };
-use support::{ResearchProcess, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
+use support::{ResearchProcess, Settings, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request};
 
@@ -45,7 +45,7 @@ fn screen(effective: &str, known: &str) -> ScreenQuery {
 
 #[tokio::test]
 async fn checks_scope_and_origin_before_decoding_the_query() {
-    let server = ResearchProcess::start(None, None, None);
+    let server = ResearchProcess::start(Settings::default());
     let mut client = connect(&server).await;
     let query = FormulaQuery::default();
     assert_eq!(
@@ -84,7 +84,7 @@ async fn checks_scope_and_origin_before_decoding_the_query() {
 
 #[tokio::test]
 async fn preserves_formula_pagination_and_protobuf_presence() {
-    let server = ResearchProcess::start(None, None, None);
+    let server = ResearchProcess::start(Settings::default());
     let mut client = connect(&server).await;
     let mut query = FormulaQuery {
         formula: "ema(if(close == 11, close / 0, close), 2)".into(),
@@ -116,7 +116,7 @@ async fn preserves_formula_pagination_and_protobuf_presence() {
 
 #[tokio::test]
 async fn reproduces_addition_missing_prices_and_removal_at_independent_cutoffs() {
-    let server = ResearchProcess::start(None, None, None);
+    let server = ResearchProcess::start(Settings::default());
     let mut client = connect(&server).await;
     for (effective, known, expected) in [
         ("14:05", "14:05", vec![("ALFA-001", Some(1), Some("10000"))]),
@@ -168,7 +168,7 @@ async fn reproduces_addition_missing_prices_and_removal_at_independent_cutoffs()
 
 #[tokio::test]
 async fn preserves_exact_returns_above_int64() {
-    let server = ResearchProcess::start(None, None, None);
+    let server = ResearchProcess::start(Settings::default());
     let mut client = connect(&server).await;
     let mut query = screen("14:10", "14:12");
     query.prices_csv = concat!(

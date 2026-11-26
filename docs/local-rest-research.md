@@ -96,3 +96,9 @@ Set `CREDENTIAL_ID` to the issued ID to revoke it while the service is running.
 ```
 
 Expiration and revocation take effect on the next REST or gRPC call or WebSocket upgrade. An admitted WebSocket stream has the normal query and delivery deadlines.
+
+## Localhost TLS
+
+Set `MARKETWEFT_RESEARCH_TLS_CERT` to a PEM certificate chain and `MARKETWEFT_RESEARCH_TLS_KEY` to its matching PEM private key. Supply both paths before starting the service. Use a certificate valid for `127.0.0.1` and configure clients to trust its issuing CA.
+
+The service prints the HTTPS address it bound. Use that authority for REST and gRPC, and use `wss://` for WebSocket. Supply the HTTPS origin when a client sends an Origin header. The same scopes, admission limits and audit settings apply.

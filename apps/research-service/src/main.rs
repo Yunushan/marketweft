@@ -1,6 +1,7 @@
+use axum_server::tls_rustls::RustlsConfig;
 use marketweft_research_service::{
-    configured_research_router, copy_audit_database, issue_research_credential,
-    revoke_research_credential, Tokens, DEFAULT_RESEARCH_SLOTS,
+    configured_research_router, configured_tls_research_router, copy_audit_database,
+    issue_research_credential, revoke_research_credential, Tokens, DEFAULT_RESEARCH_SLOTS,
 };
 use std::env::{self, VarError};
 use std::io;
@@ -52,6 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::main]
 async fn serve() -> Result<(), Box<dyn std::error::Error>> {
+    let tls = loopback_tls().await?;
     let port = setting("MARKETWEFT_RESEARCH_PORT")?
         .map(|value| value.parse::<u16>())
         .transpose()?
@@ -71,9 +73,31 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
         .transpose()?
         .unwrap_or(DEFAULT_RESEARCH_SLOTS);
     let audit_path = env::var_os("MARKETWEFT_RESEARCH_AUDIT_DB");
-    let endpoint =
-        configured_research_router(address, tokens, audit_path.as_deref().map(Path::new), slots)?;
-    println!("http://{address}");
-    axum::serve(listener, endpoint).await?;
+    let audit_path = audit_path.as_deref().map(Path::new);
+    if let Some(tls) = tls {
+        let endpoint = configured_tls_research_router(address, tokens, audit_path, slots)?;
+        let server = axum_server::from_tcp_rustls(listener.into_std()?, tls)?;
+        println!("https://{address}");
+        server.serve(endpoint.into_make_service()).await?;
+    } else {
+        let endpoint = configured_research_router(address, tokens, audit_path, slots)?;
+        println!("http://{address}");
+        axum::serve(listener, endpoint).await?;
+    }
     Ok(())
+}
+
+async fn loopback_tls() -> io::Result<Option<RustlsConfig>> {
+    let certificate = env::var_os("MARKETWEFT_RESEARCH_TLS_CERT");
+    let key = env::var_os("MARKETWEFT_RESEARCH_TLS_KEY");
+    match (certificate, key) {
+        (None, None) => Ok(None),
+        (Some(certificate), Some(key)) => RustlsConfig::from_pem_file(certificate, key)
+            .await
+            .map(Some),
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Set both the research TLS certificate and private key paths.",
+        )),
+    }
 }

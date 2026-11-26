@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.58.0 · Localhost research TLS
+
+| Check | Observed result |
+| --- | --- |
+| Trusted connections | A managed formula credential worked across HTTPS REST, secure WebSocket and gRPC over TLS. The WebSocket and gRPC clients received the exact formula result of `10000001` ticks. |
+| Certificate and origin | Clients rejected an untrusted certificate and a certificate name mismatch. The HTTPS endpoint rejected an HTTP Origin. |
+| Startup boundary | A certificate path without its matching key configuration stopped startup before the process printed a listener address. |
+| Native regression suite | All 24 research integration tests passed on Linux x64. |
+
+[Localhost TLS](local-rest-research.md#localhost-tls) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.57.0 · Managed research credentials
 
 | Check | Observed result |

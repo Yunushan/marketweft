@@ -29,6 +29,26 @@ def tonic_workspace_license(package, packages):
     return [sibling / "LICENSE"]
 
 
+def release_packages(metadata):
+    resolution = metadata["resolve"]
+    graph = {node["id"]: node["deps"] for node in resolution["nodes"]}
+    required = set()
+    pending = [resolution["root"]]
+    while pending:
+        package = pending.pop()
+        if package in required:
+            continue
+        required.add(package)
+        pending.extend(
+            dependency["pkg"] for dependency in graph[package]
+            if any(edge["kind"] != "dev" for edge in dependency["dep_kinds"])
+        )
+    return {
+        (package["name"], package["version"]): package
+        for package in metadata["packages"] if package["id"] in required and package["source"] is not None
+    }
+
+
 def create_archive(binary, directory):
     metadata = json.loads(subprocess.check_output([
         "cargo", "metadata", "--locked", "--offline", "--format-version", "1",
@@ -44,10 +64,7 @@ def create_archive(binary, directory):
         "notices/rust-library.html": rust_root / "share/doc/rust/COPYRIGHT-library.html",
         "notices/dependencies.cdx.json": ROOT / "docs/dependencies.cdx.json",
     }
-    packages = {
-        (package["name"], package["version"]): package
-        for package in metadata["packages"] if package["source"] is not None
-    }
+    packages = release_packages(metadata)
     for package in packages.values():
         name = f'{package["name"]}-{package["version"]}'
         source = Path(package["manifest_path"]).parent

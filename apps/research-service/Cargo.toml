@@ -1,6 +1,6 @@
 [package]
 name = "marketweft-research-service"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 license = "0BSD"
 
@@ -8,6 +8,7 @@ license = "0BSD"
 
 [dependencies]
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "http2", "json", "tokio", "ws"] }
+axum-server = { version = "=0.9.2", features = ["tls-rustls-ring"] }
 getrandom = "=0.3.4"
 marketweft-core = { path = "../../crates/core" }
 prost = "=0.14.6"
@@ -27,6 +28,10 @@ tonic-prost-build = "=0.14.9"
 
 [dev-dependencies]
 futures-util = { version = "=0.3.34", default-features = false, features = ["sink", "std"] }
+rcgen = "=0.14.10"
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 tokio = { version = "=1.54.1", features = ["io-util"] }
+tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
 tokio-tungstenite = "=0.29.0"
+tonic = { version = "=0.14.9", default-features = false, features = ["tls-ring"] }
 tower = { version = "=0.5.3", features = ["util"] }
