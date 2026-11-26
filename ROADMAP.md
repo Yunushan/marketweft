@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.36.0 resamples joint historical returns for fixed-weight portfolio scenarios. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.37.0 replays historical universe rankings and executes selected positions through the paper ledger. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -39,10 +39,11 @@
 | Delivered · 0.34.0 | Observed volume and time-price profiles (MW-012, MW-019) | Set the execution window, observation cutoff, bin sizes and value-area threshold. Verify distinct bracket occupancy, exact volumes and reproducible areas for both metrics. [Price profiles](docs/price-profiles.md). |
 | Delivered · 0.35.0 | Rolling listing risk (MW-013, MW-025) | Calculate realized volatility and Pearson correlation across exact UTC price intervals. Report independent and paired sample coverage, undefined correlation and reproducible CSVs. [Rolling listing risk](docs/listing-risk.md). |
 | Delivered · 0.36.0 | Correlated portfolio scenarios (MW-021, MW-025) | Resample whole observed return vectors for selected listings and apply exact one-way rebalancing fees. Verify aligned coverage, path reproducibility and turnover costs. [Portfolio scenarios](docs/portfolio-scenarios.md). |
+| Delivered · 0.37.0 | Cross-sectional paper replay (MW-020, MW-021) | Rank historical members at each decision and execute against later observed liquidity. Verify missing closes, order reservations, execution delay, exact turnover and marked positions. [Cross-sectional paper replay](docs/cross-sectional-paper.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Apply delisting proceeds and dividend entries in portfolio execution replay. Extend the source and rights model to live providers. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
-| P1 | Simulation and research (MW-020, MW-021, MW-025) | Add point-in-time cross-sectional strategy replay and tick-level execution. Verify all no-lookahead invariants through the same paper event contract. |
+| P1 | Simulation and research (MW-020, MW-021, MW-025) | Extend the paper event contract to recorded tick execution and out-of-sample cross-sectional strategy optimization. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Publish an independent time-series language spec, bounded interpreter and isolated Wasm execution. Test determinism, quotas and schema compatibility across SDKs. Start MCP with read-only research queries. |
 | P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Add explicit webhook configuration, authenticated delivery, bounded retry and delivery receipts. Extend annual filings with quarterly/TTM aggregation, add options exercise and dividend models, and integrate authorized data sources. |
 | P2 | Order flow and specialized visualization (MW-012, MW-019) | Add authorized trade and depth streams, sequence recovery, trade-side classification and profiles. Benchmark Canvas against WebGL/wgpu with identical traces before adopting another renderer. |
@@ -50,5 +51,5 @@
 
 ## Handoff for the next change
 
-The next strategy milestone replays cross-sectional ranking and portfolio allocation over historical universe changes. Verify late membership, missing prices, turnover accounting, and execution delay through a paper ledger.
+The next strategy milestone applies point-in-time cash dividends and delisting proceeds to the positions held by the paper replay. Verify entitlement, cash dates and receipt provenance at each cutoff.
 

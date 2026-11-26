@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.37.0 · Cross-sectional paper replay
+
+| Check | Observed result |
+| --- | --- |
+| Historical ranks | Each decision uses exact closes and membership known at that instant. Native tests cover missing prices, late additions and unavailable marks. A late close leaves earlier decisions and receipts intact. |
+| Delayed executions | The first cutoff shows one submitted order, no fill, and 484.9 reserved. Two later liquidity rows fill four shares. Executed principal is 462, fees are 1.4, cash is 536.6, and equity is 1,069 at the exact closing mark. |
+| Offline export | Chromium checks exact 64-bit liquidity IDs, report column counts, matching CSV on rewind and catalog preservation. Invalid liquidity leaves the accepted replay available. |
+| Regression suite | All 78 browser, six SDK and four launcher tests passed on Windows x64. The native workspace suite passed on Linux x64, all 33 Wasm tests passed, and all 21 README editions passed parity. |
+
+[Cross-sectional paper replay](cross-sectional-paper.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.36.0 · Correlated portfolio scenarios
 
 | Check | Observed result |
