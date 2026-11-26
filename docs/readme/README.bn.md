@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **নথির ভাষা**
 
@@ -15,14 +15,14 @@
 
 MarketWeft বিশ্লেষক, ডেভেলপার ও অপারেটরের জন্য স্থানীয় গবেষণা টার্মিনাল। অনুমোদিত OHLCV খুলে ক্যান্ডেল ও ভলিউম দেখায়, নির্দিষ্ট দশমিক এককে SMA ও EMA গণনা করে এবং নজরদারি তালিকা, নির্বাচিত ইন্সট্রুমেন্ট ও সূচক IndexedDB-তে রাখে। সম্পদ ক্যাশ হলে অফলাইনে চলে। সঙ্গে দেওয়া দাম ও ভলিউম কৃত্রিম, অ্যাকাউন্ট লাগে না।
 
-0.3.0 একটি অপরিবর্তনীয় ইতিহাস সেশনের ভিত্তিতে চালায়। আলাদা trading-bot-এর জন্য শুধু পাঠযোগ্য TypeScript SDK ও পরীক্ষামূলক Tauri হোস্ট আছে। কর্পোরেট অ্যাকশন, ফিড, অর্ডার, বহু ব্যবহারকারীর হোস্টিং ও স্বাক্ষরিত ইনস্টলার রোডম্যাপে রয়েছে।
+MarketWeft 0.4.0 অপরিবর্তনীয় ইতিহাসের সেশনভিত্তিক পুনরাবৃত্তিতে সেই সময়ে জানা শেয়ার বিভাজন যোগ করে। আলাদা trading-bot পড়ার TypeScript SDK ও পরীক্ষামূলক Tauri হোস্টও আছে। নগদ লভ্যাংশ, কোম্পানির অংশ বিচ্ছেদ, ফিড, অর্ডার, বহু ব্যবহারকারীর হোস্টিং ও স্বাক্ষরিত ইনস্টলার ভবিষ্যতের কাজ।
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## বহনযোগ্য টার্মিনাল চালান
 
-সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.3.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
+সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.4.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ Historical replay থেকে Start demo বাছুন। Next event এগ�
 
 ৩১ অক্টোবর ২০২৫-এ 13:30 UTC (UTC−04:00) খোলে, ৩ নভেম্বর 14:30 UTC (UTC−05:00)। ৩ নভেম্বর 15:00-এর অনুপস্থিত খণ্ড 15:30-এ ধরা পড়ে। Thanksgiving-এ খণ্ড নেই। ২৮ নভেম্বর সাতটি ৩০ মিনিটের ক্যান্ডেলের পর 18:00 UTC-তে আগাম বন্ধ। নমুনায় ২০ সেশন, ২৫৩ ক্যান্ডেল ও ২৯৪ ইভেন্ট, কৃত্রিম মূল্য এবং প্রকাশিত NYSE সময়।
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+Historical replay → Start split demo খুলে একই ইভেন্টে Price basis-এ Raw ও Split-adjusted বদলান। ২-এর বিনিময়ে ১ পুরোনো শেয়ারের বিভাজন কার্যকর হওয়ার আগে ঘোষণা ও পর্যবেক্ষণ হয়। ততক্ষণ দুই দৃশ্য মেলে। কার্যকর হলে আগের শেষ ক্যান্ডেলের বন্ধ 106.50 থেকে সমন্বিত 53.25 হয় এবং ভলিউম দ্বিগুণ হয়। পরের প্রথম ক্যান্ডেল 53.00 থাকে। নিজের ডেটার জন্য নির্বাচিত ইন্সট্রুমেন্টের Corporate actions CSV ও সেশন ক্যালেন্ডার দিন এবং কাঁচা OHLCV নিশ্চিত করুন। কার্যকর হলে সর্বশেষ দেখা অনুপাত লাগে। দেরির খবর ও সংশোধন দেখার সময় থেকেই দৃশ্য বদলায়। মূল ইতিহাস অক্ষত।
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## নিজের তথ্য আমদানি ও পুনরায় চালান

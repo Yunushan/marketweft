@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **పత్రాల భాషలు**
 
@@ -15,14 +15,14 @@
 
 MarketWeft విశ్లేషకులు, డెవలపర్లు, నిర్వాహకుల కోసం స్థానిక పరిశోధన టెర్మినల్. అనుమతి ఉన్న OHLCV ఫైళ్లను తెరుస్తుంది, క్యాండిళ్లు మరియు పరిమాణం చూపిస్తుంది, స్థిర దశాంశంతో SMA, EMA లెక్కిస్తుంది. గమనిక జాబితా, ఎంచుకున్న సాధనం, సూచికలు IndexedDBలో ఉంటాయి. వనరులు కాష్ అయిన తర్వాత ఆఫ్‌లైన్‌లో పనిచేస్తుంది. అందించిన ధరలు, పరిమాణం కృత్రిమమైనవి. ఖాతా అవసరం లేదు.
 
-0.3.0 ఒక మార్పులేని చరిత్రను సెషన్ల ప్రకారం తిరిగి నడుపుతుంది. వేరే trading-bot కోసం చదవడానికి మాత్రమే TypeScript SDK, ప్రయోగాత్మక Tauri హోస్ట్ కూడా ఉన్నాయి. కంపెనీ చర్యలు, డేటా ఫీడ్లు, ఆర్డర్లు, బహుళ వినియోగదారుల హోస్టింగ్, సంతకం చేసిన ఇన్‌స్టాలర్లు ప్రణాళికలో ఉన్నాయి.
+MarketWeft 0.4.0 మార్పులేని చరిత్రను సెషన్ ప్రకారం నడిపేటప్పుడు అప్పటికి తెలిసిన షేరు విభజనలను కలుపుతుంది. ప్రత్యేక trading-bot చదివే TypeScript SDK, ప్రయోగాత్మక Tauri హోస్ట్ కూడా ఉన్నాయి. నగదు డివిడెండ్లు, సంస్థ విభజనలు, ఫీడ్లు, ఆర్డర్లు, బహుళ వినియోగదారుల హోస్టింగ్, సంతకం ఉన్న ఇన్‌స్టాలర్లు ప్రణాళికలో ఉన్నాయి.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## పోర్టబుల్ టెర్మినల్ ప్రారంభించండి
 
-విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.3.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
+విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.4.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ Historical replay లో Start demo ఎంచుకోండి. Next event మ�
 
 అక్టోబర్ 31, 2025న ప్రారంభం 13:30 UTC (UTC−04:00), నవంబర్ 3న 14:30 UTC (UTC−05:00). నవంబర్ 3న 15:00 వ్యవధి లేనిది 15:30కి తెలుస్తుంది. Thanksgiving రోజున వ్యవధులు లేవు. నవంబర్ 28న ఏడు 30-నిమిషాల క్యాండిళ్ల తర్వాత 18:00 UTCకి ముందే ముగుస్తుంది. 20 సెషన్లు, 253 క్యాండిళ్లు, 294 సంఘటనలు ఉన్నాయి. ధరలు కృత్రిమం, సమయం NYSE ప్రచురిత షెడ్యూల్‌ది.
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+Historical replay → Start split demo తెరిచి అదే సంఘటనలో Price basis ను Raw, Split-adjusted మధ్య మార్చండి. 2-కి-1 విభజన అమలుకు ముందు ప్రకటించి పరిశీలించబడుతుంది. అప్పటివరకు రెండు వీక్షణలు సమానం. అమల్లోకి రాగానే ముందు చివరి ముగింపు ధర ముడి 106.50 నుంచి సర్దుబాటు చేసిన 53.25 అవుతుంది, పరిమాణం రెట్టింపవుతుంది. తర్వాతి తొలి క్యాండిల్ 53.00గానే ఉంటుంది. మీ డేటాకు సాధనపు Corporate actions CSV, సెషన్ క్యాలెండర్ ఇచ్చి OHLCV ముడిదని నిర్ధారించండి. అమలయ్యాక తెలిసిన తాజా నిష్పత్తి వర్తిస్తుంది. ఆలస్య నివేదికలు, సవరణలు చూసిన సమయం నుంచే వీక్షణను మారుస్తాయి. మూల చరిత్ర అలాగే ఉంటుంది.
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## మీ డేటాను దిగుమతి చేసి పునరావృతం చేయండి

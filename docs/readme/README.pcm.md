@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **Language dem for dis guide**
 
@@ -15,14 +15,14 @@
 
 MarketWeft na research terminal wey dey work for your own device. Analyst, developer and operator fit load OHLCV file wey dem get right to use, see candle and volume, calculate SMA and EMA with fixed decimal, and save watchlist, instrument and indicator for IndexedDB. E fit work offline after e cache the files. The price and volume wey follow am na synthetic, so provider account no dey needed.
 
-Version 0.3.0 fit replay one history wey no dey change, according to trading session. The repo get separate read-only TypeScript SDK for trading-bot and experimental Tauri desktop host. Corporate action, data feed, order, hosting for plenty people and signed installer still dey roadmap.
+MarketWeft 0.4.0 adds stock split wey replay fit use as the information reach am, according to session, for history wey no dey change. The repo still get separate TypeScript SDK to read trading-bot and experimental Tauri host. Cash dividend, spin-off, feed, orders, hosting for many users and signed installer dey roadmap.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Start the portable terminal
 
-Download browser-terminal-attempt-N from GitHub verification wey pass. Extract MarketWeft-browser-0.3.0.zip, leave dist/ beside serve-terminal.mjs and run the command inside that folder. Open http://127.0.0.1:4173/ for current browser wey get WebAssembly, Canvas, BigInt and IndexedDB. Use Node.js 22.12 or newer. You no need install npm for the ZIP. Wait for Offline ready before you off network.
+Download browser-terminal-attempt-N from GitHub verification wey pass. Extract MarketWeft-browser-0.4.0.zip, leave dist/ beside serve-terminal.mjs and run the command inside that folder. Open http://127.0.0.1:4173/ for current browser wey get WebAssembly, Canvas, BigInt and IndexedDB. Use Node.js 22.12 or newer. You no need install npm for the ZIP. Wait for Offline ready before you off network.
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ Open Historical replay and choose Start demo. Next event moves one step, Previou
 
 For 31 October 2025 session opens 13:30 UTC (UTC−04:00). For 3 November e opens 14:30 UTC (UTC−05:00). The gap wey starts 15:00 on 3 November shows as missing at 15:30. Thanksgiving no get interval. On 28 November market closes early 18:00 UTC after seven 30-minute candles. The demo get 20 sessions, 253 candles and 294 events. Price and volume na synthetic, with NYSE public hours.
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+Open Historical replay → Start split demo, and use Price basis to switch Raw and Split-adjusted for the same event. The 2-for-1 split dey announced and observed before e take effect. Both views match before effect. When e take effect, the last old close changes from raw 106.50 to adjusted 53.25, and volume doubles. The first candle after still closes 53.00. For your data, upload Corporate actions CSV for the instrument, confirm the OHLCV na raw and add session calendar. Use the latest observed ratio once e effective. Late report or correction changes the view only from when e reach. Original history still dey intact.
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## Import and replay data wey be your own

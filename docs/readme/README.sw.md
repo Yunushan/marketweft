@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **Lugha za mwongozo**
 
@@ -15,14 +15,14 @@
 
 MarketWeft ni kituo cha utafiti cha ndani kwa wachambuzi, wasanidi na waendeshaji. Hufungua OHLCV iliyoidhinishwa, huchora vinara na kiasi, hukokotoa SMA na EMA kwa nukta isiyohama, na huhifadhi orodha, chombo kilichochaguliwa na viashiria katika IndexedDB. Hufanya kazi bila mtandao baada ya kuhifadhi rasilimali. Bei na kiasi vya mfano ni vya kutungwa na havihitaji akaunti.
 
-Toleo 0.3.0 hucheza tena mfululizo mmoja usiobadilishwa kwa vipindi vya soko. Hazina pia ina SDK huru ya TypeScript ya kusoma trading-bot na ganda la majaribio la Tauri. Matukio ya kampuni, milisho, maagizo, upangishaji wa watumiaji wengi na visakinishi vilivyosainiwa yako kwenye mpango.
+MarketWeft 0.4.0 inaongeza mgawanyo wa hisa kwa habari zilizojulikana wakati husika kwenye uchezaji wa vipindi wa historia isiyobadilika. Kuna pia SDK ya TypeScript ya kusoma trading-bot ya nje na ganda la majaribio la Tauri. Gawio la fedha taslimu, utenganishaji wa kampuni, milisho, maagizo, upangishaji wa watu wengi na visakinishi vilivyosainiwa yako kwenye mpango.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Anzisha kituo kinachobebeka
 
-Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.3.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
+Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.4.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ Katika Historical replay chagua Start demo. Next event husonga, Previous event h
 
 Oktoba 31, 2025 hufunguka 13:30 UTC (UTC−04:00), na Novemba 3 hufunguka 14:30 UTC (UTC−05:00). Sehemu iliyokosekana kuanzia 15:00 hujulikana 15:30. Thanksgiving haina sehemu za soko. Novemba 28 hufungwa mapema saa 18:00 UTC baada ya vinara saba vya dakika 30. Kuna vipindi 20, vinara 253 na matukio 294, bei za kutungwa na saa za NYSE zilizochapishwa.
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+Fungua Historical replay → Start split demo na badili Price basis kati ya Raw na Split-adjusted kwenye tukio moja. Mgawanyo wa 2 kwa 1 unatangazwa na kuonekana kabla ya kuanza kutumika. Hadi hapo mionekano inalingana. Ukianza kutumika, bei ya mwisho kabla yake inabadilika kutoka 106.50 asili hadi 53.25 iliyorekebishwa, na kiasi kinaongezeka mara mbili. Kinara cha kwanza baadaye kinabaki 53.00. Kwa data yako, pakia Corporate actions CSV ya chombo, thibitisha OHLCV asili na toa kalenda. Uwiano wa mwisho ulioonekana hutumika ukianza kuwa halali. Ripoti iliyochelewa au masahihisho hubadili mwonekano kuanzia wakati wa kuonekana. Historia asili inabaki.
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## Ingiza na cheza data yako

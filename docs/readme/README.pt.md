@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **Idiomas da documentação**
 
@@ -15,14 +15,14 @@
 
 MarketWeft é um terminal de pesquisa local para analistas, desenvolvedores e operadores. Abre arquivos OHLCV autorizados, exibe velas e volume, calcula SMA e EMA em ponto fixo e guarda a lista, o instrumento selecionado e os indicadores em IndexedDB. Após armazenar os recursos em cache, funciona sem conexão. As cotações e volumes fornecidos são sintéticos e dispensam conta.
 
-A versão 0.3.0 adiciona reprodução histórica de uma série imutável por sessão. O repositório também oferece um SDK TypeScript de observação somente leitura para trading-bot e um host Tauri experimental. Eventos corporativos, feeds, ordens, hospedagem multiusuário e instaladores assinados estão no roteiro.
+MarketWeft 0.4.0 adiciona desdobramentos conforme a informação disponível em cada momento à reprodução por sessão de históricos imutáveis. Também oferece SDK TypeScript de leitura para um trading-bot independente e um host Tauri experimental. Dividendos em dinheiro, cisões, feeds, ordens, hospedagem multiusuário e instaladores assinados estão no roteiro.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Iniciar o terminal portátil
 
-Baixe browser-terminal-attempt-N de uma verificação bem-sucedida no GitHub. Extraia MarketWeft-browser-0.3.0.zip, mantenha dist/ junto de serve-terminal.mjs e execute o comando na pasta. Acesse http://127.0.0.1:4173/ em navegador atual com WebAssembly, Canvas, BigInt e IndexedDB. Use Node.js 22.12 ou superior. O pacote dispensa instalação npm. Espere Offline ready para desconectar.
+Baixe browser-terminal-attempt-N de uma verificação bem-sucedida no GitHub. Extraia MarketWeft-browser-0.4.0.zip, mantenha dist/ junto de serve-terminal.mjs e execute o comando na pasta. Acesse http://127.0.0.1:4173/ em navegador atual com WebAssembly, Canvas, BigInt e IndexedDB. Use Node.js 22.12 ou superior. O pacote dispensa instalação npm. Espere Offline ready para desconectar.
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ Abra Historical replay e escolha Start demo. Next event avança, Previous event 
 
 A abertura passa de 13:30 UTC (UTC−04:00) em 31/10/2025 para 14:30 UTC (UTC−05:00) em 03/11. A falta da vela de 15:00 é anunciada às 15:30. O feriado de Ação de Graças não gera intervalos. Em 28/11 o fechamento ocorre às 18:00 UTC após sete velas de 30 minutos. São 20 sessões, 253 velas e 294 eventos, com dados sintéticos e horários públicos da NYSE.
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+Abra Historical replay → Start split demo e mude Price basis entre Raw e Split-adjusted no mesmo evento. O desdobramento de 2 por 1 é anunciado e observado antes de vigorar. As duas visões coincidem até lá. Quando entra em vigor, o fechamento anterior passa de 106.50 bruto para 53.25 ajustado e o volume dobra. A primeira vela posterior mantém 53.00. Para seus dados, envie o Corporate actions CSV do instrumento, confirme o OHLCV bruto e forneça o calendário de sessões. A proporção observada mais recente vale após entrar em vigor. Avisos atrasados e correções alteram a visão a partir da observação. O histórico original permanece intacto.
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## Importar e reproduzir seus dados

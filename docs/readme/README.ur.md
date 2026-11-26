@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **دستاویز کی زبانیں**
 
@@ -21,7 +21,7 @@ MarketWeft تجزیہ کاروں، ڈویلپرز اور آپریٹرز کا م�
 
 <div dir="rtl">
 
-0.3.0 ایک ناقابلِ تبدیلی تاریخی سلسلہ سیشن کے مطابق چلاتا ہے۔ علیحدہ trading-bot کے لیے صرف پڑھنے والا TypeScript SDK اور تجرباتی Tauri میزبان بھی ہیں۔ کارپوریٹ اقدامات، فیڈ، آرڈر، مشترکہ میزبانی اور دستخط شدہ انسٹالر آئندہ کام ہیں۔
+MarketWeft 0.4.0 ناقابلِ تبدیلی تاریخ کے سیشن وار ری پلے میں ہر لمحے معلوم حصص کی تقسیم شامل کرتا ہے۔ الگ trading-bot کے لیے صرف پڑھنے والا TypeScript SDK اور تجرباتی Tauri میزبان بھی ہیں۔ نقد منافع، کمپنی کی علیحدگی، فیڈ، آرڈر، مشترکہ میزبانی اور دستخط شدہ انسٹالر آئندہ کام ہیں۔
 
 </div>
 
@@ -32,7 +32,7 @@ MarketWeft تجزیہ کاروں، ڈویلپرز اور آپریٹرز کا م�
 
 <div dir="rtl">
 
-کامیاب GitHub رن سے browser-terminal-attempt-N حاصل کریں۔ MarketWeft-browser-0.3.0.zip کھولیں، dist/ کو serve-terminal.mjs کے ساتھ رکھیں اور اسی فولڈر میں کمانڈ چلائیں۔ WebAssembly، Canvas، BigInt اور IndexedDB والے براؤزر میں http://127.0.0.1:4173/ کھولیں۔ Node.js 22.12 یا نیا چاہیے۔ npm کی تنصیب درکار نہیں۔ نیٹ بند کرنے سے پہلے Offline ready دیکھیں۔
+کامیاب GitHub رن سے browser-terminal-attempt-N حاصل کریں۔ MarketWeft-browser-0.4.0.zip کھولیں، dist/ کو serve-terminal.mjs کے ساتھ رکھیں اور اسی فولڈر میں کمانڈ چلائیں۔ WebAssembly، Canvas، BigInt اور IndexedDB والے براؤزر میں http://127.0.0.1:4173/ کھولیں۔ Node.js 22.12 یا نیا چاہیے۔ npm کی تنصیب درکار نہیں۔ نیٹ بند کرنے سے پہلے Offline ready دیکھیں۔
 
 </div>
 
@@ -57,7 +57,18 @@ Historical replay میں Start demo منتخب کریں۔ Next event آگے، Pr
 
 </div>
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+<div dir="rtl">
+
+Historical replay → Start split demo کھولیں اور ایک ہی واقعے پر Price basis کو Raw اور Split-adjusted کے درمیان بدلیں۔ 2 کے بدلے 1 تقسیم کا اعلان اور مشاہدہ نفاذ سے پہلے ہوتا ہے۔ اس وقت تک دونوں منظر برابر ہیں۔ نفاذ پر پہلے کی آخری بند قیمت 106.50 خام سے 53.25 ایڈجسٹ ہو جاتی ہے اور حجم دگنا ہوتا ہے۔ بعد کی پہلی کینڈل 53.00 رہتی ہے۔ اپنے ڈیٹا کے لیے منتخب اثاثے کی Corporate actions CSV اور سیشن کیلنڈر دیں اور خام OHLCV کی تصدیق کریں۔ نافذ ہونے پر تازہ ترین مشاہدہ شدہ تناسب لگتا ہے۔ دیر کی رپورٹ اور تصحیح اپنے مشاہدے کے وقت سے منظر بدلتی ہے۔ اصل تاریخ برقرار رہتی ہے۔
+
+</div>
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## اپنا ڈیٹا درآمد اور دوبارہ چلائیں

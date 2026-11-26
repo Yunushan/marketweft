@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **لغات التوثيق**
 
@@ -21,7 +21,7 @@ MarketWeft محطة بحث محلية للمحللين والمطورين وال
 
 <div dir="rtl">
 
-يتيح الإصدار 0.3.0 إعادة تشغيل سلسلة تاريخية ثابتة وفق جلسات التداول. يتضمن المستودع أيضًا حزمة TypeScript مستقلة للقراءة فقط مع trading-bot وغلاف Tauri تجريبيًا. إجراءات الشركات والتغذيات والأوامر والاستضافة متعددة المستخدمين والمثبتات الموقّعة ضمن الخطة.
+يضيف MarketWeft 0.4.0 تجزئة الأسهم وفق المعلومات المتاحة وقتيًا إلى إعادة تشغيل التاريخ الثابت بحسب الجلسات. يشمل المستودع أيضًا حزمة TypeScript مستقلة للقراءة من trading-bot وغلاف Tauri تجريبيًا. التوزيعات النقدية والانفصالات والتغذيات والأوامر والاستضافة المشتركة والمثبتات الموقّعة ضمن الخطة.
 
 </div>
 
@@ -32,7 +32,7 @@ MarketWeft محطة بحث محلية للمحللين والمطورين وال
 
 <div dir="rtl">
 
-نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.3.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
+نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.4.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
 
 </div>
 
@@ -57,7 +57,18 @@ node serve-terminal.mjs
 
 </div>
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+<div dir="rtl">
+
+افتح Historical replay → Start split demo وبدّل Price basis بين Raw وSplit-adjusted عند الحدث نفسه. تُعلن تجزئة 2 مقابل 1 وتُرصد قبل سريانها، ويتطابق العرضان حتى ذلك الحين. عند السريان يتغير آخر إغلاق سابق من 106.50 خام إلى 53.25 معدل ويتضاعف الحجم. تبقى أول شمعة لاحقة عند 53.00. لاستخدام بياناتك، حمّل Corporate actions CSV للأداة المحددة وأكد أن OHLCV خام وأضف تقويم الجلسات. تطبق أحدث نسبة مرصودة بعد السريان. تبدأ التقارير المتأخرة والتصحيحات بتغيير العرض عند رصدها. يبقى التاريخ الأصلي سليمًا.
+
+</div>
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## استيراد بياناتك وإعادة تشغيلها

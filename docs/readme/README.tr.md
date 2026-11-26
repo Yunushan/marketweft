@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.3.0 · 0BSD**
+**0.4.0 · 0BSD**
 
 **Belge dilleri**
 
@@ -15,14 +15,14 @@
 
 MarketWeft analistler, geliştiriciler ve operatörler için yerel öncelikli bir araştırma terminalidir. İzinli OHLCV dosyalarını açar, etkileşimli mumları ve hacmi çizer, sabit noktalı SMA ve EMA hesaplar. İzleme listesi, seçili araç ve göstergeler IndexedDB'de tutulur. Kaynaklar önbelleğe alındıktan sonra çevrimdışı çalışır. Hazır fiyat ve hacimler sentetiktir ve sağlayıcı hesabı gerektirmez.
 
-0.3.0, değişmez bir seriyi işlem seanslarına göre oynatır. Depoda ayrıca trading-bot için bağımsız salt okunur TypeScript SDK ve deneysel bir Tauri kabuğu bulunur. Şirket işlemleri, veri akışları, emir, çok kullanıcılı barındırma ve imzalı kurulum paketleri yol haritasındadır.
+MarketWeft 0.4.0, değişmez geçmişi seanslara göre oynatırken o anda bilinen hisse bölünmelerini uygular. Depoda bağımsız trading-bot hizmeti için salt okunur TypeScript SDK ve deneysel Tauri kabuğu da vardır. Nakit temettü, şirket ayrışması, veri akışı, emir, çok kullanıcılı barındırma ve imzalı kurulum paketleri yol haritasındadır.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Taşınabilir terminali başlatın
 
-Başarılı GitHub doğrulamasından browser-terminal-attempt-N çıktısını indirin ve MarketWeft-browser-0.3.0.zip dosyasını çıkarın. dist/ ile serve-terminal.mjs aynı dizinde kalsın ve aşağıdaki komutu orada çalıştırın. WebAssembly, Canvas, BigInt ve IndexedDB destekleyen güncel tarayıcıda http://127.0.0.1:4173/ adresini açın. Node.js 22.12 veya sonrası gerekir. npm kurulumu gerekmez. Bağlantıyı kesmeden Offline ready yazısını bekleyin.
+Başarılı GitHub doğrulamasından browser-terminal-attempt-N çıktısını indirin ve MarketWeft-browser-0.4.0.zip dosyasını çıkarın. dist/ ile serve-terminal.mjs aynı dizinde kalsın ve aşağıdaki komutu orada çalıştırın. WebAssembly, Canvas, BigInt ve IndexedDB destekleyen güncel tarayıcıda http://127.0.0.1:4173/ adresini açın. Node.js 22.12 veya sonrası gerekir. npm kurulumu gerekmez. Bağlantıyı kesmeden Offline ready yazısını bekleyin.
 
 ```sh
 node serve-terminal.mjs
@@ -37,7 +37,14 @@ Historical replay ekranında Start demo'yu seçin. Next event ilerletir, Previou
 
 Açılış 31 Ekim 2025'te 13:30 UTC (UTC−04:00) iken 3 Kasım'da 14:30 UTC (UTC−05:00) olur. 3 Kasım 15:00 aralığının eksikliği 15:30'da görünür. Şükran Günü aralık oluşmaz. 28 Kasım yedi adet 30 dakikalık mum sonunda 18:00 UTC'de erken kapanır. Örnekte 20 seans, 253 mum ve 294 olay bulunur. Fiyat ve hacim sentetik, süreler NYSE'nin yayımladığı saatlere dayanır.
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv)
+Historical replay → Start split demo ekranını açın ve aynı olayda Price basis seçimini Raw ile Split-adjusted arasında değiştirin. 2’ye 1 bölünme yürürlüğe girmeden duyurulur ve gözlemlenir. O zamana kadar iki görünüm aynıdır. Yürürlüğe girdiğinde bölünme öncesi son kapanış ham 106.50’den düzeltilmiş 53.25’e iner, hacim iki katına çıkar. Sonraki ilk mum 53.00 kalır. Kendi veriniz için aracın Corporate actions CSV dosyasını ve seans takvimini yükleyip OHLCV’nin ham olduğunu onaylayın. En son gözlemlenen oran yürürlükle uygulanır. Gecikmiş bildirim ve düzeltme gözlem anından itibaren görünümü değiştirir. Kaynak geçmiş korunur.
+
+```csv
+instrument,announced_at,effective_at,observed_at,new_shares,old_shares
+DEMO:SPLIT,2025-06-02T14:15:00Z,2025-06-03T14:00:00Z,2025-06-02T14:20:00Z,2,1
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv)
 
 <!-- section:04 -->
 ## Kendi verinizi içe aktarın ve oynatın
