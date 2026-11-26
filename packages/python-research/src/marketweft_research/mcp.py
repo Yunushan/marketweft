@@ -6,16 +6,18 @@ from pathlib import Path
 import sys
 from typing import BinaryIO
 
-from . import FormulaFunction, ResearchEngine, ResearchError
+from . import FormulaFunction, ResearchEngine, ResearchError, ScreenPrice
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.2.0"
+SERVER_VERSION = "0.3.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
 MIN_I64 = -(1 << 63)
 TOOL_NAME = "evaluate_historical_formula"
+SCREEN_TOOL_NAME = "screen_universe_as_of"
+_UTC_SCHEMA = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
 INPUT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -74,6 +76,65 @@ TOOL = {
     "inputSchema": INPUT_SCHEMA,
     "outputSchema": OUTPUT_SCHEMA,
 }
+SCREEN_INPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "membership_csv": {"type": "string", "minLength": 1, "maxLength": 1024 * 1024},
+        "prices_csv": {"type": "string", "minLength": 1, "maxLength": 2 * 1024 * 1024},
+        "baseline_at": _UTC_SCHEMA, "effective_at": _UTC_SCHEMA, "known_at": _UTC_SCHEMA,
+        "offset": {"type": "integer", "minimum": 0, "maximum": 5000, "default": 0},
+        "limit": {"type": "integer", "minimum": 1, "maximum": MAX_ROWS, "default": 200},
+    },
+    "required": ["membership_csv", "prices_csv", "baseline_at", "effective_at", "known_at"],
+    "additionalProperties": False,
+}
+_CLOSE_SCHEMA = {
+    "type": ["object", "null"],
+    "properties": {
+        "ticks": {"type": "string", "pattern": "^[0-9]+$"},
+        "observed_at": {"type": "integer"},
+    },
+    "required": ["ticks", "observed_at"],
+    "additionalProperties": False,
+}
+_SCREEN_ROW_PROPERTIES = {
+    "listing_id": {"type": "string"},
+    "instrument": {"type": "string"},
+    "membership_change_id": {"type": "string"},
+    "membership_effective_at": {"type": "integer"},
+    "membership_observed_at": {"type": "integer"},
+    "rank": {"type": ["integer", "null"], "minimum": 1, "maximum": 5000},
+    "return_units": {"type": ["string", "null"], "pattern": "^-?[0-9]+$"},
+    "baseline": _CLOSE_SCHEMA,
+    "current": _CLOSE_SCHEMA,
+}
+SCREEN_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "universe": {"type": "string"},
+        "total_rows": {"type": "integer", "minimum": 0, "maximum": 5000},
+        "offset": {"type": "integer", "minimum": 0, "maximum": 5000},
+        "next_offset": {"type": ["integer", "null"], "minimum": 0, "maximum": 5000},
+        "rows": {
+            "type": "array", "maxItems": MAX_ROWS,
+            "items": {
+                "type": "object",
+                "properties": _SCREEN_ROW_PROPERTIES,
+                "required": list(_SCREEN_ROW_PROPERTIES),
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["universe", "total_rows", "offset", "next_offset", "rows"],
+    "additionalProperties": False,
+}
+SCREEN_TOOL = {
+    "name": SCREEN_TOOL_NAME,
+    "description": "Rank effective universe members by price return at the requested baseline and effective times using only reports visible at the independent knowledge cutoff. Missing close endpoints leave the listing unranked.",
+    "annotations": TOOL["annotations"],
+    "inputSchema": SCREEN_INPUT_SCHEMA,
+    "outputSchema": SCREEN_OUTPUT_SCHEMA,
+}
 
 
 class RequestError(Exception):
@@ -88,6 +149,14 @@ def _error(request_id, code: int, message: str) -> dict:
 
 def _text(value: str) -> list[dict]:
     return [{"type": "text", "text": value}]
+
+
+def _structured(data: dict) -> dict:
+    return {"content": _text(json.dumps(data, separators=(",", ":"))), "structuredContent": data}
+
+
+def _price(price: ScreenPrice | None) -> dict | None:
+    return None if price is None else {"ticks": str(price.ticks), "observed_at": price.observed_at}
 
 
 def _invalid_number(value: str):
@@ -160,15 +229,18 @@ class ResearchServer:
         if method == "tools/list":
             if params.get("cursor") is not None:
                 raise RequestError(-32602, "The tool list fits on a single page.")
-            return {"tools": [TOOL]}
+            return {"tools": [TOOL, SCREEN_TOOL]}
         if method == "tools/call":
-            return self._evaluate(params)
+            name = params.get("name")
+            arguments = params.get("arguments")
+            if name == TOOL_NAME:
+                return self._evaluate(arguments)
+            if name == SCREEN_TOOL_NAME:
+                return self._screen(arguments)
+            raise RequestError(-32602, "Unknown research tool.")
         raise RequestError(-32601, "Method not found.")
 
-    def _evaluate(self, params: dict) -> dict:
-        if params.get("name") != TOOL_NAME:
-            raise RequestError(-32602, "Unknown research tool.")
-        arguments = params.get("arguments")
+    def _evaluate(self, arguments) -> dict:
         if not isinstance(arguments, dict) or set(arguments) - INPUT_SCHEMA["properties"].keys():
             raise RequestError(-32602, "Supply only the documented formula arguments.")
         formula, history = arguments.get("formula"), arguments.get("history_csv")
@@ -195,7 +267,42 @@ class ResearchServer:
                 for row in page
             ],
         }
-        return {"content": _text(json.dumps(data, separators=(",", ":"))), "structuredContent": data}
+        return _structured(data)
+
+    def _screen(self, arguments) -> dict:
+        if not isinstance(arguments, dict) or set(arguments) - SCREEN_INPUT_SCHEMA["properties"].keys():
+            raise RequestError(-32602, "Supply only the documented universe screen arguments.")
+        required = SCREEN_INPUT_SCHEMA["required"]
+        if not all(isinstance(arguments.get(field), str) and arguments[field] for field in required):
+            raise RequestError(-32602, "Supply both CSVs and the baseline, effective and known times.")
+        offset = _integer(arguments, "offset", 0, 0, 5000)
+        limit = _integer(arguments, "limit", 200, 1, MAX_ROWS)
+        try:
+            report = self._engine.screen_universe(**{field: arguments[field] for field in required})
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+        page = report.rows[offset:offset + limit]
+        end = offset + len(page)
+        return _structured({
+            "universe": report.universe,
+            "total_rows": len(report.rows),
+            "offset": offset,
+            "next_offset": end if end < len(report.rows) else None,
+            "rows": [
+                {
+                    "listing_id": row.listing_id,
+                    "instrument": row.instrument,
+                    "membership_change_id": row.membership_change_id,
+                    "membership_effective_at": row.membership_effective_at,
+                    "membership_observed_at": row.membership_observed_at,
+                    "rank": row.rank,
+                    "return_units": None if row.return_units is None else str(row.return_units),
+                    "baseline": _price(row.baseline),
+                    "current": _price(row.current),
+                }
+                for row in page
+            ],
+        })
 
 
 def run(server: ResearchServer, read: BinaryIO, write: BinaryIO) -> None:

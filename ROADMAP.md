@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.49.0 exposes exact historical formula evaluation through a bounded, read-only local MCP server. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
+0.50.0 brings point-in-time universe screening to both research SDKs and local MCP. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. A new name or parameter preset does not count as a new implementation.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -52,6 +52,7 @@
 | Delivered · 0.47.0 | TypeScript research SDK (MW-015, MW-016) | Independently install the SDK and its bundled Wasm offline. Verify exact formula outputs, observed prefixes and scoped function definitions. [SDK guide](packages/research/README.md). |
 | Delivered · 0.48.0 | Python research SDK (MW-015, MW-016) | Install the wheel offline, pass an observed cutoff and verify exact parity and isolated custom functions against the Rust and TypeScript fixtures. [Python SDK guide](packages/python-research/README.md). |
 | Delivered · 0.49.0 | Local MCP formula research (MW-028) | Negotiate MCP over stdio, return exact formula ticks, page observed rows and recover from tool errors. [Local MCP research](docs/local-mcp-research.md). |
+| Delivered · 0.50.0 | Universe screening for research clients (MW-018, MW-028) | Preserve exact ranks, membership and price revision cutoffs, unavailable endpoints and stable listing identity across Python, TypeScript and MCP. [Research screen](docs/research-universe-screen.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -63,5 +64,5 @@
 
 ## Handoff for the next change
 
-Expose point-in-time universe screening through the local research SDK and MCP. Verify addition, removal, late prices, revisions and missing endpoints against the terminal fixtures.
+Expose the read-only formula and universe research operations via a bounded localhost REST service with versioned requests and explicit access scopes.
 

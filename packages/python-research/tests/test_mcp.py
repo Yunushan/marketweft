@@ -66,7 +66,7 @@ class McpTest(unittest.TestCase):
         self.assertEqual(replies[0]["error"]["code"], -32002)
         self.assertEqual(replies[1]["result"]["protocolVersion"], "2025-11-25")
         tools = replies[2]["result"]["tools"]
-        self.assertEqual([item["name"] for item in tools], [mcp.TOOL_NAME])
+        self.assertEqual([item["name"] for item in tools], [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -103,6 +103,43 @@ class McpTest(unittest.TestCase):
         self.assertEqual([item["id"] for item in replies], [None, 1, None])
         self.assertEqual(replies[0]["error"]["code"], -32700)
         self.assertEqual(replies[2]["error"]["code"], -32600)
+
+    def test_universe_tool_pages_missing_prices_and_reranks_at_later_knowledge(self):
+        server = mcp.ResearchServer(ResearchEngine(EXECUTABLE))
+        server.handle(rpc("initialize", 1, INITIALIZE))
+        server.handle(rpc("notifications/initialized"))
+        fixtures = ROOT / "crates/core/tests/fixtures"
+        arguments = {
+            "membership_csv": (fixtures / "synthetic-universe.csv").read_text(encoding="utf-8"),
+            "prices_csv": (fixtures / "synthetic-universe-prices.csv").read_text(encoding="utf-8"),
+            "baseline_at": "2025-06-02T14:00:00Z",
+            "effective_at": "2025-06-02T14:10:00Z",
+            "known_at": "2025-06-02T14:10:00Z",
+        }
+
+        def screen(request_id, **changes):
+            request = rpc("tools/call", request_id, {"name": mcp.SCREEN_TOOL_NAME,
+                                                    "arguments": {**arguments, **changes}})
+            return server.handle(request)
+
+        first = screen(2, limit=1)["result"]["structuredContent"]
+        self.assertEqual(first["next_offset"], 1)
+        self.assertEqual(first["rows"][0]["listing_id"], "ALFA-001")
+        self.assertEqual(first["rows"][0]["return_units"], "20000")
+        second = screen(3, limit=1, offset=1)["result"]["structuredContent"]
+        self.assertIsNone(second["next_offset"])
+        pending, = second["rows"]
+        self.assertEqual(pending["listing_id"], "BETA-001")
+        self.assertIsNone(pending["rank"])
+        self.assertIsNone(pending["current"])
+        self.assertEqual(pending["baseline"]["ticks"], "50000000")
+        known = screen(4, known_at="2025-06-02T14:12:00Z")["result"]["structuredContent"]
+        self.assertEqual([(row["listing_id"], row["rank"]) for row in known["rows"]],
+                         [("BETA-001", 1), ("ALFA-001", 2)])
+        removed = screen(5, effective_at="2025-06-02T14:20:00Z",
+                         known_at="2025-06-02T14:25:00Z")["result"]["structuredContent"]
+        self.assertEqual([row["listing_id"] for row in removed["rows"]], ["BETA-001"])
+        self.assertEqual(screen(6, prices_file="local.csv")["error"]["code"], -32602)
 
 
 if __name__ == "__main__":

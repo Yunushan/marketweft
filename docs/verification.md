@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.50.0 · Point-in-time screening for research clients
+
+| Check | Observed result |
+| --- | --- |
+| Known-cutoff ranks | Before BETA joins, ALFA ranks alone. At the addition BETA remains unranked while its target close is missing. The late report puts BETA first at +12%, and the correction drops it behind ALFA at +1%. |
+| Removals and missing endpoints | ALFA leaves only after its removal is known, the delisted universe is empty, and the relisted BETA remains unranked without a starting close. Rewinding reproduces the earlier snapshot. |
+| Exact cross-client output | The native Python SDK, Wasm TypeScript SDK and official MCP client reproduce the terminal fixture. All three preserve an exact return beyond the signed 64-bit range. MCP pagination and structured result validation retain nulls and observation provenance. |
+| Regression suite | All 87 browser, nine Node SDK and four launcher tests passed on Windows x64. All 105 native and ten Python tests passed on Linux x64, all 42 Wasm tests passed, and all 21 README editions passed parity. Both SDK packages passed offline installation. |
+
+[Research universe screening](research-universe-screen.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.49.0 · Local MCP formula research
 
 | Check | Observed result |

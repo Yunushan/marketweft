@@ -1,12 +1,16 @@
-//! Versioned native formula process interface for read-only research clients.
+//! Versioned native process interfaces for read-only research clients.
 
 use crate::formula::{decode_formula_library, MAX_FORMULA_LIBRARY_BYTES, MAX_SOURCE_BYTES};
-use crate::{parse_csv, Formula, FORMULA_VERSION, MAX_INPUT_BYTES};
+use crate::history::exact_utc;
+use crate::screen::MAX_PRICE_BYTES;
+use crate::universe::MAX_MEMBERSHIP_BYTES;
+use crate::{parse_csv, parse_universe, Formula, PriceBook, FORMULA_VERSION, MAX_INPUT_BYTES};
 use std::fmt::Write;
 
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const MAX_REQUEST_BYTES: usize =
     MAX_INPUT_BYTES + MAX_FORMULA_LIBRARY_BYTES + MAX_SOURCE_BYTES + 128;
+pub const MAX_SCREEN_REQUEST_BYTES: usize = MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 128;
 
 /// Evaluate one length-framed request and return UTC timestamps and integer ticks.
 pub fn evaluate_formula_request(bytes: &[u8]) -> Result<String, String> {
@@ -62,6 +66,86 @@ pub fn evaluate_formula_request(bytes: &[u8]) -> Result<String, String> {
         let _ = write!(output, "{}\t", bar.time);
         if let Some(value) = value {
             let _ = write!(output, "{value}");
+        }
+        output.push('\n');
+    }
+    Ok(output)
+}
+
+/// Rank the effective membership using only closes and revisions known at the cutoff.
+pub fn screen_universe_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_SCREEN_REQUEST_BYTES {
+        return Err("Universe screen request exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 universe screen request.")?;
+    let (header, payload) = request
+        .split_once('\n')
+        .ok_or("Missing universe screen header.")?;
+    let mut fields = header.split('\t');
+    let (
+        Some("marketweft-screen"),
+        Some("1"),
+        Some(membership),
+        Some(baseline),
+        Some(effective),
+        Some(known),
+        None,
+    ) = (
+        fields.next(),
+        fields.next(),
+        fields.next(),
+        fields.next(),
+        fields.next(),
+        fields.next(),
+        fields.next(),
+    )
+    else {
+        return Err("Invalid universe screen request or protocol version.".into());
+    };
+    let membership = membership
+        .parse::<usize>()
+        .ok()
+        .filter(|size| *size <= MAX_MEMBERSHIP_BYTES)
+        .ok_or("Invalid membership CSV length.")?;
+    let (Some(baseline_at), Some(effective_at), Some(known_at)) =
+        (exact_utc(baseline), exact_utc(effective), exact_utc(known))
+    else {
+        return Err("Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.".into());
+    };
+    let (membership, closes) = payload
+        .split_at_checked(membership)
+        .ok_or("Invalid membership CSV boundary.")?;
+    let universe = parse_universe(membership)?;
+    let prices = PriceBook::parse(&universe, closes)?;
+    let rows = prices.screen(baseline_at, effective_at, known_at)?;
+    let mut output = format!(
+        "marketweft-screen\t{PROTOCOL_VERSION}\t{}\n",
+        universe.name()
+    );
+    for row in rows {
+        let listing = row.listing;
+        write!(
+            output,
+            "{}\t{}\t{}\t{}\t{}\t",
+            listing.listing_id,
+            listing.instrument,
+            listing.change_id,
+            listing.effective_at,
+            listing.observed_at,
+        )
+        .unwrap();
+        if let (Some(rank), Some(change)) = (row.rank, row.return_units) {
+            write!(output, "{rank}\t{change}").unwrap();
+        } else {
+            output.push('\t');
+        }
+        for price in [row.baseline, row.current] {
+            output.push('\t');
+            if let Some(price) = price {
+                write!(output, "{}\t{}", price.ticks, price.observed_at).unwrap();
+            } else {
+                output.push('\t');
+            }
         }
         output.push('\n');
     }

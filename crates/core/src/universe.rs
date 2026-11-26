@@ -2,6 +2,7 @@ use crate::{history::exact_utc, Instrument};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_ROWS: usize = 5_000;
+pub(crate) const MAX_MEMBERSHIP_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
@@ -185,7 +186,7 @@ pub(crate) fn valid_id(value: &str) -> bool {
 }
 
 pub fn parse_universe(csv: &str) -> Result<UniverseBook, String> {
-    if csv.len() > 1024 * 1024 {
+    if csv.len() > MAX_MEMBERSHIP_BYTES {
         return Err("Universe membership CSV exceeds 1 MiB.".into());
     }
     let mut lines = csv

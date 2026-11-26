@@ -35,3 +35,30 @@ test('function libraries stay scoped to each evaluation and engine', async () =>
   assert.throws(() => first.evaluateFormula('adjust(close)', bars), /Unknown formula field or function/)
   assert.throws(() => second.evaluateFormula('adjust(close)', bars, functionWith('price + high')), /explicit parameter/)
 })
+
+test('the TypeScript SDK screens effective members at an independent known cutoff', async () => {
+  const fixture = name => new URL('../../../crates/core/tests/fixtures/synthetic-universe' + name, import.meta.url)
+  const [membership, prices, research] = await Promise.all([
+    readFile(fixture('.csv'), 'utf8'), readFile(fixture('-prices.csv'), 'utf8'), createResearchEngine(wasm),
+  ])
+  const utc = time => '2025-06-02T' + time + 'Z'
+  const query = (effective, known) => research.universeScreen(membership, prices, utc('14:00:00'), utc(effective), utc(known))
+  const ranks = rows => rows.map(row => [row.listingId, row.rank, row.returnUnits])
+  assert.deepEqual(ranks(query('14:05:00', '14:05:00')), [['ALFA-001', 1, 10_000n]])
+  const pending = query('14:10:00', '14:10:00')
+  assert.deepEqual(ranks(pending), [['ALFA-001', 1, 20_000n], ['BETA-001', null, null]])
+  assert.equal(pending[1].current, null)
+  assert.deepEqual(ranks(query('14:10:00', '14:12:00')), [['BETA-001', 1, 120_000n], ['ALFA-001', 2, 20_000n]])
+  assert.deepEqual(ranks(query('14:10:00', '14:16:00')), [['ALFA-001', 1, 20_000n], ['BETA-001', 2, 10_000n]])
+  assert.deepEqual(ranks(query('14:20:00', '14:25:00')), [['BETA-001', 1, 80_000n]])
+  assert.deepEqual(query('14:35:00', '14:35:00'), [])
+  assert.equal(query('14:45:00', '14:45:00')[0].baseline, null)
+  assert.deepEqual(query('14:10:00', '14:10:00'), pending)
+  const extreme = [
+    'universe,listing_id,price_at,observed_at,close',
+    'DEMO-BASKET,ALFA-001,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,0.000001',
+    'DEMO-BASKET,ALFA-001,2025-06-02T14:05:00Z,2025-06-02T14:05:00Z,2000000000',
+  ].join('\n')
+  const [large] = research.universeScreen(membership, extreme, utc('14:00:00'), utc('14:05:00'), utc('14:05:00'))
+  assert.equal(large.returnUnits, (2_000_000_000_000_000n - 1n) * 1_000_000n)
+})

@@ -52,12 +52,22 @@ jobs:
           node --input-type=module <<'JS'
           import assert from 'node:assert/strict'
           import { readFile } from 'node:fs/promises'
+          import { join } from 'node:path'
           import { createResearchEngine, MARKET_CORE_WASM_URL, RESEARCH_SDK_VERSION } from '@marketweft/research'
 
           const research = await createResearchEngine(await readFile(new URL(MARKET_CORE_WASM_URL)))
           const bars = research.parseBars('time,open,high,low,close,volume\n2025-04-03T14:00:00Z,10,10,10,10,20\n')
           assert.equal(research.version, RESEARCH_SDK_VERSION)
           assert.deepEqual(research.evaluateFormula('close + 0.000001', bars).values, [10000001n])
+          const fixture = name => readFile(join(process.env.GITHUB_WORKSPACE, 'crates/core/tests/fixtures', name), 'utf8')
+          const [membership, prices] = await Promise.all([
+            fixture('synthetic-universe.csv'), fixture('synthetic-universe-prices.csv'),
+          ])
+          const rank = known => research.universeScreen(
+            membership, prices, '2025-06-02T14:00:00Z', '2025-06-02T14:10:00Z', known,
+          ).map(row => [row.listingId, row.rank, row.returnUnits])
+          assert.deepEqual(rank('2025-06-02T14:10:00Z'), [['ALFA-001', 1, 20000n], ['BETA-001', null, null]])
+          assert.deepEqual(rank('2025-06-02T14:12:00Z'), [['BETA-001', 1, 120000n], ['ALFA-001', 2, 20000n]])
           JS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
