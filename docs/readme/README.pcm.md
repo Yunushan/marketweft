@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.22.0 · 0BSD**
+**0.23.0 · 0BSD**
 
 **Language dem for dis guide**
 
@@ -15,14 +15,14 @@
 
 MarketWeft na research terminal wey dey work for your own device. Analyst, developer and operator fit load OHLCV file wey dem get right to use, see candle and volume, calculate SMA and EMA with fixed decimal, and save watchlist, instrument and indicator for IndexedDB. E fit work offline after e cache the files. The price and volume wey follow am na synthetic, so provider account no dey needed.
 
-MarketWeft 0.22.0 add chart measurement wey you fit edit, with UTC bars and exact price ticks. MarketWeft 0.7.0 fit rank universe members by how price change, using reports wey don reach by the query time. Replay for trading session cover stock split, cash dividend, who dey inside and which listing dem don remove for exchange. The repo get TypeScript observer wey only read separate trading-bot service and Tauri wrapper wey still dey test. Provider feeds, orders, signed installers and hosting for many users dey roadmap.
+MarketWeft 0.23.0 save SMA and EMA periods separately for main chart and comparison chart. MarketWeft 0.7.0 fit rank universe members by how price change, using reports wey don reach by the query time. Replay for trading session cover stock split, cash dividend, who dey inside and which listing dem don remove for exchange. The repo get TypeScript observer wey only read separate trading-bot service and Tauri wrapper wey still dey test. Provider feeds, orders, signed installers and hosting for many users dey roadmap.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Start the portable terminal
 
-Download browser-terminal-attempt-N from GitHub verification wey pass. Extract MarketWeft-browser-0.22.0.zip, leave dist/ beside serve-terminal.mjs and run the command inside that folder. Open http://127.0.0.1:4173/ for current browser wey get WebAssembly, Canvas, BigInt and IndexedDB. Use Node.js 22.12 or newer. You no need install npm for the ZIP. Wait for Offline ready before you off network.
+Download browser-terminal-attempt-N from GitHub verification wey pass. Extract MarketWeft-browser-0.23.0.zip, leave dist/ beside serve-terminal.mjs and run the command inside that folder. Open http://127.0.0.1:4173/ for current browser wey get WebAssembly, Canvas, BigInt and IndexedDB. Use Node.js 22.12 or newer. You no need install npm for the ZIP. Wait for Offline ready before you off network.
 
 ```sh
 node serve-terminal.mjs
@@ -141,6 +141,8 @@ For di universe demo, load Portfolio replay. BETA-001 close for 14:10 UTC show o
 Choose Compare charts and pick instrument for comparison. Link by UTC mark di same time wey dey show for both panes. Zoom each pane on im own. Workspace backup keep both instruments, overlays and link setting.
 
 Choose Draw measurement and pick one existing UTC bar and price for each end. If you zoom or shift di chart, e go draw di same saved line again. Workspace backup keep di coordinates. Di app show time for seconds, how much price change and di percentage.
+
+Open Indicators and set SMA and EMA periods as number of bars for each pane. If closing prices don reach, di chart go show values for di UTC bar you choose. Di periods remain when you change instrument, reload or restore workspace backup.
 
 [docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv) · [macro-calendar.md](../../docs/macro-calendar.md) · [macro-calendar.csv](../../crates/core/tests/fixtures/synthetic-macro-calendar.csv) · [option-chain.md](../../docs/option-chain.md) · [option-underlying.csv](../../crates/core/tests/fixtures/synthetic-option-underlying.csv) · [option-quotes.csv](../../crates/core/tests/fixtures/synthetic-option-quotes.csv) · [replay-alerts.md](../../docs/replay-alerts.md) · [alert-rules.csv](../../crates/core/tests/fixtures/synthetic-alert-rules.csv) · [alert-observations.csv](../../crates/core/tests/fixtures/synthetic-alert-observations.csv) · [paper-ledger.md](../../docs/paper-ledger.md) · [paper-events.csv](../../crates/core/tests/fixtures/synthetic-paper-events.csv) · [bar-backtest.md](../../docs/bar-backtest.md) · [backtest-sessions.csv](../../crates/core/tests/fixtures/synthetic-backtest-sessions.csv) · [backtest-bars.csv](../../crates/core/tests/fixtures/synthetic-backtest-bars.csv) · [walk-forward.md](../../docs/walk-forward.md) · [seeded-scenarios.md](../../docs/seeded-scenarios.md) · [delisting-proceeds.md](../../docs/delisting-proceeds.md) · [split-revisions.csv](../../crates/core/tests/fixtures/synthetic-split-revisions.csv) · [dividend-positions.csv](../../crates/core/tests/fixtures/synthetic-dividend-positions.csv) · [portfolio-replay.md](../../docs/portfolio-replay.md) · [portfolio-holdings.csv](../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv) · [chart-workspace.md](../../docs/chart-workspace.md)
 

@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.23.0 · Independent moving-average periods
+
+| Check | Observed result |
+| --- | --- |
+| Independent calculations | On closes of 10, 14, 20 and 32, the two-bar chart ends at SMA 26.00 and EMA 27.111111. The three-bar chart ends at SMA 22.00 and EMA 23.333334. |
+| Warm-up and validation | Both panes show missing values at the first UTC bar. The form rejects a zero period before applying a change. |
+| Offline persistence | Reload and a version 4 backup restore recover the custom periods. A version 2 backup restores the legacy periods and overlay settings. |
+| Regression suite | All 60 browser and six SDK tests passed on Windows x64, 63 native tests passed on Linux x64, 22 Wasm tests passed, and all 21 README editions passed the parity check. |
+
+[Chart workspace](chart-workspace.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.22.0 · Editable chart measurements
 
 | Check | Observed result |
