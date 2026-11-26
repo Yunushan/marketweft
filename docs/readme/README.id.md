@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.8.0 · 0BSD**
+**0.9.0 · 0BSD**
 
 **Bahasa dokumentasi**
 
@@ -15,14 +15,14 @@
 
 MarketWeft adalah terminal riset lokal untuk analis, pengembang, dan operator. Terminal membuka OHLCV yang diizinkan, menampilkan kandil dan volume, menghitung SMA dan EMA dengan titik tetap, dan menyimpan daftar pantauan, instrumen, serta indikator di IndexedDB. Aplikasi berjalan luring setelah aset tersimpan. Harga dan volume bawaan bersifat sintetis dan tidak memerlukan akun penyedia.
 
-MarketWeft 0.8.0 menambah peta panas sektor sesuai waktu dengan cakupan bobot dan atribusi imbal hasil. MarketWeft 0.7.0 menambah pemeringkatan anggota semesta berdasarkan imbal hasil harga yang diketahui pada waktu kueri. Pemutaran ulang berbasis sesi mencakup pemecahan saham, dividen tunai, keanggotaan, dan penghapusan pencatatan. Repositori juga menyediakan pengamat TypeScript hanya-baca untuk layanan trading-bot terpisah dan pembungkus Tauri eksperimental. Umpan penyedia, pesanan, penginstal bertanda tangan, dan hosting multipengguna masih dalam peta jalan.
+MarketWeft 0.9.0 menambah versi laporan tahunan dan valuasi historis. MarketWeft 0.7.0 menambah pemeringkatan anggota semesta berdasarkan imbal hasil harga yang diketahui pada waktu kueri. Pemutaran ulang berbasis sesi mencakup pemecahan saham, dividen tunai, keanggotaan, dan penghapusan pencatatan. Repositori juga menyediakan pengamat TypeScript hanya-baca untuk layanan trading-bot terpisah dan pembungkus Tauri eksperimental. Umpan penyedia, pesanan, penginstal bertanda tangan, dan hosting multipengguna masih dalam peta jalan.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Memulai terminal portabel
 
-Unduh browser-terminal-attempt-N dari verifikasi GitHub yang berhasil. Ekstrak MarketWeft-browser-0.8.0.zip. Simpan dist/ di samping serve-terminal.mjs lalu jalankan perintah di folder itu. Buka http://127.0.0.1:4173/ dengan peramban yang mendukung WebAssembly, Canvas, BigInt, dan IndexedDB. Pakai Node.js 22.12 atau lebih baru. Instalasi npm tidak diperlukan. Tunggu Offline ready sebelum memutus koneksi.
+Unduh browser-terminal-attempt-N dari verifikasi GitHub yang berhasil. Ekstrak MarketWeft-browser-0.9.0.zip. Simpan dist/ di samping serve-terminal.mjs lalu jalankan perintah di folder itu. Buka http://127.0.0.1:4173/ dengan peramban yang mendukung WebAssembly, Canvas, BigInt, dan IndexedDB. Pakai Node.js 22.12 atau lebih baru. Instalasi npm tidak diperlukan. Tunggu Offline ready sebelum memutus koneksi.
 
 ```sh
 node serve-terminal.mjs
@@ -72,7 +72,19 @@ universe,listing_id,effective_at,observed_at,sector,weight
 DEMO-BASKET,BETA-001,2025-06-02T14:05:00Z,2025-06-02T14:16:00Z,Technology,0.4
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv)
+Buka Historical replay → Open financial statements → Start financial demo. Original filing menampilkan P/E 10×. Pada waktu valuasi yang sama, Restatement observed menaikkan P/E menjadi 15× dan menunjukkan ekuitas biasa tidak tersedia. Revised capitalization menaikkan P/E menjadi 20×. Unggah Annual filings CSV dan Capitalization CSV opsional untuk mencari penerbit dan batas waktu pengetahuan Anda.
+
+```csv
+issuer_id,filing_id,fiscal_start,fiscal_end,published_at,observed_at,currency,revenue,common_net_income,common_equity,operating_cash_flow
+DEMO-ALFA,ALFA-FY24-A1,2024-01-01,2024-12-31,2025-04-03T14:15:00Z,2025-04-03T14:20:00Z,USD,8000000000,800000000,,-250000000
+```
+
+```csv
+issuer_id,source_id,valuation_at,observed_at,currency,market_cap
+DEMO-ALFA,ALFA-CAP,2025-04-03T14:00:00Z,2025-04-03T14:01:00Z,USD,12000000000
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv)
 
 <!-- section:04 -->
 ## Mengimpor dan memutar ulang data sendiri

@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.8.0 · 0BSD**
+**0.9.0 · 0BSD**
 
 **دستاویز کی زبانیں**
 
@@ -21,7 +21,7 @@ MarketWeft تجزیہ کاروں، ڈویلپرز اور آپریٹرز کا م�
 
 <div dir="rtl">
 
-MarketWeft 0.8.0 وقت کے مطابق سیکٹر ہیٹ میپ، وزن کی کوریج اور واپسی میں حصہ دکھاتا ہے۔ MarketWeft 0.7.0 کسی وقت پر دستیاب معلومات کے مطابق قیمت کی واپسی سے یونیورس کی درجہ بندی شامل کرتا ہے۔ سیشن پر مبنی ری پلے میں اسٹاک اسپلٹ، نقد منافع، رکنیت اور ڈی لسٹنگ شامل ہیں۔ مخزن میں الگ trading-bot سروس کے لیے صرف پڑھنے والا TypeScript آبزرور اور تجرباتی Tauri ریپر بھی ہے۔ ڈیٹا فیڈز، آرڈرز، دستخط شدہ انسٹالر اور کثیر صارف ہوسٹنگ روڈمیپ میں ہیں۔
+MarketWeft 0.9.0 سالانہ گوشواروں کے ادوار اور تاریخی قدر پیمائی شامل کرتا ہے۔ MarketWeft 0.7.0 کسی وقت پر دستیاب معلومات کے مطابق قیمت کی واپسی سے یونیورس کی درجہ بندی شامل کرتا ہے۔ سیشن پر مبنی ری پلے میں اسٹاک اسپلٹ، نقد منافع، رکنیت اور ڈی لسٹنگ شامل ہیں۔ مخزن میں الگ trading-bot سروس کے لیے صرف پڑھنے والا TypeScript آبزرور اور تجرباتی Tauri ریپر بھی ہے۔ ڈیٹا فیڈز، آرڈرز، دستخط شدہ انسٹالر اور کثیر صارف ہوسٹنگ روڈمیپ میں ہیں۔
 
 </div>
 
@@ -32,7 +32,7 @@ MarketWeft 0.8.0 وقت کے مطابق سیکٹر ہیٹ میپ، وزن کی �
 
 <div dir="rtl">
 
-کامیاب GitHub رن سے browser-terminal-attempt-N حاصل کریں۔ MarketWeft-browser-0.8.0.zip کھولیں، dist/ کو serve-terminal.mjs کے ساتھ رکھیں اور اسی فولڈر میں کمانڈ چلائیں۔ WebAssembly، Canvas، BigInt اور IndexedDB والے براؤزر میں http://127.0.0.1:4173/ کھولیں۔ Node.js 22.12 یا نیا چاہیے۔ npm کی تنصیب درکار نہیں۔ نیٹ بند کرنے سے پہلے Offline ready دیکھیں۔
+کامیاب GitHub رن سے browser-terminal-attempt-N حاصل کریں۔ MarketWeft-browser-0.9.0.zip کھولیں، dist/ کو serve-terminal.mjs کے ساتھ رکھیں اور اسی فولڈر میں کمانڈ چلائیں۔ WebAssembly، Canvas، BigInt اور IndexedDB والے براؤزر میں http://127.0.0.1:4173/ کھولیں۔ Node.js 22.12 یا نیا چاہیے۔ npm کی تنصیب درکار نہیں۔ نیٹ بند کرنے سے پہلے Offline ready دیکھیں۔
 
 </div>
 
@@ -112,7 +112,23 @@ universe,listing_id,effective_at,observed_at,sector,weight
 DEMO-BASKET,BETA-001,2025-06-02T14:05:00Z,2025-06-02T14:16:00Z,Technology,0.4
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv)
+<div dir="rtl">
+
+Historical replay → Open financial statements → Start financial demo کھولیں۔ Original filing میں P/E 10× ہے۔ اسی قدر پیمائی کے وقت Restatement observed سے P/E 15× اور عام حصص کا ایکویٹی غائب دکھتا ہے۔ Revised capitalization میں P/E 20× ہے۔ اپنے جاری کنندہ اور معلوم وقت کی جانچ کے لیے Annual filings CSV اور اختیاری Capitalization CSV اپ لوڈ کریں۔
+
+</div>
+
+```csv
+issuer_id,filing_id,fiscal_start,fiscal_end,published_at,observed_at,currency,revenue,common_net_income,common_equity,operating_cash_flow
+DEMO-ALFA,ALFA-FY24-A1,2024-01-01,2024-12-31,2025-04-03T14:15:00Z,2025-04-03T14:20:00Z,USD,8000000000,800000000,,-250000000
+```
+
+```csv
+issuer_id,source_id,valuation_at,observed_at,currency,market_cap
+DEMO-ALFA,ALFA-CAP,2025-04-03T14:00:00Z,2025-04-03T14:01:00Z,USD,12000000000
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv)
 
 <!-- section:04 -->
 ## اپنا ڈیٹا درآمد اور دوبارہ چلائیں

@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.8.0 · 0BSD**
+**0.9.0 · 0BSD**
 
 **নথির ভাষা**
 
@@ -15,14 +15,14 @@
 
 MarketWeft বিশ্লেষক, ডেভেলপার ও অপারেটরের জন্য স্থানীয় গবেষণা টার্মিনাল। অনুমোদিত OHLCV খুলে ক্যান্ডেল ও ভলিউম দেখায়, নির্দিষ্ট দশমিক এককে SMA ও EMA গণনা করে এবং নজরদারি তালিকা, নির্বাচিত ইন্সট্রুমেন্ট ও সূচক IndexedDB-তে রাখে। সম্পদ ক্যাশ হলে অফলাইনে চলে। সঙ্গে দেওয়া দাম ও ভলিউম কৃত্রিম, অ্যাকাউন্ট লাগে না।
 
-MarketWeft 0.8.0 নির্দিষ্ট সময়ের তথ্য দিয়ে সেক্টর হিটম্যাপ, ওজনের কভারেজ ও রিটার্নে অবদান দেখায়। MarketWeft 0.7.0 নির্দিষ্ট সময়ে জানা তথ্য দিয়ে দামের রিটার্ন অনুযায়ী ইউনিভার্স স্ক্রিনিং যোগ করে। সেশনভিত্তিক রিপ্লেতে স্টক স্প্লিট, নগদ লভ্যাংশ, সদস্যপদ এবং তালিকা থেকে বাদ পড়া রয়েছে। আলাদা trading-bot পরিষেবার জন্য শুধু পড়ার TypeScript অবজারভার ও পরীক্ষামূলক Tauri র‍্যাপারও আছে। ডেটা ফিড, অর্ডার, স্বাক্ষরিত ইনস্টলার এবং বহু ব্যবহারকারীর হোস্টিং রোডম্যাপে আছে।
+MarketWeft 0.9.0 বার্ষিক ফাইলিংয়ের সংস্করণ ও ঐতিহাসিক মূল্যায়ন যোগ করে। MarketWeft 0.7.0 নির্দিষ্ট সময়ে জানা তথ্য দিয়ে দামের রিটার্ন অনুযায়ী ইউনিভার্স স্ক্রিনিং যোগ করে। সেশনভিত্তিক রিপ্লেতে স্টক স্প্লিট, নগদ লভ্যাংশ, সদস্যপদ এবং তালিকা থেকে বাদ পড়া রয়েছে। আলাদা trading-bot পরিষেবার জন্য শুধু পড়ার TypeScript অবজারভার ও পরীক্ষামূলক Tauri র‍্যাপারও আছে। ডেটা ফিড, অর্ডার, স্বাক্ষরিত ইনস্টলার এবং বহু ব্যবহারকারীর হোস্টিং রোডম্যাপে আছে।
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## বহনযোগ্য টার্মিনাল চালান
 
-সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.8.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
+সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.9.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
 
 ```sh
 node serve-terminal.mjs
@@ -72,7 +72,19 @@ universe,listing_id,effective_at,observed_at,sector,weight
 DEMO-BASKET,BETA-001,2025-06-02T14:05:00Z,2025-06-02T14:16:00Z,Technology,0.4
 ```
 
-[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv)
+Historical replay → Open financial statements → Start financial demo খুলুন। Original filing-এ P/E 10×। একই মূল্যায়নের সময়ে Restatement observed-এ P/E 15× এবং সাধারণ ইকুইটি অনুপস্থিত। Revised capitalization-এ P/E 20×। নিজের ইস্যুয়ার ও তথ্য জানার সময় দিয়ে খুঁজতে Annual filings CSV ও ঐচ্ছিক Capitalization CSV আপলোড করুন।
+
+```csv
+issuer_id,filing_id,fiscal_start,fiscal_end,published_at,observed_at,currency,revenue,common_net_income,common_equity,operating_cash_flow
+DEMO-ALFA,ALFA-FY24-A1,2024-01-01,2024-12-31,2025-04-03T14:15:00Z,2025-04-03T14:20:00Z,USD,8000000000,800000000,,-250000000
+```
+
+```csv
+issuer_id,source_id,valuation_at,observed_at,currency,market_cap
+DEMO-ALFA,ALFA-CAP,2025-04-03T14:00:00Z,2025-04-03T14:01:00Z,USD,12000000000
+```
+
+[docs/historical-replay.md](../../docs/historical-replay.md) · [replay-sessions.csv](../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv) · [replay-ohlcv.csv](../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv) · [corporate-actions.md](../../docs/corporate-actions.md) · [split-actions.csv](../../crates/core/tests/fixtures/synthetic-split-actions.csv) · [split-sessions.csv](../../crates/core/tests/fixtures/synthetic-split-sessions.csv) · [split-ohlcv.csv](../../crates/core/tests/fixtures/synthetic-split-ohlcv.csv) · [cash-dividends.md](../../docs/cash-dividends.md) · [cash-dividends.csv](../../crates/core/tests/fixtures/synthetic-cash-dividends.csv) · [universe-membership.md](../../docs/universe-membership.md) · [universe-membership.csv](../../crates/core/tests/fixtures/synthetic-universe.csv) · [universe-screen.md](../../docs/universe-screen.md) · [universe-prices.csv](../../crates/core/tests/fixtures/synthetic-universe-prices.csv) · [sector-heatmap.md](../../docs/sector-heatmap.md) · [universe-sectors.csv](../../crates/core/tests/fixtures/synthetic-universe-sectors.csv) · [financial-statements.md](../../docs/financial-statements.md) · [financial-filings.csv](../../crates/core/tests/fixtures/synthetic-financial-filings.csv) · [financial-market-caps.csv](../../crates/core/tests/fixtures/synthetic-financial-market-caps.csv)
 
 <!-- section:04 -->
 ## নিজের তথ্য আমদানি ও পুনরায় চালান

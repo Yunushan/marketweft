@@ -1,5 +1,16 @@
 # MarketWeft verification
 
+## 0.9.0 · Point-in-time financial statements
+
+| Check | Observed result |
+| --- | --- |
+| Original and restated filings | Keeping valuation fixed at 14:00 UTC, the original ALFA filing gives 10× P/E. The 14:20 observed restatement gives 15×. A preliminary filing arriving at 14:25 leaves the newer published restatement selected. |
+| Market capitalization and rewind | The first capitalization is invisible until 14:01. Its revision at 14:35 lifts P/E to 20× without changing the selected filing. Rewinding restores the original filing and capitalization. |
+| Unavailable ratios | Fixtures verify absent market cap, mismatched currencies, missing equity or revenue, and nonpositive net income. The UI preserves issuer, filing, fiscal period and both source times. |
+| Import and regression | Chromium validates a filing-only CSV, invalid dates, offline queries, a 360-pixel viewport and an unchanged workspace catalog. All 37 browser and six SDK tests passed on Windows x64. Twenty-nine native tests passed on Linux x64 and ten Wasm checks passed. All 21 README editions passed the parity check. |
+
+[Financial statement contract and fixtures](financial-statements.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.8.0 · Point-in-time sector heatmap
 
 | Check | Observed result |
