@@ -73,6 +73,8 @@ for _ in {1..15}; do
     if "${device[@]}" shell uiautomator dump /sdcard/marketweft-terminal.xml >"$work/dump.log" 2>&1 &&
         "${device[@]}" exec-out cat /sdcard/marketweft-terminal.xml >reports/android-terminal.xml &&
         python3 -B scripts/verify_android_terminal.py hierarchy reports/android-terminal.xml "$package" >"$work/hierarchy.log" 2>&1; then
+        python3 -B scripts/verify_android_csv.py "$serial" "$package" "$activity" \
+            apps/desktop/tests/fixtures/native-verification.csv reports/android-import-latest.xml
         (cd reports && sha256sum "$name" >"$name.sha256")
         printf 'Verified MarketWeft %s offline in Android 35 x86_64 System WebView.\n' "$version"
         exit 0

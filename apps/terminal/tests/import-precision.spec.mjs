@@ -14,7 +14,7 @@ test('six-place prices, the close change and fractional volume survive import an
   await page.goto('/')
   await page.getByRole('button', { name: 'Import CSV' }).click()
   await page.getByLabel('Symbol', { exact: true }).fill('EURUSD')
-  await page.locator('input[type=file]').setInputFiles({
+  await page.getByLabel('Historical CSV file', { exact: true }).setInputFiles({
     name: 'fx.csv',
     mimeType: 'text/csv',
     buffer: Buffer.from(tinyBars),
