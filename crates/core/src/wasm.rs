@@ -3083,6 +3083,32 @@ fn encode_formula_values(formula: &crate::Formula, bars: &[u8]) -> Result<Vec<u8
 }
 
 #[no_mangle]
+pub extern "C" fn mw_replay_candle_patterns(calendar_bytes: usize, interval: u32) -> u32 {
+    process(|input| {
+        let (clock, input) = input
+            .split_first_chunk::<8>()
+            .ok_or("Missing observation time.")?;
+        let (calendar, bars) = input
+            .split_at_checked(calendar_bytes)
+            .ok_or("Invalid calendar length.")?;
+        let sessions = parse_sessions(utf8(calendar)?)?;
+        let hits = crate::replay_candle_patterns(
+            &sessions,
+            interval,
+            &decode_bars(bars)?,
+            i64::from_le_bytes(*clock),
+        )?;
+        let mut bytes = Vec::with_capacity(hits.len() * 16);
+        for hit in hits {
+            bytes.extend_from_slice(&hit.observed_at.to_le_bytes());
+            bytes.extend_from_slice(&(hit.bar_index as u32).to_le_bytes());
+            bytes.extend_from_slice(&(hit.kind as u32).to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_replay(calendar_bytes: usize, interval: u32) -> u32 {
     process(|input| {
         let (calendar, bar_bytes) = input

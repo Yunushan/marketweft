@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.133.0 · Candlestick pattern replay
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Exact fixtures check both engulfing directions, equal-body rejection, the inclusive doji threshold, missing intervals, session resets, and cutoffs one second before each match. |
+| Browser replay | Offline Chromium verifies all four discoveries, clearing the visible report at a different step, early-close disclosure, and earlier results after rewind. |
+| Source permissions | Chromium denies scans on an imported restricted source and compares persisted catalog data before and after. |
+
+[Candlestick pattern replay](candlestick-patterns.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.132.0 · Price and time range highlights
 
 | Check | Evidence |

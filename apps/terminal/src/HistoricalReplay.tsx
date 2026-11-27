@@ -13,12 +13,16 @@ import { FundamentalReplay } from './FundamentalReplay'
 import { MacroReplay } from './MacroReplay'
 import { OptionReplay } from './OptionReplay'
 import { AlertReplay } from './AlertReplay'
+import { CandlePatternReplay } from './CandlePatternReplay'
+import type { SourceRights } from './catalog-schema'
 import { PaperReplay } from './PaperReplay'
 import { BacktestReplay } from './BacktestReplay'
 import type { Asset } from './workspace'
 import { Chart } from './Chart'
 import { Icon, Mark } from './Icons'
 import { price, utc } from './workspace'
+import patternCalendar from '../../../crates/core/tests/fixtures/synthetic-candle-pattern-sessions.csv?raw'
+import patternBars from '../../../crates/core/tests/fixtures/synthetic-candle-patterns.csv?raw'
 import demoCalendar from '../../../crates/core/tests/fixtures/nyse-2025-replay-sessions.csv?raw'
 import demoBars from '../../../crates/core/tests/fixtures/nyse-2025-replay-ohlcv.csv?raw'
 import splitCalendar from '../../../crates/core/tests/fixtures/synthetic-split-sessions.csv?raw'
@@ -60,6 +64,8 @@ const openingOffset = (minutes: number) => {
 type ReplayRun = {
   asset: Asset
   calendarName: string
+  calendar: string
+  seconds: number
   events: TimelineEvent[]
   counts: Uint32Array
   splits: Split[]
@@ -74,11 +80,13 @@ export function HistoricalReplay({
   core,
   assets,
   selected,
+  sourceRights,
   close,
 }: {
   core: MarketCore
   assets: Asset[]
   selected: string
+  sourceRights: Record<string, SourceRights | undefined>
   close: () => void
 }) {
   const [active, setActive] = useState<ReplayRun | null>(null)
@@ -160,7 +168,7 @@ export function HistoricalReplay({
     setCursor(-1)
     setPlaying(false)
     setBasis('raw')
-    setActive({ asset, calendarName, events, counts, splits, dividends })
+    setActive({ asset, calendarName, calendar, seconds, events, counts, splits, dividends })
   }
 
   function splitDemo(actions: string) {
@@ -236,6 +244,27 @@ export function HistoricalReplay({
       setError(
         cause instanceof Error ? cause.message : 'Could not start the replay.',
       )
+    }
+  }
+
+  function patternDemo() {
+    setError('')
+    try {
+      start(
+        {
+          id: 'DEMO:PATTERNS',
+          symbol: 'PATTERNS',
+          venue: 'DEMO',
+          name: 'Synthetic candlestick pattern history',
+          source: 'sample',
+          bars: core.parseCsv(patternBars),
+        },
+        patternCalendar,
+        60,
+        'Synthetic sessions with a missing bar and an early close',
+      )
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not start the pattern demo.')
     }
   }
 
@@ -376,6 +405,12 @@ export function HistoricalReplay({
                 </p>
                 <button className="primary" onClick={demo} disabled={busy}>
                   Start demo
+                </button>
+              </section>
+              <section className="side-card replay-panel">
+                <h2>Candlestick pattern demo</h2>
+                <button className="primary" onClick={patternDemo} disabled={busy}>
+                  Start candlestick pattern demo
                 </button>
               </section>
               <section className="side-card replay-panel">
@@ -820,6 +855,15 @@ export function HistoricalReplay({
                 current={event?.kind === 'dividend' ? event.dividends : []}
               />
             )}
+            <CandlePatternReplay
+              core={core}
+              calendar={active.calendar}
+              interval={active.seconds}
+              bars={rawBars}
+              cutoff={clock}
+              cursor={cursor}
+              sourceRights={sourceRights[active.asset.id]}
+            />
             {adjustmentError ? (
               <p role="alert" className="warning replay-empty">
                 {adjustmentError} Select Raw to inspect the original prefix.

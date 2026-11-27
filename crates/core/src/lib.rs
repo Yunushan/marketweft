@@ -7,6 +7,7 @@ mod atr;
 mod backtest;
 mod bollinger;
 mod bollinger_measures;
+mod candle_patterns;
 mod chaikin;
 mod chart_movement;
 mod cross_section;
@@ -78,6 +79,7 @@ pub use backtest::{
 pub use bollinger::PriceBand as BollingerBand;
 pub use bollinger::{bollinger_bands, PriceBand};
 pub use bollinger_measures::{bollinger_measures, BollingerMeasures};
+pub use candle_patterns::{replay_candle_patterns, CandlePattern, CandlePatternHit};
 pub use chaikin::{chaikin_money_flow, chaikin_oscillator};
 pub use chart_movement::PriceMovement;
 pub use cross_section::{

@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.132.0 adds editable price and time range highlights. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.133.0 scans observed doji and engulfing patterns during historical replay. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -135,6 +135,7 @@
 | Delivered · 0.130.0 | Chart ellipses and triangles (MW-014) | Verify ellipse bounds, ordered vertices, rejection of zero-area shapes and version 35 restore. [Ellipses and triangles](docs/chart-workspace.md#ellipses-and-triangles). |
 | Delivered · 0.131.0 | Chart notes and directional arrows (MW-014) | Verify exact label text, backward arrow direction, anchored placement, and version 36 restore. [Chart notes and directional arrows](docs/chart-workspace.md#chart-notes-and-directional-arrows). |
 | Delivered · 0.132.0 | Price and time range highlights (MW-014) | Verify independent plot axes, sorted coordinates, time interpolation, viewport clipping, and version 37 restore. [Price and time ranges](docs/chart-workspace.md#price-and-time-range-highlights). |
+| Delivered · 0.133.0 | Historical candlestick scanner (MW-031) | Verify exact doji boundaries, engulfing coverage, raw observation cutoffs, gap and session resets, and structured source grants. [Candlestick pattern replay](docs/candlestick-patterns.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Expand the drawing inventory with verified, editable tools. Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -146,5 +147,5 @@
 
 ## Handoff for the next change
 
-Implement a historical candlestick pattern scanner in the shared Rust core. Verify observed-prefix detection, the effect of missing bars, and the browser replay cutoff.
+Add candlestick pattern rules to replay alerts with exact evidence of the triggering candle and observation cutoff.
 

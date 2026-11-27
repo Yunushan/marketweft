@@ -1496,3 +1496,21 @@ test('Aroon uses observed ages, latest tied extrema and one rounding of the osci
   assert.throws(() => core.aroon(0, bars), /100,000/);
   assert.throws(() => core.aroon(5, [bars[0], bars[0]]), /later/);
 });
+
+test('candle pattern replay retains exact observation cutoffs across missing bars and an early close', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
+  const calendar = await fixture('synthetic-candle-pattern-sessions');
+  const bars = core.parseCsv(await fixture('synthetic-candle-patterns'));
+  const utc = value => Date.parse(value) / 1000;
+  const expected = [
+    { kind: 'bullish-engulfing', barIndex: 1, observedAt: utc('2026-01-12T14:02:00Z') },
+    { kind: 'bearish-engulfing', barIndex: 2, observedAt: utc('2026-01-12T14:03:00Z') },
+    { kind: 'doji', barIndex: 4, observedAt: utc('2026-01-12T14:06:00Z') },
+    { kind: 'doji', barIndex: 9, observedAt: utc('2026-01-13T14:02:30Z') },
+  ];
+  for (const [index, hit] of expected.entries()) {
+    assert.deepEqual(core.replayCandlePatterns(calendar, 60, bars, hit.observedAt - 1), expected.slice(0, index));
+    assert.deepEqual(core.replayCandlePatterns(calendar, 60, bars, hit.observedAt), expected.slice(0, index + 1));
+  }
+  assert.throws(() => core.replayCandlePatterns(calendar, 0, bars, expected[0].observedAt), /Replay interval/);
+});

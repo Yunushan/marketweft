@@ -743,6 +743,7 @@ export function App({
           core={core}
           assets={assets.filter((item) => item.source === 'import')}
           selected={ws.selected}
+          sourceRights={Object.fromEntries(saved.series.map(({ id, descriptor }) => [id, descriptor.sourceRights]))}
           close={() => {
             restoreReplayFocus.current = true
             setReplaying(false)

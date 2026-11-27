@@ -243,6 +243,12 @@ export interface DrawingMeasurement {
 }
 
 const replayKinds = ['open', 'bar', 'missing', 'close'] as const;
+const candlePatternKinds = ['doji', 'bullish-engulfing', 'bearish-engulfing'] as const;
+export interface CandlePatternHit {
+  kind: typeof candlePatternKinds[number];
+  barIndex: number;
+  observedAt: number;
+}
 export interface ReplayEvent {
   kind: typeof replayKinds[number];
   eventTime: number;
@@ -935,6 +941,7 @@ export interface MarketCore {
   stochasticOscillator(lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
   bollingerMeasures(period: number, bars: readonly Bar[]): BollingerMeasures[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
+  replayCandlePatterns(calendar: string, intervalSeconds: number, bars: readonly Bar[], knownAt: number): CandlePatternHit[];
   splitBook(instrument: string, csv: string): Split[];
   adjustSplits(bars: readonly Bar[], splits: readonly Split[], asOf: number): Bar[];
   dividendLedger(instrument: string, csv: string, entitledShares: number): DividendEvent[];
@@ -1043,6 +1050,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_evaluate_formula(sourceBytes: number): number;
   mw_evaluate_formula_library(sourceBytes: number, libraryBytes: number): number;
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
+  mw_replay_candle_patterns(calendarBytes: number, intervalSeconds: number): number;
   mw_split_book(): number;
   mw_split_revision_book(): number;
   mw_adjust_splits(records: number): number;
@@ -1482,6 +1490,18 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       }
       dest.setBigInt64(start + 8 + index * 8, BigInt(ticks), true);
     }
+  }
+
+  function replayCalendar(calendar: string, intervalSeconds: number, count: number) {
+    if (!Number.isInteger(intervalSeconds) || intervalSeconds < 1 || intervalSeconds > 86_400) {
+      throw new Error('Replay interval must be 1–86,400 seconds.');
+    }
+    if (count > 100_000) throw new Error('Replay supports up to 100,000 bars.');
+    const calendarLimit = 1024 * 1024;
+    if (calendar.length > calendarLimit) throw new Error('Session calendar exceeds 1 MiB.');
+    const encoded = encoder.encode(calendar);
+    if (encoded.length > calendarLimit) throw new Error('Session calendar exceeds 1 MiB.');
+    return encoded;
   }
 
   function putBacktestInput(calendar: string, bars: string, trades: string, parts: Uint8Array[]) {
@@ -1946,15 +1966,26 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         percentB: value(index * 32), bandwidth: value(index * 32 + 16),
       }));
     },
+    replayCandlePatterns(calendar, intervalSeconds, bars, knownAt) {
+      const encoded = replayCalendar(calendar, intervalSeconds, bars.length);
+      if (!Number.isSafeInteger(knownAt)) throw new Error('The observation cutoff must be integer UTC seconds.');
+      const start = 8 + encoded.length;
+      const dest = input(start + bars.length * 48);
+      dest.setBigInt64(0, BigInt(knownAt), true);
+      new Uint8Array(dest.buffer, dest.byteOffset + 8, encoded.length).set(encoded);
+      for (const [index, bar] of bars.entries()) putBar(dest, start + index * 48, bar, 'Candle pattern replay');
+      const out = output(api.mw_replay_candle_patterns(encoded.length, intervalSeconds));
+      return Array.from({ length: out.byteLength / 16 }, (_, index) => {
+        const offset = index * 16;
+        return {
+          kind: candlePatternKinds[out.getUint32(offset + 12, true)],
+          barIndex: out.getUint32(offset + 8, true),
+          observedAt: Number(out.getBigInt64(offset, true)),
+        };
+      });
+    },
     replay(calendar, intervalSeconds, bars) {
-      if (!Number.isInteger(intervalSeconds) || intervalSeconds < 1 || intervalSeconds > 86_400) {
-        throw new Error('Replay interval must be 1–86,400 seconds.');
-      }
-      if (bars.length > 100_000) throw new Error('Replay supports up to 100,000 bars.');
-      const calendarLimit = 1024 * 1024;
-      if (calendar.length > calendarLimit) throw new Error('Session calendar exceeds 1 MiB.');
-      const encoded = encoder.encode(calendar);
-      if (encoded.length > calendarLimit) throw new Error('Session calendar exceeds 1 MiB.');
+      const encoded = replayCalendar(calendar, intervalSeconds, bars.length);
       const dest = input(encoded.length + bars.length * 8);
       new Uint8Array(dest.buffer, dest.byteOffset, encoded.length).set(encoded);
       bars.forEach(({ time }, i) => {
