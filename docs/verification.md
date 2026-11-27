@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.161.0 · Ubuntu desktop package upgrades
+
+| Check | Evidence |
+| --- | --- |
+| Baseline identity | CI pins the successful 0.160.0 workflow, commit and artifact attempt. It validates the downloaded archive and package digests. When the verified archive has expired, it builds the same baseline source commit. |
+| Upgrade | Ubuntu x64 and ARM64 install the baseline, import a fixture CSV, save a close-line preference, reopen the profile on the old version, and verify the same profile and exact OHLCV after an APT upgrade. |
+
+[Ubuntu upgrade verification](platforms.md#verify-an-ubuntu-package-upgrade) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.160.0 · Ubuntu desktop packages
 
 | Check | Evidence |

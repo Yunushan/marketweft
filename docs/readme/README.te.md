@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.160.0 · 0BSD**
+**0.161.0 · 0BSD**
 
 **పత్రాల భాషలు**
 
@@ -15,20 +15,20 @@
 
 MarketWeft విశ్లేషకులు, డెవలపర్లు, నిర్వాహకుల కోసం స్థానిక పరిశోధన టెర్మినల్. అనుమతి ఉన్న OHLCV ఫైళ్లను తెరుస్తుంది, క్యాండిళ్లు మరియు పరిమాణం చూపిస్తుంది, స్థిర దశాంశంతో SMA, EMA లెక్కిస్తుంది. గమనిక జాబితా, ఎంచుకున్న సాధనం, సూచికలు IndexedDBలో ఉంటాయి. వనరులు కాష్ అయిన తర్వాత ఆఫ్‌లైన్‌లో పనిచేస్తుంది. అందించిన ధరలు, పరిమాణం కృత్రిమమైనవి. ఖాతా అవసరం లేదు.
 
-MarketWeft 0.160.0 x64, ARM64 కోసం Ubuntu డెస్క్‌టాప్ ప్యాకేజీలను రూపొందిస్తుంది. MarketWeft 0.7.0లో ప్రశ్న సమయానికి తెలిసిన ధరల రాబడిని బట్టి సమూహ సభ్యులకు ర్యాంకు ఇవ్వవచ్చు. సెషన్ ఆధారిత రీప్లేలో షేరు విభజనలు, నగదు డివిడెండ్లు, సభ్యత్వం, డీలిస్టింగ్ ఉన్నాయి. వేరే trading-bot సేవ కోసం చదవడానికి మాత్రమే TypeScript అబ్జర్వర్, ప్రయోగాత్మక Tauri ర్యాపర్ కూడా ఉన్నాయి. డేటా ఫీడ్లు, ఆర్డర్లు, సంతకం చేసిన ఇన్‌స్టాలర్లు, బహుళ వినియోగదారుల హోస్టింగ్ రోడ్‌మ్యాప్‌లో ఉన్నాయి.
+MarketWeft 0.161.0 Ubuntu డెస్క్‌టాప్ ప్యాకేజీ అప్‌గ్రేడ్ తర్వాత వర్క్‌స్పేస్ కొనసాగుతుందని ధృవీకరిస్తుంది. MarketWeft 0.7.0లో ప్రశ్న సమయానికి తెలిసిన ధరల రాబడిని బట్టి సమూహ సభ్యులకు ర్యాంకు ఇవ్వవచ్చు. సెషన్ ఆధారిత రీప్లేలో షేరు విభజనలు, నగదు డివిడెండ్లు, సభ్యత్వం, డీలిస్టింగ్ ఉన్నాయి. వేరే trading-bot సేవ కోసం చదవడానికి మాత్రమే TypeScript అబ్జర్వర్, ప్రయోగాత్మక Tauri ర్యాపర్ కూడా ఉన్నాయి. డేటా ఫీడ్లు, ఆర్డర్లు, సంతకం చేసిన ఇన్‌స్టాలర్లు, బహుళ వినియోగదారుల హోస్టింగ్ రోడ్‌మ్యాప్‌లో ఉన్నాయి.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## పోర్టబుల్ టెర్మినల్ ప్రారంభించండి
 
-విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.160.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
+విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.161.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
 
 ```sh
 node serve-terminal.mjs
 ```
 
-[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md) · [Linux native verification](../../docs/platforms.md#linux-native-verification) · [Ubuntu desktop package](../../docs/platforms.md#ubuntu-desktop-package)
+[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md) · [Linux native verification](../../docs/platforms.md#linux-native-verification) · [Ubuntu desktop package](../../docs/platforms.md#ubuntu-desktop-package) · [Ubuntu upgrade verification](../../docs/platforms.md#verify-an-ubuntu-package-upgrade)
 
 <!-- section:03 -->
 ## NYSE ఉదాహరణను నడపండి

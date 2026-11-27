@@ -200,6 +200,9 @@ jobs:
           subject-path: distribution/MarketWeft-browser-*.zip
 
   desktop-build:
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
@@ -242,6 +245,11 @@ jobs:
       - name: Verify the Ubuntu desktop installer and installed WebView
         if: runner.os == 'Linux'
         run: sh scripts/verify_desktop_deb.sh apps/desktop/target/release/marketweft-desktop
+      - name: Upgrade the verified Ubuntu package and reopen its workspace
+        if: runner.os == 'Linux'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: sh scripts/verify_published_desktop_upgrade.sh
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: runner.os == 'Linux'
         with:

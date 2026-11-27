@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import sys
 import tempfile
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -15,6 +16,10 @@ from zipfile import ZipFile
 
 API = "https://api.github.com/repos/Yunushan/marketweft"
 RUNNER_ARCH = {"amd64": "X64", "arm64": "ARM64"}
+
+
+class BaselineArchiveMissing(RuntimeError):
+    pass
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -71,6 +76,8 @@ def fetch(run_id, commit, version, architecture, output, token):
     with api(f"/actions/runs/{run_id}/artifacts?per_page=100") as response:
         found = [item for item in json.load(response)["artifacts"]
                  if item["name"] == expected and not item["expired"]]
+    if not found:
+        raise BaselineArchiveMissing("The verified desktop archive is unavailable.")
     if len(found) != 1 or not re.fullmatch(r"sha256:[0-9a-f]{64}", found[0].get("digest") or ""):
         raise ValueError("Expected one live desktop artifact with a SHA-256 digest.")
     artifact = found[0]
@@ -121,4 +128,8 @@ if __name__ == "__main__":
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         parser.error("GITHUB_TOKEN must grant Actions read access to the baseline run.")
-    print(fetch(args.run, args.commit, args.version, args.architecture, args.output, token))
+    try:
+        print(fetch(args.run, args.commit, args.version, args.architecture, args.output, token))
+    except BaselineArchiveMissing as error:
+        print(error, file=sys.stderr)
+        raise SystemExit(42) from error

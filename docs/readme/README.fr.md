@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.160.0 · 0BSD**
+**0.161.0 · 0BSD**
 
 **Langues de la documentation**
 
@@ -15,20 +15,20 @@
 
 MarketWeft est un terminal de recherche local destiné aux analystes, développeurs et opérateurs. Il ouvre des fichiers OHLCV autorisés, trace des chandeliers et les volumes, calcule SMA et EMA en virgule fixe et enregistre liste, instrument et indicateurs dans IndexedDB. Les ressources mises en cache permettent de travailler hors ligne. Les cours et volumes fournis sont synthétiques et ne nécessitent aucun compte.
 
-MarketWeft 0.160.0 construit des paquets de bureau Ubuntu pour x64 et ARM64. MarketWeft 0.7.0 ajoute un classement de l’univers par rendement du prix à partir des données connues à la date de consultation. Le rejeu par séance inclut les divisions d’actions, les dividendes en espèces, la composition de l’univers et les radiations. Le dépôt fournit également un observateur TypeScript en lecture seule pour le service distinct trading-bot et une enveloppe Tauri expérimentale. Les flux de fournisseurs, la saisie d’ordres, les installateurs signés et l’hébergement multiutilisateur restent dans la feuille de route.
+MarketWeft 0.161.0 vérifie que la mise à niveau du paquet Ubuntu conserve l’espace de travail. MarketWeft 0.7.0 ajoute un classement de l’univers par rendement du prix à partir des données connues à la date de consultation. Le rejeu par séance inclut les divisions d’actions, les dividendes en espèces, la composition de l’univers et les radiations. Le dépôt fournit également un observateur TypeScript en lecture seule pour le service distinct trading-bot et une enveloppe Tauri expérimentale. Les flux de fournisseurs, la saisie d’ordres, les installateurs signés et l’hébergement multiutilisateur restent dans la feuille de route.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Démarrer le terminal portable
 
-Téléchargez browser-terminal-attempt-N depuis une vérification GitHub réussie et extrayez MarketWeft-browser-0.160.0.zip. Conservez dist/ à côté de serve-terminal.mjs et exécutez la commande ci-dessous dans ce répertoire. Ouvrez http://127.0.0.1:4173/ avec un navigateur récent offrant WebAssembly, Canvas, BigInt et IndexedDB. Le lanceur exige Node.js 22.12 ou supérieur. Aucune installation npm n’est nécessaire. Attendez Offline ready avant la déconnexion.
+Téléchargez browser-terminal-attempt-N depuis une vérification GitHub réussie et extrayez MarketWeft-browser-0.161.0.zip. Conservez dist/ à côté de serve-terminal.mjs et exécutez la commande ci-dessous dans ce répertoire. Ouvrez http://127.0.0.1:4173/ avec un navigateur récent offrant WebAssembly, Canvas, BigInt et IndexedDB. Le lanceur exige Node.js 22.12 ou supérieur. Aucune installation npm n’est nécessaire. Attendez Offline ready avant la déconnexion.
 
 ```sh
 node serve-terminal.mjs
 ```
 
-[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md) · [Linux native verification](../../docs/platforms.md#linux-native-verification) · [Ubuntu desktop package](../../docs/platforms.md#ubuntu-desktop-package)
+[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md) · [Linux native verification](../../docs/platforms.md#linux-native-verification) · [Ubuntu desktop package](../../docs/platforms.md#ubuntu-desktop-package) · [Ubuntu upgrade verification](../../docs/platforms.md#verify-an-ubuntu-package-upgrade)
 
 <!-- section:03 -->
 ## Relire l’exemple du NYSE
