@@ -62,11 +62,13 @@ type DrawingTools = {
 }
 const UP = '#68d7b1',
   DOWN = '#ec817e',
+  UNCHANGED = '#93a19e',
   GOLD = '#e8ba70',
   LILAC = '#b59be6',
   CLOSE_LINE = '#55b5ee'
 const chartNames: Record<ChartType, string> = {
   candles: 'candlestick',
+  'hollow-candles': 'hollow candlestick',
   'volume-candles': 'volume-weighted candlestick',
   line: 'close line',
   area: 'close area',
@@ -83,6 +85,10 @@ const chartNames: Record<ChartType, string> = {
   'three-line-break': 'Three Line Break',
   kagi: 'Kagi',
   'point-and-figure': 'Point and Figure',
+}
+function hollowCandleColor(close: number, previousClose: number | undefined) {
+  if (previousClose === undefined || close === previousClose) return UNCHANGED
+  return close > previousClose ? UP : DOWN
 }
 const defaultView = (n: number) => ({ end: n, count: Math.min(n, 60) })
 const clamp = (x: number, min: number, max: number) =>
@@ -190,6 +196,7 @@ function draw(
   const derivedValue = (index: number) => histogram ? plotValue(closeChanges?.values[index] ?? null) :
     percentPlot?.[index] ?? null
   const volumeWeighted = type === 'volume-candles'
+  const hollowCandles = type === 'hollow-candles'
   const rangeBand = type === 'high-low-band'
   const swingChart = type === 'confirmed-swings'
   const continuitySeconds = swings?.seconds ?? bandSeconds
@@ -438,9 +445,23 @@ function draw(
   for (const b of groups) {
     const axis = (x(b.first) + x(b.last)) / 2,
       w = Math.max(1, dx * (b.last - b.first + 1) * 0.68)
-    const col = b.close >= b.open ? UP : DOWN
+    const col = hollowCandles ? hollowCandleColor(b.close, bars[b.first - 1]?.close)
+      : b.close >= b.open ? UP : DOWN
     ctx.fillStyle = col
-    if (!closeTrace && !derivedAxis && !rangeBand && !swingChart) {
+    if (hollowCandles) {
+      const bodyTop = y(Math.max(b.open, b.close))
+      const bodyBottom = y(Math.min(b.open, b.close))
+      const bodyLeft = axis - w / 2
+      line(axis, y(b.high), axis, bodyTop, col)
+      line(axis, bodyBottom, axis, y(b.low), col)
+      if (b.close > b.open) {
+        ctx.strokeRect(bodyLeft, bodyTop, w, bodyBottom - bodyTop)
+      } else if (b.close < b.open) {
+        ctx.fillRect(bodyLeft, bodyTop, w, bodyBottom - bodyTop)
+      } else {
+        line(bodyLeft, bodyTop, axis + w / 2, bodyTop, col)
+      }
+    } else if (!closeTrace && !derivedAxis && !rangeBand && !swingChart) {
       line(axis, y(b.high), axis, y(b.low), col)
       const open = y(b.open), close = y(b.close)
       if (type === 'ohlc') {
@@ -653,7 +674,9 @@ function draw(
   if (!derivedAxis) {
     const last = bars[view.end - 1]
     const at = y(last.close)
-    const tag = last.close >= last.open ? UP : DOWN
+    let tag = last.close >= last.open ? UP : DOWN
+    const lastGroup = groups.at(-1)
+    if (hollowCandles && lastGroup) tag = hollowCandleColor(last.close, bars[lastGroup.first - 1]?.close)
     ctx.setLineDash([3, 4])
     ctx.lineWidth = 0.8
     line(left, at, right, at, tag)

@@ -14,6 +14,12 @@ The comparison uses the original bars and timestamps from each saved series. Imp
 
 Choose **Candles** for a filled price body, **OHLC bars** for a high-to-low stem with a left open tick and right close tick, or **Close line** to trace observed closes. These three show observed volume and use the same source bars, overlays and cursor readout. **Heikin-Ashi** adds a derived candle view. When several bars share a display column, the candles and OHLC bars use the first open, highest high, lowest low and last close. The line keeps the first, last, highest and lowest closes in their original order. A single observed close is drawn as a point.
 
+### Hollow candles
+
+Choose **Hollow candles** in either pane. A close above the open draws an outlined body, a close below the open draws a filled body, and an equal open and close draw a horizontal mark. Each body, wick and volume bar uses the direction from the previous observed close. Higher closes are green, lower closes are red, and ties or a missing previous close are gray.
+
+The first visible candle uses the preceding observation even when it lies offscreen. In dense views, the first open, highest high, lowest low and last close form the displayed candle, and color compares that last close with the close before the display group. The cursor and chart CSV retain the original observations. Workspace backup version 52 preserves each pane's choice.
+
 ### Close area and step line
 
 **Close area** traces observed closes and shades the area between that line and the bottom of the price plot. **Step line** keeps each close level until the next displayed observation and changes the level at that observation's column. Both use the same source bars and volume as the close line. On dense views they retain the same first, last, highest and lowest closes within each display group.
