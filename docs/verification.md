@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.153.0 · Private REST rank comparison
+
+| Check | Evidence |
+| --- | --- |
+| REST router | Tests cover credential scopes, bounded pagination, exact close revisions, rank movement and a missing close. |
+| Private TLS peer | The Compose verification exercises an authorized container peer, checks two pages and verifies when a late removal becomes visible. |
+
+[REST rank comparison](local-rest-research.md#compare-universe-ranks) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.152.0 · Rank comparison SDKs and MCP
 
 | Check | Evidence |

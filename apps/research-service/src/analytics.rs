@@ -10,8 +10,8 @@ use axum::http::StatusCode;
 use marketweft_core::{
     parse_csv, parse_dividends, parse_exact_utc, parse_universe, AmericanValuationRequest,
     CashOptionError, ExerciseStyle, Formula, FormulaFunctionDefinition, FormulaLibrary,
-    OptionAnalytics, OptionBook, OptionSide, PriceBook, PriceObservation, FORMULA_VERSION,
-    MAX_AMERICAN_STEPS,
+    OptionAnalytics, OptionBook, OptionSide, PriceBook, PriceObservation, ScreenComparisonLeg,
+    ScreenCutoff, UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -24,6 +24,7 @@ const MAX_RESULTS: u64 = 1000;
 pub(crate) enum ResearchPage {
     Formula(FormulaPage),
     Screen(ScreenPage),
+    RankComparison(RankComparisonPage),
     Options(OptionPage),
     AmericanOption(AmericanOptionResponse),
 }
@@ -166,6 +167,137 @@ pub(crate) fn evaluate_formula(
                 .collect(),
         }
     });
+    Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RankComparisonQuery {
+    membership_csv: String,
+    prices_csv: String,
+    baseline_at: String,
+    before_effective_at: String,
+    before_known_at: String,
+    after_effective_at: String,
+    after_known_at: String,
+    #[serde(default, deserialize_with = "present")]
+    offset: Option<u64>,
+    #[serde(default, deserialize_with = "present")]
+    limit: Option<u64>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct RankComparisonPage {
+    universe: String,
+    baseline_at: String,
+    before_effective_at: String,
+    before_known_at: String,
+    after_effective_at: String,
+    after_known_at: String,
+    total_rows: u32,
+    offset: u32,
+    next_offset: Option<u32>,
+    rows: Vec<RankComparisonRow>,
+}
+
+#[derive(Serialize)]
+struct RankComparisonRow {
+    listing_id: String,
+    instrument: String,
+    before: RankComparisonLeg,
+    after: RankComparisonLeg,
+    rank_move: Option<i64>,
+}
+
+#[derive(Serialize)]
+struct RankComparisonLeg {
+    status: Option<&'static str>,
+    change_id: Option<String>,
+    effective_at: Option<i64>,
+    observed_at: Option<i64>,
+    rank: Option<u32>,
+    return_units: Option<String>,
+    baseline: Option<Close>,
+    current: Option<Close>,
+}
+
+impl From<&ScreenComparisonLeg<'_>> for RankComparisonLeg {
+    fn from(leg: &ScreenComparisonLeg<'_>) -> Self {
+        Self {
+            status: leg.membership.map(|change| match change.action {
+                UniverseAction::Add => "member",
+                UniverseAction::Remove => "removed",
+                UniverseAction::Delist => "delisted",
+                UniverseAction::Cancel => "cancelled",
+            }),
+            change_id: leg.membership.map(|change| change.change_id.clone()),
+            effective_at: leg.membership.map(|change| change.effective_at),
+            observed_at: leg.membership.map(|change| change.observed_at),
+            rank: leg.rank.map(|rank| rank as u32),
+            return_units: leg.return_units.map(|units| units.to_string()),
+            baseline: close(leg.baseline),
+            current: close(leg.current),
+        }
+    }
+}
+
+pub(crate) fn rank_comparison(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    let params: RankComparisonQuery = request(bytes)?;
+    let (offset, limit) = pagination(params.offset, params.limit, 5000)?;
+    let time = |input: &str| {
+        parse_exact_utc(input).ok_or_else(|| {
+            ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "Supply exact baseline, before and after UTC times.",
+            )
+        })
+    };
+    let baseline = time(&params.baseline_at)?;
+    let before = ScreenCutoff {
+        effective_at: time(&params.before_effective_at)?,
+        known_at: time(&params.before_known_at)?,
+    };
+    let after = ScreenCutoff {
+        effective_at: time(&params.after_effective_at)?,
+        known_at: time(&params.after_known_at)?,
+    };
+    let universe = parse_universe(&params.membership_csv).map_err(analytical_error)?;
+    let prices = PriceBook::parse(&universe, &params.prices_csv).map_err(analytical_error)?;
+    let rows = prices
+        .compare_ranks(baseline, before, after)
+        .map_err(analytical_error)?;
+    pages(
+        offset,
+        limit,
+        rows.len(),
+        emit,
+        |offset, range, next_offset| {
+            ResearchPage::RankComparison(RankComparisonPage {
+                universe: universe.name().to_owned(),
+                baseline_at: params.baseline_at.clone(),
+                before_effective_at: params.before_effective_at.clone(),
+                before_known_at: params.before_known_at.clone(),
+                after_effective_at: params.after_effective_at.clone(),
+                after_known_at: params.after_known_at.clone(),
+                total_rows: rows.len() as u32,
+                offset,
+                next_offset,
+                rows: rows[range]
+                    .iter()
+                    .map(|row| RankComparisonRow {
+                        listing_id: row.listing.listing_id.clone(),
+                        instrument: row.listing.instrument.to_string(),
+                        before: RankComparisonLeg::from(&row.before),
+                        after: RankComparisonLeg::from(&row.after),
+                        rank_move: row.rank_move,
+                    })
+                    .collect(),
+            })
+        },
+    );
     Ok(())
 }
 

@@ -21,6 +21,9 @@ CREDENTIALS = "/var/lib/marketweft/credentials/credentials.sqlite"
 AUDIT = "/var/lib/marketweft/audit"
 HOST = "research.marketweft.test"
 PORT = "4174"
+RECEIPTS_PER_PEER = 5
+SNAPSHOT_RECEIPTS = 2 * RECEIPTS_PER_PEER
+RECOVERED_RECEIPTS = SNAPSHOT_RECEIPTS + RECEIPTS_PER_PEER
 
 
 def certificate(tls, peer):
@@ -80,7 +83,7 @@ def exercise(image, tls, peer, restore_from=None):
             operator = ("run", "--rm", "--no-deps", "-T", "--volume", f"{restore_from}:{source}:ro", "audit-admin")
             verification = json.loads(compose(*operator, "audit", "verify", source))
             assert verification == {
-                "schema_version": 2, "receipts": 6, "unfinished": 0,
+                "schema_version": 2, "receipts": SNAPSHOT_RECEIPTS, "unfinished": 0,
                 "bytes": restore_from.stat().st_size,
                 "sha256": hashlib.sha256(restore_from.read_bytes()).hexdigest(),
             }
@@ -92,23 +95,23 @@ def exercise(image, tls, peer, restore_from=None):
                 raise AssertionError("An incorrect snapshot digest was accepted.")
             restored = compose(*operator, "audit", "restore", source, f"{AUDIT}/audit.sqlite",
                                "--sha256", verification["sha256"])
-            assert restored.strip() == b"Verified 6 audit receipts, 0 unfinished."
+            assert restored.strip() == f"Verified {SNAPSHOT_RECEIPTS} audit receipts, 0 unfinished.".encode()
         start()
         container = compose("ps", "-q", "research").decode().strip()
         assert container and not docker("port", container).strip()
         client()
         if restore_from is not None:
-            audit("backup", "audit", "destination", 9)
+            audit("backup", "audit", "destination", RECOVERED_RECEIPTS)
             return export("destination", peer / "audit-destination.sqlite")
         compose("restart", "research")
         start()
         client()
-        audit("backup", "audit", "snapshot", 6)
-        audit("restore", "snapshot", "recovered", 6)
+        audit("backup", "audit", "snapshot", SNAPSHOT_RECEIPTS)
+        audit("restore", "snapshot", "recovered", SNAPSHOT_RECEIPTS)
         environment["MARKETWEFT_RESEARCH_AUDIT_FILE"] = "recovered.sqlite"
         start()
         client()
-        audit("backup", "recovered", "reopened", 9)
+        audit("backup", "recovered", "reopened", RECOVERED_RECEIPTS)
         return export("snapshot", peer / "audit-source.sqlite")
     finally:
         compose("down", "--volumes", "--remove-orphans")
@@ -138,11 +141,14 @@ if __name__ == "__main__":
                 finally:
                     source.chmod(0o600)
                 original, recovered = receipts(source), receipts(destination)
-                assert len(original) == 6 and recovered[:6] == original
-                assert [row[0] for row in recovered[6:]] == [7, 8, 9]
+                assert len(original) == SNAPSHOT_RECEIPTS and recovered[:SNAPSHOT_RECEIPTS] == original
+                assert [row[0] for row in recovered[SNAPSHOT_RECEIPTS:]] == list(
+                    range(SNAPSHOT_RECEIPTS + 1, RECOVERED_RECEIPTS + 1)
+                )
+                assert [row[2] for row in recovered[-RECEIPTS_PER_PEER:]] == ["formula", "screen", "screen", "screen", "screen"]
                 assert all(row[-1] == "completed" for row in recovered)
             finally:
                 tls.chmod(0o700)
-        print("Verified private Compose restart and a separate fresh-volume restore with receipt IDs 7 through 9.")
+        print("Verified private Compose restart and receipt continuity after a separate fresh-volume restore.")
     except subprocess.CalledProcessError as error:
         raise SystemExit(error.stderr.decode(errors="replace").strip() or str(error)) from error

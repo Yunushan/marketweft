@@ -123,6 +123,86 @@ async fn screen_exposes_membership_and_price_availability_at_each_cutoff() {
 }
 
 #[tokio::test]
+async fn rank_comparison_is_scoped_and_pages_the_full_ranked_sets() {
+    let path = "/v1/universe/rank-comparison";
+    let mut query = json!({
+        "membership_csv": MEMBERSHIP, "prices_csv": PRICES,
+        "baseline_at": "2025-06-02T14:00:00Z",
+        "before_effective_at": "2025-06-02T14:10:00Z",
+        "before_known_at": "2025-06-02T14:12:00Z",
+        "after_effective_at": "2025-06-02T14:10:00Z",
+        "after_known_at": "2025-06-02T14:16:00Z",
+        "limit": 1,
+    });
+    assert_eq!(
+        send(request(path, None, query.clone())).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        send(request(path, Some(FORMULA_TOKEN), query.clone()))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    let (status, first) = send(request(path, Some(SCREEN_TOKEN), query.clone())).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(first["universe"], "DEMO-BASKET");
+    assert_eq!(first["total_rows"], 2);
+    assert_eq!(first["offset"], 0);
+    assert_eq!(first["next_offset"], 1);
+    assert_eq!(first["after_known_at"], "2025-06-02T14:16:00Z");
+    assert_eq!(first["rows"][0]["listing_id"], "ALFA-001");
+    assert_eq!(first["rows"][0]["rank_move"], 1);
+
+    query["offset"] = first["next_offset"].clone();
+    let (status, last) = send(request(path, Some(SCREEN_TOKEN), query.clone())).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(last["next_offset"], Value::Null);
+    let beta = &last["rows"][0];
+    assert_eq!(beta["listing_id"], "BETA-001");
+    assert_eq!(beta["rank_move"], -1);
+    assert_eq!(beta["before"]["status"], "member");
+    assert_eq!(beta["before"]["change_id"], "BETA-JOIN");
+    assert_eq!(beta["before"]["return_units"], "120000");
+    assert_eq!(
+        beta["before"]["current"],
+        json!({"ticks": "56000000", "observed_at": 1748873520})
+    );
+    assert_eq!(
+        beta["after"]["current"],
+        json!({"ticks": "50500000", "observed_at": 1748873760})
+    );
+
+    query["before_known_at"] = json!("2025-06-02T14:10:00Z");
+    let (status, missing) = send(request(path, Some(SCREEN_TOKEN), query.clone())).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(missing["rows"][0]["before"]["status"], "member");
+    assert_eq!(missing["rows"][0]["before"]["current"], Value::Null);
+    assert_eq!(missing["rows"][0]["rank_move"], Value::Null);
+
+    query["offset"] = json!(5001);
+    assert_eq!(
+        send(request(path, Some(SCREEN_TOKEN), query.clone()))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+    query["offset"] = json!(0);
+    query["limit"] = Value::Null;
+    assert_eq!(
+        send(request(path, Some(SCREEN_TOKEN), query.clone()))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+    query["limit"] = json!(1001);
+    assert_eq!(
+        send(request(path, Some(SCREEN_TOKEN), query)).await.0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+#[tokio::test]
 async fn authenticated_requests_remain_bounded() {
     let mut oversized = request("/v1/formula", Some(FORMULA_TOKEN), Value::Null);
     *oversized.body_mut() = Body::from(vec![b' '; 16 * 1024 * 1024 + 1]);

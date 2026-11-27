@@ -479,6 +479,7 @@ fn route_authority(
     Router::new()
         .route("/v1/formula", post(formula))
         .route("/v1/universe/screen", post(screen))
+        .route("/v1/universe/rank-comparison", post(rank_comparison))
         .route("/v1/options/snapshot", post(option_snapshot))
         .route("/v1/options/snapshot/stream", get(websocket::options))
         .route("/v1/options/american/valuation", post(american_option))
@@ -645,6 +646,13 @@ async fn screen(
     request: Request,
 ) -> Result<Json<ResearchPage>, ApiError> {
     execute(state, request, Scope::Screen, analytics::screen).await
+}
+
+async fn rank_comparison(
+    State(state): State<Arc<Server>>,
+    request: Request,
+) -> Result<Json<ResearchPage>, ApiError> {
+    execute(state, request, Scope::Screen, analytics::rank_comparison).await
 }
 
 async fn option_snapshot(

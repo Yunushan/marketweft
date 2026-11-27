@@ -18,14 +18,21 @@ The service prints the bound loopback address. The port defaults to 4174. Set `M
 | --- | --- | --- |
 | `POST /v1/formula` | `MARKETWEFT_FORMULA_TOKEN` | `formula`, `history_csv`, optional `observed_through` UTC seconds and ordered `functions` |
 | `POST /v1/universe/screen` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `prices_csv`, `baseline_at`, `effective_at` and `known_at` |
+| `POST /v1/universe/rank-comparison` | `MARKETWEFT_SCREEN_TOKEN` | Both CSVs, a shared baseline and two effective and known cutoff pairs |
 | `POST /v1/options/snapshot` | `MARKETWEFT_OPTIONS_TOKEN` | `underlying_csv`, `quotes_csv`, `effective_at`, `known_at` and optional `max_age` |
 | `POST /v1/options/american/valuation` | `MARKETWEFT_OPTIONS_TOKEN` | Option CSVs, `contract_id`, both UTC cutoffs, and optional volatility and cash dividends |
 
-Both endpoints accept `offset` and `limit`. The default page contains up to 200 rows. Pages can contain at most 1,000 rows. Reuse the same query and apply `next_offset` to obtain the next page. A screen ranks the full effective universe before slicing the result.
+The formula, universe and option snapshot endpoints accept `offset` and `limit`. The default page contains up to 200 rows. Pages can contain at most 1,000 rows. Reuse the same query and apply `next_offset` to obtain the next page. A screen ranks the full effective universe before slicing the result.
 
 The response carries exact integer values as decimal strings. Alongside each screen row the service returns the selected membership change and selected close observation timestamps. Missing prices and unavailable returns are `null`. [Research universe screening](research-universe-screen.md) · [Time-series formulas](time-series-language.md).
 
 The service accepts at most 16 MiB per JSON body and reads each body within five seconds. The server returns 401 for missing or invalid tokens, 403 for a different scope or origin, and 422 for inputs rejected by the research engine.
+
+## Compare universe ranks
+
+Send a JSON object to `POST /v1/universe/rank-comparison` using a screen credential. The same route works on the loopback listener or an enabled private TLS listener. Supply `membership_csv` and `prices_csv` as UTF-8 CSV contents and provide `baseline_at`, `before_effective_at`, `before_known_at`, `after_effective_at` and `after_known_at` as exact UTC timestamps. Optional `offset` runs from 0 to 5,000 and `limit` from 1 to 1,000. The default page size is 200.
+
+The result echoes the five cutoffs and provides the universe ID, total row count, offset and next offset. Each row retains the listing ID, instrument and both snapshots. Each snapshot contains its membership status, change ID, effective and observation times, rank, return units and exact baseline and target closes with their observation times. Prices and returns use decimal strings. Missing values use JSON `null`. Both snapshots are ranked before slicing the union by stable listing ID. Reuse the same inputs and cutoffs when requesting the next page. [Rank comparison semantics and examples](research-universe-screen.md#compare-rank-snapshots).
 
 ## WebSocket streaming
 

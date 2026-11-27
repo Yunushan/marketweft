@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.152.0 makes point-in-time rank comparisons available through both research SDKs and read-only MCP. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.153.0 serves point-in-time rank comparisons through the private research REST service. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Delivered · 0.153.0 | Private REST rank comparison (MW-018, MW-028) | Verify the screen scope, bounded pages, exact close revisions and late removal evidence over private TLS. [REST rank comparison](docs/local-rest-research.md#compare-universe-ranks). |
 | Delivered · 0.152.0 | Rank comparison SDKs and MCP (MW-018, MW-028) | Reuse the offline ranking engine and verify independent cutoffs, exact membership and close evidence, missing values, and stable MCP pages. [Rank comparison APIs](docs/research-universe-screen.md#compare-rank-snapshots). |
 | Delivered · 0.151.0 | Point-in-time rank comparison (MW-018) | Verify additions, missing closes, independent revisions, removals, delistings, ticker reuse and retained membership and price evidence. [Rank comparison](docs/universe-screen.md#compare-ranks-at-two-cutoffs). |
 | Delivered · 0.150.0 | Anchored regression channel (MW-014) | Verify exact observed windows, gaps, flat values, maximum residuals, cutoff behavior, rollups and version 49 restoration. [Regression channel](docs/chart-workspace.md#regression-channel). |
@@ -166,5 +167,5 @@
 
 ## Handoff for the next change
 
-Expose universe rank comparisons through the private research REST service. Verify scope enforcement, independent cutoffs, bounded pages and the exact evidence shared with the SDKs.
+Stream rank comparisons through the private research WebSocket service. Verify REST parity, resumed pages, scope enforcement and recovery after rejected queries.
 

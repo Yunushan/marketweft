@@ -53,6 +53,28 @@ for known, expected in [
     assert status == 200
     assert [(row["listing_id"], row["rank"], row["return_units"]) for row in result["rows"]] == expected
 
+comparison = {
+    "membership_csv": fixture("synthetic-universe.csv"),
+    "prices_csv": fixture("synthetic-universe-prices.csv"),
+    "baseline_at": "2025-06-02T14:00:00Z",
+    "before_effective_at": "2025-06-02T14:20:00Z",
+    "before_known_at": "2025-06-02T14:20:00Z",
+    "after_effective_at": "2025-06-02T14:20:00Z",
+    "after_known_at": "2025-06-02T14:25:00Z",
+    "limit": 1,
+}
+comparison_path = "/v1/universe/rank-comparison"
+assert post(comparison_path, formula, comparison)[0] == 403
+status, first = post(comparison_path, screen, comparison)
+assert status == 200 and first["next_offset"] == 1
+alfa = first["rows"][0]
+assert alfa["listing_id"] == "ALFA-001" and alfa["before"]["return_units"] == "40000"
+assert alfa["after"]["status"] == "removed" and alfa["after"]["change_id"] == "ALFA-REMOVE"
+assert alfa["after"]["current"] is None and alfa["rank_move"] is None
+status, last = post(comparison_path, screen, dict(comparison, offset=first["next_offset"]))
+assert status == 200 and last["next_offset"] is None
+assert last["rows"][0]["listing_id"] == "BETA-001" and last["rows"][0]["rank_move"] == 0
+
 untrusted = build_opener(ProxyHandler({}), HTTPSHandler(context=ssl.create_default_context()))
 try:
     post("/v1/formula", formula, query, client=untrusted)
