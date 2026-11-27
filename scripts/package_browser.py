@@ -146,6 +146,9 @@ Load the capital return demo or upload capital-returns.csv,
 capital-return-basis.csv and rights-holdings.csv. At effective 14:50 UTC,
 advance knowledge from 14:49 to 14:55 to compare the USD basis reports.
 At effective 15:00 and known 15:02, inspect the reported EUR basis.
+Open Compare capital returns at two cutoffs in the same sample. Compare
+effective 14:50 and known 14:49 against effective 15:00 and known 15:02
+to see the USD reversal and EUR payment on separate rows.
 Below the rankings, choose Load demo sectors or upload universe-sectors.csv
 with the matching membership and price reports. The Sector heatmap shows
 each listing's sector, weight, price return and observed contribution.

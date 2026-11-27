@@ -452,7 +452,6 @@ pub extern "C" fn mw_portfolio_capital_returns_as_of(
     holding_bytes: usize,
     returns_bytes: usize,
 ) -> u32 {
-    use crate::PortfolioDividendState;
     use std::fmt::Write;
     process(|input| {
         let PortfolioActionInput {
@@ -476,12 +475,7 @@ pub extern "C" fn mw_portfolio_capital_returns_as_of(
         let mut text = String::new();
         for row in rows {
             let report = row.report;
-            let state = match row.state {
-                PortfolioDividendState::UnknownPosition => "unknown-position",
-                PortfolioDividendState::NoPayment => "no-payment",
-                PortfolioDividendState::Receivable => "receivable",
-                PortfolioDividendState::Paid => "paid",
-            };
+            let state = capital_return_state(row.state);
             write!(
                 text,
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{state}\t{}\t{}",
@@ -510,6 +504,98 @@ pub extern "C" fn mw_portfolio_capital_returns_as_of(
                 .unwrap();
             }
             text.push('\n');
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+fn capital_return_state(state: crate::PortfolioDividendState) -> &'static str {
+    use crate::PortfolioDividendState;
+    match state {
+        PortfolioDividendState::UnknownPosition => "unknown-position",
+        PortfolioDividendState::NoPayment => "no-payment",
+        PortfolioDividendState::Receivable => "receivable",
+        PortfolioDividendState::Paid => "paid",
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn mw_compare_portfolio_capital_returns(
+    membership_bytes: usize,
+    holding_bytes: usize,
+    returns_bytes: usize,
+) -> u32 {
+    use crate::{CapitalReturnAmounts, CapitalReturnCutoff, PortfolioCapitalReturn};
+    use std::fmt::Write;
+    process(|input| {
+        let (baseline_effective, baseline_known, rest) = portfolio_input(input)?;
+        let PortfolioActionInput {
+            effective,
+            known,
+            universe,
+            holdings,
+            terms,
+        } = portfolio_action_input(rest.as_bytes(), membership_bytes, holding_bytes)?;
+        let (returns, basis) = terms
+            .split_at_checked(returns_bytes)
+            .ok_or("Supply capital return reports.")?;
+        let rows = crate::compare_portfolio_capital_returns(
+            &universe,
+            holdings,
+            returns,
+            (!basis.is_empty()).then_some(basis),
+            CapitalReturnCutoff {
+                effective_at: baseline_effective,
+                known_at: baseline_known,
+            },
+            CapitalReturnCutoff {
+                effective_at: effective,
+                known_at: known,
+            },
+        )?;
+        let side = |row: Option<&PortfolioCapitalReturn>| {
+            let Some(row) = row else {
+                return "\t\t\t".to_owned();
+            };
+            format!(
+                "{}\t{}\t{}\t{}",
+                capital_return_state(row.state),
+                row.report.currency,
+                row.report.observed_at,
+                row.basis
+                    .map(|basis| basis.observed_at.to_string())
+                    .unwrap_or_default()
+            )
+        };
+        let mut text = String::new();
+        for row in rows {
+            let baseline = side(row.baseline.as_ref());
+            let comparison = side(row.comparison.as_ref());
+            for movement in row.movements {
+                write!(
+                    text,
+                    "{}\t{}\t{}\t{baseline}\t{comparison}",
+                    row.listing_id, row.action_id, movement.currency
+                )
+                .unwrap();
+                for CapitalReturnAmounts {
+                    receivable,
+                    cash,
+                    basis_reduction,
+                    above_basis,
+                } in [movement.baseline, movement.comparison, movement.change]
+                {
+                    for value in [receivable, cash, basis_reduction, above_basis] {
+                        write!(
+                            text,
+                            "\t{}",
+                            value.map(|value| value.to_string()).unwrap_or_default()
+                        )
+                        .unwrap();
+                    }
+                }
+                text.push('\n');
+            }
         }
         Ok(text.into_bytes())
     })

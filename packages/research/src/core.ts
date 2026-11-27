@@ -1008,6 +1008,36 @@ export interface PortfolioCapitalReturn {
   basis: { observedAt: number; before: bigint; reduction: bigint; remaining: bigint; excess: bigint } | null;
 }
 
+export interface CapitalReturnCutoff {
+  effectiveAt: string;
+  knownAt: string;
+}
+
+export interface CapitalReturnAmounts {
+  receivable: bigint | null;
+  cash: bigint | null;
+  basisReduction: bigint | null;
+  aboveBasis: bigint | null;
+}
+
+export interface CapitalReturnComparison {
+  listingId: string;
+  actionId: string;
+  currency: string;
+  baseline: CapitalReturnObservation | null;
+  comparison: CapitalReturnObservation | null;
+  baselineAmounts: CapitalReturnAmounts;
+  comparisonAmounts: CapitalReturnAmounts;
+  change: CapitalReturnAmounts;
+}
+
+export interface CapitalReturnObservation {
+  state: PortfolioCapitalReturn['state'];
+  currency: string;
+  observedAt: number;
+  basisObservedAt: number | null;
+}
+
 export interface RightsSettlementPosting {
   offeringId: string;
   exerciseId: string;
@@ -1138,6 +1168,7 @@ export interface MarketCore {
   portfolioRightsExercisesAsOf(membership: string, holdings: string, rights: string, exercises: string, effectiveAt: string, knownAt: string): PortfolioRightsExercise[];
   portfolioRightsSettlementJournal(membership: string, rights: string, exercises: string, effectiveAt: string, knownAt: string): RightsSettlementPosting[];
   portfolioCapitalReturnsAsOf(membership: string, holdings: string, returns: string, basis: string, effectiveAt: string, knownAt: string): PortfolioCapitalReturn[];
+  comparePortfolioCapitalReturns(membership: string, holdings: string, returns: string, basis: string, baseline: CapitalReturnCutoff, comparison: CapitalReturnCutoff): CapitalReturnComparison[];
   portfolioSuccessorDeliveryLedger(membership: string, holdings: string, terms: string,
     effectiveAt: string, knownAt: string): PortfolioSuccessorDeliveryPosting[];
   portfolioSpinOffsAsOf(membership: string, holdings: string, reports: string,
@@ -1274,6 +1305,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_rights_exercises_as_of(membershipBytes: number, holdingsBytes: number, rightsBytes: number): number;
   mw_portfolio_rights_settlement_journal(membershipBytes: number, rightsBytes: number): number;
   mw_portfolio_capital_returns_as_of(membershipBytes: number, holdingBytes: number, returnsBytes: number): number;
+  mw_compare_portfolio_capital_returns(membershipBytes: number, holdingBytes: number, returnsBytes: number): number;
   mw_portfolio_successor_delivery_ledger(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_offs_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_off_cash_as_of(membershipBytes: number, holdingsBytes: number, actionBytes: number): number;
@@ -1636,10 +1668,14 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
   }
 
   function portfolioInput(effectiveAt: string, knownAt: string, ...files: string[]) {
-    if ([effectiveAt, knownAt].some(time => time.length !== 20 || /[\n\r]/.test(time))) {
+    portfolioTimesInput([effectiveAt, knownAt], ...files);
+  }
+
+  function portfolioTimesInput(times: string[], ...files: string[]) {
+    if (times.some(time => time.length !== 20 || /[\n\r]/.test(time))) {
       throw new Error('Use YYYY-MM-DDTHH:MM:SSZ UTC portfolio cutoffs.');
     }
-    textInput([effectiveAt, knownAt, files.join('')].join('\n'));
+    textInput([...times, files.join('')].join('\n'));
   }
 
   function decodeHeatmap(text: string): Heatmap {
@@ -2518,6 +2554,34 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
             observedAt: Number(basisObserved), before: BigInt(before), reduction: BigInt(reduction),
             remaining: BigInt(remaining), excess: BigInt(excess),
           },
+        };
+      });
+    },
+    comparePortfolioCapitalReturns(membership, holdings, returns, basis, baseline, comparison) {
+      portfolioTimesInput(
+        [baseline.effectiveAt, baseline.knownAt, comparison.effectiveAt, comparison.knownAt],
+        membership, holdings, returns, basis,
+      );
+      const text = decoder.decode(output(api.mw_compare_portfolio_capital_returns(
+        encoder.encode(membership).length, encoder.encode(holdings).length, encoder.encode(returns).length,
+      )));
+      if (!text) return [];
+      const optionalAmount = (value: string) => value === '' ? null : BigInt(value);
+      const amounts = ([receivable, cash, basisReduction, aboveBasis]: string[]): CapitalReturnAmounts => ({
+        receivable: optionalAmount(receivable), cash: optionalAmount(cash),
+        basisReduction: optionalAmount(basisReduction), aboveBasis: optionalAmount(aboveBasis),
+      });
+      const observation = ([state, currency, observed, basisObserved]: string[]): CapitalReturnObservation | null => state ? {
+        state: state as CapitalReturnObservation['state'], currency, observedAt: Number(observed),
+        basisObservedAt: basisObserved === '' ? null : Number(basisObserved),
+      } : null;
+      return text.slice(0, -1).split('\n').map(line => {
+        const [listingId, actionId, currency, ...values] = line.split('\t');
+        return {
+          listingId, actionId, currency, baseline: observation(values.slice(0, 4)),
+          comparison: observation(values.slice(4, 8)),
+          baselineAmounts: amounts(values.slice(8, 12)), comparisonAmounts: amounts(values.slice(12, 16)),
+          change: amounts(values.slice(16, 20)),
         };
       });
     },

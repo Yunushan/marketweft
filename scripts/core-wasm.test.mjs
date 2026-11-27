@@ -122,6 +122,40 @@ test('capital returns separate cash from basis at each independent cutoff in Was
   assert.deepEqual(run('14:50:00', '14:49:00'), first);
 });
 
+
+test('capital return comparisons preserve separate currencies and unavailable values in Wasm', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
+  const [membership, holdings, returns, basis] = await Promise.all([
+    fixture('synthetic-universe.csv'), fixture('synthetic-rights-holdings.csv'), fixture('synthetic-capital-returns.csv'),
+    fixture('synthetic-capital-return-basis.csv'),
+  ]);
+  const cutoff = (effective, known) => ({ effectiveAt: '2025-06-02T' + effective + 'Z', knownAt: '2025-06-02T' + known + 'Z' });
+  const run = (before, after, basisReports = basis) =>
+    core.comparePortfolioCapitalReturns(membership, holdings, returns, basisReports, before, after);
+  const pending = cutoff('14:49:59', '14:49:00');
+  const old = cutoff('14:50:00', '14:49:00');
+  const revised = cutoff('15:00:00', '15:02:00');
+  assert.deepEqual(run(pending, old)[0].change, { receivable: -25000000n, cash: 25000000n, basisReduction: 25000000n, aboveBasis: 0n });
+  const [eur, usd] = run(old, revised);
+  assert.equal(eur.actionId, 'ALFA-ROC');
+  assert.equal(eur.listingId, 'ALFA-001');
+  assert.equal(eur.currency, 'EUR');
+  assert.equal(eur.baseline.currency, 'USD');
+  assert.equal(eur.comparison.currency, 'EUR');
+  assert.deepEqual(eur.change, { receivable: 0n, cash: 24000008n, basisReduction: 8125001n, aboveBasis: 15875007n });
+  assert.deepEqual(usd.change, { receivable: 0n, cash: -25000000n, basisReduction: -25000000n, aboveBasis: 0n });
+  assert.equal(run(revised, old)[0].change.cash, -24000008n);
+  const unknown = run(cutoff('15:00:00', '15:01:59'), revised)[0];
+  assert.equal(unknown.change.cash, 0n);
+  assert.equal(unknown.change.basisReduction, null);
+  assert.equal(unknown.comparisonAmounts.basisReduction, 8125001n);
+  assert.equal(run(old, revised, '')[0].change.basisReduction, null);
+  const absent = cutoff('14:17:59', '14:49:00');
+  assert.deepEqual(run(absent, absent), []);
+  assert.equal(run(absent, pending)[0].baseline, null);
+  assert.throws(() => run({ ...old, knownAt: '2025-06-02T14:49:60Z' }, revised), /portfolio cutoffs/);
+});
+
 test('successor share bridge keeps exact quantities and absence at both cutoffs', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, terms] = await Promise.all([

@@ -1,6 +1,6 @@
 use super::{
     income::{shares_at_ex, PortfolioIncomeReports},
-    parse_holdings, PortfolioDividendState,
+    parse_holdings, PortfolioDividendState, PositionSeries,
 };
 use crate::{
     delisting::valid_currency,
@@ -32,7 +32,67 @@ pub struct PortfolioCapitalReturn {
     pub basis: Option<CapitalReturnBasis>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CapitalReturnCutoff {
+    pub effective_at: i64,
+    pub known_at: i64,
+}
+
+impl CapitalReturnCutoff {
+    fn validate(self) -> Result<(), String> {
+        if !valid_second(self.effective_at) || !valid_second(self.known_at) {
+            return Err("Supply valid UTC effective and knowledge cutoffs.".into());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CapitalReturnAmounts {
+    pub receivable: Option<i128>,
+    pub cash: Option<i128>,
+    pub basis_reduction: Option<i128>,
+    pub above_basis: Option<i128>,
+}
+
+impl CapitalReturnAmounts {
+    fn difference(self, baseline: Self) -> Self {
+        let subtract = |current: Option<i128>, prior: Option<i128>| {
+            current.zip(prior).map(|(current, prior)| current - prior)
+        };
+        Self {
+            receivable: subtract(self.receivable, baseline.receivable),
+            cash: subtract(self.cash, baseline.cash),
+            basis_reduction: subtract(self.basis_reduction, baseline.basis_reduction),
+            above_basis: subtract(self.above_basis, baseline.above_basis),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CapitalReturnMovement {
+    pub currency: String,
+    pub baseline: CapitalReturnAmounts,
+    pub comparison: CapitalReturnAmounts,
+    pub change: CapitalReturnAmounts,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CapitalReturnComparison {
+    pub listing_id: String,
+    pub action_id: String,
+    pub baseline: Option<PortfolioCapitalReturn>,
+    pub comparison: Option<PortfolioCapitalReturn>,
+    pub movements: Vec<CapitalReturnMovement>,
+}
+
 type BasisReports = BTreeMap<(String, String, String), BTreeMap<i64, i128>>;
+
+struct CapitalReturnBook {
+    holdings: BTreeMap<String, PositionSeries>,
+    returns: PortfolioIncomeReports,
+    basis: Option<BasisReports>,
+}
 
 fn parse_basis(
     universe: &UniverseBook,
@@ -110,64 +170,180 @@ pub fn portfolio_capital_returns_as_of(
     effective_at: i64,
     known_at: i64,
 ) -> Result<Vec<PortfolioCapitalReturn>, String> {
-    if !valid_second(effective_at) || !valid_second(known_at) {
-        return Err("Supply valid UTC effective and knowledge cutoffs.".into());
+    let cutoff = CapitalReturnCutoff {
+        effective_at,
+        known_at,
+    };
+    cutoff.validate()?;
+    Ok(CapitalReturnBook::parse(universe, holdings, returns, basis)?.snapshot(cutoff))
+}
+
+impl CapitalReturnBook {
+    fn parse(
+        universe: &UniverseBook,
+        holdings: &str,
+        returns: &str,
+        basis: Option<&str>,
+    ) -> Result<Self, String> {
+        let holdings = parse_holdings(universe, holdings)?;
+        let returns =
+            PortfolioIncomeReports::parse_named(universe, returns, HEADER, "capital return")?;
+        let basis = basis
+            .map(|csv| parse_basis(universe, &returns, csv))
+            .transpose()?;
+        Ok(Self {
+            holdings,
+            returns,
+            basis,
+        })
     }
-    let holdings = parse_holdings(universe, holdings)?;
-    let returns = PortfolioIncomeReports::parse_named(universe, returns, HEADER, "capital return")?;
-    let basis = basis
-        .map(|csv| parse_basis(universe, &returns, csv))
-        .transpose()?;
-    let mut rows = Vec::new();
-    for (listing_id, listing, book) in returns.listing_books() {
-        for report in book
-            .known_reports(known_at)
-            .filter(|report| report.ex_at <= effective_at)
-        {
-            let entitled_shares =
-                shares_at_ex(listing, holdings.get(listing_id), report.ex_at, known_at);
-            let amount = if report.amount_per_share == 0 {
-                Some(0)
-            } else {
-                entitled_shares
-                    .map(|shares| i128::from(shares) * i128::from(report.amount_per_share))
-            };
-            let state = match amount {
-                None => PortfolioDividendState::UnknownPosition,
-                Some(0) => PortfolioDividendState::NoPayment,
-                Some(_) if report.pay_at <= effective_at => PortfolioDividendState::Paid,
-                Some(_) => PortfolioDividendState::Receivable,
-            };
-            let adjustment = amount
-                .filter(|_| state == PortfolioDividendState::Paid)
-                .and_then(|amount| {
-                    let (&observed_at, &before) = basis
-                        .as_ref()?
-                        .get(&(
-                            listing_id.to_owned(),
-                            report.id.clone(),
-                            report.currency.clone(),
-                        ))?
-                        .range(..=known_at)
-                        .next_back()?;
-                    let reduction = before.min(amount);
-                    Some(CapitalReturnBasis {
-                        observed_at,
-                        before,
-                        reduction,
-                        remaining: before - reduction,
-                        excess: amount - reduction,
-                    })
+
+    fn snapshot(&self, cutoff: CapitalReturnCutoff) -> Vec<PortfolioCapitalReturn> {
+        let CapitalReturnCutoff {
+            effective_at,
+            known_at,
+        } = cutoff;
+        let mut rows = Vec::new();
+        for (listing_id, listing, book) in self.returns.listing_books() {
+            for report in book
+                .known_reports(known_at)
+                .filter(|report| report.ex_at <= effective_at)
+            {
+                let entitled_shares = shares_at_ex(
+                    listing,
+                    self.holdings.get(listing_id),
+                    report.ex_at,
+                    known_at,
+                );
+                let amount = if report.amount_per_share == 0 {
+                    Some(0)
+                } else {
+                    entitled_shares
+                        .map(|shares| i128::from(shares) * i128::from(report.amount_per_share))
+                };
+                let state = match amount {
+                    None => PortfolioDividendState::UnknownPosition,
+                    Some(0) => PortfolioDividendState::NoPayment,
+                    Some(_) if report.pay_at <= effective_at => PortfolioDividendState::Paid,
+                    Some(_) => PortfolioDividendState::Receivable,
+                };
+                let adjustment = amount
+                    .filter(|_| state == PortfolioDividendState::Paid)
+                    .and_then(|amount| {
+                        let (&observed_at, &before) = self
+                            .basis
+                            .as_ref()?
+                            .get(&(
+                                listing_id.to_owned(),
+                                report.id.clone(),
+                                report.currency.clone(),
+                            ))?
+                            .range(..=known_at)
+                            .next_back()?;
+                        let reduction = before.min(amount);
+                        Some(CapitalReturnBasis {
+                            observed_at,
+                            before,
+                            reduction,
+                            remaining: before - reduction,
+                            excess: amount - reduction,
+                        })
+                    });
+                rows.push(PortfolioCapitalReturn {
+                    listing_id: listing_id.to_owned(),
+                    report: report.clone(),
+                    entitled_shares,
+                    state,
+                    amount,
+                    basis: adjustment,
                 });
-            rows.push(PortfolioCapitalReturn {
-                listing_id: listing_id.to_owned(),
-                report: report.clone(),
-                entitled_shares,
-                state,
-                amount,
-                basis: adjustment,
-            });
+            }
         }
+        rows
     }
-    Ok(rows)
+}
+
+fn amounts(
+    row: Option<&PortfolioCapitalReturn>,
+    currency: &str,
+    cutoff: CapitalReturnCutoff,
+) -> CapitalReturnAmounts {
+    let zero = CapitalReturnAmounts {
+        receivable: Some(0),
+        cash: Some(0),
+        basis_reduction: Some(0),
+        above_basis: Some(0),
+    };
+    let Some(row) = row.filter(|row| row.report.currency == currency) else {
+        return zero;
+    };
+    if row.report.pay_at > cutoff.effective_at {
+        return CapitalReturnAmounts {
+            receivable: row.amount,
+            ..zero
+        };
+    }
+    if row.amount == Some(0) {
+        return zero;
+    }
+    CapitalReturnAmounts {
+        cash: row.amount,
+        basis_reduction: row.basis.map(|basis| basis.reduction),
+        above_basis: row.basis.map(|basis| basis.excess),
+        ..zero
+    }
+}
+
+/// Compare the same reported actions at two independent effective and knowledge cutoffs.
+pub fn compare_portfolio_capital_returns(
+    universe: &UniverseBook,
+    holdings: &str,
+    returns: &str,
+    basis: Option<&str>,
+    baseline: CapitalReturnCutoff,
+    comparison: CapitalReturnCutoff,
+) -> Result<Vec<CapitalReturnComparison>, String> {
+    baseline.validate()?;
+    comparison.validate()?;
+    let book = CapitalReturnBook::parse(universe, holdings, returns, basis)?;
+    let mut pairs = BTreeMap::new();
+    for row in book.snapshot(baseline) {
+        let key = (row.listing_id.clone(), row.report.id.clone());
+        pairs.insert(key, (Some(row), None));
+    }
+    for row in book.snapshot(comparison) {
+        let key = (row.listing_id.clone(), row.report.id.clone());
+        pairs.entry(key).or_default().1 = Some(row);
+    }
+
+    Ok(pairs
+        .into_iter()
+        .map(|((listing_id, action_id), (before, after))| {
+            let currencies: BTreeSet<_> = before
+                .iter()
+                .chain(after.iter())
+                .map(|row| row.report.currency.as_str())
+                .collect();
+            let movements = currencies
+                .into_iter()
+                .map(|currency| {
+                    let prior = amounts(before.as_ref(), currency, baseline);
+                    let current = amounts(after.as_ref(), currency, comparison);
+                    CapitalReturnMovement {
+                        currency: currency.to_owned(),
+                        baseline: prior,
+                        comparison: current,
+                        change: current.difference(prior),
+                    }
+                })
+                .collect();
+            CapitalReturnComparison {
+                listing_id,
+                action_id,
+                baseline: before,
+                comparison: after,
+                movements,
+            }
+        })
+        .collect())
 }

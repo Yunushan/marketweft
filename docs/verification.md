@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.200.0 · Capital return comparison
+
+- Rust verifies the transfer from receivable to cash at the payment cutoff, stable action matching, separate reversal and addition under a currency revision, and changes when either side lacks a known holding or basis.
+- Wasm and offline Chromium preserve the exact USD and EUR amounts and keep unavailable amounts distinct from zero. Chromium exports both sides' source evidence and reproduces the original CSV byte for byte after rewind.
+- The offline upgrade from the hosted 0.199.0 archive to the locally built 0.200.0 archive preserved the same saved workspace and reproduced both currency movements.
+
+[Compare two cutoffs](portfolio-capital-returns.md#compare-two-cutoffs)
+
 ## 0.199.0 · Point-in-time returns of capital
 
 - The Rust fixture covers independent ex-date, payment and observation cutoffs, a delayed holdings correction, a rescheduled payment in another currency, a zero distribution, and missing versus explicit zero holdings and basis.

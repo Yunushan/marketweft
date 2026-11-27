@@ -530,6 +530,56 @@ test('offline capital returns replay paid cash and exact reported basis revision
   await expect.poll(() => catalogContents(page)).toEqual(saved)
 })
 
+
+test('offline capital return comparison reconciles payments, currency corrections and missing basis', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  const saved = await catalogContents(page)
+  await context.setOffline(true)
+  await open(page)
+  await page.getByRole('button', { name: 'Start universe demo' }).click()
+  const panel = page.getByRole('region', { name: 'Portfolio replay' })
+  await panel.getByRole('button', { name: 'Load capital return demo' }).click()
+  await panel.getByText('Compare capital returns at two cutoffs', { exact: true }).click()
+  const form = panel.getByRole('form', { name: 'Capital return comparison cutoffs' })
+  const table = panel.getByRole('table', { name: 'Capital return comparison' })
+  const compare = async (effective, observed, updated, known) => {
+    await form.getByLabel('Baseline effective (UTC)').fill(utc(effective))
+    await form.getByLabel('Baseline known (UTC)').fill(utc(observed))
+    await form.getByLabel('Comparison effective (UTC)').fill(utc(updated))
+    await form.getByLabel('Comparison known (UTC)').fill(utc(known))
+    await form.getByRole('button', { name: 'Compare capital returns', exact: true }).click()
+  }
+  const amounts = async (currency, expected) => {
+    const row = table.locator('tbody tr').filter({ has: page.getByRole('cell', { name: currency, exact: true }) })
+    await expect(row).toHaveCount(1)
+    const cells = row.getByRole('cell')
+    for (const [index, value] of expected.entries()) await expect(cells.nth(index + 4)).toHaveText(value)
+  }
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await panel.getByRole('button', { name: 'Download capital return comparison' }).click()
+    const file = await pending
+    expect(file.suggestedFilename()).toBe('portfolio-capital-return-comparison.csv')
+    return readFile(await file.path(), 'utf8')
+  }
+  await compare('14:49:59', '14:49:00', '14:50:00', '14:49:00')
+  await amounts('USD', ['-25', '+25', '+25', '0'])
+  const first = await download()
+  expect(first).toContain('"synthetic-capital-returns.csv","synthetic-rights-holdings.csv","synthetic-capital-return-basis.csv"')
+  expect(first).toMatch(/,-25,25,25,0\r\n$/)
+  await compare('14:50:00', '14:49:00', '15:00:00', '15:02:00')
+  await amounts('EUR', ['0', '+24.000008', '+8.125001', '+15.875007'])
+  await amounts('USD', ['0', '-25', '-25', '0'])
+  await compare('15:00:00', '15:01:59', '15:00:00', '15:02:00')
+  await amounts('EUR', ['0', '0', 'Unavailable', 'Unavailable'])
+  expect(await download()).toMatch(/,0,24\.000008,,,0,24\.000008,8\.125001,15\.875007,0,0,,\r\n$/)
+  await compare('14:49:59', '14:49:00', '14:50:00', '14:49:00')
+  expect(await download()).toBe(first)
+  await expect.poll(() => catalogContents(page)).toEqual(saved)
+})
+
 test('offline portfolio spin-offs preserve exact fractions through revisions and ticker reuse', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()

@@ -36,3 +36,19 @@ For each paid distribution, MarketWeft uses the latest known basis in the matchi
 | 15:00 | 15:04 | The latest report sets the distribution amount to zero. |
 
 All sample times are on June 2, 2025. **Download capital returns** exports the original source filenames, both cutoffs, terms, entitlement, cash amount and basis evidence. Rewind to effective 14:50 and known 14:49 to reproduce the first paid result. [Synthetic returns](../crates/core/tests/fixtures/synthetic-capital-returns.csv) · [Synthetic basis](../crates/core/tests/fixtures/synthetic-capital-return-basis.csv) · [Synthetic holdings](../crates/core/tests/fixtures/synthetic-rights-holdings.csv)
+
+## Compare two cutoffs
+
+Open **Compare capital returns at two cutoffs** after loading the return reports. Set an effective and a known time for each side, then select **Compare capital returns**. The replay cutoffs can fill either side. The comparison matches actions by listing ID and action ID and calculates the comparison amount minus the baseline amount for each currency.
+
+Scope each amount to its currency and payment state. Before the pay date an entitlement is a receivable. Once paid, it contributes cash and may have a reported basis adjustment. A currency revision has a row for each currency. An absent action or an amount outside the row's currency contributes zero. When an applicable holding or basis is unavailable, its change remains unavailable if either side is missing the required amount.
+
+Use the synthetic example on June 2, 2025.
+
+| Baseline effective / known UTC | Comparison effective / known UTC | Changes |
+| --- | --- | --- |
+| 14:49:59 / 14:49 | 14:50 / 14:49 | USD receivable −25, cash +25 and basis reduction +25. |
+| 14:50 / 14:49 | 15:00 / 15:02 | USD cash −25 and basis reduction −25. EUR cash +24.000008, basis reduction +8.125001 and cash above basis +15.875007. |
+| 15:00 / 15:01:59 | 15:00 / 15:02 | EUR cash change is zero. The baseline has no known EUR basis, so both basis-related changes are unavailable. |
+
+**Download capital return comparison** exports source filenames, all four cutoffs, report timestamps, and each side's values alongside the changes. The CSV represents an unavailable amount with an empty field and an exact zero with 0.

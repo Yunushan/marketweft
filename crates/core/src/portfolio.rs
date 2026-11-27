@@ -22,7 +22,9 @@ mod spinoff;
 #[path = "portfolio_successor.rs"]
 mod successor;
 pub use capital_return::{
-    portfolio_capital_returns_as_of, CapitalReturnBasis, PortfolioCapitalReturn,
+    compare_portfolio_capital_returns, portfolio_capital_returns_as_of, CapitalReturnAmounts,
+    CapitalReturnBasis, CapitalReturnComparison, CapitalReturnCutoff, CapitalReturnMovement,
+    PortfolioCapitalReturn,
 };
 pub(crate) use income::PortfolioIncomeReports;
 pub use income::{

@@ -6,6 +6,7 @@ import { PortfolioRights } from './PortfolioRights'
 import { PortfolioRightsExercises } from './PortfolioRightsExercises'
 import { PortfolioRightsSettlementJournal } from './PortfolioRightsSettlementJournal'
 import { PortfolioCapitalReturns } from './PortfolioCapitalReturns'
+import { PortfolioCapitalReturnComparison } from './PortfolioCapitalReturnComparison'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoHoldings from '../../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv?raw'
@@ -296,6 +297,8 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
       {capitalDistributions && source?.capitalReturns && <PortfolioCapitalReturns rows={capitalDistributions}
         effective={effective} known={known} reportsSource={source.capitalReturns.reportsName}
         holdingsSource={source.capitalReturns.holdingsName} basisSource={source.capitalReturns.basisName} />}
+      {source?.capitalReturns && <PortfolioCapitalReturnComparison core={core} membership={membership}
+        holdings={source.holdings} source={source.capitalReturns} effective={effective} known={known} />}
       {successorClaims && <SuccessorShareClaims rows={successorClaims} />}
       {source?.successors && <SuccessorDeliveryLedger title="Successor delivery ledger" filename="successor-delivery-ledger.csv"
         calculate={calculateDeliveries} effective={effective} known={known} />}
