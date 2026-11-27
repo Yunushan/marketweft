@@ -82,6 +82,8 @@ test('Renko uses fixed-size close-based bricks and keeps original source prices 
   await page.getByRole('button', { name: 'Compare charts' }).click()
   const otherType = page.getByLabel('Comparison chart type')
   await otherType.selectOption('line')
+  await expect(otherType).toBeEnabled()
+  await expect(otherType).toHaveValue('line')
   await page.reload()
   await expect(primaryType).toHaveValue('renko')
   await expect(brickSize).toHaveValue('2')
