@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.134.0 saves selected candlestick pattern alerts to the local inbox with exact evidence. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.135.0 adds opt-in signed loopback webhook delivery with per-attempt receipts. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -137,16 +137,17 @@
 | Delivered · 0.132.0 | Price and time range highlights (MW-014) | Verify independent plot axes, sorted coordinates, time interpolation, viewport clipping, and version 37 restore. [Price and time ranges](docs/chart-workspace.md#price-and-time-range-highlights). |
 | Delivered · 0.133.0 | Historical candlestick scanner (MW-031) | Verify exact doji boundaries, engulfing coverage, raw observation cutoffs, gap and session resets, and structured source grants. [Candlestick pattern replay](docs/candlestick-patterns.md). |
 | Delivered · 0.134.0 | Candlestick pattern alerts (MW-027) | Save selected observed patterns, exact raw candle evidence and stable identifiers. Verify rewind, duplicate suppression, crossing alert compatibility, and storage permissions. [Candlestick alerts](docs/replay-alerts.md#candlestick-pattern-alerts). |
+| Delivered · 0.135.0 | Signed loopback webhook delivery (MW-027) | Verify an explicit destination, exact request signatures, retries with identical bytes, stable event IDs, and a durable attempt receipt. [Local webhook delivery](docs/local-webhook-delivery.md). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Expand the drawing inventory with verified, editable tools. Validate new chart types against fixtures and restore exact settings after migrations. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Broaden reproducible strategy signals, portfolio-level optimization and execution inputs. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Support isolated executable plugins and independent formula SDK conformance. Verify schema compatibility across SDKs and extend the read-only MCP research tools. |
-| P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Expose options analytics through native research interfaces. Add explicit webhook configuration, authenticated delivery, bounded retry, delivery receipts and authorized data sources. |
+| P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Expose options analytics through native research interfaces. Extend signed webhook delivery to explicitly configured HTTPS receivers and add rights-aware alert export. |
 | P2 | Order flow and specialized visualization (MW-012, MW-019) | Add authorized trade and depth streams, sequence recovery, trade-side classification and profiles. Benchmark Canvas against WebGL/wgpu with identical traces before adopting another renderer. |
 | P3 | Enterprise and authorized live execution (MW-022, MW-028, MW-030) | Extend the headless Rust service with SQLite/DuckDB persistence, remote authentication and audited operations. Add external stores/queues only after load tests justify them. Prove quota enforcement and disaster recovery before a hosted rollout. Require explicit authorization and deterministic pre-trade risk for any live route. |
 
 ## Handoff for the next change
 
-Implement an opt-in webhook configuration and a versioned authenticated delivery envelope. Verify delivery to a local receiver and record the outcome.
+Extend the webhook sender to an explicitly configured HTTPS receiver. Verify certificate and hostname validation, signed request bytes, and the receipt after an unauthorized receiver is rejected.
 

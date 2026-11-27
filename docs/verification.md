@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.135.0 · Signed loopback webhook delivery
+
+| Check | Evidence |
+| --- | --- |
+| Local receiver | The Rust integration test returns 503, 429, and 204. It verifies the signature against the exact JSON bytes and checks that every attempt uses the same event ID and body. |
+| Receipt and destination | The integration tests verify a query-free persisted receipt, no duplicate command on the same receipt path, and rejection of a non-loopback destination before delivery. |
+
+[Local webhook delivery](local-webhook-delivery.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.134.0 · Candlestick pattern alerts
 
 | Check | Evidence |

@@ -38,3 +38,5 @@ In [candlestick pattern replay](candlestick-patterns.md), select **Scan observed
 The inbox shows these records alongside threshold and moving-average crossings. **Show evidence** includes the rule revision, the triggering bar's raw OHLCV values, its opening time and when it became known. Engulfing records include the previous raw candle and its observation time. The replay context digest hashes the instrument key, interval and calendar. The record ID combines that digest, rule revision, pattern and triggering bar time. Replaying an identical record adds no duplicate. Conflicting evidence under the same ID cancels the batch.
 
 Structured source grants must allow both automated use and storage when saving raw evidence. The inbox remains local to IndexedDB on the current browser origin.
+
+Operators can use the standalone service's [local webhook delivery command](local-webhook-delivery.md) to deliver an explicitly supplied event file.
