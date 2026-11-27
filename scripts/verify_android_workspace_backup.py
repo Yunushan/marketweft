@@ -22,7 +22,7 @@ def verify_backup(args):
                 if re.fullmatch(r"marketweft-workspace-\d{4}-\d{2}-\d{2}\.marketweft\.json", name)]
 
     def open_backup():
-        ui.tap(ui.find("the workspace backup action", app_label("Workspace backup")), below_center=True)
+        ui.tap(ui.find("the workspace backup action", app_label("Workspace backup")), vertical=0.75)
 
     def export_backup():
         ui.tap(ui.find("the workspace export action", app_label("Export workspace")))

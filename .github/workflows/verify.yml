@@ -547,6 +547,15 @@ jobs:
           test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           test -x "$ANDROID_HOME/platform-tools/adb"
           printf '%s\n' "$ANDROID_HOME/cmdline-tools/latest/bin" "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+      - name: Restore downloaded Android dependencies
+        id: gradle-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}/marketweft-gradle/caches/modules-2/files-2.1
+            ${{ runner.temp }}/marketweft-gradle/caches/modules-2/metadata-*
+          key: android-gradle-modules-v1-${{ runner.os }}-${{ hashFiles('package-lock.json', 'apps/desktop/android-workspace-backup/android/*.gradle.kts') }}
+          restore-keys: android-gradle-modules-v1-${{ runner.os }}-
       - run: npm ci
       - run: npm run build
       - name: Build the x86_64 MarketWeft Android test APK
@@ -562,6 +571,14 @@ jobs:
           test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner" ||
             sdkmanager --install 'build-tools;37.0.0'
           bash scripts/build_android_terminal.sh
+      - name: Save downloaded Android dependencies
+        if: github.event_name == 'push' && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}/marketweft-gradle/caches/modules-2/files-2.1
+            ${{ runner.temp }}/marketweft-gradle/caches/modules-2/metadata-*
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
       - name: Retrieve the verified Android upgrade baseline
         env:
           GITHUB_TOKEN: ${{ github.token }}

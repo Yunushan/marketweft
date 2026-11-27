@@ -22,6 +22,8 @@ The Android job builds the same terminal through the shared Tauri entry point. I
 
 Download `android-terminal-x86_64-attempt-N` from a successful run and verify the SHA-256 sidecar before installing the debug APK on a compatible emulator. The evidence artifact contains the launch result, WebView provider and UI hierarchy.
 
+GitHub Actions reuses the Gradle artifact and metadata cache between eligible runs. A push saves those downloads as soon as APK assembly succeeds, so a later emulator test failure can reuse the cache on its next attempt. [Gradle dependency caching](https://docs.gradle.org/current/userguide/dependency_caching.html#sec:ephemeral-ci-cache).
+
 The import test places the synthetic fixture in Downloads. It opens the native document picker from the terminal, selects the file and verifies the exact chart OHLCV through Android's accessibility hierarchy. It force-stops and relaunches the same installed app, then verifies the original chart again. The evidence includes the imported and restored UI hierarchies. [Android Storage Access Framework](https://developer.android.com/guide/topics/providers/document-provider).
 
 The upgrade check uses a disposable certificate for copies of the verified 0.177.0 and candidate debug APKs. It checks both signatures and confirms the payload bytes match the original packages. In airplane mode it imports and reopens the baseline workspace, installs the candidate over the same app, and checks the saved quote and document. The verification artifact includes the baseline and upgraded UI hierarchies. [Android app updates](https://developer.android.com/google/play/app-updates).
