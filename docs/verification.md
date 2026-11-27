@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.166.0 · Windows 11 ARM64 native build verification
+
+| Check | Evidence |
+| --- | --- |
+| Architecture | The Windows 11 job verifies its ARM64 host and native Node.js and Rust. The Windows jobs read the PE machine field in the research engine and desktop executable and compare it to the expected host architecture. |
+| Native research SDK | The Windows ARM64 job exercises the built research executable through the shared Python SDK fixture. |
+
+[Windows native verification](platforms.md#windows-native-verification) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.165.0 · Windows x64 WebView2 CSV import
 
 | Check | Evidence |
