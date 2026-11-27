@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.150.0 · Regression channel
+
+| Check | Evidence |
+| --- | --- |
+| Fixed-point calculation | Fixtures verify exact anchor matching, observation-order spacing across time gaps, maximum residuals, flat windows and the 100,000-bar input limit. |
+| Chromium drawing | The fitted line and residual rails share the same source columns. Rewinding before the second anchor withholds the fit, and rolling a flat series preserves the original sample count. |
+| Workspace backup | The version 49 drawing restores both source anchors without changing the source history. |
+
+[Regression channel](chart-workspace.md#regression-channel) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.149.0 · Risk/reward drawing
 
 | Check | Evidence |

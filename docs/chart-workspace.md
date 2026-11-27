@@ -192,6 +192,14 @@ Choose **New risk/reward** in **Chart drawings**, then set **Direction**, **Entr
 
 The drawing shades the reward and risk zones on opposite sides of the entry line. Values in the drawings panel show each price distance and reward divided by risk. The calculation supports signed prices and rounds the ratio to millionths. Edits and restores keep the exact input ticks. Version 48 stores the direction, stop and both endpoints. Each pane projects the same saved drawing against its own viewport.
 
+## Regression channel
+
+Choose **New regression channel** in **Chart drawings**. Enter or pick two exact UTC timestamps from source bars to fit the observed closes in that window. The first and last source bars are included. The fit uses observation order, so a missing interval contributes no invented price and does not add weight to the following close.
+
+The middle line is the least-squares fit. Its endpoints round to price millionths. The outer lines are offset by the largest absolute residual from the rounded line, rounded upward to contain all fitted closes. A flat window has a zero residual and shows a single line. If the pane is rewound before the last anchor, the drawing waits for both observations.
+
+Rolled views project the original fit through the last included source observation for each bucket. The readout shows the observed count, exact fitted endpoints, and residual. Version 49 stores the two UTC anchors and recalculates the drawing from the restored bars.
+
 ## Moving-average periods
 
 Open **Indicators** to configure the primary chart. When the comparison pane is open, the same dialog provides a separate pair of period fields for it. Each field accepts a whole period from 1 to 100,000 bars. The default periods are 20 bars for SMA and 9 bars for EMA. Each overlay can be enabled independently.
