@@ -16,10 +16,27 @@ sdk_tools="$ANDROID_HOME/build-tools/37.0.0"
 activity=$(bash scripts/verify_android_package.sh "$apk" "$abi")
 device=(adb -s "$serial")
 
-test "$("${device[@]}" get-state)" = device
-test "$("${device[@]}" shell getprop ro.product.cpu.abi | tr -d '\r')" = "$abi"
-test "$("${device[@]}" shell settings get global airplane_mode_on | tr -d '\r')" = 1
-test "$("${device[@]}" shell settings get global wifi_on | tr -d '\r')" = 0
+device_state=$("${device[@]}" get-state | tr -d '\r')
+actual_abi=$("${device[@]}" shell getprop ro.product.cpu.abi | tr -d '\r')
+if [[ "$device_state" != device || "$actual_abi" != "$abi" ]]; then
+    printf 'Expected an ADB connection to an Android device with ABI %s. Observed state=%s ABI=%s.\n' "$abi" "$device_state" "$actual_abi" >&2
+    exit 1
+fi
+
+offline_deadline=$((SECONDS + 15))
+while :; do
+    airplane=$("${device[@]}" shell settings get global airplane_mode_on | tr -d '\r')
+    wifi=$("${device[@]}" shell settings get global wifi_on | tr -d '\r')
+    # Android records 3 when airplane mode turns Wi-Fi off and 0 when Wi-Fi is explicitly off.
+    if [[ "$airplane" == 1 && ( "$wifi" == 0 || "$wifi" == 3 ) ]]; then
+        break
+    fi
+    if (( SECONDS >= offline_deadline )); then
+        printf 'Enable airplane mode and disable Wi-Fi before verification. Observed airplane_mode_on=%s wifi_on=%s.\n' "$airplane" "$wifi" >&2
+        exit 1
+    fi
+    sleep 1
+done
 installed=$("${device[@]}" shell pm list packages "$package" | tr -d '\r')
 if grep -Fxq "package:$package" <<<"$installed"; then
     printf 'Use a device without an existing MarketWeft installation for the fresh workspace test.\n' >&2
