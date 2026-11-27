@@ -18,6 +18,8 @@ export const STUDIES = {
   chaikin_money_flow: { name: 'Chaikin Money Flow', label: 'Chaikin Money Flow', minPeriod: 1, defaultPeriod: 20, color: '#7ed2ca' },
   chaikin_oscillator: { name: 'Chaikin Oscillator', label: 'Chaikin Oscillator', minPeriod: 1, defaultPeriod: 3,
     periodLabel: 'Chaikin fast', color: '#d39ce1' },
+  mfi: { name: 'MFI', label: 'Money Flow Index', minPeriod: 1, defaultPeriod: 14, color: '#a9cc89' },
+  vwma: { name: 'VWMA', label: 'Volume-Weighted Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#f1c177' },
 } as const
 export type StudyKind = keyof typeof STUDIES
 export const STUDY_KINDS = Object.keys(STUDIES) as StudyKind[]
@@ -53,38 +55,50 @@ export function defaultStudySettings(kind: StudyKind): StudySettings {
 export type StudySet = Partial<Record<StudyKind, StudySettings>>
 export type StudyValue = number | bigint | null
 type BandKind = 'bb' | 'donchian' | 'keltner'
-export type PanelLine = {
+type StudyLine<Value> = {
   label?: string
   key?: string
   color: string
-  series: StudyValue[]
-  histogram?: { negativeColor: string }
+  series: Value[]
 }
+export type PanelLine = StudyLine<StudyValue> & { histogram?: { negativeColor: string } }
 export type PanelStudy = {
-  kind: Exclude<StudyKind, BandKind>
+  kind: Exclude<StudyKind, BandKind | 'vwma'>
   periods: number[]
   unit?: 'price' | 'volume'
   zeroLine?: boolean
   lines: PanelLine[]
 }
-export type BandStudy = {
-  period: number
-  bands: (PriceBand | null)[]
-} & ({ kind: 'bb' | 'donchian' } | { kind: 'keltner'; atrPeriod: number })
-export type StudyValues = PanelStudy | BandStudy
-export const BAND_LINES = [
+export type PriceStudy = {
+  kind: BandKind | 'vwma'
+  periods: number[]
+  heading: string
+  priceOverlay: true
+  lines: StudyLine<bigint | null>[]
+}
+export type StudyValues = PanelStudy | PriceStudy
+const BAND_LINES = [
   { key: 'lower', label: 'Lower' },
   { key: 'middle', label: 'Middle' },
   { key: 'upper', label: 'Upper' },
 ] as const
-export const BAND_STYLE = {
+const BAND_STYLE = {
   bb: { name: 'BB', lower: '#8393e1', middle: '#bcb9f2', upper: '#8393e1' },
   donchian: { name: 'Donchian', lower: '#6fc290', middle: '#c0d481', upper: '#6fc290' },
   keltner: { name: 'Keltner', lower: '#d99970', middle: '#f4cba4', upper: '#d99970' },
 } as const
 
-export function isBandStudy(study: StudyValues): study is BandStudy {
-  return 'bands' in study
+export function isPriceStudy(study: StudyValues): study is PriceStudy {
+  return 'priceOverlay' in study
+}
+
+function priceBands(kind: BandKind, periods: number[], bands: (PriceBand | null)[]): PriceStudy {
+  return {
+    kind, periods, heading: BAND_STYLE[kind].name, priceOverlay: true,
+    lines: BAND_LINES.map(({ key, label }) => ({
+      key, label, color: BAND_STYLE[kind][key], series: bands.map(band => band?.[key] ?? null),
+    })),
+  }
 }
 
 export function computeStudies(core: MarketCore, settings: StudySet | undefined, bars: readonly Bar[]): StudyValues[] {
@@ -101,11 +115,16 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       ] }]
     }
     const { period = STUDIES[kind].defaultPeriod } = study
-    if (kind === 'bb') return [{ kind, period, bands: core.bollingerBands(period, bars) }]
-    if (kind === 'donchian') return [{ kind, period, bands: core.donchianChannels(period, bars) }]
+    if (kind === 'bb') return [priceBands(kind, [period], core.bollingerBands(period, bars))]
+    if (kind === 'donchian') return [priceBands(kind, [period], core.donchianChannels(period, bars))]
     if (kind === 'keltner') {
       const atrPeriod = study.atrPeriod ?? EXTRA_STUDY_PERIODS.atrPeriod.defaultPeriod
-      return [{ kind, period, atrPeriod, bands: core.keltnerChannels(period, atrPeriod, bars) }]
+      return [priceBands(kind, [period, atrPeriod], core.keltnerChannels(period, atrPeriod, bars))]
+    }
+    if (kind === 'vwma') {
+      return [{ kind, periods: [period], heading: STUDIES.vwma.name, priceOverlay: true,
+        lines: [{ color: STUDIES.vwma.color, series: core.volumeWeightedAverage(period, bars) }],
+      }]
     }
     if (kind === 'stochastic') {
       const smooth = study.smoothPeriod ?? EXTRA_STUDY_PERIODS.smoothPeriod.defaultPeriod
@@ -149,6 +168,8 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       series = measures.map(row => row[key])
     } else if (kind === 'williams_r') {
       series = core.williamsPercentR(period, bars)
+    } else if (kind === 'mfi') {
+      series = core.moneyFlowIndex(period, bars)
     } else {
       series = core.indicator(kind, period, bars)
     }
@@ -159,12 +180,7 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
 }
 
 export function studyOverlays(studies: StudyValues[]): ExportOverlay[] {
-  return studies.flatMap<ExportOverlay>(study => isBandStudy(study) ?
-    BAND_LINES.map(({ key }) => ({
-      name: study.kind + '_' + key + '_' + study.period + (study.kind === 'keltner' ? '_' + study.atrPeriod : ''),
-      series: study.bands.map(band => band?.[key] ?? null),
-    })) :
-    study.lines.map(line => ({
+  return studies.flatMap<ExportOverlay>(study => study.lines.map(line => ({
       name: [study.kind, ...(line.key ? [line.key] : []), ...study.periods].join('_'),
       series: line.series,
     })))

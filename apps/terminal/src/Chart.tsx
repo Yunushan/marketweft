@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from './Icons'
 import { fixed, tickPrice } from './fixed-point'
-import { BAND_LINES, BAND_STYLE, isBandStudy, studyOverlays, STUDIES } from './studies'
-import type { BandStudy, PanelLine, PanelStudy, StudyValue, StudyValues } from './studies'
+import { isPriceStudy, studyOverlays, STUDIES } from './studies'
+import type { PanelLine, PanelStudy, StudyValue, StudyValues } from './studies'
 import { kagiLayout, kagiSegmentAt } from './kagi-chart'
 import type { KagiLayout } from './kagi-chart'
 import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
@@ -80,6 +80,42 @@ function sameDrawing(first?: MeasuredDrawing, second?: MeasuredDrawing) {
   return first.start.time === second.start.time && first.start.ticks === second.start.ticks &&
     first.end.time === second.end.time && first.end.ticks === second.end.ticks
 }
+function drawStudyLine(
+  ctx: CanvasRenderingContext2D, series: Series, start: number, end: number,
+  x: (index: number) => number, y: (value: number) => number, color: string, radius: number,
+) {
+  ctx.beginPath()
+  ctx.lineWidth = 1.5
+  ctx.strokeStyle = color
+  const isolated: [number, number][] = []
+  let points = 0
+  for (let index = start; index <= end; index++) {
+    const value = index === end ? null : series[index]
+    if (value == null) {
+      if (points === 1) isolated.push([x(index - 1), y(series[index - 1]!)])
+      points = 0
+    } else {
+      if (points === 0) ctx.moveTo(x(index), y(value))
+      else ctx.lineTo(x(index), y(value))
+      points++
+    }
+  }
+  ctx.stroke()
+  if (isolated.length) {
+    ctx.beginPath()
+    ctx.fillStyle = color
+    for (const [cx, cy] of isolated) {
+      ctx.moveTo(cx + radius, cy)
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+    }
+    ctx.fill()
+  }
+}
+
+function projectStudyLine(series: StudyValue[], sourceIndices: number[] | undefined): Series {
+  return sourceIndices ? sourceIndices.map(index => plotValue(series[index])) : series.map(plotValue)
+}
+
 function draw(
   canvas: HTMLCanvasElement,
   width: number,
@@ -95,7 +131,7 @@ function draw(
   pointFigure: PointFigureLayout | undefined,
   activePrice: number | undefined,
   studies: PlottedStudy[],
-  bandStudies: readonly BandStudy[],
+  priceLines: readonly { color: string; series: Series }[],
   activeStudyValues: (number | null)[][],
 ): Plot | undefined {
   const ctx = canvas.getContext('2d')
@@ -119,11 +155,11 @@ function draw(
     const b = bars[i]
     low = Math.min(low, type === 'line' ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
     high = Math.max(high, type === 'line' ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
-    for (const { bands } of bandStudies) {
-      const band = bands[i]
-      if (band) {
-        low = Math.min(low, tickPrice(band.lower))
-        high = Math.max(high, tickPrice(band.upper))
+    for (const { series } of priceLines) {
+      const value = series[i]
+      if (value != null) {
+        low = Math.min(low, value)
+        high = Math.max(high, value)
       }
     }
   }
@@ -145,7 +181,7 @@ function draw(
   const studyPanels = studies.map(study => {
     if (study.kind === 'rsi')
       return { ...study, low: 0, high: 100, ticks: [0, 30, 70, 100], format: String }
-    if (study.kind === 'stochastic')
+    if (study.kind === 'stochastic' || study.kind === 'mfi')
       return { ...study, low: 0, high: 100, ticks: [0, 20, 80, 100], format: (tick: number) => tick + '%' }
     if (study.kind === 'williams_r')
       return { ...study, low: -100, high: 0, ticks: [-100, -80, -20, 0], format: (tick: number) => tick + '%' }
@@ -379,35 +415,8 @@ function draw(
     }
     ctx.stroke()
   }
-  for (const { kind, bands } of bandStudies) {
-    for (const { key } of BAND_LINES) {
-      const color = BAND_STYLE[kind][key]
-      ctx.strokeStyle = color
-      ctx.lineWidth = 1.5
-      ctx.beginPath()
-      let first = -1
-      let points = 0
-      for (let i = start; i < view.end; i++) {
-        const band = bands[i]
-        if (!band) continue
-        const value = y(tickPrice(band[key]))
-        if (points === 0) {
-          first = i
-          ctx.moveTo(x(i), value)
-        } else {
-          ctx.lineTo(x(i), value)
-        }
-        points++
-      }
-      ctx.stroke()
-      const single = bands[first]
-      if (points === 1 && single) {
-        ctx.beginPath()
-        ctx.fillStyle = color
-        ctx.arc(x(first), y(tickPrice(single[key])), 2, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
+  for (const { color, series } of priceLines) {
+    drawStudyLine(ctx, series, start, view.end, x, y, color, 2)
   }
   const close = bars[view.end - 1].close,
     at = y(close)
@@ -463,7 +472,7 @@ function draw(
     for (const tick of panel.ticks) {
       const level = studyY(tick)
       const reference = (panel.kind === 'rsi' && (tick === 30 || tick === 70)) ||
-        (panel.kind === 'stochastic' && (tick === 20 || tick === 80)) ||
+        ((panel.kind === 'stochastic' || panel.kind === 'mfi') && (tick === 20 || tick === 80)) ||
         (panel.kind === 'williams_r' && (tick === -20 || tick === -80)) ||
         (panel.zeroLine && tick === 0) ||
         (panel.kind === 'bb_percent_b' && (tick === 0 || tick === 100))
@@ -485,32 +494,7 @@ function draw(
     }
     for (const { color, series, histogram } of panel.lines) {
       if (histogram) continue
-      ctx.beginPath()
-      ctx.lineWidth = 1.5
-      ctx.strokeStyle = color
-      let points = 0
-      const isolated: [number, number][] = []
-      for (let index = start; index <= view.end; index++) {
-        const value = index === view.end ? null : series[index]
-        if (value == null) {
-          if (points === 1) isolated.push([x(index - 1), studyY(series[index - 1]!)])
-          points = 0
-        } else {
-          if (points === 0) ctx.moveTo(x(index), studyY(value))
-          else ctx.lineTo(x(index), studyY(value))
-          points++
-        }
-      }
-      ctx.stroke()
-      if (isolated.length) {
-        ctx.beginPath()
-        ctx.fillStyle = color
-        for (const [cx, cy] of isolated) {
-          ctx.moveTo(cx + 2.5, cy)
-          ctx.arc(cx, cy, 2.5, 0, Math.PI * 2)
-        }
-        ctx.fill()
-      }
+      drawStudyLine(ctx, series, start, view.end, x, studyY, color, 2.5)
     }
     if (active !== null && active >= start && active < view.end) {
       const axis = x(active)
@@ -622,16 +606,16 @@ export function Chart({
     sourceIndices.map(index => sma[index]) : sma, [sourceIndices, sma])
   const plottedEma = useMemo(() => sourceIndices && ema.length ?
     sourceIndices.map(index => ema[index]) : ema, [sourceIndices, ema])
-  const panels = useMemo(() => studies.filter(study => !isBandStudy(study)), [studies])
-  const bandStudies = useMemo(() => studies.filter(isBandStudy), [studies])
-  const plottedBands = useMemo(() => sourceIndices ? bandStudies.map(study => ({
-    ...study, bands: sourceIndices.map(index => study.bands[index]),
-  })) : bandStudies, [sourceIndices, bandStudies])
+  const panels = useMemo(() => studies.filter(study => !isPriceStudy(study)), [studies])
+  const priceStudies = useMemo(() => studies.filter(isPriceStudy), [studies])
+  const plottedPriceLines = useMemo(() => priceStudies.flatMap(study => study.lines.map(line => ({
+    color: line.color, series: projectStudyLine(line.series, sourceIndices),
+  }))), [sourceIndices, priceStudies])
   const plottedStudies = useMemo<PlottedStudy[]>(() => panels.map(study => ({
     ...study,
     lines: study.lines.map(line => ({
       ...line,
-      series: sourceIndices ? sourceIndices.map(index => plotValue(line.series[index])) : line.series.map(plotValue),
+      series: projectStudyLine(line.series, sourceIndices),
     })),
   })), [sourceIndices, panels])
   const exportStudies = useMemo(() => studyOverlays(studies), [studies])
@@ -752,10 +736,10 @@ export function Chart({
           pointFigure,
           crosshairPrice,
           plottedStudies,
-          plottedBands,
+          plottedPriceLines,
           activeStudyPlotValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, type, kagi, pointFigure, crosshairPrice, plottedStudies, plottedBands, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, type, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -907,13 +891,14 @@ export function Chart({
           })}
         </div>
       })}
-      {bandStudies.map(study => {
-        const { kind, period, bands } = study
-        const value = bands[sourceIndex]
+      {priceStudies.map(({ kind, heading, periods, lines }) => {
+        const title = heading + ' ' + periods.join('/')
         return <div key={kind} className="ohlc chart-overlay-values" role="group" aria-label={STUDIES[kind].label}>
-          <span><small>{BAND_STYLE[kind].name} {kind === 'keltner' ? `${period}/${study.atrPeriod}` : period}</small></span>
-          {BAND_LINES.map(({ key, label }) =>
-            <span key={key}><small>{label}</small> {value ? fixed(value[key], 6) : '—'}</span>)}
+          {lines.length > 1 && <span><small>{title}</small></span>}
+          {lines.map(({ key, label, series }) => {
+            const value = series[sourceIndex]
+            return <span key={key ?? kind}><small>{label ?? title}</small> {value == null ? '—' : fixed(value, 6)}</span>
+          })}
         </div>
       })}
       <div ref={zone} className={picking ? 'canvas-zone picking-endpoint' : 'canvas-zone'}

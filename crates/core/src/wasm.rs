@@ -2890,6 +2890,20 @@ pub extern "C" fn mw_cumulative_volume() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_money_flow_index(period: usize) -> u32 {
+    process(|input| {
+        crate::money_flow_index(period, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_volume_weighted_average(period: usize) -> u32 {
+    process(|input| {
+        crate::volume_weighted_average(period, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_chaikin_money_flow(period: usize) -> u32 {
     process(|input| {
         crate::chaikin_money_flow(period, &decode_bars(input)?).map(encode_indicator_values)

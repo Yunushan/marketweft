@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.122.0 · Money Flow Index and Volume-Weighted Moving Average
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Fixtures check each observed prefix, ties in typical price, signed prices, full warm-up, zero-volume windows, and exact results over 100,000 bars at the supported source limits. |
+| Browser chart and export | Offline Chromium verifies the fixed MFI scale, VWMA on the price axis, path breaks through a zero-volume window, and every CSV output. |
+| Workspace | Version 27 saves independent periods in both panes. Version 26 restores its saved Chaikin settings. |
+
+[MFI and VWMA](chart-workspace.md#money-flow-index-and-volume-weighted-moving-average) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.121.0 · Chaikin studies
 
 | Check | Evidence |

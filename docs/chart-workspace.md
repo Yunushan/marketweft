@@ -164,6 +164,16 @@ The Chaikin Oscillator subtracts the slow EMA of the Accumulation/Distribution L
 
 Each period accepts 1 through 100,000 bars. The default research CSV columns are `chaikin_money_flow_20` and `chaikin_oscillator_3_10`. Undefined values leave empty cells. Both readouts and exports retain exact six-place values.
 
+### Money Flow Index and Volume-Weighted Moving Average
+
+Enable **MFI** or **VWMA** in either pane’s indicator settings. MFI uses a fixed 0% to 100% scale with reference levels at 20% and 80%. VWMA shares the price axis with the candles and other overlays. Either period accepts 1 through 100,000 observed bars.
+
+MFI defaults to 14 price changes. A change compares an observed bar’s typical price, the average of its high, low and close, with the previous observed bar. An increase adds to positive money flow, a decrease adds to negative money flow, and a tie contributes zero. The flow magnitude is volume times the absolute typical price. This keeps rising and falling flows distinct for instruments with signed prices. The first value requires a full window of classified changes. MFI divides positive flow by combined positive and negative flow and expresses the result as a percentage. A window with zero combined flow leaves an empty cell. [StockCharts’ Money Flow Index calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/money-flow-index-mfi).
+
+VWMA defaults to 20 bars. It divides the sum of each close times its reported volume by total reported volume over a full window. A window with zero reported volume leaves an empty cell. The result rounds directly to the nearest price millionth with half ticks away from zero. [TradingView’s Volume-Weighted Moving Average calculation](https://www.tradingview.com/support/solutions/43000592293-volume-weighted-moving-average-vwma/).
+
+The default research CSV columns are `mfi_14` and `vwma_20`. The chart leaves gaps for absent values. Missing timestamps contribute zero observations.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

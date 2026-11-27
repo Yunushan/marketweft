@@ -906,6 +906,8 @@ export interface MarketCore {
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
   cumulativeVolume(bars: readonly Bar[]): CumulativeVolume[];
+  moneyFlowIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
+  volumeWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   chaikinMoneyFlow(period: number, bars: readonly Bar[]): (bigint | null)[];
   chaikinOscillator(fast: number, slow: number, bars: readonly Bar[]): (bigint | null)[];
   macd(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
@@ -1005,6 +1007,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_donchian_channels(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
   mw_cumulative_volume(): number;
+  mw_money_flow_index(period: number): number;
+  mw_volume_weighted_average(period: number): number;
   mw_chaikin_money_flow(period: number): number;
   mw_chaikin_oscillator(fast: number, slow: number): number;
   mw_macd(fast: number, slow: number, signal: number): number;
@@ -1405,6 +1409,19 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
   function putIndicatorBars(bars: readonly Bar[], operation: string) {
     const dest = input(bars.length * 48);
     for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, operation);
+  }
+
+  function observedIndicator(
+    calculate: (period: number) => number, period: number, bars: readonly Bar[], label: string,
+  ): (bigint | null)[] {
+    if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
+      throw new Error('Series and indicator period must fit within 100,000 bars.');
+    putIndicatorBars(bars, label);
+    const out = output(calculate(period));
+    return Array.from({ length: bars.length }, (_, index) => {
+      const ticks = out.getBigInt64(index * 8, true);
+      return ticks === MISSING ? null : ticks;
+    });
   }
 
   function putIndicatorCloses(bars: readonly Bar[]) {
@@ -1816,15 +1833,14 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         onBalance: signed128(out, index * 32), accumulationDistribution: signed128(out, index * 32 + 16),
       }));
     },
+    moneyFlowIndex(period, bars) {
+      return observedIndicator(api.mw_money_flow_index, period, bars, 'Money Flow Index');
+    },
+    volumeWeightedAverage(period, bars) {
+      return observedIndicator(api.mw_volume_weighted_average, period, bars, 'VWMA');
+    },
     chaikinMoneyFlow(period, bars) {
-      if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
-        throw new Error('Series and indicator period must fit within 100,000 bars.');
-      putIndicatorBars(bars, 'Chaikin Money Flow');
-      const out = output(api.mw_chaikin_money_flow(period));
-      return Array.from({ length: bars.length }, (_, index) => {
-        const ticks = out.getBigInt64(index * 8, true);
-        return ticks === MISSING ? null : ticks;
-      });
+      return observedIndicator(api.mw_chaikin_money_flow, period, bars, 'Chaikin Money Flow');
     },
     chaikinOscillator(fast, slow, bars) {
       if (![fast, slow].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)
@@ -1850,14 +1866,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       }));
     },
     williamsPercentR(period, bars) {
-      if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
-        throw new Error('Series and indicator period must fit within 100,000 bars.');
-      putIndicatorBars(bars, 'Williams %R');
-      const out = output(api.mw_williams_percent_r(period));
-      return Array.from({ length: bars.length }, (_, index) => {
-        const ticks = out.getBigInt64(index * 8, true);
-        return ticks === MISSING ? null : ticks;
-      });
+      return observedIndicator(api.mw_williams_percent_r, period, bars, 'Williams %R');
     },
     stochasticOscillator(lookback, smoothing, signal, bars) {
       if (![lookback, smoothing, signal].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)

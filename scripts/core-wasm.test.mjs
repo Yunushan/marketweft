@@ -1416,3 +1416,22 @@ test('Chaikin studies distinguish zero reported volume from a defined zero oscil
   assert.equal(core.chaikinMoneyFlow(10_000, large).at(-1), -100_000_000n);
   assert.throws(() => core.chaikinOscillator(2, 1, bars), /shorter/);
 });
+
+test('Money Flow Index and VWMA distinguish signed flow, ties, zero volume and missing warm-up', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-weighted-volume.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const mfi = [null, null, 100_000_000n, 0n, 0n, null, 100_000_000n, 89_552_239n, 0n];
+  const vwma = [null, -7_000_000n, -6_500_000n, -7_800_000n, -9_000_000n, null, 6_000_000n, 5_000_000n, 500_000n];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.moneyFlowIndex(2, bars.slice(0, end)), mfi.slice(0, end));
+    assert.deepEqual(core.volumeWeightedAverage(2, bars.slice(0, end)), vwma.slice(0, end));
+  }
+  const large = Array.from({ length: 100_000 }, (_, time) => {
+    const close = time % 2 ? 2e9 : -2e9;
+    return { time, open: close, high: close, low: close, close, volume: 2e9 };
+  });
+  assert.equal(core.moneyFlowIndex(99_999, large).at(-1), 50_000_500n);
+  assert.equal(core.volumeWeightedAverage(100_000, large).at(-1), 0n);
+  assert.throws(() => core.moneyFlowIndex(0, bars), /100,000/);
+  assert.throws(() => core.volumeWeightedAverage(2, [bars[0], bars[0]]), /later/);
+});

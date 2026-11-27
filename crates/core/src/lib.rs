@@ -54,6 +54,7 @@ mod volume_bars;
 mod walk_forward;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
+mod weighted_volume;
 mod wilder;
 
 pub use actions::{
@@ -138,6 +139,7 @@ pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use range_bars::RangeBar;
 pub use range_position::williams_percent_r;
 pub use renko::renko;
+pub use weighted_volume::{money_flow_index, volume_weighted_average};
 pub type RenkoBrick = PriceMovement;
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use rsi::relative_strength_index;
