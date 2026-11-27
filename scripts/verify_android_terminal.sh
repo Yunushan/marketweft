@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ $# != 0 && $# != 3 ]]; then
+    printf 'Usage: %s [BASELINE_APK BASELINE_VERSION BASELINE_COMMIT]\n' "$0" >&2
+    exit 2
+fi
+
 version=$(node -p 'require("./package.json").version')
 package=$(node -p 'require("./apps/desktop/tauri.conf.json").identifier')
 name="MarketWeft-android-$version-x86_64-debug.apk"
@@ -75,6 +80,12 @@ for _ in {1..15}; do
         python3 -B scripts/verify_android_terminal.py hierarchy reports/android-terminal.xml "$package" >"$work/hierarchy.log" 2>&1; then
         python3 -B scripts/verify_android_csv.py "$serial" "$package" "$activity" \
             apps/desktop/tests/fixtures/native-verification.csv reports/android-import-latest.xml
+        if [[ $# == 3 ]]; then
+            python3 -B scripts/verify_android_terminal.py apk "$1" "$3"
+            python3 -B scripts/verify_android_upgrade.py "$serial" "$package" "$activity" "$sdk_tools" \
+                apps/desktop/tests/fixtures/native-verification.csv reports/android-upgrade \
+                "$1" "$2" "$apk" "$version"
+        fi
         (cd reports && sha256sum "$name" >"$name.sha256")
         printf 'Verified MarketWeft %s offline in Android 35 x86_64 System WebView.\n' "$version"
         exit 0

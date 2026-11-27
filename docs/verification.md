@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.182.0 · In-place Android emulator upgrade
+
+- CI downloads the verified 0.177.0 Android APK from the successful workflow for its exact source commit and checks its source revision and ABI.
+- Both debug APKs use the same disposable certificate for the upgrade test. The verifier compares every non-signature APK entry with its original, checks both certificates and requires the candidate version code to increase.
+- On Android 35 in airplane mode, the baseline imports and reopens the synthetic chart. CI preserves an application document, installs the candidate over the same app, then checks the originally saved quote and document bytes under the installed candidate. The downloadable APK retains the signature from its regular debug build.
+
+[Android terminal](platforms.md#android-terminal) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.181.0 · In-place iPhone and iPad Simulator upgrades
 
 - CI retrieves the 0.178.0 Simulator archive from the successful workflow for its exact source revision and checks the workflow and package digests.

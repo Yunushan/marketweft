@@ -30,9 +30,15 @@ class AndroidUI:
         self.serial = serial
         self.evidence = evidence
 
-    def adb(self, *args):
-        result = subprocess.run(["adb", "-s", self.serial, *map(str, args)], check=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+    def adb(self, *args, timeout=20, input_data=None):
+        try:
+            result = subprocess.run(["adb", "-s", self.serial, *map(str, args)], check=True,
+                                    input=input_data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+        except subprocess.CalledProcessError as error:
+            detail = (error.stderr or error.stdout).decode(errors="replace").strip()
+            if detail:
+                error.add_note(detail)
+            raise
         return result.stdout
 
     def find(self, description, matches, wait=40):
@@ -50,6 +56,12 @@ class AndroidUI:
                 if node.get("enabled") == "true" and matches(node):
                     return node
             sleep(1)
+        try:
+            screenshot = self.adb("exec-out", "screencap", "-p")
+            if screenshot.startswith(b"\x89PNG\r\n\x1a\n"):
+                self.evidence.with_suffix(".png").write_bytes(screenshot)
+        except (OSError, subprocess.SubprocessError):
+            pass
         raise AndroidElementMissing(f"Could not find {description}. Last hierarchy: {self.evidence}")
 
     def tap(self, element, below_center=False):
@@ -110,13 +122,17 @@ def verify_import(ui, package, activity, fixture):
     ui.find("the imported chart's exact OHLCV", app_label(QUOTE))
     ui.evidence.with_name("android-imported-quote.xml").write_bytes(ui.evidence.read_bytes())
 
+    verify_reopened(ui, package, activity)
+    ui.evidence.with_name("android-restored-quote.xml").write_bytes(ui.evidence.read_bytes())
+    print("Verified native Android CSV selection and exact OHLCV after reopening the installed app.")
+
+
+def verify_reopened(ui, package, activity):
     ui.adb("shell", "am", "force-stop", package)
     launched = ui.adb("shell", "am", "start", "-W", "-n", f"{package}/{activity}")
     if b"Status: ok" not in launched:
         raise RuntimeError("The installed Android application did not reopen.")
-    ui.find("the restored chart's exact OHLCV", app_label(QUOTE))
-    ui.evidence.with_name("android-restored-quote.xml").write_bytes(ui.evidence.read_bytes())
-    print("Verified native Android CSV selection and exact OHLCV after reopening the installed app.")
+    ui.find("the restored chart's exact OHLCV", lambda node: node.get("package") == package and QUOTE in labels(node))
 
 
 if __name__ == "__main__":

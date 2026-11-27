@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.181.0
+# Platform support · MarketWeft 0.182.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
@@ -10,7 +10,7 @@ A successful web test validates a specific browser, build and host. Producing a 
 | macOS Apple Silicon / Intel | Per-architecture app archives and read-only disk images. Hosted tests import CSV through the production app's native file picker and verify in-place upgrades with a saved WKWebView workspace in packaged test builds. | Developer ID signing and notarization. |
 | Linux x64 | Ubuntu 24.04 x64 package installation and native CSV import. Debian 12 native window and chart rendering observed through AT-SPI. See [verification](verification.md) and the [advisory review](native-advisories.md). | Broader upgrade coverage, continued backport maintenance and validation on other supported distributions. |
 | Linux ARM64 | Browser route and Ubuntu 24.04 ARM64 package installation, native X11 launch and CSV import smoke test. | Broader upgrade coverage and validation on other supported distributions. |
-| Android | Experimental x86_64 debug APK. Hosted Android 35 emulator verifies offline startup, native CSV selection and exact chart recovery after relaunch. | Physical devices, ARM64, upgrade and backup checks, and distribution signing. |
+| Android | Experimental x86_64 debug APK. Hosted Android 35 emulator covers offline startup, native CSV selection, exact chart recovery after relaunch, and an in-place upgrade from 0.177.0. | Physical devices, ARM64, backup checks and distribution signing. |
 | iOS / iPadOS | Responsive browser route and experimental ARM64 Simulator bundle. Hosted iPhone 16 and iPad (A16) simulators cover Files import, exact chart recovery, backup restoration into a fresh installation, and in-place upgrade from 0.178.0. | Full network disconnection, physical devices and Apple distribution signing. |
 | FreeBSD / OpenBSD / NetBSD / DragonFly BSD | The complete static browser build uses standard web APIs, with no wrapper or server OS dependency. A BSD user may serve the ZIP's dist/ from any static server or open it on an HTTPS host. | Each BSD/browser combination needs its own offline and import tests. No native BSD wrapper has a release claim. |
 | Headless servers | Serve the same dist/ using a static web server. The bundled Node launcher binds loopback. The Node observation package and local MCP formula server run without a GUI. The MCP stdio process and the scoped localhost REST, WebSocket and gRPC service were exercised on Linux x64. CI packages the research service with bundled SQLite for Ubuntu 24.04 x64 and exercises local audit recovery and explicitly configured TLS. [Local REST research](local-rest-research.md). | 0.59.0 exercises TLS and scoped credentials from an isolated second client. Enterprise deployment and credentials-provider integration. |
@@ -23,6 +23,8 @@ The Android job builds the same terminal through the shared Tauri entry point. I
 Download `android-terminal-x86_64-attempt-N` from a successful run and verify the SHA-256 sidecar before installing the debug APK on a compatible emulator. The evidence artifact contains the launch result, WebView provider and UI hierarchy.
 
 The import test places the synthetic fixture in Downloads. It opens the native document picker from the terminal, selects the file and verifies the exact chart OHLCV through Android's accessibility hierarchy. It force-stops and relaunches the same installed app, then verifies the original chart again. The evidence includes the imported and restored UI hierarchies. [Android Storage Access Framework](https://developer.android.com/guide/topics/providers/document-provider).
+
+The upgrade check uses a disposable certificate for copies of the verified 0.177.0 and candidate debug APKs. It checks both signatures and confirms the payload bytes match the original packages. In airplane mode it imports and reopens the baseline workspace, installs the candidate over the same app, and checks the saved quote and document. The verification artifact includes the baseline and upgraded UI hierarchies. [Android app updates](https://developer.android.com/google/play/app-updates).
 
 ## iOS and iPadOS Simulator
 
