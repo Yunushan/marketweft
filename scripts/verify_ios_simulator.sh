@@ -34,7 +34,16 @@ python3 -B scripts/stage_native_application_notices.py "$app/MarketWeftNotices" 
 work=$(mktemp -d)
 phone=
 tablet=
+canary_pid=
+stop_canary() {
+    if [[ -n "$canary_pid" ]]; then
+        kill "$canary_pid" 2>/dev/null || true
+        wait "$canary_pid" 2>/dev/null || true
+        canary_pid=
+    fi
+}
 trap '
+    stop_canary
     for device in "$phone" "$tablet"; do
         if [[ -n "$device" ]]; then
             xcrun simctl shutdown "$device" >/dev/null 2>&1 || true
@@ -51,6 +60,27 @@ phone=$(xcrun simctl create MarketWeft-iPhone "$phone_type" "$runtime")
 tablet=$(xcrun simctl create MarketWeft-iPad "$tablet_type" "$runtime")
 ditto apps/desktop/tests/ios-simulator "$work/tests"
 xcodegen generate --spec "$work/tests/project.yml"
+project="$work/tests/MarketWeftSimulatorTests.xcodeproj"
+fixture_id=org.marketweft.fixture-files
+mkdir "$work/canary"
+printf 'MarketWeft simulator network canary\n' >"$work/canary/index.html"
+
+run_test() {
+    local destination=$1 result=$2 method=$3
+    xcodebuild -project "$project" -scheme MarketWeftSimulatorTests \
+        -destination "platform=iOS Simulator,id=$destination" -derivedDataPath "$work/build" \
+        -resultBundlePath "$result" -parallel-testing-enabled NO -testLanguage en -testRegion US \
+        "-only-testing:MarketWeftSimulatorTests/$method" test-without-building
+    xcrun xcresulttool get test-results summary --path "$result" |
+        jq -e '.totalTestCount == 1 and .passedTests == 1' >/dev/null
+}
+
+xcodebuild -project "$project" -scheme MarketWeftSimulatorTests \
+    -destination "platform=iOS Simulator,id=$phone" -derivedDataPath "$work/build" \
+    CODE_SIGNING_ALLOWED=NO build-for-testing
+fixture="$work/build/Build/Products/Debug-iphonesimulator/MarketWeftFixtureFiles.app"
+plutil -extract UIFileSharingEnabled raw -o - "$fixture/Info.plist" | grep -Fx true
+plutil -extract LSSupportsOpeningDocumentsInPlace raw -o - "$fixture/Info.plist" | grep -Fx true
 
 for family in iphone ipad; do
     if [[ "$family" == iphone ]]; then device="$phone"; else device="$tablet"; fi
@@ -61,13 +91,25 @@ for family in iphone ipad; do
     cmp "$app/$binary" "$installed/$binary"
     cmp "$app/MarketWeftNotices/source-revision.txt" "$installed/MarketWeftNotices/source-revision.txt"
 
-    result="$repository/reports/ios-simulator-$family.xcresult"
-    xcodebuild -project "$work/tests/MarketWeftSimulatorTests.xcodeproj" -scheme MarketWeftSimulatorTests \
-        -destination "platform=iOS Simulator,id=$device" -derivedDataPath "$work/build" \
-        -resultBundlePath "$result" -parallel-testing-enabled NO -testLanguage en -testRegion US \
-        -only-testing:MarketWeftSimulatorTests/SimulatorStartupTests/testLoadsBundledTerminalAndExactQuote test
-    xcrun xcresulttool get test-results summary --path "$result" |
-        jq -e '.totalTestCount == 1 and .passedTests == 1' >/dev/null
+    result="$repository/reports/ios-simulator-$family"
+    run_test "$device" "$result-startup.xcresult" SimulatorStartupTests/testLoadsBundledTerminalAndExactQuote
+    xcrun simctl install "$device" "$fixture"
+    fixture_data=$(xcrun simctl get_app_container "$device" "$fixture_id" data)
+    mkdir -p "$fixture_data/Documents"
+    cp apps/desktop/tests/fixtures/native-verification.csv "$fixture_data/Documents/"
+
+    python3 -m http.server 53179 --bind 127.0.0.1 --directory "$work/canary" >"$work/canary.log" 2>&1 &
+    canary_pid=$!
+    for attempt in 1 2 3 4 5; do
+        if curl --silent --fail --max-time 1 http://127.0.0.1:53179/ >/dev/null; then break; fi
+        sleep "$attempt"
+    done
+    kill -0 "$canary_pid"
+    curl --silent --fail --max-time 1 http://127.0.0.1:53179/ |
+        grep -Fx 'MarketWeft simulator network canary'
+    run_test "$device" "$result-import.xcresult" SimulatorImportTests/testImportsCSVFromFiles
+    stop_canary
+    run_test "$device" "$result-recovery.xcresult" SimulatorImportTests/testRecoversCSVAfterLoopbackLoss
     xcrun simctl shutdown "$device"
     printf 'Verified the exact MarketWeft bundle on the %s simulator.\n' "$family"
 done

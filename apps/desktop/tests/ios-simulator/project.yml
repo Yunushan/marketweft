@@ -3,11 +3,28 @@ options:
   deploymentTarget:
     iOS: "18.0"
 targets:
+  MarketWeftFixtureFiles:
+    type: application
+    platform: iOS
+    sources:
+      - FixtureFilesApp.swift
+    info:
+      path: FixtureInfo.plist
+      properties:
+        CFBundleDisplayName: MarketWeft Test Files
+        LSSupportsOpeningDocumentsInPlace: true
+        UIFileSharingEnabled: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.marketweft.fixture-files
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
   MarketWeftSimulatorTests:
     type: bundle.ui-testing
     platform: iOS
     sources:
       - SimulatorStartupTests.swift
+      - SimulatorImportTests.swift
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -18,6 +35,7 @@ schemes:
   MarketWeftSimulatorTests:
     build:
       targets:
+        MarketWeftFixtureFiles: [test]
         MarketWeftSimulatorTests: [test]
     test:
       targets:

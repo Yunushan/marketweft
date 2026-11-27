@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.179.0 · iPhone and iPad Files import and recovery
+
+- Each iOS Simulator opens the unchanged terminal build, selects the authorized synthetic CSV through Files, and checks its exact OHLCV in WKWebView.
+- The test verifies a TCP connection from the simulator to a runner-local listener before import. CI shuts down the listener, and the simulator must see a refused connection before relaunching the same app and checking the exact persisted chart.
+- A separate test app exposes only the fixture file through Files. The simulator artifact contains MarketWeft and its notices. CI retains startup, import and recovery results for each device.
+
+[iOS and iPadOS Simulator](platforms.md#ios-and-ipados-simulator) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.178.0 · iPhone and iPad simulator startup
 
 - The hosted Apple Silicon job builds the same Tauri terminal as an ARM64 Simulator app and records its source and dependency notices in the bundle.
