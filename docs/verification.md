@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.137.0 · Rights-aware webhook event export
+
+| Check | Evidence |
+| --- | --- |
+| Browser export | Chromium compares exact candle values and the saved observation time. It verifies later grant withdrawal and expiry, replacement by a same-ID history, and readable earlier records without an export grant. |
+| Browser to receiver | Hosted CI passes the browser-downloaded event file to the native webhook command and checks the signed request bytes, stable event ID and delivered receipt from a loopback receiver. |
+
+[Webhook event export](replay-alerts.md#export-a-webhook-event) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.136.0 · Signed HTTPS webhook delivery
 
 | Check | Evidence |

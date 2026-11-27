@@ -40,3 +40,9 @@ The inbox shows these records alongside threshold and moving-average crossings. 
 Structured source grants must allow both automated use and storage when saving raw evidence. The inbox remains local to IndexedDB on the current browser origin.
 
 Operators can use the standalone service's [signed webhook delivery command](local-webhook-delivery.md) to deliver an explicitly supplied event file.
+
+## Export a webhook event
+
+In **Replay alerts → Alert inbox**, open a saved candlestick alert's **Show evidence** section and choose **Download webhook event**. The JSON contains the stable alert ID, the first UTC observation time, the rule revision, and the exact raw candle evidence. The file can be passed directly to the [signed webhook delivery command](local-webhook-delivery.md).
+
+Imported data must have explicit redistribution permission in both the grant recorded with the alert and the current matching catalog history. A later restriction or expiry blocks download. A replacement history with the same instrument ID cannot authorize the earlier alert. Older records without recorded provenance remain readable. The built-in synthetic demo records can be exported.
