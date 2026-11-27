@@ -14,8 +14,15 @@ final class SimulatorUpgradeTests: XCTestCase {
 
     @MainActor
     private func assertIndicator(in app: XCUIApplication) {
-        let indicator = app.webViews.firstMatch.staticTexts["EMA 9"].firstMatch
+        let web = app.webViews.firstMatch
+        let legend = web.otherElements["Chart legend"].firstMatch
+        let indicator = legend.staticTexts.matching(
+            NSPredicate(format: "label IN %@", ["EMA 9", "EMA"])
+        ).firstMatch
         XCTAssertTrue(indicator.waitForExistence(timeout: 15), app.debugDescription)
+        if indicator.label == "EMA" {
+            XCTAssertTrue(legend.staticTexts["9"].firstMatch.exists, legend.debugDescription)
+        }
     }
 
     @MainActor
