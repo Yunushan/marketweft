@@ -2951,6 +2951,36 @@ pub extern "C" fn mw_observed_drawdown() -> u32 {
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_confirmed_close_swings(
+    left: usize,
+    right: usize,
+    interval_seconds: u32,
+) -> u32 {
+    process(|input| {
+        let results =
+            crate::confirmed_close_swings(left, right, interval_seconds, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(results.len() * 32);
+        for point in results {
+            let fields = point.map_or([0; 4], |point| {
+                [
+                    point.pivot_at,
+                    point.confirmed_at,
+                    point.close,
+                    match point.side {
+                        crate::SwingSide::High => 1,
+                        crate::SwingSide::Low => -1,
+                    },
+                ]
+            });
+            for field in fields {
+                bytes.extend_from_slice(&field.to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
 fn encode_wide_indicator_values(values: Vec<Option<i128>>) -> Vec<u8> {
     values
         .into_iter()

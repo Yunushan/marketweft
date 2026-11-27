@@ -904,6 +904,8 @@ export interface PortfolioSnapshot {
 
 export type DrawdownPoint = { peakAt: number; peakClose: bigint; percent: bigint };
 
+export type ConfirmedSwing = { pivotAt: number; confirmedAt: number; close: bigint; side: 'high' | 'low' };
+
 export interface MarketCore {
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
   instrument(venue: string, symbol: string): string;
@@ -935,6 +937,7 @@ export interface MarketCore {
   closeChanges(intervalSeconds: number, bars: readonly Bar[]): (bigint | null)[];
   rebasedPercentChanges(anchorAt: number, bars: readonly Bar[]): (bigint | null)[];
   observedDrawdown(bars: readonly Bar[]): (DrawdownPoint | null)[];
+  confirmedCloseSwings(left: number, right: number, intervalSeconds: number, bars: readonly Bar[]): (ConfirmedSwing | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
   moneyFlowIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1044,6 +1047,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_close_changes(intervalSeconds: number): number;
   mw_rebased_percent_changes(anchorAt: bigint): number;
   mw_observed_drawdown(): number;
+  mw_confirmed_close_swings(left: number, right: number, intervalSeconds: number): number;
   mw_rate_of_change(period: number): number;
   mw_directional_movement(diPeriod: number, adxPeriod: number): number;
   mw_money_flow_index(period: number): number;
@@ -1909,6 +1913,25 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return Array.from({ length: bars.length }, (_, index) => {
         const delta = out.getBigInt64(index * 8, true);
         return delta === MISSING ? null : delta;
+      });
+    },
+    confirmedCloseSwings(left, right, intervalSeconds, bars) {
+      if (![left, right].every(side => Number.isInteger(side) && side >= 1 && side <= 1000) ||
+          !Number.isSafeInteger(intervalSeconds) || intervalSeconds < 1 || intervalSeconds > 0xffff_ffff ||
+          bars.length > 100_000) {
+        throw new Error('Close swings require 1–1,000 bars on each side, a positive interval, and up to 100,000 bars.');
+      }
+      putIndicatorBars(bars, 'Close swings');
+      const out = output(api.mw_confirmed_close_swings(left, right, intervalSeconds));
+      return Array.from({ length: bars.length }, (_, index) => {
+        const start = 32 * index;
+        const direction = out.getBigInt64(start + 24, true);
+        return direction === 0n ? null : {
+          pivotAt: Number(out.getBigInt64(start, true)),
+          confirmedAt: Number(out.getBigInt64(start + 8, true)),
+          close: out.getBigInt64(start + 16, true),
+          side: direction > 0n ? 'high' : 'low',
+        };
       });
     },
     observedDrawdown(bars) {

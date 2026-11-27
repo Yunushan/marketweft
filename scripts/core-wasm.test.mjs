@@ -10,6 +10,48 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('close swings preserve the confirmation time, earliest tie and exact source close in Wasm', () => {
+  const from = 1735689600;
+  const observations = [[0, '0'], [1, '0.000005'], [2, '0.000005'], [3, '0'], [4, '-1'],
+    [6, '10'], [7, '-0.000003'], [8, '-0.000003'], [9, '4'], [10, '2']];
+  const bars = core.parseCsv(['time,open,high,low,close,volume',
+    ...observations.map(([offset, price]) => [from + offset * 60, price, price, price, price, 1].join(',')),
+  ].join('\n'));
+  const point = (pivot, confirmed, close, side) =>
+    ({ pivotAt: from + pivot * 60, confirmedAt: from + confirmed * 60, close, side });
+  const expected = [null, null, point(1, 2, 5n, 'high'), null, null, null, null,
+    point(7, 8, -3n, 'low'), null, point(9, 10, 4000000n, 'high')];
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.confirmedCloseSwings(1, 1, 60, bars.slice(0, end)), expected.slice(0, end));
+  assert.throws(() => core.confirmedCloseSwings(1, 1001, 60, bars), /1–1,000/);
+  assert.throws(() => core.confirmedCloseSwings(1, 1, 0, bars), /positive interval/);
+});
+
+test('confirmed swing deque agrees with direct scans across different window lengths', () => {
+  const from = 1735689600;
+  const values = Array.from({ length: 230 }, (_, index) => {
+    const close = (17 * index * index + 31 * index) % 11 - 5;
+    const at = from + (index + Math.floor(index / 37)) * 60;
+    return [at, close, close, close, close, 1].join(',');
+  });
+  const bars = core.parseCsv(['time,open,high,low,close,volume', ...values].join('\n'));
+  for (const [left, right] of [[1, 1], [2, 5], [6, 2], [7, 7]]) {
+    const expected = bars.map((end, index) => {
+      const first = index - left - right;
+      if (first < 0 || end.time - bars[first].time !== (left + right) * 60) return null;
+      const window = bars.slice(first, index + 1);
+      const closes = window.map(bar => bar.close);
+      const pivot = window[left];
+      const side = closes.indexOf(Math.max(...closes)) === left ? 'high' :
+        closes.indexOf(Math.min(...closes)) === left ? 'low' : null;
+      return side === null ? null : {
+        pivotAt: pivot.time, confirmedAt: end.time, close: BigInt(pivot.close) * 1000000n, side,
+      };
+    });
+    assert.deepEqual(core.confirmedCloseSwings(left, right, 60, bars), expected);
+  }
+});
+
 test('drawdown returns exact peak price and time without looking past each observed prefix', () => {
   const from = 1735689600;
   const prices = [-1, 0, 3, 2, 3, -1, 0, 4, 3];
