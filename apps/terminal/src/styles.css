@@ -951,7 +951,7 @@ h1 {
   cursor: pointer;
 }
 .chart-export form,
-.renko-control {
+.price-size-control {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -964,7 +964,7 @@ h1 {
 }
 .chart-export select,
 .timeframe-control input,
-.renko-control input {
+.price-size-control input {
   display: block;
   width: 100%;
   max-width: 100%;
@@ -981,7 +981,7 @@ h1 {
   color: #ec817e;
 }
 .timeframe-control input,
-.renko-control input {
+.price-size-control input {
   max-width: 170px;
 }
 .drawing-tools button {

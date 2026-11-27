@@ -17,9 +17,11 @@ const VERIFIED_PROVIDER_BACKUP_VERSION = 8
 const HEIKIN_ASHI_BACKUP_VERSION = 9
 const RENKO_BACKUP_VERSION = 10
 const LINE_BREAK_BACKUP_VERSION = 11
+const KAGI_BACKUP_VERSION = 12
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
+  if (preferences.kagiTicks || Object.values(preferences.chartTypes ?? {}).includes('kagi')) return KAGI_BACKUP_VERSION
   if (Object.values(preferences.chartTypes ?? {}).includes('three-line-break')) return LINE_BREAK_BACKUP_VERSION
   if (preferences.renkoTicks || Object.values(preferences.chartTypes ?? {}).includes('renko')) return RENKO_BACKUP_VERSION
   if (Object.values(preferences.chartTypes ?? {}).includes('heikin-ashi')) return HEIKIN_ASHI_BACKUP_VERSION
@@ -119,7 +121,7 @@ export async function verifyWorkspaceBackup(
     SINGLE_PANE_BACKUP_VERSION, COMPARISON_BACKUP_VERSION, DRAWING_BACKUP_VERSION,
     INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
     STRUCTURED_GRANT_BACKUP_VERSION,
-    VERIFIED_PROVIDER_BACKUP_VERSION, HEIKIN_ASHI_BACKUP_VERSION, RENKO_BACKUP_VERSION, LINE_BREAK_BACKUP_VERSION,
+    VERIFIED_PROVIDER_BACKUP_VERSION, HEIKIN_ASHI_BACKUP_VERSION, RENKO_BACKUP_VERSION, LINE_BREAK_BACKUP_VERSION, KAGI_BACKUP_VERSION,
   ].includes(file.version))
     throw Error('This workspace backup version is unsupported.')
   const manifest = fields(file.manifest, [

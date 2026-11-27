@@ -2292,6 +2292,28 @@ pub extern "C" fn mw_three_line_break() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_kagi(reversal_ticks: i64) -> u32 {
+    process(|input| {
+        let segments = crate::kagi(&decode_bars(input)?, reversal_ticks)?;
+        let mut bytes = Vec::with_capacity(56 * segments.len());
+        for segment in segments {
+            for value in [
+                segment.source_time,
+                i64::from(segment.source_index),
+                i64::from(segment.column),
+                segment.from,
+                segment.to,
+                i64::from(segment.weight_before == crate::KagiWeight::Thick),
+                segment.weight_change.unwrap_or(i64::MIN),
+            ] {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_tick_bars(target_trades: u32) -> u32 {
     process(|input| {
         let (identity, payload) = utf8(input)?

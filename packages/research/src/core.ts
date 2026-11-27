@@ -18,6 +18,16 @@ export interface PriceMovement {
 
 export type RenkoBrick = PriceMovement;
 
+export interface KagiSegment {
+  sourceTime: number;
+  sourceIndex: number;
+  column: number;
+  fromTicks: bigint;
+  toTicks: bigint;
+  thickBefore: boolean;
+  weightChangeTicks: bigint | null;
+}
+
 export interface FormulaResult {
   version: number;
   values: (bigint | null)[];
@@ -805,6 +815,7 @@ export interface MarketCore {
   heikinAshi(bars: readonly Bar[]): Bar[];
   renko(bars: readonly Bar[], brickTicks: bigint): RenkoBrick[];
   threeLineBreak(bars: readonly Bar[]): PriceMovement[];
+  kagi(bars: readonly Bar[], reversalTicks: bigint): KagiSegment[];
   recordedTickBars(instrument: string, csv: string, targetTrades: number, knownAt?: string): TickBar[];
   footprintWindow(instrument: string, csv: string): FootprintWindow;
   recordedFootprint(instrument: string, csv: string, query: FootprintQuery): FootprintBar[];
@@ -890,6 +901,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_heikin_ashi(): number;
   mw_renko(brickTicks: bigint): number;
   mw_three_line_break(): number;
+  mw_kagi(reversalTicks: bigint): number;
   mw_tick_bars(targetTrades: number): number;
   mw_footprint_window(): number;
   mw_trade_footprint(bucketSeconds: number): number;
@@ -1536,6 +1548,26 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const dest = input(bars.length * 48);
       for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Three Line Break');
       return decodePriceMovements(output(api.mw_three_line_break()));
+    },
+    kagi(bars, reversalTicks) {
+      if (reversalTicks < 1n || reversalTicks > 2_000_000_000_000_000n || bars.length > 100_000)
+        throw new Error('Use a positive six-place reversal size and at most 100,000 source bars.');
+      const dest = input(bars.length * 48);
+      for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Kagi');
+      const rows = output(api.mw_kagi(reversalTicks));
+      return Array.from({ length: rows.byteLength / 56 }, (_, index) => {
+        const offset = index * 56;
+        const change = rows.getBigInt64(offset + 48, true);
+        return {
+          sourceTime: Number(rows.getBigInt64(offset, true)),
+          sourceIndex: Number(rows.getBigInt64(offset + 8, true)),
+          column: Number(rows.getBigInt64(offset + 16, true)),
+          fromTicks: rows.getBigInt64(offset + 24, true),
+          toTicks: rows.getBigInt64(offset + 32, true),
+          thickBefore: rows.getBigInt64(offset + 40, true) === 1n,
+          weightChangeTicks: change === -(1n << 63n) ? null : change,
+        };
+      });
     },
     aggregateTimeframe(bars, sourceSeconds, targetSeconds) {
       putTimeframeInput(bars, sourceSeconds, targetSeconds);

@@ -1154,3 +1154,18 @@ test('three-line break uses strict six-place thresholds with a prefix-stable sou
   });
   assert.deepEqual(core.threeLineBreak(bars.slice(0, 9)), lines.slice(0, 4));
 });
+test('kagi uses signed six-place turns and switches weight only after a prior extreme is crossed', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-kagi.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const lines = core.kagi(bars, 2_000_000n);
+  assert.deepEqual(lines.map(line => line.column), [0, 0, 1, 1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5]);
+  assert.deepEqual(lines.filter(line => line.weightChangeTicks !== null).map(line => [
+    line.sourceIndex, line.sourceTime, line.thickBefore, line.weightChangeTicks, line.toTicks,
+  ]), [
+    [11, bars[11].time, true, 101_000_000n, 100_999_999n],
+    [14, bars[14].time, false, 105_000_000n, 105_000_001n],
+    [17, bars[17].time, true, 100_999_999n, 100_999_998n],
+  ]);
+  assert.deepEqual(core.kagi(bars.slice(0, 11), 2_000_000n), lines.slice(0, 8));
+  assert.throws(() => core.kagi(bars, 0n), /positive/);
+});

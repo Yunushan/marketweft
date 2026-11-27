@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.107.0 · Kagi chart
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | A shared fixture fixes 15 observed moves in six columns. A reversal occurs exactly at its configured size. A one-tick break beyond a prior turning price changes weight, and earlier prefixes reproduce the same segments. |
+| Browser chart | Offline Chromium checks five horizontal reversal connectors, thin and thick line geometry, and the UTC and six-place close of two segments in one column. |
+| Workspace | A backup restores the Kagi size, the original CSV and a Three Line Break comparison pane. A version 11 backup still restores. |
+
+[Kagi charts](chart-workspace.md#kagi) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.106.0 · Three Line Break chart
 
 | Check | Evidence |

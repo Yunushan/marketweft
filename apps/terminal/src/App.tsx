@@ -56,6 +56,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
   'three-line-break': 'Three Line Break',
+  kagi: 'Kagi',
 }
 
 function Dialog({
@@ -591,6 +592,9 @@ export function App({
   function setRenkoTicks(pane: ChartPane, ticks: number) {
     update({ ...ws, renkoTicks: { ...ws.renkoTicks, [pane]: ticks } })
   }
+  function setKagiTicks(pane: ChartPane, ticks: number) {
+    update({ ...ws, kagiTicks: { ...ws.kagiTicks, [pane]: ticks } })
+  }
   function drawingTools(id: string) {
     return {
       core,
@@ -768,7 +772,8 @@ export function App({
                 <i className="candle-key" />
                 {ws.chartTypes?.primary === 'heikin-ashi' ? 'Heikin-Ashi · observed volume' :
                   ws.chartTypes?.primary === 'renko' ? 'Renko · close-based' :
-                  ws.chartTypes?.primary === 'three-line-break' ? 'Three Line Break · close-based' : 'OHLCV'}
+                  ws.chartTypes?.primary === 'three-line-break' ? 'Three Line Break · close-based' :
+                  ws.chartTypes?.primary === 'kagi' ? 'Kagi · close-based' : 'OHLCV'}
               </span>
               {ws.sma && (
                 <span>
@@ -829,8 +834,9 @@ export function App({
                   linkedTimestamp={cursor} onTimestamp={comparison?.linked ? onCrosshair : undefined}
                   drawingTools={drawingTools(asset.id)} periods={primaryPeriods}
                   type={ws.chartTypes?.primary}
-                  renkoTicks={ws.renkoTicks?.primary} renkoSaving={saving}
+                  renkoTicks={ws.renkoTicks?.primary} kagiTicks={ws.kagiTicks?.primary} priceSizeSaving={saving}
                   onRenkoTicks={ticks => setRenkoTicks('primary', ticks)}
+                  onKagiTicks={ticks => setKagiTicks('primary', ticks)}
                   exportOptions={{ metadata: descriptor }} />
               </section>
               {comparison && other && (
@@ -840,8 +846,9 @@ export function App({
                     linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined}
                     drawingTools={drawingTools(other.id)} periods={comparisonPeriods}
                     type={ws.chartTypes?.comparison}
-                    renkoTicks={ws.renkoTicks?.comparison} renkoSaving={saving}
+                    renkoTicks={ws.renkoTicks?.comparison} kagiTicks={ws.kagiTicks?.comparison} priceSizeSaving={saving}
                     onRenkoTicks={ticks => setRenkoTicks('comparison', ticks)}
+                    onKagiTicks={ticks => setKagiTicks('comparison', ticks)}
                     exportOptions={{ metadata: comparisonDescriptor }} />
                 </section>
               )}

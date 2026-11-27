@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.106.0 adds Three Line Break from observed closes to each workspace pane. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.107.0 adds Kagi from observed closes with a fixed reversal size in each workspace pane. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -109,6 +109,7 @@
 | Delivered · 0.104.0 | Heikin-Ashi chart (MW-012) | Verify native and Wasm fixed-point values, candle geometry, observed CSV export and mixed-pane workspace restore. [Heikin-Ashi charts](docs/chart-workspace.md#heikin-ashi). |
 | Delivered · 0.105.0 | Fixed-size Renko chart (MW-012) | Verify reversals at the exact two-brick threshold, repeated source timestamps, source CSV export and pane restore in native, Wasm and browser fixtures. [Renko charts](docs/chart-workspace.md#renko). |
 | Delivered · 0.106.0 | Three Line Break chart (MW-012) | Verify exact one-tick continuation and reversal, ignored threshold touches, preserved UTC source mapping and independent mixed-pane restore. [Three Line Break](docs/chart-workspace.md#three-line-break). |
+| Delivered · 0.107.0 | Kagi chart (MW-012) | Verify exact-size reversals, strict line-weight changes at earlier turning prices, UTC readout and independent pane restore. [Kagi charts](docs/chart-workspace.md#kagi). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -120,5 +121,5 @@
 
 ## Handoff for the next change
 
-Add a distinct Kagi chart from observed closes. Verify reversal sizing, direction changes, line-thickness transitions and independent pane restore.
+Add a distinct Point and Figure chart from observed closes. Verify box sizing, reversal thresholds, exact X and O columns, and independent pane restore.
 

@@ -2,50 +2,55 @@ import { useMemo, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
 import { Chart } from './Chart'
 import { ChartExport } from './ChartExport'
-import { DEFAULT_RENKO_TICKS, MAX_RENKO_TICKS } from './catalog-schema'
+import { DEFAULT_KAGI_TICKS, DEFAULT_RENKO_TICKS, MAX_CHART_PRICE_TICKS } from './catalog-schema'
 import { fixed } from './fixed-point'
-import type { PriceMovement } from './market-core'
+import type { KagiSegment, PriceMovement } from './market-core'
 import type { TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'timeframe' | 'displayBars' | 'priceMovements'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
   renkoTicks?: number
-  renkoSaving?: boolean
+  kagiTicks?: number
+  priceSizeSaving?: boolean
   onRenkoTicks?: (ticks: number) => void
+  onKagiTicks?: (ticks: number) => void
 }
 
-function RenkoSize({ ticks, saving, apply }: { ticks: number; saving?: boolean; apply: (ticks: number) => void }) {
+function PriceSize({ ticks, saving, apply, type }: {
+  ticks: number; saving?: boolean; apply: (ticks: number) => void; type: 'renko' | 'kagi'
+}) {
+  const label = type === 'renko' ? 'Brick size' : 'Reversal size'
   const [error, setError] = useState('')
-  return <form className="chart-export renko-control" aria-label="Renko brick settings" onSubmit={event => {
+  return <form className="chart-export price-size-control" aria-label={type === 'renko' ? 'Renko brick settings' : 'Kagi reversal settings'} onSubmit={event => {
     event.preventDefault()
-    const value = String(new FormData(event.currentTarget).get('brickSize')).trim()
+    const value = String(new FormData(event.currentTarget).get('size')).trim()
     const parts = /^(\d+)(?:\.(\d{1,6}))?$/.exec(value)
     if (!parts) {
-      setError('Enter a positive brick size with up to six decimal places.')
+      setError('Enter a positive ' + label.toLowerCase() + ' with up to six decimal places.')
       return
     }
     const ticks = BigInt(parts[1]) * 1_000_000n + BigInt((parts[2] ?? '').padEnd(6, '0'))
-    if (ticks <= 0n || ticks > MAX_RENKO_TICKS) {
-      setError('Brick size must be between 0.000001 and 2,000,000,000.')
+    if (ticks <= 0n || ticks > MAX_CHART_PRICE_TICKS) {
+      setError(label + ' must be between 0.000001 and 2,000,000,000.')
       return
     }
     setError('')
     apply(Number(ticks))
   }}>
-    <label>Brick size (price units)
-      <input name="brickSize" inputMode="decimal" maxLength={19} defaultValue={fixed(BigInt(ticks), 6)}
+    <label>{label} (price units)
+      <input name="size" inputMode="decimal" maxLength={19} defaultValue={fixed(BigInt(ticks), 6)}
         disabled={saving} onChange={() => setError('')} />
     </label>
-    <button className="outline" type="submit" disabled={saving}>Apply brick size</button>
+    <button className="outline" type="submit" disabled={saving}>Apply {label.toLowerCase()}</button>
     {error && <p role="alert">{error}</p>}
   </form>
 }
 
 export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onTimestamp,
-  renkoTicks = DEFAULT_RENKO_TICKS, renkoSaving, onRenkoTicks, ...chart }: Props) {
+  renkoTicks = DEFAULT_RENKO_TICKS, kagiTicks = DEFAULT_KAGI_TICKS, priceSizeSaving, onRenkoTicks, onKagiTicks, ...chart }: Props) {
   const initialSource = asset.source === 'sample' ? '86400' : ''
   const [source, setSource] = useState(initialSource)
   const [target, setTarget] = useState('')
@@ -69,6 +74,20 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
       return { lines: [], error: cause instanceof Error ? cause.message : 'Could not construct the chart.' }
     }
   }, [core, chart.type, display.bars, isRenko, renkoTicks])
+  const kagi = useMemo<{ segments: KagiSegment[]; error?: string } | undefined>(() => {
+    if (chart.type !== 'kagi') return undefined
+    try {
+      return { segments: core.kagi(display.bars, BigInt(kagiTicks)) }
+    } catch (cause) {
+      return { segments: [], error: cause instanceof Error ? cause.message : 'Could not construct the chart.' }
+    }
+  }, [core, chart.type, display.bars, kagiTicks])
+  const applySize = isRenko ? onRenkoTicks : chart.type === 'kagi' ? onKagiTicks : undefined
+  const sizeTicks = isRenko ? renkoTicks : kagiTicks
+  const empty = (priceMovements && priceMovements.lines.length === 0) || (kagi && kagi.segments.length === 0)
+  const priceChartError = priceMovements?.error ?? kagi?.error
+  const priceChartKey = kagi ? 'kagi:' + kagiTicks + ':' + kagi.segments.length :
+    priceMovements ? chart.type + ':' + priceMovements.lines.length + ':' + (isRenko ? renkoTicks : '') : 'bars'
   const sma = useMemo(() => activeSma && periods ?
     core.indicator('sma', periods.sma, display.bars) : [], [core, activeSma, periods?.sma, display.bars])
   const ema = useMemo(() => activeEma && periods ?
@@ -132,14 +151,15 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
           {error && <p role="alert">{error}</p>}
         </form>
       </details>
-      {isRenko && onRenkoTicks && <RenkoSize key={renkoTicks} ticks={renkoTicks} saving={renkoSaving}
-        apply={ticks => {
+      {applySize && <PriceSize key={chart.type + ':' + sizeTicks} ticks={sizeTicks} saving={priceSizeSaving}
+        type={isRenko ? 'renko' : 'kagi'} apply={ticks => {
           onTimestamp?.(null)
-          onRenkoTicks(ticks)
+          applySize(ticks)
         }} />}
-      {priceMovements && !priceMovements.lines.length ? <>
-        {priceMovements.error ? <p role="alert">{priceMovements.error}</p> :
+      {empty ? <>
+        {priceChartError ? <p role="alert">{priceChartError}</p> :
           <p role="status">{isRenko ? 'No source close has moved far enough to form a brick at this size.' :
+            kagi ? 'No source close has reached the reversal size to start a line.' :
             'No source close has moved beyond the first close to form a line.'}</p>}
         {chart.exportOptions && <ChartExport asset={display} visible={{ start: 0, end: display.bars.length }}
           metadata={chart.exportOptions.metadata} timeframe={timeframe}
@@ -147,8 +167,8 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
             { name: 'sma_' + periods.sma, series: sma },
             { name: 'ema_' + periods.ema, series: ema },
           ].filter(overlay => overlay.series.length > 0) : []} />}
-      </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceMovements ? chart.type + ':' + priceMovements.lines.length : 'bars'}:${isRenko ? renkoTicks : ''}`}
-        asset={display} displayBars={displayBars} priceMovements={priceMovements?.lines} sma={sma} ema={ema} periods={periods}
+      </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceChartKey}`}
+        asset={display} displayBars={displayBars} priceMovements={priceMovements?.lines} kagiSegments={kagi?.segments} sma={sma} ema={ema} periods={periods}
         timeframe={timeframe} onTimestamp={onTimestamp} />}
     </>
   )

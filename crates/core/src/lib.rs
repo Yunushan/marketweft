@@ -17,6 +17,7 @@ mod fundamentals;
 mod heikin_ashi;
 mod history;
 mod indicator;
+mod kagi;
 mod line_break;
 mod macro_calendar;
 mod option_cash;
@@ -83,6 +84,7 @@ pub use fundamentals::{
 pub use heikin_ashi::heikin_ashi;
 pub use history::{exact_utc as parse_exact_utc, parse_csv, Bar};
 pub use indicator::{indicator, Average};
+pub use kagi::{kagi, KagiSegment, KagiWeight};
 pub use line_break::three_line_break;
 pub use macro_calendar::{MacroCalendar, ReleaseRecord, ReleaseSnapshot, ReportKind};
 pub use option_cash::CashOptionDividend;

@@ -2,13 +2,15 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from './Icons'
 import { fixed } from './fixed-point'
+import { kagiLayout, kagiSegmentAt, tickPrice } from './kagi-chart'
+import type { KagiLayout } from './kagi-chart'
 import { ChartExport } from './ChartExport'
 import type { TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar, MarketCore, MeasuredDrawing, PriceMovement, TickBar } from './market-core'
+import type { Bar, KagiSegment, MarketCore, MeasuredDrawing, PriceMovement, TickBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 type View = { end: number; count: number }
@@ -32,6 +34,7 @@ const chartNames: Record<ChartType, string> = {
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
   'three-line-break': 'Three Line Break',
+  kagi: 'Kagi',
 }
 const defaultView = (n: number) => ({ end: n, count: Math.min(n, 60) })
 const clamp = (x: number, min: number, max: number) =>
@@ -75,6 +78,8 @@ function draw(
   active: number | null,
   drawing: MeasuredDrawing | undefined,
   type: ChartType,
+  kagi?: KagiLayout,
+  activePrice?: number,
 ): Plot | undefined {
   const ctx = canvas.getContext('2d')
   if (!ctx || width < 80 || height < 100) return
@@ -83,11 +88,12 @@ function draw(
   canvas.height = Math.round(height * dpr)
   ctx.scale(dpr, dpr)
   const isPriceMovement = type === 'renko' || type === 'three-line-break'
+  const closeBased = isPriceMovement || kagi !== undefined
   const left = 10,
     top = 19,
     bottom = height - 28,
     volTop = top + (bottom - top) * 0.8,
-    priceBottom = isPriceMovement ? bottom : volTop - 13
+    priceBottom = closeBased ? bottom : volTop - 13
   const start = view.end - view.count
   let low = Infinity,
     high = -Infinity,
@@ -179,6 +185,27 @@ function draw(
     lowestClose: number
     highestClose: number
   }[] = []
+  if (kagi) {
+    function kagiLine(x1: number, y1: number, x2: number, y2: number, thick: boolean) {
+      ctx!.lineWidth = thick ? 3 : 1.2
+      line(x1, y1, x2, y2, thick ? UP : DOWN)
+    }
+    for (let index = start; index < view.end; index++) {
+      const { segments, change } = kagi.columns[index]
+      const first = segments[0]
+      const last = segments[segments.length - 1]
+      const at = x(index), from = y(tickPrice(first.fromTicks)), to = y(tickPrice(last.toTicks))
+      if (index > start) kagiLine(x(index - 1), from, at, from, first.thickBefore)
+      if (change?.weightChangeTicks != null) {
+        const level = y(tickPrice(change.weightChangeTicks))
+        kagiLine(at, from, at, level, first.thickBefore)
+        kagiLine(at, level, at, to, !first.thickBefore)
+      } else {
+        kagiLine(at, from, at, to, first.thickBefore)
+      }
+    }
+    ctx.lineWidth = 1
+  }
   if (isPriceMovement) {
     // At dense zoom levels show the last complete price movement in each plotted column.
     for (let first = start; first < view.end; first += stride) {
@@ -191,7 +218,7 @@ function draw(
       ctx.fillRect(x(index) - width / 2, Math.min(open, close), width, Math.max(1, Math.abs(open - close)))
     }
   }
-  for (let first = start; !isPriceMovement && first < view.end; first += stride) {
+  for (let first = start; !closeBased && first < view.end; first += stride) {
     const last = Math.min(first + stride, view.end) - 1
     let hi = bars[first].high,
       lo = bars[first].low,
@@ -290,8 +317,10 @@ function draw(
   ctx.fillStyle = '#0e1915'
   ctx.fillText(closeLabel, right + 6, at)
   if (drawing) {
-    const first = visibleBarAt(bars, drawing.start.time, 0, bars.length, isPriceMovement)
-    const last = visibleBarAt(bars, drawing.end.time, 0, bars.length, isPriceMovement)
+    const first = kagi ? kagi.byTime.get(drawing.start.time)?.column ?? null :
+      visibleBarAt(bars, drawing.start.time, 0, bars.length, isPriceMovement)
+    const last = kagi ? kagi.byTime.get(drawing.end.time)?.column ?? null :
+      visibleBarAt(bars, drawing.end.time, 0, bars.length, isPriceMovement)
     if (first !== null && last !== null) {
       const endpoints = [[x(first), y(drawing.start.ticks / 1e6)], [x(last), y(drawing.end.ticks / 1e6)]]
       ctx.save()
@@ -311,7 +340,7 @@ function draw(
   }
   if (active !== null && active >= start && active < view.end) {
     const axis = x(active),
-      pos = y(bars[active].close)
+      pos = y(activePrice ?? bars[active].close)
     ctx.setLineDash([3, 4])
     line(axis, top, axis, bottom, '#bdc9c7')
     line(left, pos, right, pos, '#a2b4af')
@@ -371,6 +400,7 @@ export function Chart({
   observedAt,
   displayBars,
   priceMovements,
+  kagiSegments,
 }: {
   asset: Asset
   sma: Series
@@ -386,20 +416,25 @@ export function Chart({
   observedAt?: readonly number[]
   displayBars?: Bar[]
   priceMovements?: PriceMovement[]
+  kagiSegments?: KagiSegment[]
 }) {
-  const bars = useMemo(() => priceMovements?.map(movement => {
+  const kagi = useMemo(() => kagiSegments && kagiLayout(kagiSegments), [kagiSegments])
+  const bars = useMemo(() => kagi?.bars ?? priceMovements?.map(movement => {
     const open = Number(movement.openTicks) / 1e6
     const close = Number(movement.closeTicks) / 1e6
     return { time: movement.sourceTime, open, close, high: Math.max(open, close),
       low: Math.min(open, close), volume: 0 }
-  }) ?? asset.bars, [asset.bars, priceMovements])
-  const plottedSma = useMemo(() => priceMovements?.length && sma.length ?
-    priceMovements.map(movement => sma[movement.sourceIndex]) : sma, [priceMovements, sma])
-  const plottedEma = useMemo(() => priceMovements?.length && ema.length ?
-    priceMovements.map(movement => ema[movement.sourceIndex]) : ema, [priceMovements, ema])
+  }) ?? asset.bars, [asset.bars, kagi, priceMovements])
+  const sourceIndices = useMemo(() => kagi?.columns.map(({ segments }) => segments.at(-1)!.sourceIndex) ??
+    priceMovements?.map(movement => movement.sourceIndex), [kagi, priceMovements])
+  const plottedSma = useMemo(() => sourceIndices && sma.length ?
+    sourceIndices.map(index => sma[index]) : sma, [sourceIndices, sma])
+  const plottedEma = useMemo(() => sourceIndices && ema.length ?
+    sourceIndices.map(index => ema[index]) : ema, [sourceIndices, ema])
   const n = bars.length
   const [view, setView] = useState<View>(() => defaultView(n)),
     [pointerIndex, setPointerIndex] = useState<number | null>(null)
+  const [pointerSegment, setPointerSegment] = useState<KagiSegment | undefined>(undefined)
   const [size, setSize] = useState({ width: 800, height: 360 })
   const ref = useRef<HTMLCanvasElement>(null),
     zone = useRef<HTMLDivElement>(null)
@@ -413,14 +448,24 @@ export function Chart({
   const drawingCore = drawingTools?.core
   const measurement = useMemo(() => drawing && drawingCore?.measureDrawing(drawing), [drawing, drawingCore])
   const start = view.end - view.count
-  const linkedIndex = linkedTimestamp == null ? null : visibleBarAt(bars, linkedTimestamp, start, view.end, Boolean(priceMovements))
+  const linkedSegment = linkedTimestamp == null ? undefined : kagi?.byTime.get(linkedTimestamp)
+  const linkedIndex = kagi ? linkedSegment && linkedSegment.column >= start && linkedSegment.column < view.end ?
+    linkedSegment.column : null : linkedTimestamp == null ? null :
+    visibleBarAt(bars, linkedTimestamp, start, view.end, Boolean(priceMovements))
   const active = pointerIndex ?? linkedIndex
   const readoutIndex = active ?? view.end - 1
   const plotted = displayBars ?? bars
   const b = plotted[readoutIndex]
   const movement = priceMovements?.[readoutIndex]
+  const segment = (pointerIndex !== null ? pointerSegment : linkedIndex !== null ? linkedSegment : undefined) ??
+    kagi?.columns[readoutIndex].segments.at(-1)
   const isRenko = type === 'renko'
-  const sourceIndex = movement?.sourceIndex ?? readoutIndex
+  const closeBased = Boolean(kagi || priceMovements)
+  const sourceIndex = segment?.sourceIndex ?? movement?.sourceIndex ?? readoutIndex
+  const time = segment?.sourceTime ?? b.time
+  const crosshairPrice = segment ? tickPrice(segment.toTicks) : undefined
+  const sourceStart = kagi?.columns[start].segments[0].sourceIndex ?? priceMovements?.[start].sourceIndex ?? start
+  const sourceEnd = (sourceIndices?.[view.end - 1] ?? view.end - 1) + 1
   const coverage = timeframe?.buckets[sourceIndex]
   const session = timeframe?.mode === 'session' ? timeframe.buckets[sourceIndex] : undefined
   const tick = ticks?.[sourceIndex]
@@ -432,8 +477,8 @@ export function Chart({
     setDrawingError('')
   }
   function editDrawing() {
-    const lastIndex = priceMovements?.[view.end - 1].sourceIndex ?? view.end - 1
-    const firstIndex = priceMovements ? Math.max(0, lastIndex - 1) : Math.max(start, view.end - 2)
+    const lastIndex = sourceEnd - 1
+    const firstIndex = closeBased ? Math.max(0, lastIndex - 1) : Math.max(start, view.end - 2)
     const before = asset.bars[firstIndex]
     const after = asset.bars[lastIndex]
     drawingBeforeEdit.current = drawing
@@ -463,9 +508,10 @@ export function Chart({
       setDrawingError(error instanceof Error ? error.message : 'Could not save the measurement.')
     }
   }
-  function hover(index: number | null) {
+  function hover(index: number | null, segment?: KagiSegment) {
     setPointerIndex(index)
-    onTimestamp?.(index === null ? null : bars[index].time)
+    setPointerSegment(segment)
+    onTimestamp?.(index === null ? null : segment?.sourceTime ?? bars[index].time)
   }
   useLayoutEffect(() => {
     const obs = new ResizeObserver((entries) => {
@@ -489,8 +535,10 @@ export function Chart({
           active,
           drawing,
           type,
+          kagi,
+          crosshairPrice,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, type])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, type, kagi, crosshairPrice])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -527,7 +575,14 @@ export function Chart({
       setView({ ...view, end: clamp(drag.current.end + shift, view.count, n) })
       return
     }
-    hover(barIndexAt(e.clientX - e.currentTarget.getBoundingClientRect().left, bounds))
+    const rect = e.currentTarget.getBoundingClientRect()
+    const index = barIndexAt(e.clientX - rect.left, bounds)
+    const ticks = priceTicksAt(e.clientY - rect.top, bounds)
+    hover(index, index !== null && kagi ? kagiSegmentAt(kagi.columns[index].segments, BigInt(ticks)) : undefined)
+  }
+  function priceTicksAt(y: number, bounds: Plot) {
+    return Math.round(1e6 * (bounds.high - (bounds.high - bounds.low) * (y - bounds.top) /
+      (bounds.bottom - bounds.top)))
   }
   function pickEndpoint(e: ReactPointerEvent<HTMLCanvasElement>, point: EndpointName) {
     const bounds = plot.current
@@ -536,19 +591,26 @@ export function Chart({
     const index = barIndexAt(e.clientX - rect.left, bounds)
     const y = e.clientY - rect.top
     if (index === null || y < bounds.top || y > bounds.bottom) return
-    const value = bounds.high - (bounds.high - bounds.low) * (y - bounds.top) / (bounds.bottom - bounds.top)
+    const ticks = priceTicksAt(y, bounds)
+    const segment = kagi && kagiSegmentAt(kagi.columns[index].segments, BigInt(ticks))
     setDrawingFields({ ...drawingFields,
-      [point]: endpointFields({ time: bars[index].time, ticks: Math.round(value * 1e6) }) })
+      [point]: endpointFields({ time: segment?.sourceTime ?? bars[index].time, ticks }) })
     setPicking(null)
     setDrawingError('')
   }
   return (
-    <section className="plot" aria-label={priceMovements ? chartNames[type] + ' chart' : 'Price and volume chart'}
-      data-crosshair-time={active === null ? undefined : bars[active].time}>
-      <div className="ohlc" role={displayBars || movement ? 'group' : undefined}
-        aria-label={movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') : displayBars ? 'Heikin-Ashi prices' : undefined}>
-        <time>{timeLabel(b.time)} UTC</time>
-        {movement ? <>
+    <section className="plot" aria-label={closeBased ? chartNames[type] + ' chart' : 'Price and volume chart'}
+      data-crosshair-time={active === null ? undefined : time}>
+      <div className="ohlc" role={displayBars || movement || segment ? 'group' : undefined}
+        aria-label={segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
+          displayBars ? 'Heikin-Ashi prices' : undefined}>
+        <time>{timeLabel(time)} UTC</time>
+        {segment ? <>
+          <span><small>Line</small> {readoutIndex + 1}</span>
+          <span><small>From</small> {fixed(segment.fromTicks, 6)}</span>
+          <span><small>Close</small> {fixed(segment.toTicks, 6)}</span>
+          <span><small>Weight</small> {(segment.thickBefore !== (segment.weightChangeTicks !== null)) ? 'Thick' : 'Thin'}</span>
+        </> : movement ? <>
           <span><small>{isRenko ? 'Brick' : 'Line'}</small> {readoutIndex + 1}</span>
           <span><small>Open</small> {fixed(movement.openTicks, 6)}</span>
           <span><small>Close</small> {fixed(movement.closeTicks, 6)}</span>
@@ -594,7 +656,7 @@ export function Chart({
       <div ref={zone} className={picking ? 'canvas-zone picking-endpoint' : 'canvas-zone'}>
         <canvas
           tabIndex={0}
-          aria-label={asset.symbol + ' interactive ' + chartNames[type] + (priceMovements ? ' chart' : ' and volume chart')}
+          aria-label={asset.symbol + ' interactive ' + chartNames[type] + (closeBased ? ' chart' : ' and volume chart')}
           ref={ref}
           onPointerDown={(e) => {
             if (e.button !== 0) return
@@ -631,7 +693,7 @@ export function Chart({
       </div>
       <div className="chart-foot">
         <div className="range">
-          <span>{isRenko ? 'Bricks' : priceMovements ? 'Lines' : 'Bars'}</span>
+          <span>{isRenko ? 'Bricks' : closeBased ? 'Lines' : 'Bars'}</span>
           {([30, 60, 120, 'All'] as const).map((r) => (
             <button
               key={r}
@@ -718,9 +780,7 @@ export function Chart({
         </div>
       )}
       {exportOptions && (
-        <ChartExport asset={asset} visible={priceMovements ? {
-          start: priceMovements[start].sourceIndex, end: priceMovements[view.end - 1].sourceIndex + 1,
-        } : { start, end: view.end }} metadata={exportOptions.metadata}
+        <ChartExport asset={asset} visible={{ start: sourceStart, end: sourceEnd }} metadata={exportOptions.metadata}
           timeframe={timeframe}
           overlays={periods ? ([
             { name: 'sma_' + periods.sma, series: sma },
@@ -728,7 +788,7 @@ export function Chart({
           ]).filter(overlay => overlay.series.length > 0) : []} />
       )}
       <span className="sr-only">
-        Data from {dateLabel(bars[start].time)} through{' '}
+        Data from {dateLabel(kagi?.columns[start].segments[0].sourceTime ?? bars[start].time)} through{' '}
         {dateLabel(bars[view.end - 1].time)}. Focus the chart and use arrow keys
         to pan, plus and minus to zoom.
       </span>
