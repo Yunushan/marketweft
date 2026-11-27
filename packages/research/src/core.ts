@@ -911,6 +911,8 @@ export type AnchoredVwapPoint = { price: bigint; cumulativeVolume: bigint };
 export type RiskRewardSide = 'long' | 'short';
 export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; rewardPerRiskMicros: bigint };
 
+export type RegressionChannel = { observations: number; startTicks: bigint; endTicks: bigint; residualTicks: bigint };
+
 export interface MarketCore {
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
   instrument(venue: string, symbol: string): string;
@@ -943,6 +945,7 @@ export interface MarketCore {
   closeChanges(intervalSeconds: number, bars: readonly Bar[]): (bigint | null)[];
   rebasedPercentChanges(anchorAt: number, bars: readonly Bar[]): (bigint | null)[];
   anchoredVwap(anchorAt: number, bars: readonly Bar[]): (AnchoredVwapPoint | null)[];
+  regressionChannel(startAt: number, endAt: number, bars: readonly Bar[]): RegressionChannel | null;
   observedDrawdown(bars: readonly Bar[]): (DrawdownPoint | null)[];
   confirmedCloseSwings(left: number, right: number, intervalSeconds: number, bars: readonly Bar[]): (ConfirmedSwing | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1055,6 +1058,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_close_changes(intervalSeconds: number): number;
   mw_rebased_percent_changes(anchorAt: bigint): number;
   mw_observed_drawdown(): number;
+  mw_regression_channel(startAt: bigint, endAt: bigint): number;
   mw_anchored_vwap(anchorAt: bigint): number;
   mw_confirmed_close_swings(left: number, right: number, intervalSeconds: number): number;
   mw_rate_of_change(period: number): number;
@@ -1961,6 +1965,15 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         const price = out.getBigInt64(start, true);
         return price === MISSING ? null : { price, cumulativeVolume: signed128(out, start + 8) };
       });
+    },
+    regressionChannel(startAt, endAt, bars) {
+      if (![startAt, endAt].every(Number.isSafeInteger) || bars.length > 100_000)
+        throw new Error('A regression channel needs whole UTC seconds and up to 100,000 bars.');
+      putIndicatorBars(bars, 'Regression channel');
+      const value = decoder.decode(output(api.mw_regression_channel(BigInt(startAt), BigInt(endAt))));
+      if (!value) return null;
+      const [count, start, end, residual] = value.split('\t');
+      return { observations: Number(count), startTicks: BigInt(start), endTicks: BigInt(end), residualTicks: BigInt(residual) };
     },
     observedDrawdown(bars) {
       if (bars.length > 100_000) throw new Error('Drawdown charts support up to 100,000 bars.');

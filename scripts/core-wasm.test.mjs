@@ -10,6 +10,28 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('the regression channel fits exact observed anchors and ignores the number of missing intervals', () => {
+  const from = 1735689600;
+  const source = [[0, 900], [60, 1], [180, 3], [240, 2], [480, 6], [600, -300]];
+  const bars = core.parseCsv(['time,open,high,low,close,volume', ...source.map(([offset, close]) =>
+    [from + offset, close, close, close, close, 1].join(','))].join('\n'));
+  const fit = { observations: 4, startTicks: 900000n, endTicks: 5100000n, residualTicks: 1700000n };
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.regressionChannel(from + 60, from + 480, bars.slice(0, end)), end < 5 ? null : fit);
+  assert.equal(core.regressionChannel(from + 61, from + 480, bars), null);
+  assert.throws(() => core.regressionChannel(from + 480, from + 60, bars), /increasing UTC anchors/);
+  const flat = source.map(([offset]) => ({ time: from + offset, open: -2, high: -2, low: -2, close: -2, volume: 0 }));
+  assert.deepEqual(core.regressionChannel(from + 60, from + 480, flat),
+    { observations: 4, startTicks: -2000000n, endTicks: -2000000n, residualTicks: 0n });
+  const maximum = Array.from({ length: 100000 }, (_, index) => {
+    const price = index < 50000 ? -2e9 : 2e9;
+    return { time: from + index, open: price, high: price, low: price, close: price, volume: 0 };
+  });
+  const full = core.regressionChannel(from, from + 99999, maximum);
+  assert.equal(full.observations, 100000);
+  assert.ok(full.startTicks < -2000000000000000n && full.endTicks > 2000000000000000n);
+});
+
 test('risk/reward uses exact signed levels and wide ratios through the Wasm drawing interface', () => {
   const result = (riskTicks, rewardTicks, rewardPerRiskMicros) => ({ riskTicks, rewardTicks, rewardPerRiskMicros });
   assert.deepEqual(core.measureRiskReward('long', -2000001, -3000001, 999999),

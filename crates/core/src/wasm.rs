@@ -3014,6 +3014,20 @@ pub extern "C" fn mw_anchored_vwap(anchor_at: i64) -> u32 {
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_regression_channel(start_at: i64, end_at: i64) -> u32 {
+    process(|input| {
+        let fit = crate::regression_channel(start_at, end_at, &decode_bars(input)?)?;
+        Ok(fit.map_or_else(Vec::new, |fit| {
+            format!(
+                "{}\t{}\t{}\t{}",
+                fit.observations, fit.start_ticks, fit.end_ticks, fit.residual_ticks
+            )
+            .into_bytes()
+        }))
+    })
+}
+
 fn encode_wide_indicator_values(values: Vec<Option<i128>>) -> Vec<u8> {
     values
         .into_iter()

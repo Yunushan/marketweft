@@ -215,7 +215,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           rectangle: ['start', 'end'], channel: ['start', 'end', 'offsetTicks'],
           polyline: ['points'], fibonacci: ['start', 'end'], ellipse: ['start', 'end'], triangle: ['points'], pitchfork: ['points'], note: ['start', 'text'], arrow: ['start', 'end'],
           'risk-reward': ['side', 'start', 'end', 'stopTicks'],
-          'price-range': ['lower', 'upper'], 'time-range': ['lower', 'upper'],
+          'price-range': ['lower', 'upper'], 'time-range': ['lower', 'upper'], 'regression-channel': ['lower', 'upper'],
         }
         if (typeof kind !== 'string' || !Object.hasOwn(coordinateFields, kind))
           throw Error('Invalid chart annotation type.')
@@ -244,7 +244,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           validatePolyline(points)
           return { id, kind: type, points }
         }
-        if (type === 'price-range' || type === 'time-range') {
+        if (type === 'price-range' || type === 'time-range' || type === 'regression-channel') {
           return { id, kind: type, ...rangeBounds(type, entry.lower, entry.upper) }
         }
         const start = annotationEndpoint(entry.start)

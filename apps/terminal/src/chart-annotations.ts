@@ -20,7 +20,8 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'arrow'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'risk-reward'; side: RiskRewardSide; start: DrawingEndpoint; end: DrawingEndpoint; stopTicks: number } |
   { kind: 'price-range'; lower: number; upper: number } |
-  { kind: 'time-range'; lower: number; upper: number }
+  { kind: 'time-range'; lower: number; upper: number } |
+  { kind: 'regression-channel'; lower: number; upper: number }
 )
 type TwoPointAnnotation = Extract<ChartAnnotation, { end: DrawingEndpoint }>
 export type AnnotationKind = ChartAnnotation['kind']
@@ -46,6 +47,7 @@ export const ANNOTATION_NAMES = {
   'risk-reward': 'Risk/reward',
   'price-range': 'Price range',
   'time-range': 'Time range',
+  'regression-channel': 'Regression channel',
 } as const
 
 export function sameEndpoint(first: DrawingEndpoint, second: DrawingEndpoint): boolean {
@@ -61,6 +63,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'ray': return second.kind === 'ray' && sameEndpoint(first.start, second.start)
     case 'price-range':
     case 'time-range':
+    case 'regression-channel':
       return second.kind === first.kind && first.lower === second.lower && first.upper === second.upper
     case 'trend':
     case 'rectangle':
@@ -111,11 +114,13 @@ export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void
   }
 }
 
-export function rangeCoordinate(kind: 'price-range' | 'time-range'): AnnotationCoordinate {
+type RangeKind = 'price-range' | 'time-range' | 'regression-channel'
+
+export function rangeCoordinate(kind: RangeKind): AnnotationCoordinate {
   return kind === 'price-range' ? 'price' : 'time'
 }
 
-export function rangeBounds(kind: 'price-range' | 'time-range', lower: unknown, upper: unknown) {
+export function rangeBounds(kind: RangeKind, lower: unknown, upper: unknown) {
   const coordinate = rangeCoordinate(kind)
   if (!validAnnotationAnchor(coordinate, lower) || !validAnnotationAnchor(coordinate, upper) || lower >= upper)
     throw Error('A ' + ANNOTATION_NAMES[kind].toLowerCase() + ' needs two different ' + (coordinate === 'price' ? 'prices.' : 'UTC times.'))

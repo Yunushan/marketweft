@@ -19,8 +19,14 @@ import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, TickBar, VolumeBar } from './market-core'
+import type { Bar, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, RegressionChannel, TickBar, VolumeBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
+
+export type RegressionDrawingView = {
+  id: string
+  fit: RegressionChannel | null
+  values: (number | null)[]
+}
 
 type View = { end: number; count: number }
 type Series = (number | null)[]
@@ -669,7 +675,7 @@ function draw(
         if (price < low || price > high) continue
         const level = y(price)
         line(left, level, right, level, '#e4b96a')
-      } else if (annotation.kind === 'anchored-vwap') {
+      } else if (annotation.kind === 'anchored-vwap' || annotation.kind === 'regression-channel') {
         // These data-derived drawings share the price-line projection.
         continue
       } else if (annotation.kind === 'time') {
@@ -965,7 +971,8 @@ export function Chart({
   drawdowns,
   swings,
   anchoredVwaps,
-  vwapSourceTimes,
+  sourceObservationTimes,
+  regressionDrawings,
   bandSeconds,
   timeframe,
   ticks,
@@ -994,7 +1001,8 @@ export function Chart({
   drawdowns?: DrawdownSeries
   swings?: SwingSeries
   anchoredVwaps?: readonly AnchoredVwapSeries[]
-  vwapSourceTimes?: readonly number[]
+  sourceObservationTimes?: readonly number[]
+  regressionDrawings?: readonly RegressionDrawingView[]
   bandSeconds?: number
   timeframe?: TimeframeView
   ticks?: TickBar[]
@@ -1032,7 +1040,16 @@ export function Chart({
     ...(anchoredVwaps ?? []).map(line => ({
       color: '#73d4db', series: projectStudyLine(line.values.map(point => point?.price ?? null), sourceIndices),
     })),
-  ], [sourceIndices, priceStudies, anchoredVwaps])
+    ...(regressionDrawings ?? []).flatMap(({ fit, values }) => {
+      if (!fit) return []
+      const center = { color: '#decb86', series: projectStudyLine(values, sourceIndices) }
+      if (fit.residualTicks === 0n) return [center]
+      const residual = tickPrice(fit.residualTicks)
+      return [center, ...[-residual, residual].map(offset => ({
+        color: '#a18e60', series: projectStudyLine(values.map(value => value === null ? null : value + offset), sourceIndices),
+      }))]
+    }),
+  ], [sourceIndices, priceStudies, anchoredVwaps, regressionDrawings])
   const plottedStudies = useMemo<PlottedStudy[]>(() => panels.map(study => ({
     ...study,
     lines: study.lines.map(line => ({
@@ -1061,7 +1078,7 @@ export function Chart({
   const start = view.end - view.count
   const observationsByTime = kagi?.byTime ?? pointFigure?.byTime
   const annotations = drawingTools?.annotations ?? EMPTY_ANNOTATIONS
-  const needsTimeline = annotations.some(annotation => annotation.kind !== 'price' && annotation.kind !== 'price-range' && annotation.kind !== 'anchored-vwap')
+  const needsTimeline = annotations.some(annotation => annotation.kind !== 'price' && annotation.kind !== 'price-range' && annotation.kind !== 'anchored-vwap' && annotation.kind !== 'regression-channel')
   const markerTimeline = useMemo(() => {
     if (!needsTimeline) return []
     const columns = new Map<number, number>()
@@ -1273,7 +1290,7 @@ export function Chart({
     const ticks = clamp(priceTicksAt(y, bounds), -MAX_CHART_PRICE_TICKS, MAX_CHART_PRICE_TICKS)
     const observed = observationAt(index, ticks)
     const sourceIndex = observed?.sourceIndex ?? sourceIndices?.[index] ?? index
-    const original = picker.sourceTime ? vwapSourceTimes?.[sourceIndex] : undefined
+    const original = picker.sourceTime ? sourceObservationTimes?.[sourceIndex] : undefined
     picker.accept({ ticks, time: original ?? observed?.sourceTime ?? bars[index].time })
     setAnnotationPicker(null)
   }
@@ -1367,6 +1384,15 @@ export function Chart({
           {point && point.observedAt !== time && <span><small>Observed through</small> {timeLabel(point.observedAt)} UTC</span>}
         </div>
       })}
+      {regressionDrawings?.map(({ id, fit }) =>
+        <div key={id} className="ohlc chart-overlay-values" role="group" aria-label="Regression channel values">
+          {fit ? <>
+            <span><small>Fitted start</small> {fixed(fit.startTicks, 6)}</span>
+            <span><small>Fitted end</small> {fixed(fit.endTicks, 6)}</span>
+            <span><small>Maximum residual</small> {fixed(fit.residualTicks, 6)}</span>
+            <span><small>Observations</small> {fit.observations}</span>
+          </> : <span>Waiting for both source anchors</span>}
+        </div>)}
       {periods && (
         <div className="ohlc chart-overlay-values" role={indicatorValues ? 'group' : undefined}
           aria-label={indicatorValues ? 'Moving average values' : undefined}>
@@ -1545,7 +1571,10 @@ export function Chart({
               start: { ticks: Math.round(prior.close * 1e6), time: prior.time },
               end: { ticks: Math.round(asset.bars[sourceIndex].close * 1e6), time },
             }}
-            vwapDefaultTime={vwapSourceTimes?.[sourceIndex] ?? time}
+            sourceDefaults={{
+              start: sourceObservationTimes?.[Math.max(0, sourceIndex - 1)] ?? prior.time,
+              end: sourceObservationTimes?.[sourceIndex] ?? time,
+            }}
             core={drawingTools.core}
             save={drawingTools.saveAnnotation} />
         </div>

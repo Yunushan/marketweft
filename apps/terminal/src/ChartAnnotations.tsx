@@ -40,7 +40,7 @@ function draftAnnotation(draft: Draft, id: string, core: MarketCore): ChartAnnot
     validatePolyline(anchors)
     return { id, kind, points: anchors }
   }
-  if (kind === 'price-range' || kind === 'time-range') {
+  if (kind === 'price-range' || kind === 'time-range' || kind === 'regression-channel') {
     const coordinate = rangeCoordinate(kind)
     const [first, last] = points.map(point => parseAnnotationAnchor(coordinate, point[coordinate]))
     return { id, kind, ...rangeBounds(kind, Math.min(first, last), Math.max(first, last)) }
@@ -78,7 +78,8 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'time':
     case 'anchored-vwap': return name + formatAnnotationAnchor('time', entry.time)
     case 'price-range':
-    case 'time-range': {
+    case 'time-range':
+    case 'regression-channel': {
       const coordinate = rangeCoordinate(entry.kind)
       return name + formatAnnotationAnchor(coordinate, entry.lower) + ' to ' + formatAnnotationAnchor(coordinate, entry.upper)
     }
@@ -114,14 +115,14 @@ function PlanValues({ value }: { value: RiskRewardMeasurement }) {
 }
 
 export function ChartAnnotations({
-  entries, busy, picking, setPicker, defaults, vwapDefaultTime, core, save,
+  entries, busy, picking, setPicker, defaults, sourceDefaults, core, save,
 }: {
   entries: readonly ChartAnnotation[]
   busy: boolean
   picking: number | null
   setPicker: (picker: AnnotationPicker | null) => void
   defaults: { prior: DrawingEndpoint; start: DrawingEndpoint; end: DrawingEndpoint }
-  vwapDefaultTime: number
+  sourceDefaults: { start: number; end: number }
   core: MarketCore
   save: (before: ChartAnnotation | undefined, after: ChartAnnotation | undefined) => Promise<void>
 }) {
@@ -133,16 +134,20 @@ export function ChartAnnotations({
     setError('')
     const points = kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork' ?
       (original && 'points' in original ? original.points : [defaults.prior, defaults.start, defaults.end]).map(pointFields) :
-      hasTwoPoints(kind) || kind === 'price-range' || kind === 'time-range' ?
+      hasTwoPoints(kind) || kind === 'price-range' || kind === 'time-range' || kind === 'regression-channel' ?
         [pointFields(defaults.start), pointFields(defaults.end)] : [pointFields(defaults.end)]
     if (kind === 'risk-reward') {
       points.push({ time: points[1].time, price: original?.kind === 'risk-reward' ?
         formatAnnotationAnchor('price', original.stopTicks) : '' })
     }
-    if (kind === 'anchored-vwap') points[0].time = formatAnnotationAnchor('time', vwapDefaultTime)
+    if (kind === 'anchored-vwap') points[0].time = formatAnnotationAnchor('time', sourceDefaults.end)
+    if (kind === 'regression-channel') {
+      points[0].time = formatAnnotationAnchor('time', sourceDefaults.start)
+      points[1].time = formatAnnotationAnchor('time', sourceDefaults.end)
+    }
     if (original?.kind === 'price') points[0].price = formatAnnotationAnchor('price', original.ticks)
     if (original?.kind === 'time' || original?.kind === 'anchored-vwap') points[0].time = formatAnnotationAnchor('time', original.time)
-    if (original?.kind === 'price-range' || original?.kind === 'time-range') {
+    if (original?.kind === 'price-range' || original?.kind === 'time-range' || original?.kind === 'regression-channel') {
       const coordinate = rangeCoordinate(original.kind)
       points[0][coordinate] = formatAnnotationAnchor(coordinate, original.lower)
       points[1][coordinate] = formatAnnotationAnchor(coordinate, original.upper)
@@ -173,7 +178,7 @@ export function ChartAnnotations({
 
   function pick(point: number) {
     if (!draft || picking === point) { setPicker(null); return }
-    setPicker({ point, sourceTime: draft.kind === 'anchored-vwap', accept(anchor) {
+    setPicker({ point, sourceTime: draft.kind === 'anchored-vwap' || draft.kind === 'regression-channel', accept(anchor) {
       setError('')
       setDraft(current => current && {
         ...current, points: current.points.map((value, index) => index === point ? pointFields(anchor) : value),
@@ -191,7 +196,7 @@ export function ChartAnnotations({
   function pointEditor(point: number, current: Draft) {
     const { kind } = current
     const vertex = kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork'
-    const range = kind === 'price-range' || kind === 'time-range'
+    const range = kind === 'price-range' || kind === 'time-range' || kind === 'regression-channel'
     const twoPoints = range || hasTwoPoints(kind)
     const plan = kind === 'risk-reward'
     const label = plan ? ['Entry', 'Target', 'Stop'][point] : vertex ? 'Point ' + (point + 1) :

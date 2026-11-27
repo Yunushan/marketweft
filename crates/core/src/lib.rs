@@ -46,6 +46,7 @@ mod price_momentum;
 mod provider_history;
 mod range_bars;
 mod range_position;
+mod regression_channel;
 mod renko;
 mod replay;
 pub mod research;
@@ -158,6 +159,7 @@ pub use price_momentum::{
 pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use range_bars::RangeBar;
 pub use range_position::williams_percent_r;
+pub use regression_channel::{regression_channel, RegressionChannel};
 pub use renko::renko;
 pub use weighted_volume::{money_flow_index, volume_weighted_average};
 pub type RenkoBrick = PriceMovement;
