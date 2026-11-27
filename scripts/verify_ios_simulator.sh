@@ -98,6 +98,23 @@ run_test() {
         jq -e '.totalTestCount == 1 and .passedTests == 1' >/dev/null
 }
 
+reboot_for_upgrade() {
+    local destination=$1
+    local attempt
+    xcrun simctl shutdown "$destination"
+    for attempt in {1..30}; do
+        if xcrun simctl list devices --json |
+            jq -e --arg id "$destination" 'any(.devices[][]; .udid == $id and .state == "Shutdown")' >/dev/null; then
+            xcrun simctl boot "$destination"
+            xcrun simctl bootstatus "$destination" -b
+            return
+        fi
+        sleep 1
+    done
+    printf 'Simulator %s did not shut down before the upgrade.\n' "$destination" >&2
+    return 1
+}
+
 xcodebuild -project "$project" -scheme MarketWeftSimulatorTests \
     -destination "platform=iOS Simulator,id=$phone" -derivedDataPath "$work/build" \
     CODE_SIGNING_ALLOWED=NO build-for-testing
@@ -121,6 +138,7 @@ for family in iphone ipad; do
     cmp "$baseline/MarketWeftNotices/source-revision.txt" "$installed/MarketWeftNotices/source-revision.txt"
     run_test "$device" "$result-upgrade-seed.xcresult" SimulatorUpgradeTests/testSeedsUpgradeWorkspace
     run_test "$device" "$result-baseline-reopen.xcresult" SimulatorUpgradeTests/testReopensUpgradeWorkspace
+    reboot_for_upgrade "$device"
     original_data=$(xcrun simctl get_app_container "$device" "$identifier" data)
     printf '%s\n' 'MarketWeft simulator document before upgrade' >"$work/upgrade-document.txt"
     cp "$work/upgrade-document.txt" "$original_data/Documents/upgrade-document.txt"

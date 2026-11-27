@@ -49,9 +49,9 @@ final class SimulatorUpgradeTests: XCTestCase {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: identifier)
         app.launch()
-        defer { app.terminate() }
         assertExactChart(in: app)
         assertIndicator(in: app)
+        // The simulator workflow handles the process transition after this read-only check.
         print("Verified saved iOS workspace, exact OHLCV and EMA preference after relaunch.")
     }
 }
