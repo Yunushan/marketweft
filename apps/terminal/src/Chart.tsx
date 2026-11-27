@@ -13,7 +13,7 @@ import type { KagiLayout } from './kagi-chart'
 import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
 import type { PointFigureLayout } from './point-figure-chart'
 import { ChartExport } from './ChartExport'
-import type { CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, TimeframeView } from './chart-export'
+import type { CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
@@ -69,6 +69,7 @@ const chartNames: Record<ChartType, string> = {
   'high-low-band': 'high-low band',
   'rebased-percent': 'rebased percent change',
   drawdown: 'peak-to-trough drawdown',
+  'confirmed-swings': 'confirmed close swing',
   ohlc: 'OHLC bar',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
@@ -159,6 +160,7 @@ function draw(
   baselineTicks: number,
   closeChanges: CloseChangeSeries | undefined,
   percentPlot: Series | undefined,
+  swings: SwingSeries | undefined,
   bandSeconds: number | undefined,
   timeframe: TimeframeView | undefined,
   kagi: KagiLayout | undefined,
@@ -182,8 +184,10 @@ function draw(
     percentPlot?.[index] ?? null
   const volumeWeighted = type === 'volume-candles'
   const rangeBand = type === 'high-low-band'
+  const swingChart = type === 'confirmed-swings'
+  const continuitySeconds = swings?.seconds ?? bandSeconds
   function consecutive(index: number) {
-    if (bandSeconds === undefined || bars[index].time - bars[index - 1].time !== bandSeconds) return false
+    if (continuitySeconds === undefined || bars[index].time - bars[index - 1].time !== continuitySeconds) return false
     if (!timeframe) return true
     const previous = timeframe.buckets[index - 1]
     const current = timeframe.buckets[index]
@@ -211,6 +215,11 @@ function draw(
       continue
     }
     const b = bars[i]
+    const pivot = swings?.values[i]
+    if (pivot) {
+      low = Math.min(low, tickPrice(pivot.close))
+      high = Math.max(high, tickPrice(pivot.close))
+    }
     low = Math.min(low, closeTrace ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
     high = Math.max(high, closeTrace ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
     for (const { series } of priceLines) {
@@ -424,7 +433,7 @@ function draw(
       w = Math.max(1, dx * (b.last - b.first + 1) * 0.68)
     const col = b.close >= b.open ? UP : DOWN
     ctx.fillStyle = col
-    if (!closeTrace && !derivedAxis && !rangeBand) {
+    if (!closeTrace && !derivedAxis && !rangeBand && !swingChart) {
       line(axis, y(b.high), axis, y(b.low), col)
       const open = y(b.open), close = y(b.close)
       if (type === 'ohlc') {
@@ -488,6 +497,32 @@ function draw(
         ctx.stroke()
       }
       first = end
+    }
+  }
+  if (swingChart) {
+    ctx.beginPath()
+    ctx.strokeStyle = '#54616a'
+    ctx.lineWidth = 1
+    for (let index = start; index < view.end; index++) {
+      const px = x(index)
+      const py = y(bars[index].close)
+      if (index === start || !consecutive(index)) ctx.moveTo(px, py)
+      else ctx.lineTo(px, py)
+    }
+    ctx.stroke()
+    let previous: [number, number] | undefined
+    for (let index = start; index < view.end; index++) {
+      if (index === start || !consecutive(index)) previous = undefined
+      const pivot = swings?.values[index]
+      if (!pivot) continue
+      const px = x(index)
+      const py = y(tickPrice(pivot.close))
+      if (previous) line(previous[0], previous[1], px, py, CLOSE_LINE)
+      ctx.beginPath()
+      ctx.fillStyle = pivot.side === 'high' ? UP : DOWN
+      ctx.arc(px, py, 4, 0, Math.PI * 2)
+      ctx.fill()
+      previous = [px, py]
     }
   }
   if (derivedAxis) {
@@ -803,7 +838,9 @@ function draw(
   }
   if (active !== null && active >= start && active < view.end) {
     const axis = x(active)
-    const value = derivedAxis ? derivedValue(active) : activePrice ?? bars[active].close
+    const pivot = swings?.values[active]
+    const value = derivedAxis ? derivedValue(active) :
+      pivot ? tickPrice(pivot.close) : activePrice ?? bars[active].close
     ctx.setLineDash([3, 4])
     line(axis, top, axis, bottom, '#bdc9c7')
     if (value !== null) line(left, y(value), right, y(value), '#a2b4af')
@@ -908,6 +945,7 @@ export function Chart({
   closeChanges,
   rebasedReturns,
   drawdowns,
+  swings,
   bandSeconds,
   timeframe,
   ticks,
@@ -934,6 +972,7 @@ export function Chart({
   closeChanges?: CloseChangeSeries
   rebasedReturns?: RebasedReturnSeries
   drawdowns?: DrawdownSeries
+  swings?: SwingSeries
   bandSeconds?: number
   timeframe?: TimeframeView
   ticks?: TickBar[]
@@ -1047,6 +1086,8 @@ export function Chart({
   const baseClose = point ? fixed(point.peakClose, 6) : rebasedReturns?.baseClose === undefined ? undefined :
     fixed(BigInt(Math.round(rebasedReturns.baseClose * 1e6)), 6)
   const percentAxis = drawdown || type === 'rebased-percent'
+  const swingChart = type === 'confirmed-swings'
+  const swingPoint = swings?.values[sourceIndex]
   const change = closeChanges?.values[sourceIndex]
   const histogram = type === 'close-change'
   const indicatorValues = sma.length > 0 || ema.length > 0
@@ -1119,6 +1160,7 @@ export function Chart({
           baselineTicks,
           closeChanges,
           percentPlot,
+          swings,
           bandSeconds,
           timeframe,
           kagi,
@@ -1128,7 +1170,7 @@ export function Chart({
           plottedPriceLines,
           activeStudyPlotValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, baselineTicks, closeChanges, percentPlot, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, baselineTicks, closeChanges, percentPlot, swings, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -1207,13 +1249,22 @@ export function Chart({
     setAnnotationPicker(null)
   }
   return (
-    <section className="plot" aria-label={closeBased || histogram || percentAxis ? chartNames[type] + ' chart' : 'Price and volume chart'}
+    <section className="plot" aria-label={closeBased || histogram || percentAxis || swingChart ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : time}>
       <div className="ohlc" role={displayBars || movement || selectedObservation ? 'group' : undefined}
         aria-label={box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
           displayBars ? 'Heikin-Ashi prices' : undefined}>
         <time>{timeLabel(time)} UTC</time>
-        {percentAxis ? <>
+        {swingChart ? <>
+          <span><small>Observed close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>
+          <span><small>Swing</small> {swingPoint ? (swingPoint.side === 'high' ? 'High' : 'Low') : 'None'}</span>
+          {swingPoint && <>
+            <span><small>Pivot close</small> {fixed(swingPoint.close, 6)}</span>
+            <span><small>Pivot at</small> {timeLabel(swingPoint.pivotAt)} UTC</span>
+            <span><small>Confirmed at</small> {timeLabel(swingPoint.confirmedAt)} UTC</span>
+          </>}
+          <span className="ohlc-vol"><small>Vol</small> {volume(b.volume)}</span>
+        </> : percentAxis ? <>
           <span><small>{drawdown ? 'Drawdown' : 'Percent change'}</small> {percentChange == null ? 'Missing' : fixed(percentChange, 6) + '%'}</span>
           <span><small>Observed close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>
           {baseAt !== undefined && baseClose !== undefined && time >= baseAt &&
@@ -1461,7 +1512,7 @@ export function Chart({
       )}
       {exportOptions && (
         <ChartExport asset={asset} visible={{ start: sourceStart, end: sourceEnd }} metadata={exportOptions.metadata}
-          timeframe={timeframe} closeChanges={closeChanges} rebasedReturns={rebasedReturns} drawdowns={drawdowns}
+          timeframe={timeframe} closeChanges={closeChanges} rebasedReturns={rebasedReturns} drawdowns={drawdowns} swings={swings}
           overlays={[
             ...(periods ? [
               { name: 'sma_' + periods.sma, series: sma },

@@ -1,7 +1,7 @@
 import type { SeriesMetadata } from './catalog-schema'
 import { sourcePermissionRestriction } from './catalog-schema'
 import { fixed } from './fixed-point'
-import type { DrawdownPoint, SessionTimeframeBar, TimeframeBar } from './market-core'
+import type { ConfirmedSwing, DrawdownPoint, SessionTimeframeBar, TimeframeBar } from './market-core'
 import type { Asset } from './workspace'
 
 export type BarRange = { start: number; end: number }
@@ -9,6 +9,8 @@ export type ExportOverlay = { name: string; series: readonly (number | bigint | 
 export type CloseChangeSeries = { intervalSeconds: number; values: readonly (bigint | null)[] }
 export type RebasedReturnSeries = { anchorAt?: number; baseClose?: number; values: readonly (bigint | null)[] }
 export type DrawdownSeries = readonly (DrawdownPoint | null)[]
+export type SwingSeries = { left: number; right: number; seconds: number; cutoff?: number;
+  values: readonly (ConfirmedSwing | null)[] }
 export type TimeframeView = { sourceSeconds: number; targetSeconds: number } & (
   { mode: 'utc'; buckets: TimeframeBar[] } |
   { mode: 'session'; buckets: SessionTimeframeBar[]; calendarName: string }
@@ -27,7 +29,7 @@ export function chartCsv(
   asset: Asset,
   range: BarRange,
   metadata: SeriesMetadata | undefined,
-  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries } | undefined,
+  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries; swings?: SwingSeries } | undefined,
 ) {
   const restriction = sourcePermissionRestriction(metadata?.sourceRights, 'redistribution')
   if (restriction === 'permission')
@@ -50,6 +52,9 @@ export function chartCsv(
       fields.push('rebased_base_time', 'rebased_base_close', 'rebased_return_pct')
     if (analysis.drawdowns)
       fields.push('drawdown_peak_time', 'drawdown_peak_close', 'drawdown_pct')
+    if (analysis.swings)
+      fields.push('swing_left_bars', 'swing_right_bars', 'swing_interval_seconds', 'swing_known_through',
+        'swing_pivot_at', 'swing_confirmed_at', 'swing_pivot_close', 'swing_side')
     fields.push(...analysis.overlays.map(item => item.name))
     provenance = ',' + [
       asset.venue,
@@ -96,6 +101,12 @@ export function chartCsv(
       if (analysis.drawdowns) {
         const point = analysis.drawdowns[index]
         row += ',' + (point ? [point.peakAt, fixed(point.peakClose, 6), fixed(point.percent, 6)].join(',') : ',,')
+      }
+      if (analysis.swings) {
+        const { left, right, seconds, cutoff, values } = analysis.swings
+        const pivot = values[index]
+        row += ',' + [left, right, seconds, cutoff ?? '', ...(pivot ?
+          [pivot.pivotAt, pivot.confirmedAt, fixed(pivot.close, 6), pivot.side] : ['', '', '', ''])].join(',')
       }
       for (const { series } of analysis.overlays) {
         const value = series[index]

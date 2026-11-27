@@ -3,15 +3,16 @@ import type { ComponentProps } from 'react'
 import { formatAnnotationAnchor, parseAnnotationAnchor } from './chart-annotations'
 import { Chart } from './Chart'
 import { ChartExport } from './ChartExport'
-import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, MAX_CHART_PRICE_TICKS, validChartIntervalSeconds } from './catalog-schema'
+import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, DEFAULT_SWING_SETTINGS, MAX_CHART_PRICE_TICKS, validChartIntervalSeconds, validSwingSide } from './catalog-schema'
+import type { SwingSettings } from './catalog-schema'
 import { fixed, parsePriceSize } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
-import type { CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, TimeframeView } from './chart-export'
+import type { CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
 import { computeStudies, studyOverlays } from './studies'
 import type { StudySet } from './studies'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -27,6 +28,8 @@ type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'tim
   onHighLowSeconds?: (seconds: number) => void
   rebaseTime?: number
   onRebaseTime?: (time: number | null) => void
+  swingSettings?: SwingSettings
+  onSwingSettings?: (settings: SwingSettings) => void
   onRenkoTicks?: (ticks: number) => void
   onKagiTicks?: (ticks: number) => void
   onPointFigureTicks?: (ticks: number) => void
@@ -132,10 +135,65 @@ function RebaseAnchor({ time, custom, saving, apply }: {
   </form>
 }
 
+function SwingWindow({ settings, defaultSeconds, targetSeconds, saving, apply }: {
+  settings: SwingSettings; defaultSeconds?: number; targetSeconds?: number
+  saving?: boolean; apply: (settings: SwingSettings) => void
+}) {
+  const [error, setError] = useState('')
+  return <form aria-label="Swing window" className="chart-export price-size-control" onSubmit={event => {
+    event.preventDefault()
+    const fields = new FormData(event.currentTarget)
+    const left = Number(fields.get('left'))
+    const right = Number(fields.get('right'))
+    const interval = String(fields.get('seconds') ?? '').trim()
+    const seconds = targetSeconds !== undefined ? settings.seconds : interval ? Number(interval) : undefined
+    if (!validSwingSide(left) || !validSwingSide(right) ||
+        (seconds !== undefined && !validChartIntervalSeconds(seconds))) {
+      setError('Enter 1–1,000 bars per side and a positive whole-second interval.')
+      return
+    }
+    setError('')
+    apply(seconds === undefined ? { left, right } : { left, right, seconds })
+  }}>
+    <label>Left bars <input name="left" type="number" min={1} max={1000} step={1} required
+      defaultValue={settings.left} disabled={saving} onChange={() => setError('')} /></label>
+    <label>Right bars <input name="right" type="number" min={1} max={1000} step={1} required
+      defaultValue={settings.right} disabled={saving} onChange={() => setError('')} /></label>
+    <label>Swing interval (seconds) <input name="seconds" type="number" min={1} max={0xffff_ffff} step={1}
+      defaultValue={targetSeconds ?? settings.seconds ?? defaultSeconds}
+      disabled={saving || targetSeconds !== undefined} onChange={() => setError('')} /></label>
+    <button className="outline" type="submit" disabled={saving}>Apply swing window</button>
+    {error && <p role="alert">{error}</p>}
+  </form>
+}
+
+function SwingCutoff({ cutoff, apply }: { cutoff?: number; apply: (cutoff?: number) => void }) {
+  const [error, setError] = useState('')
+  return <form aria-label="Swing history cutoff" className="chart-export price-size-control" onSubmit={event => {
+    event.preventDefault()
+    try {
+      const value = String(new FormData(event.currentTarget).get('cutoff')).trim()
+      apply(value ? parseAnnotationAnchor('time', value) : undefined)
+      setError('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Enter a valid UTC cutoff.')
+    }
+  }}>
+    <label>Known through (UTC)
+      <input name="cutoff" placeholder="Latest" maxLength={20} spellCheck={false} autoComplete="off"
+        defaultValue={cutoff === undefined ? '' : formatAnnotationAnchor('time', cutoff)} onChange={() => setError('')} />
+    </label>
+    <button className="outline" type="submit">Apply cutoff</button>
+    {cutoff !== undefined && <button className="outline" type="button" onClick={() => apply()}>Show latest</button>}
+    {error && <p role="alert">{error}</p>}
+  </form>
+}
+
 export function TimeframeChart({ core, activeSma, activeEma, studySettings, asset, periods, onTimestamp,
   renkoTicks = DEFAULT_RENKO_TICKS, kagiTicks = DEFAULT_KAGI_TICKS, pointFigureTicks = DEFAULT_POINT_FIGURE_TICKS,
   baselineTicks = 0, priceSizeSaving, onBaselineTicks, onRenkoTicks, onKagiTicks, onPointFigureTicks,
-  closeChangeSeconds, onCloseChangeSeconds, highLowSeconds, onHighLowSeconds, rebaseTime, onRebaseTime, ...chart }: Props) {
+  closeChangeSeconds, onCloseChangeSeconds, highLowSeconds, onHighLowSeconds, rebaseTime, onRebaseTime,
+  swingSettings = DEFAULT_SWING_SETTINGS, onSwingSettings, ...chart }: Props) {
   const initialSource = asset.source === 'sample' ? '86400' : ''
   const [source, setSource] = useState(initialSource)
   const [target, setTarget] = useState('')
@@ -145,12 +203,23 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
   const [busy, setBusy] = useState(false)
   const [rolled, setRolled] = useState<(TimeframeView & { sourceBars: typeof asset.bars; revision: number }) | null>(null)
   const revision = useRef(0)
-  const timeframe = rolled?.sourceBars === asset.bars ? rolled : undefined
-  const display = useMemo(() => timeframe ?
-    { ...asset, bars: timeframe.buckets.map(entry => entry.bar) } : asset, [asset, timeframe])
+  const type = chart.type
+  const [swingCutoff, setSwingCutoff] = useState<number>()
+  const cutoff = type === 'confirmed-swings' ? swingCutoff : undefined
+  const timeframe = useMemo(() => {
+    if (!rolled || rolled.sourceBars !== asset.bars) return undefined
+    if (cutoff === undefined) return rolled
+    if (rolled.mode === 'session')
+      return { ...rolled, buckets: rolled.buckets.filter(entry => entry.closeTime <= cutoff) }
+    return { ...rolled, buckets: rolled.buckets.filter(entry => entry.bar.time + rolled.targetSeconds <= cutoff) }
+  }, [rolled, asset.bars, cutoff])
+  const display = useMemo(() => {
+    if (timeframe) return { ...asset, bars: timeframe.buckets.map(entry => entry.bar) }
+    if (cutoff === undefined) return asset
+    return { ...asset, bars: asset.bars.filter(bar => bar.time <= cutoff) }
+  }, [asset, timeframe, cutoff])
   const displayBars = useMemo(() => chart.type === 'heikin-ashi' ?
     core.heikinAshi(display.bars) : undefined, [core, chart.type, display.bars])
-  const type = chart.type
   const declaredInterval = /^(\d+) seconds?$/i.exec(chart.exportOptions?.metadata?.barInterval ?? '')?.[1]
   const defaultInterval = validChartIntervalSeconds(Number(declaredInterval)) ?
     Number(declaredInterval) : asset.source === 'sample' ? 86_400 : undefined
@@ -210,6 +279,29 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       return { series: [], error: cause instanceof Error ? cause.message : 'Could not calculate drawdown.' }
     }
   }, [core, type, display.bars, timeframe])
+  const swingSeconds = timeframe?.targetSeconds ?? swingSettings.seconds ?? defaultInterval
+  const { left: swingLeft, right: swingRight } = swingSettings
+  const swing = useMemo<{ series?: SwingSeries; error?: string }>(() => {
+    if (type !== 'confirmed-swings' || swingSeconds === undefined) return {}
+    const buckets = timeframe?.buckets
+    const complete = buckets?.map(bucket => bucket.observedBars === bucket.expectedBars)
+    const availableAt = (index: number) => timeframe?.mode === 'session' ? timeframe.buckets[index].closeTime :
+      display.bars[index].time + (timeframe?.targetSeconds ?? 0)
+    const config = { left: swingLeft, right: swingRight, seconds: swingSeconds,
+      cutoff: cutoff ?? (display.bars.length ? availableAt(display.bars.length - 1) : undefined) }
+    try {
+      const input = complete ? display.bars.filter((_, index) => complete[index]) : display.bars
+      const values = core.confirmedCloseSwings(swingLeft, swingRight, swingSeconds, input)
+      let next = 0
+      return { series: { ...config, values: complete ? complete.map((included, index) => {
+        if (!included) return null
+        const point = values[next++]
+        return point && { ...point, confirmedAt: availableAt(index) }
+      }) : values } }
+    } catch (cause) {
+      return { series: { ...config, values: [] }, error: cause instanceof Error ? cause.message : 'Could not calculate swings.' }
+    }
+  }, [core, type, swingSeconds, swingLeft, swingRight, cutoff, display.bars, timeframe])
   const sizeTicks = type === 'renko' ? renkoTicks : type === 'kagi' ? kagiTicks : pointFigureTicks
   const applySize = type === 'renko' ? onRenkoTicks : type === 'kagi' ? onKagiTicks : onPointFigureTicks
   const isSized = type === 'renko' || type === 'kagi' || type === 'point-and-figure'
@@ -233,12 +325,12 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
   const lastColumn = transformed?.kagiSegments?.at(-1)?.column ??
     transformed?.pointFigureBoxes?.at(-1)?.column ?? count - 1
   const priceChartKey = transformed ? type + ':' + count + ':' + lastColumn + ':' + (isSized ? sizeTicks : '') : 'bars'
-  const sma = useMemo(() => activeSma && periods ?
+  const sma = useMemo(() => activeSma && periods && display.bars.length ?
     core.indicator('sma', periods.sma, display.bars) : [], [core, activeSma, periods?.sma, display.bars])
-  const ema = useMemo(() => activeEma && periods ?
+  const ema = useMemo(() => activeEma && periods && display.bars.length ?
     core.indicator('ema', periods.ema, display.bars) : [], [core, activeEma, periods?.ema, display.bars])
 
-  const studies = useMemo(() => computeStudies(core, studySettings, display.bars),
+  const studies = useMemo(() => display.bars.length ? computeStudies(core, studySettings, display.bars) : [],
     [core, studySettings, display.bars])
 
   async function apply() {
@@ -323,7 +415,21 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       {drawdown.error && <p role="alert">{drawdown.error}</p>}
       {drawdown.series && !drawdown.error && !drawdown.series.some(point => point !== null) &&
         <p role="status">Drawdown requires a positive observed close.</p>}
-      {transformed && !count ? <>
+      {type === 'confirmed-swings' && <>
+        {onSwingSettings && <SwingWindow key={JSON.stringify([swingSettings, defaultInterval, timeframe?.targetSeconds])}
+          settings={swingSettings} defaultSeconds={defaultInterval} targetSeconds={timeframe?.targetSeconds}
+          saving={priceSizeSaving} apply={onSwingSettings} />}
+        <SwingCutoff key={cutoff ?? 'latest'} cutoff={cutoff} apply={value => {
+          onTimestamp?.(null)
+          setSwingCutoff(value)
+        }} />
+        {swing.error ? <p role="alert">{swing.error}</p> : <p role="status">
+          {!display.bars.length ? 'No observations are known at this cutoff.' : swingSeconds === undefined ?
+            'Set an interval to confirm swings.' : swing.series?.values.some(point => point !== null) ?
+              'Pivots appear on their confirming observations.' : 'No confirmed swings at this cutoff.'}
+        </p>}
+      </>}
+      {!display.bars.length ? null : transformed && !count ? <>
         {transformed.error ? <p role="alert">{transformed.error}</p> :
           <p role="status">{type === 'renko' ? 'No source close has moved far enough to form a brick at this size.' :
             type === 'kagi' ? 'No source close has reached the reversal size to start a line.' :
@@ -338,11 +444,11 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
             ].filter(overlay => overlay.series.length > 0) : []),
             ...studyOverlays(studies),
           ]} />}
-      </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceChartKey}`}
+      </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceChartKey}:${cutoff ?? 'latest'}`}
         asset={display} displayBars={displayBars} priceMovements={transformed?.priceMovements} kagiSegments={transformed?.kagiSegments}
         pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6} baselineTicks={baselineTicks}
         closeChanges={changes.series} bandSeconds={type === 'high-low-band' ? changeInterval : undefined}
-        rebasedReturns={rebased.series} drawdowns={drawdown.series}
+        rebasedReturns={rebased.series} drawdowns={drawdown.series} swings={swing.series}
         drawingTools={type === 'close-change' || type === 'rebased-percent' || type === 'drawdown' ?
           undefined : chart.drawingTools}
         sma={sma} ema={ema} periods={periods} studies={studies}

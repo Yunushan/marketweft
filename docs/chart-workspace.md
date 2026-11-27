@@ -66,6 +66,14 @@ Negative closes and incomplete timeframe buckets leave a gap and preserve the pr
 
 The readout and analysis CSV include the observed peak's UTC timestamp and exact close. A visible-only analysis export keeps that peak evidence when the peak is outside the export range. The OHLCV reimport format retains its original fields. Version 44 backups preserve the selected chart types.
 
+### Confirmed close swings
+
+Choose **Confirmed close swings** and set the number of bars on either side of a candidate close. Each side accepts 1 through 1,000 bars and starts at two. An eligible high or low must be the first occurrence of the maximum or minimum across that window. A gap restarts the window. The faded line shows observed closes and the markers show the earlier pivot prices on the confirming columns.
+
+The pane's **Known through (UTC)** cutoff restricts both the displayed bars and CSV export. Leave it empty for the latest observation. Source bars use their recorded timestamp. With a timeframe, the column uses the bucket's start time and the confirmation is available at its close. A partially covered bucket breaks the confirmation window and cannot serve as a pivot. The active timeframe supplies the interval. In source mode, use **Swing interval (seconds)** or the numeric seconds in the import metadata. Built-in samples default to 86,400 seconds.
+
+The pointer readout separates pivot time, confirmation time and exact pivot close. Analysis CSV includes those fields, direction, both window sizes, the interval and the effective cutoff. Version 45 backups preserve pane settings and chart types. The cutoff is session state. The watchlist continues to show the current workspace snapshot.
+
 ### Heikin-Ashi
 
 Each pane can display Heikin-Ashi candles independently. The first derived open is the midpoint of the first observed open and close. Subsequent opens are the midpoint of the previous derived open and close. The derived close averages the current observed open, high, low and close. The derived high and low enclose both the observed extremes and the derived body. Prices use signed millionths and round halfway values away from zero at each step. [Dan Valcu’s original calculation](https://c.mql5.com/forextsd/forum/118/using_the_heikin_ashi_technique_d_valcu.pdf).

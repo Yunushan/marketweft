@@ -32,7 +32,7 @@ import type {
 } from './catalog'
 import { parseProviderHistoryFixture, SOURCE_RIGHTS } from './catalog-schema'
 import type {
-  ChartPane, ChartType, OverlayPeriods, SourceRight, SourceRights, SourceRightStatus,
+  ChartPane, ChartType, OverlayPeriods, SwingSettings, SourceRight, SourceRights, SourceRightStatus,
 } from './catalog-schema'
 import { defaultStudySettings, extraStudyPeriods, STUDIES, STUDY_KINDS } from './studies'
 import type { StudyKind, StudySet, StudySettings } from './studies'
@@ -82,6 +82,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   'high-low-band': 'High-low band',
   'rebased-percent': 'Rebased percent change',
   drawdown: 'Peak-to-trough drawdown',
+  'confirmed-swings': 'Confirmed close swings',
   ohlc: 'OHLC bars',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
@@ -667,6 +668,9 @@ export function App({
     else rebaseTimes[pane] = time
     update(Object.keys(rebaseTimes).length ? { ...preferences, rebaseTimes } : preferences)
   }
+  function setSwingSettings(pane: ChartPane, settings: SwingSettings) {
+    update({ ...ws, swingSettings: { ...ws.swingSettings, [pane]: settings } })
+  }
   function drawingTools(id: string) {
     return {
       core,
@@ -960,6 +964,7 @@ export function App({
                   highLowSeconds={ws.highLowSeconds?.primary}
                   onHighLowSeconds={seconds => setChartInterval('primary', 'highLowSeconds', seconds)}
                   rebaseTime={ws.rebaseTimes?.primary} onRebaseTime={time => setRebaseTime('primary', time)}
+                  swingSettings={ws.swingSettings?.primary} onSwingSettings={settings => setSwingSettings('primary', settings)}
                   onRenkoTicks={ticks => setChartPriceTicks('primary', 'renkoTicks', ticks)}
                   onKagiTicks={ticks => setChartPriceTicks('primary', 'kagiTicks', ticks)}
                   onPointFigureTicks={ticks => setChartPriceTicks('primary', 'pointFigureTicks', ticks)}
@@ -985,6 +990,7 @@ export function App({
                     highLowSeconds={ws.highLowSeconds?.comparison}
                     onHighLowSeconds={seconds => setChartInterval('comparison', 'highLowSeconds', seconds)}
                     rebaseTime={ws.rebaseTimes?.comparison} onRebaseTime={time => setRebaseTime('comparison', time)}
+                    swingSettings={ws.swingSettings?.comparison} onSwingSettings={settings => setSwingSettings('comparison', settings)}
                     onRenkoTicks={ticks => setChartPriceTicks('comparison', 'renkoTicks', ticks)}
                     onKagiTicks={ticks => setChartPriceTicks('comparison', 'kagiTicks', ticks)}
                     onPointFigureTicks={ticks => setChartPriceTicks('comparison', 'pointFigureTicks', ticks)}

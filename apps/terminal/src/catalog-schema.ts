@@ -30,15 +30,18 @@ export type Preferences = {
   closeChangeSeconds?: Partial<Record<ChartPane, number>>
   highLowSeconds?: Partial<Record<ChartPane, number>>
   rebaseTimes?: Partial<Record<ChartPane, number>>
+  swingSettings?: Partial<Record<ChartPane, SwingSettings>>
 }
 
 export type ChartPane = 'primary' | 'comparison'
-export type ChartType = 'candles' | 'volume-candles' | 'line' | 'area' | 'step-line' | 'baseline' | 'close-change' | 'high-low-band' | 'rebased-percent' | 'drawdown' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
+export type ChartType = 'candles' | 'volume-candles' | 'line' | 'area' | 'step-line' | 'baseline' | 'close-change' | 'high-low-band' | 'rebased-percent' | 'drawdown' | 'confirmed-swings' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
 const MAX_CHART_INTERVAL_SECONDS = 0xffff_ffff
 export const DEFAULT_RENKO_TICKS = 1_000_000
 export const DEFAULT_KAGI_TICKS = 1_000_000
 export const DEFAULT_POINT_FIGURE_TICKS = 1_000_000
 export { MAX_CHART_PRICE_TICKS }
+export type SwingSettings = { left: number; right: number; seconds?: number }
+export const DEFAULT_SWING_SETTINGS: SwingSettings = { left: 2, right: 2 }
 export type OverlayPeriods = { sma: number; ema: number }
 
 export type ComparisonPreferences = {
@@ -148,6 +151,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   if (value && typeof value === 'object' && Object.hasOwn(value, 'rsi')) keys.push('rsi')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'studies')) keys.push('studies')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'rebaseTimes')) keys.push('rebaseTimes')
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'swingSettings')) keys.push('swingSettings')
   const intervalSettings = ['closeChangeSeconds', 'highLowSeconds'] as const
   for (const key of intervalSettings) {
     if (value && typeof value === 'object' && Object.hasOwn(value, key)) keys.push(key)
@@ -333,7 +337,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       throw Error('Invalid workspace chart types.')
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, type]) =>
-      (pane !== 'primary' && pane !== 'comparison') || (type !== 'volume-candles' && type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'baseline' && type !== 'close-change' && type !== 'high-low-band' && type !== 'rebased-percent' && type !== 'drawdown' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
+      (pane !== 'primary' && pane !== 'comparison') || (type !== 'volume-candles' && type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'baseline' && type !== 'close-change' && type !== 'high-low-band' && type !== 'rebased-percent' && type !== 'drawdown' && type !== 'confirmed-swings' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
         type !== 'three-line-break' && type !== 'kagi' && type !== 'point-and-figure'))) {
       throw Error('Unknown pane or chart type in the workspace.')
     }
@@ -376,7 +380,29 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
     }
     result.rebaseTimes = Object.fromEntries(entries)
   }
+  if (keys.includes('swingSettings')) {
+    const settings = value.swingSettings
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings))
+      throw Error('Invalid swing settings.')
+    const entries = Object.entries(settings)
+    if (!entries.length || entries.some(([pane]) => pane !== 'primary' && pane !== 'comparison'))
+      throw Error('Swing settings require a valid pane.')
+    result.swingSettings = Object.fromEntries(entries.map(([pane, entry]) => {
+      const keys = ['left', 'right']
+      if (entry && typeof entry === 'object' && Object.hasOwn(entry, 'seconds')) keys.push('seconds')
+      fields(entry, keys, 'chart swing setting')
+      const { left, right, seconds } = entry
+      if (!validSwingSide(left) || !validSwingSide(right) ||
+          (keys.includes('seconds') && !validChartIntervalSeconds(seconds)))
+        throw Error('Swing settings require 1–1,000 observations per side and a positive whole-second interval.')
+      return [pane, seconds === undefined ? { left, right } : { left, right, seconds }]
+    }))
+  }
   return result
+}
+
+export function validSwingSide(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 1_000
 }
 
 export function validChartIntervalSeconds(value: unknown): value is number {

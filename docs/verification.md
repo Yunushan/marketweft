@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.146.0 · Confirmed close swings
+
+| Check | Evidence |
+| --- | --- |
+| Rust and WebAssembly | Tests compare streaming extrema against direct scans, verify signed close ticks, gaps, equal-price ties and every observed prefix. |
+| Chromium chart and CSV | The chart and CSV withhold the pivot until confirmation, including one second before the close of a UTC bucket or shortened session bucket. The observed pivot and confirmation timestamps are exported independently. |
+| Mixed workspace backup | A version 45 backup restores window settings and its mixed chart types. An earlier version 44 backup restores the original charts and source histories. |
+
+[Confirmed close swings](chart-workspace.md#confirmed-close-swings) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.145.0 · Peak-to-trough drawdown
 
 | Check | Evidence |
