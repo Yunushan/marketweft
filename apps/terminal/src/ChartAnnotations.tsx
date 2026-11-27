@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateTriangle,
+  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint } from './market-core'
@@ -29,10 +29,10 @@ function draftAnnotation(draft: Draft, id: string): ChartAnnotation {
   if (kind === 'price') return { id, kind, ticks: parseAnnotationAnchor(kind, points[0].price) }
   if (kind === 'time' || kind === 'anchored-vwap')
     return { id, kind, time: parseAnnotationAnchor('time', points[0].time) }
-  if (kind === 'polyline' || kind === 'triangle') {
+  if (kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork') {
     const anchors = points.map(pointValue)
-    if (kind === 'triangle') {
-      validateTriangle(anchors)
+    if (kind === 'triangle' || kind === 'pitchfork') {
+      validateThreePoints(anchors, kind)
       return { id, kind, points: anchors }
     }
     validatePolyline(anchors)
@@ -79,6 +79,7 @@ function describeAnnotation(entry: ChartAnnotation): string {
       return name + entry.points.length + ' points, ' +
         describePoint(entry.points[0]) + ' to ' + describePoint(entry.points[entry.points.length - 1])
     case 'triangle':
+    case 'pitchfork':
       return name + entry.points.map(describePoint).join(', ')
     case 'trend':
     case 'rectangle':
@@ -109,7 +110,7 @@ export function ChartAnnotations({
   function edit(kind: AnnotationKind, original?: ChartAnnotation) {
     setPicker(null)
     setError('')
-    const points = kind === 'polyline' || kind === 'triangle' ?
+    const points = kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork' ?
       (original && 'points' in original ? original.points : [defaults.prior, defaults.start, defaults.end]).map(pointFields) :
       hasTwoPoints(kind) || kind === 'price-range' || kind === 'time-range' ?
         [pointFields(defaults.start), pointFields(defaults.end)] : [pointFields(defaults.end)]
@@ -164,7 +165,7 @@ export function ChartAnnotations({
 
   function pointEditor(point: number, current: Draft) {
     const { kind } = current
-    const vertex = kind === 'polyline' || kind === 'triangle'
+    const vertex = kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork'
     const range = kind === 'price-range' || kind === 'time-range'
     const twoPoints = range || hasTwoPoints(kind)
     const label = vertex ? 'Point ' + (point + 1) :

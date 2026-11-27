@@ -1,5 +1,5 @@
 import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core'
-import { rangeBounds, validAnnotationAnchor, validateAnnotationGeometry, validateNoteText, validatePolyline, validateTriangle } from './chart-annotations'
+import { rangeBounds, validAnnotationAnchor, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints } from './chart-annotations'
 import type { ChartAnnotation } from './chart-annotations'
 import { MAX_CHART_PRICE_TICKS } from './fixed-point'
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
@@ -213,7 +213,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
         const coordinateFields = {
           price: ['ticks'], time: ['time'], 'anchored-vwap': ['time'], ray: ['start'], trend: ['start', 'end'],
           rectangle: ['start', 'end'], channel: ['start', 'end', 'offsetTicks'],
-          polyline: ['points'], fibonacci: ['start', 'end'], ellipse: ['start', 'end'], triangle: ['points'], note: ['start', 'text'], arrow: ['start', 'end'],
+          polyline: ['points'], fibonacci: ['start', 'end'], ellipse: ['start', 'end'], triangle: ['points'], pitchfork: ['points'], note: ['start', 'text'], arrow: ['start', 'end'],
           'price-range': ['lower', 'upper'], 'time-range': ['lower', 'upper'],
         }
         if (typeof kind !== 'string' || !Object.hasOwn(coordinateFields, kind))
@@ -233,11 +233,11 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           if (!validAnnotationAnchor('time', entry.time)) throw Error('Invalid chart annotation time.')
           return { id, kind: type, time: entry.time }
         }
-        if (type === 'polyline' || type === 'triangle') {
+        if (type === 'polyline' || type === 'triangle' || type === 'pitchfork') {
           if (!Array.isArray(entry.points)) throw Error('Invalid chart annotation points.')
           const points = Array.from(entry.points, annotationEndpoint)
-          if (type === 'triangle') {
-            validateTriangle(points)
+          if (type === 'triangle' || type === 'pitchfork') {
+            validateThreePoints(points, type)
             return { id, kind: type, points }
           }
           validatePolyline(points)

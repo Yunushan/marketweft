@@ -12,6 +12,7 @@ import { kagiLayout, kagiSegmentAt } from './kagi-chart'
 import type { KagiLayout } from './kagi-chart'
 import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
 import type { PointFigureLayout } from './point-figure-chart'
+import { pitchforkRays } from './pitchfork'
 import { ChartExport } from './ChartExport'
 import type { AnchoredVwapSeries, CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
@@ -729,6 +730,13 @@ function draw(
         ctx.closePath()
         ctx.fill()
         ctx.stroke()
+      } else if (annotation.kind === 'pitchfork') {
+        const rays = pitchforkRays(annotation.points, markerTimeline, x, y, { left, right, top, bottom: priceBottom })
+        rays.forEach((ray, index) => {
+          if (!ray) return
+          const [[startX, startY], [endX, endY]] = ray
+          line(startX, startY, endX, endY, index === 0 ? '#bea2f2' : '#8874af')
+        })
       } else {
         const from = markerColumn(markerTimeline, annotation.start.time)
         const level = y(annotation.start.ticks / 1e6)

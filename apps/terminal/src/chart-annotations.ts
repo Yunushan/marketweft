@@ -15,6 +15,7 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'fibonacci'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'ellipse'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'triangle'; points: TrianglePoints } |
+  { kind: 'pitchfork'; points: TrianglePoints } |
   { kind: 'note'; start: DrawingEndpoint; text: string } |
   { kind: 'arrow'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'price-range'; lower: number; upper: number } |
@@ -38,6 +39,7 @@ export const ANNOTATION_NAMES = {
   fibonacci: 'Fibonacci retracement',
   ellipse: 'Ellipse',
   triangle: 'Triangle',
+  pitchfork: 'Pitchfork',
   note: 'Chart note',
   arrow: 'Directional arrow',
   'price-range': 'Price range',
@@ -68,6 +70,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
       return second.kind === 'note' && first.text === second.text && sameEndpoint(first.start, second.start)
     case 'polyline':
     case 'triangle':
+    case 'pitchfork':
       return second.kind === first.kind && first.points.length === second.points.length &&
         first.points.every((point, index) => sameEndpoint(point, second.points[index]))
     case 'channel':
@@ -123,12 +126,12 @@ export function validatePolyline(points: readonly DrawingEndpoint[]): void {
     throw Error('Consecutive polyline points must differ.')
 }
 
-export function validateTriangle(points: DrawingEndpoint[]): asserts points is TrianglePoints {
-  if (points.length !== 3) throw Error('A triangle needs exactly three points.')
+export function validateThreePoints(points: DrawingEndpoint[], kind: 'triangle' | 'pitchfork'): asserts points is TrianglePoints {
+  if (points.length !== 3) throw Error('A ' + kind + ' needs exactly three points.')
   const [origin, second, third] = points
   const firstProduct = BigInt(second.time - origin.time) * BigInt(third.ticks - origin.ticks)
   const secondProduct = BigInt(third.time - origin.time) * BigInt(second.ticks - origin.ticks)
-  if (firstProduct === secondProduct) throw Error('Triangle points must enclose a nonzero area.')
+  if (firstProduct === secondProduct) throw Error(ANNOTATION_NAMES[kind] + ' points must enclose a nonzero area.')
 }
 
 const RETRACEMENT_LEVELS = [
