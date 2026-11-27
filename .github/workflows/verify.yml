@@ -318,29 +318,35 @@ jobs:
           name: python-research-engine-${{ matrix.os }}-${{ runner.arch }}-attempt-${{ github.run_attempt }}
           path: target/release/marketweft-research${{ runner.os == 'Windows' && '.exe' || '' }}
           if-no-files-found: error
-      - if: runner.os != 'Linux'
+      - if: runner.os == 'macOS' || matrix.os == 'windows-11-arm'
         run: cargo build --locked --manifest-path apps/desktop/Cargo.toml
+      - if: runner.os == 'Linux' || matrix.os == 'windows-2022'
+        run: cargo build --locked --release --manifest-path apps/desktop/Cargo.toml
       - name: Verify the native Windows PE architectures
         if: runner.os == 'Windows'
         env:
           MACHINE: ${{ matrix.os == 'windows-11-arm' && 'arm64' || 'x64' }}
+          DESKTOP_PROFILE: ${{ matrix.os == 'windows-2022' && 'release' || 'debug' }}
         shell: pwsh
         run: |
-          python -B scripts/verify_windows_arch.py $env:MACHINE target/release/marketweft-research.exe apps/desktop/target/debug/marketweft-desktop.exe
+          python -B scripts/verify_windows_arch.py $env:MACHINE target/release/marketweft-research.exe "apps/desktop/target/$env:DESKTOP_PROFILE/marketweft-desktop.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Verify CSV import in the native Windows desktop executable
+      - name: Verify the Windows x64 installer and the installed WebView2
         if: matrix.os == 'windows-2022'
-        timeout-minutes: 5
-        env:
-          MACHINE: ${{ matrix.os == 'windows-11-arm' && 'arm64' || 'x64' }}
+        timeout-minutes: 10
         shell: pwsh
         run: |
-          if ($env:RUNNER_ARCH -ne $env:MACHINE) { throw 'The Windows runner architecture did not match the test target.' }
-          $driver = & scripts/stage_edge_webdriver.ps1 -Architecture $env:MACHINE -OutputDirectory (Join-Path $env:RUNNER_TEMP 'marketweft-webview2-driver')
-          python -B scripts/verify_windows_arch.py $env:MACHINE $driver
+          if ($env:RUNNER_ARCH -cne 'X64') { throw 'Expected an x64 Windows runner.' }
+          $driver = & scripts/stage_edge_webdriver.ps1 -Architecture x64 -OutputDirectory (Join-Path $env:RUNNER_TEMP 'marketweft-webview2-driver')
+          python -B scripts/verify_windows_arch.py x64 $driver
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -B apps/desktop/tests/import_webview.py apps/desktop/target/debug/marketweft-desktop.exe --driver $driver
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & scripts/verify_desktop_windows.ps1 -Binary apps/desktop/target/release/marketweft-desktop.exe -Driver $driver -WorkRoot $env:RUNNER_TEMP
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.os == 'windows-2022'
+        with:
+          name: windows-desktop-x64-attempt-${{ github.run_attempt }}
+          path: reports/MarketWeft-desktop-*-windows-x64-setup.exe*
+          if-no-files-found: error
       - name: Verify CSV import through the native ARM64 WebView2 session
         if: matrix.os == 'windows-11-arm'
         timeout-minutes: 5
@@ -375,8 +381,6 @@ jobs:
           log="$RUNNER_TEMP/marketweft-wkwebview.log"
           cargo run --locked --manifest-path apps/desktop/Cargo.toml --example verify_csv_import | tee "$log"
           grep -Fx "Verified native WebView CSV import and exact OHLCV." "$log"
-      - if: runner.os == 'Linux'
-        run: cargo build --locked --release --manifest-path apps/desktop/Cargo.toml
       - name: Verify the native Linux ARM64 host and desktop executable
         if: matrix.os == 'ubuntu-24.04-arm'
         run: |

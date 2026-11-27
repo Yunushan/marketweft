@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.167.0 · Windows x64 desktop installer
+
+| Check | Evidence |
+| --- | --- |
+| Reproducible packaging | The Windows job builds two NSIS installers from the same release executable and compares their SHA-256 digests and sidecars. |
+| Clean installation | The fixture verifies the installed executable, source revision, notices, dependency records, uninstall entry and Start menu shortcut, then imports the shared CSV in native WebView2. |
+| Uninstallation | The fixture checks that the registered installer files and entries are removed and that a user-created file remains. |
+
+[Windows x64 installer](platforms.md#windows-x64-installer) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.166.0 · Windows 11 ARM64 native build and runtime verification
 
 | Check | Evidence |

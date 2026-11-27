@@ -1,11 +1,11 @@
-# Platform support · MarketWeft 0.166.0
+# Platform support · MarketWeft 0.167.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
 | Target | Current route / available evidence | Required for official native or operational support |
 | --- | --- | --- |
 | Browser / installable PWA | Static React app with a Wasm core. Windows x64 Chromium-family automation, responsive viewport and offline reload. | Browser-engine and device matrix, install/update tests and storage lifecycle acceptance. |
-| Windows x64 | Browser route and a WebView2 CSV import check in the Tauri executable on hosted Windows Server 2022. | Installer and upgrade acceptance on a supported client OS. |
+| Windows x64 | Browser route and a per-user installer with native WebView2 CSV import on hosted Windows Server 2022. | Client Windows installation, upgrade and Authenticode verification. |
 | Windows ARM64 | Browser route and hosted Windows 11 ARM64 checks for the native Tauri executable, WebView2 CSV import and Python research SDK. | Installer and upgrade acceptance. |
 | macOS Apple Silicon / Intel | Browser route and macOS 15 hosted Tauri builds with native Mach-O, Python research SDK and WKWebView CSV import checks for both architectures. | Native file-picker interaction, sandbox, signing and notarization on actual hosts. |
 | Linux x64 | Ubuntu 24.04 x64 package installation and native CSV import. Debian 12 native window and chart rendering observed through AT-SPI. See [verification](verification.md) and the [advisory review](native-advisories.md). | Broader upgrade coverage, continued backport maintenance and validation on other supported distributions. |
@@ -18,15 +18,21 @@ A successful web test validates a specific browser, build and host. Producing a 
 
 ## Windows native verification
 
-The Windows Server 2022 x64 job selects the Microsoft-signed Edge WebDriver that matches the installed WebView2 Runtime. The driver launches the built MarketWeft executable with a temporary data folder. The fixture checks the app's Tauri origin, records the native runtime version, imports the shared CSV through the file input and checks the exact candlestick quote. [Microsoft WebView2 WebDriver guide](https://learn.microsoft.com/en-us/microsoft-edge/webview2/how-to/webdriver) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+The Windows Server 2022 x64 job selects the Microsoft-signed Edge WebDriver that matches the installed WebView2 Runtime. The driver launches MarketWeft with a temporary data folder. The fixture checks the app's Tauri origin, records the native runtime version, imports the shared CSV through the file input and checks the exact candlestick quote. [Microsoft WebView2 WebDriver guide](https://learn.microsoft.com/en-us/microsoft-edge/webview2/how-to/webdriver) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 The Windows 11 ARM64 job checks the runner, Node.js and Rust host architectures and inspects the PE machine field of both Windows executables. It runs the Python research SDK fixture, then launches a test build of the normal desktop entry point with an ephemeral WebView2 profile and verifies the same CSV import through the native control. [GitHub Windows 11 ARM64 runner inventory](https://github.com/actions/runner-images/blob/main/images/windows/Windows11-VS2026-Arm64-Readme.md).
 
-With a matching Edge WebDriver and WebView2 runtime, run the same fixture from the repository root after building the desktop executable.
+With a matching Edge WebDriver and WebView2 runtime, run the same fixture from the repository root after producing the release executable.
 
 ```powershell
-python -B apps/desktop/tests/import_webview.py apps/desktop/target/debug/marketweft-desktop.exe --driver 'C:\tools\msedgedriver.exe'
+python -B apps/desktop/tests/import_webview.py apps/desktop/target/release/marketweft-desktop.exe --driver 'C:\tools\msedgedriver.exe'
 ```
+
+### Windows x64 installer
+
+Download the `windows-desktop-x64-attempt-N` artifact from a successful verification run. Unpack it and compare the installer's SHA-256 with its sidecar before running it. The per-user installer uses the installed Microsoft WebView2 Runtime and registers a Start menu shortcut and an uninstall entry. It includes the application license, dependency notices, source revision and dependency source records. [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
+CI compiles the installer twice from the same release executable, verifies identical bytes, installs into a temporary directory, imports the CSV from the installed binary and uninstalls. The uninstaller removes the known application files and preserves the user-created fixture file.
 
 ## macOS native builds
 
