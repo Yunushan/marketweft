@@ -40,3 +40,12 @@ Call the read-only `option_snapshot_as_of` tool with `underlying_csv`, `quotes_c
 The response includes the applied cutoffs, underlying quote and a page of contracts. Quote and observation times are integer UTC seconds. Spot, strike, bid, ask, rate and yield are decimal strings representing exact millionths. A missing bid or ask is `null`. Options with no eligible quote at the cutoffs are absent. Visible contracts retain exercise style, source times and a status. The `analytics` object contains the European model values when available and is `null` otherwise.
 
 Set `limit` for a page of 1–1,000 contracts. The default is 200. To continue, pass `next_offset` as `offset` with the same CSVs, cutoffs and quote age. With the example option cutoffs, the first underlying is USD 100, the delayed American call appears at 14:02 UTC, and the underlying becomes USD 100.50 at 14:03 UTC. [Option CSV inputs and demo cutoffs](option-chain.md).
+
+
+## American option valuations
+
+Call the read-only `american_option_valuation_as_of` tool with `underlying_csv`, `quotes_csv`, `contract_id`, `effective_at` and `known_at`. The optional `max_age` is in seconds and defaults to 300. The optional `steps` ranges from 1 to 256 and defaults to 128. Supply an annual `volatility` fraction to price the contract. Omit it to solve the observed bid–ask midpoint. For example, send `0.25` for 25% annual volatility.
+
+Pass `cash_dividends_csv` to apply dividends known by the cutoff with an ex-date after the effective cutoff and at or before expiry. The cash CSV accepts up to 1 MiB of UTF-8 data. The response contains both cutoffs, the currency, model price, annual volatility and the applied cash reports. The report amounts are exact decimal strings representing millionths per share. Each report carries its announcement, ex-date, pay date and observation time in whole UTC seconds. An unavailable option has a status and `null` model values.
+
+For the example April American 90-strike call, the USD 16.234568 midpoint yields 31.18% at the 14:04 UTC report and 32.53% after the 14:06 UTC revision. The revised result carries USD 1 and USD 9 cash reports. At 14:07 UTC only the USD 9 report remains. [Cash-dividend option fixtures and replay](option-chain.md#discrete-cash-dividends).

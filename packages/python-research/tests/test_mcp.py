@@ -67,7 +67,8 @@ class McpTest(unittest.TestCase):
         self.assertEqual(replies[1]["result"]["protocolVersion"], "2025-11-25")
         tools = replies[2]["result"]["tools"]
         self.assertEqual([item["name"] for item in tools],
-                         [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME, mcp.OPTION_SNAPSHOT_TOOL_NAME])
+                         [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME,
+                          mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -239,6 +240,61 @@ class McpTest(unittest.TestCase):
         self.assertEqual(options(max_age=True)["error"]["code"], -32602)
         self.assertTrue(options(known_at="2025-04-03T14:60:00Z")["result"]["isError"])
         self.assertEqual(options()["result"]["structuredContent"], initial)
+
+    def test_american_option_tool_returns_revision_provenance_and_quote_statuses(self):
+        server = mcp.ResearchServer(ResearchEngine(EXECUTABLE))
+        server.handle(rpc("initialize", 1, INITIALIZE))
+        server.handle(rpc("notifications/initialized"))
+        fixture = ROOT / "crates/core/tests/fixtures"
+        arguments = {
+            "underlying_csv": (fixture / "synthetic-option-underlying.csv").read_text(encoding="utf-8"),
+            "quotes_csv": (fixture / "synthetic-option-exercise-quotes.csv").read_text(encoding="utf-8"),
+            "cash_dividends_csv": (fixture / "synthetic-option-cash-dividends.csv").read_text(encoding="utf-8"),
+            "contract_id": "APR-AM-C90", "effective_at": "2025-04-03T14:00:00Z",
+        }
+
+        def query(time, **changes):
+            return server.handle(rpc("tools/call", 2, {
+                "name": mcp.AMERICAN_OPTION_TOOL_NAME,
+                "arguments": {**arguments, "known_at": f"2025-04-03T{time}Z", **changes},
+            }))
+
+        tools = server.handle(rpc("tools/list", 3))["result"]["tools"]
+        tool = next(tool for tool in tools if tool["name"] == mcp.AMERICAN_OPTION_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        missing = query("14:01:59")["result"]["structuredContent"]
+        self.assertEqual(missing["status"], "missing-contract")
+        self.assertIsNone(missing["price"])
+        self.assertEqual(missing["dividends"], [])
+
+        first = query("14:04:00")["result"]["structuredContent"]
+        self.assertEqual(first["dividends"][0]["amount_per_share_ticks"], "7000000")
+        self.assertAlmostEqual(first["price"], 16.234568, places=10)
+        replied = query("14:06:00")["result"]
+        revised = replied["structuredContent"]
+        self.assertEqual(json.loads(replied["content"][0]["text"]), revised)
+        self.assertEqual(revised["known_at"], "2025-04-03T14:06:00Z")
+        self.assertEqual(revised["effective_at"], "2025-04-03T14:00:00Z")
+        self.assertEqual(revised["currency"], "USD")
+        self.assertAlmostEqual(revised["volatility"], .3253, places=4)
+        self.assertAlmostEqual(revised["price"], first["price"], places=10)
+        extra, main = revised["dividends"]
+        self.assertEqual((extra["id"], extra["amount_per_share_ticks"]), ("EXTRA", "1000000"))
+        self.assertEqual((main["id"], main["amount_per_share_ticks"]), ("MAIN", "9000000"))
+        self.assertEqual(main["ex_at"], 1759500000)
+        self.assertEqual(main["pay_at"], 1759932000)
+        self.assertEqual(main["observed_at"], 1743689160)
+        cancelled = query("14:07:00")["result"]["structuredContent"]
+        self.assertEqual(cancelled["dividends"], [main])
+        priced = query("14:06:00", volatility=.25)["result"]["structuredContent"]
+        self.assertAlmostEqual(priced["price"], 14.171952, places=6)
+        self.assertEqual(priced["volatility"], .25)
+        self.assertEqual(priced["dividends"], revised["dividends"])
+        self.assertEqual(query("14:06:00", cash_path="dividends.csv")["error"]["code"], -32602)
+        self.assertEqual(query("14:06:00", volatility=True)["error"]["code"], -32602)
+        self.assertEqual(query("14:06:00", steps=0)["error"]["code"], -32602)
+        self.assertTrue(query("14:66:00")["result"]["isError"])
+        self.assertEqual(query("14:04:00")["result"]["structuredContent"], first)
 
 
 if __name__ == "__main__":

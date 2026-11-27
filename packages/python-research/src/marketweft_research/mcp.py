@@ -8,11 +8,13 @@ import sys
 from typing import BinaryIO
 
 from . import FinancialMultiples, FinancialSnapshot, FormulaFunction, ResearchEngine, ResearchError, ScreenPrice
-from . import _MAX_FINANCIAL_CSV, _MAX_OPTION_CSV, _MAX_OPTION_ROWS, _OPTION_STATUSES
+from . import (
+    _MAX_FINANCIAL_CSV, _MAX_OPTION_CSV, _MAX_OPTION_DIVIDEND_CSV, _MAX_OPTION_ROWS, _OPTION_STATUSES,
+)
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.8.0"
+SERVER_VERSION = "0.9.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -21,6 +23,7 @@ TOOL_NAME = "evaluate_historical_formula"
 SCREEN_TOOL_NAME = "screen_universe_as_of"
 FINANCIAL_TOOL_NAME = "financial_snapshot_as_of"
 OPTION_SNAPSHOT_TOOL_NAME = "option_snapshot_as_of"
+AMERICAN_OPTION_TOOL_NAME = "american_option_valuation_as_of"
 _UTC_SCHEMA = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
 INPUT_SCHEMA = {
     "type": "object",
@@ -225,18 +228,22 @@ _OPTION_CSV_SCHEMA = {"type": "string", "minLength": 1, "maxLength": _MAX_OPTION
 _U32_MAX = (1 << 32) - 1
 _MAX_OPTION_AGE = 300
 _DEFAULT_OPTION_PAGE = 200
-_OPTION_SNAPSHOT_FIELDS = ["underlying_csv", "quotes_csv", "effective_at", "known_at"]
+_OPTION_QUERY_PROPERTIES = {
+    "underlying_csv": _OPTION_CSV_SCHEMA,
+    "quotes_csv": _OPTION_CSV_SCHEMA,
+    "effective_at": _UTC_SCHEMA,
+    "known_at": _UTC_SCHEMA,
+}
+_OPTION_QUERY_FIELDS = list(_OPTION_QUERY_PROPERTIES)
+_OPTION_AGE_SCHEMA = {"type": "integer", "minimum": 0, "maximum": _U32_MAX, "default": _MAX_OPTION_AGE}
 OPTION_SNAPSHOT_INPUT = {
     **_object_schema({
-        "underlying_csv": _OPTION_CSV_SCHEMA,
-        "quotes_csv": _OPTION_CSV_SCHEMA,
-        "effective_at": _UTC_SCHEMA,
-        "known_at": _UTC_SCHEMA,
-        "max_age": {"type": "integer", "minimum": 0, "maximum": _U32_MAX, "default": _MAX_OPTION_AGE},
+        **_OPTION_QUERY_PROPERTIES,
+        "max_age": _OPTION_AGE_SCHEMA,
         "offset": {"type": "integer", "minimum": 0, "maximum": _MAX_OPTION_ROWS, "default": 0},
         "limit": {"type": "integer", "minimum": 1, "maximum": MAX_ROWS, "default": _DEFAULT_OPTION_PAGE},
     }),
-    "required": _OPTION_SNAPSHOT_FIELDS,
+    "required": _OPTION_QUERY_FIELDS,
 }
 _OPTION_QUOTE_CLOCKS = dict.fromkeys(("quote_at", "observed_at"), _TIME_SCHEMA)
 _OPTION_QUOTE = _object_schema({
@@ -277,6 +284,48 @@ OPTION_SNAPSHOT_TOOL = {
     "annotations": TOOL["annotations"],
     "inputSchema": OPTION_SNAPSHOT_INPUT,
     "outputSchema": OPTION_SNAPSHOT_OUTPUT,
+}
+
+
+_AMERICAN_OPTION_FIELDS = [*_OPTION_QUERY_FIELDS, "contract_id"]
+AMERICAN_OPTION_INPUT = {
+    **_object_schema({
+        **_OPTION_QUERY_PROPERTIES,
+        "contract_id": _IDENTIFIER_SCHEMA,
+        "max_age": _OPTION_AGE_SCHEMA,
+        "steps": {"type": "integer", "minimum": 1, "maximum": 256, "default": 128},
+        "volatility": {"type": "number", "minimum": 0, "maximum": 10},
+        "cash_dividends_csv": {"type": "string", "minLength": 1, "maxLength": _MAX_OPTION_DIVIDEND_CSV},
+    }),
+    "required": _AMERICAN_OPTION_FIELDS,
+}
+AMERICAN_OPTION_OUTPUT = _object_schema({
+    "contract_id": _IDENTIFIER_SCHEMA,
+    "currency": _CURRENCY_SCHEMA,
+    "effective_at": _UTC_SCHEMA,
+    "known_at": _UTC_SCHEMA,
+    "status": {"enum": ["value", "missing-contract", "european-contract", *sorted(_OPTION_STATUSES)]},
+    "price": {"type": ["number", "null"], "minimum": 0},
+    "volatility": {"type": ["number", "null"], "minimum": 0, "maximum": 10},
+    "dividends": {
+        "type": "array", "maxItems": 1000,
+        "items": _object_schema({
+            "id": _IDENTIFIER_SCHEMA,
+            **dict.fromkeys(("announced_at", "ex_at", "pay_at", "observed_at"), _TIME_SCHEMA),
+            "currency": _CURRENCY_SCHEMA,
+            "amount_per_share_ticks": _TICKS_SCHEMA,
+        }),
+    },
+})
+AMERICAN_OPTION_TOOL = {
+    "name": AMERICAN_OPTION_TOOL_NAME,
+    "description": (
+        "Price an observed American option at the supplied annual volatility or solve its bid-ask midpoint. "
+        "An optional cash CSV applies dividend reports known at the requested cutoffs and returns their provenance."
+    ),
+    "annotations": TOOL["annotations"],
+    "inputSchema": AMERICAN_OPTION_INPUT,
+    "outputSchema": AMERICAN_OPTION_OUTPUT,
 }
 
 
@@ -404,7 +453,7 @@ class ResearchServer:
         if method == "tools/list":
             if params.get("cursor") is not None:
                 raise RequestError(-32602, "The tool list fits on a single page.")
-            return {"tools": [TOOL, SCREEN_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL]}
+            return {"tools": [TOOL, SCREEN_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL, AMERICAN_OPTION_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -416,6 +465,8 @@ class ResearchServer:
                 return self._financial(arguments)
             if name == OPTION_SNAPSHOT_TOOL_NAME:
                 return self._option_snapshot(arguments)
+            if name == AMERICAN_OPTION_TOOL_NAME:
+                return self._american_option(arguments)
             raise RequestError(-32602, "Unknown research tool.")
         raise RequestError(-32601, "Method not found.")
 
@@ -501,14 +552,14 @@ class ResearchServer:
         properties = OPTION_SNAPSHOT_INPUT["properties"]
         if not isinstance(arguments, dict) or set(arguments) - properties.keys():
             raise RequestError(-32602, "Supply only the documented option snapshot arguments.")
-        if not all(isinstance(arguments.get(field), str) and arguments[field] for field in _OPTION_SNAPSHOT_FIELDS):
+        if not all(isinstance(arguments.get(field), str) and arguments[field] for field in _OPTION_QUERY_FIELDS):
             raise RequestError(-32602, "Supply underlying and option CSV contents and both UTC times.")
         max_age = _integer(arguments, "max_age", _MAX_OPTION_AGE, 0, _U32_MAX)
         offset = _integer(arguments, "offset", 0, 0, _MAX_OPTION_ROWS)
         limit = _integer(arguments, "limit", _DEFAULT_OPTION_PAGE, 1, MAX_ROWS)
         try:
             report = self._engine.option_snapshot(
-                **{field: arguments[field] for field in _OPTION_SNAPSHOT_FIELDS}, max_age=max_age,
+                **{field: arguments[field] for field in _OPTION_QUERY_FIELDS}, max_age=max_age,
             )
         except (ResearchError, ValueError) as error:
             return {"content": _text(str(error)), "isError": True}
@@ -524,6 +575,38 @@ class ResearchServer:
             "offset": offset,
             "next_offset": end if end < len(report.options) else None,
             "rows": [_fixed_fields(row, "strike_ticks", "bid_ticks", "ask_ticks") for row in page],
+        })
+
+    def _american_option(self, arguments) -> dict:
+        properties = AMERICAN_OPTION_INPUT["properties"]
+        if not isinstance(arguments, dict) or set(arguments) - properties.keys():
+            raise RequestError(-32602, "Supply only the documented American option valuation arguments.")
+        if not all(isinstance(arguments.get(field), str) and arguments[field] for field in _AMERICAN_OPTION_FIELDS):
+            raise RequestError(-32602, "Supply both CSVs, a contract ID and both UTC times.")
+        max_age = _integer(arguments, "max_age", _MAX_OPTION_AGE, 0, _U32_MAX)
+        steps = _integer(arguments, "steps", 128, 1, 256)
+        volatility = arguments.get("volatility")
+        if "volatility" in arguments and (type(volatility) not in (float, int) or not 0 <= volatility <= 10):
+            raise RequestError(-32602, "Supply annual volatility as a number from 0 to 10.")
+        cash = arguments.get("cash_dividends_csv")
+        if "cash_dividends_csv" in arguments and (not isinstance(cash, str) or not cash):
+            raise RequestError(-32602, "Supply cash dividends as CSV contents.")
+        try:
+            report = self._engine.american_option_valuation(
+                **{field: arguments[field] for field in _AMERICAN_OPTION_FIELDS},
+                max_age=max_age, steps=steps, volatility=volatility, cash_dividends_csv=cash,
+            )
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+        return _structured({
+            "contract_id": report.contract_id,
+            "currency": report.currency,
+            "effective_at": arguments["effective_at"],
+            "known_at": arguments["known_at"],
+            "status": report.status,
+            "price": report.price,
+            "volatility": report.volatility,
+            "dividends": [_fixed_fields(row, "amount_per_share_ticks") for row in report.dividends],
         })
 
 

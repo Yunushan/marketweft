@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.98.0 · MCP American option valuations
+
+| Check | Evidence |
+| --- | --- |
+| Price and IV | The official MCP client validated the installed Python 0.9.0 wheel and reproduced the unchanged USD 16.234568 midpoint before and after the cash revision. A manual 25% input reproduces USD 14.171952 at the revised cutoff. |
+| Report provenance | The result preserves exact amounts, ex-date, pay date and observation time. The cancellation drops its report, and replay restores the first report and IV when rewound. |
+| Tool errors | The tool exposes the missing-contract status before the first observed quote. It rejects file path fields, invalid volatility and lattice steps and malformed dates. |
+
+[MCP American option valuations](local-mcp-research.md#american-option-valuations) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.97.0 · MCP option snapshots
 
 | Check | Evidence |

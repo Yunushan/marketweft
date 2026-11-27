@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.8.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.9.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -100,7 +100,7 @@ for report in result.dividends:
     print(report.id, report.amount_per_share_ticks, report.ex_at, report.pay_at, report.observed_at)
 ```
 
-The fixture's USD 16.234568 midpoint yields 32.53% at this cutoff with 128 steps. The return value contains the selected reports with exact integer millionths per share and UTC seconds. An unavailable result has a status and empty model values. A dividend currency mismatch is an input error. [Demo cash-dividend inputs and replay](../../docs/option-chain.md#discrete-cash-dividends).
+The fixture's USD 16.234568 midpoint yields 32.53% at this cutoff with 128 steps. The return value contains the selected reports with exact integer millionths per share and UTC seconds. An unavailable result has a status and empty model values. A dividend currency mismatch is an input error. [Demo cash-dividend inputs and replay](../../docs/option-chain.md#discrete-cash-dividends) · [MCP American valuations](../../docs/local-mcp-research.md#american-option-valuations).
 
 ## Native protocol
 
