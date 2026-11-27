@@ -24,6 +24,10 @@ The policy also accepts the permissive Zlib and Unicode-3.0 terms and the
 Apache-2.0 license with the LLVM exception. For dual-licensed packages select
 an approved permissive branch. Preserve the terms of each required license.
 
+The Ubuntu desktop package includes the linked Rust crates' notices and source
+locations in /usr/share/doc/marketweft-desktop. See cargo-sources.json for
+pinned crate archives and their checksums, including the MPL-2.0 sources.
+
 The Python research wheel uses the MIT-licensed setuptools build backend.
 Its version and PyPI wheel digest are pinned in
 packages/python-research/build-requirements.txt and included in the inventory.

@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.160.0 · Ubuntu desktop packages
+
+| Check | Evidence |
+| --- | --- |
+| Ubuntu package | CI packages the native amd64 and arm64 executables, checks Debian metadata, dynamic library dependencies, the launcher, attribution and source records, and confirms byte-identical packages for the same executable and revision. |
+| Installation | The host installs the package with APT, verifies installed file digests, launches the installed command under X11, and imports a synthetic CSV through the native WebView. |
+
+[Ubuntu desktop package](platforms.md#ubuntu-desktop-package) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.159.0 · Ubuntu Linux ARM64 desktop verification
 
 | Check | Evidence |
