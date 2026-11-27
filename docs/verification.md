@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.127.0 · Horizontal rays and trend lines
+
+| Check | Evidence |
+| --- | --- |
+| Browser chart | Chromium checks a ray starting between observations and extending right, exact signed trend endpoints, cursor picks, zoom reprojection and rejection of identical endpoints. |
+| Workspace backup | Chromium checks version 32 export and restore, version 31 compatibility, reload and removal. |
+| Offline replay | The application loads the replay module when opened. The service worker precaches it with the other browser assets. The replay cases start offline and verify point-in-time results. |
+
+[Horizontal rays and trend lines](chart-workspace.md#horizontal-rays-and-trend-lines) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.126.0 · Horizontal price lines and vertical UTC markers
 
 | Check | Evidence |

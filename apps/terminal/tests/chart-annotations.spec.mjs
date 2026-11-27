@@ -29,7 +29,7 @@ async function restore(page, backup) {
   await expect(page.getByText('Workspace restored.')).toBeVisible()
 }
 
-test('draws exact price and UTC anchors, interpolates a gap, and restores measurement-only backups', async ({ page, context }) => {
+async function traceDrawings(page) {
   await page.addInitScript(() => {
     const proto = CanvasRenderingContext2D.prototype
     const { scale, beginPath, moveTo, lineTo, stroke } = proto
@@ -37,7 +37,7 @@ test('draws exact price and UTC anchors, interpolates a gap, and restores measur
     const primary = ctx => ctx.canvas.getAttribute('aria-label')?.startsWith('ANNOTATIONS interactive') &&
       ctx.canvas.closest('[aria-label="Primary chart pane"]')
     proto.scale = function (...args) {
-      if (primary(this)) window.chartMarks = { prices: [], times: [], grid: [] }
+      if (primary(this)) window.chartMarks = { prices: [], times: [], rays: [], trends: [], grid: [] }
       return scale.apply(this, args)
     }
     proto.beginPath = function () {
@@ -55,11 +55,17 @@ test('draws exact price and UTC anchors, interpolates a gap, and restores measur
         const path = paths.get(this) ?? []
         if (this.strokeStyle === '#e4b96a') window.chartMarks.prices.push(path)
         if (this.strokeStyle === '#ad9df5') window.chartMarks.times.push(path)
+        if (this.strokeStyle === '#83d1ef') window.chartMarks.rays.push(path)
+        if (this.strokeStyle === '#ee9dbd') window.chartMarks.trends.push(path)
         if (this.strokeStyle === '#293036' && path.length === 2) window.chartMarks.grid.push(path)
       }
       return stroke.apply(this, arguments)
     }
   })
+}
+
+test('draws exact price and UTC anchors, interpolates a gap, and restores measurement-only backups', async ({ page, context }) => {
+  await traceDrawings(page)
   const csv = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-directional.csv', import.meta.url), 'utf8')
   await page.goto('/')
   await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
@@ -209,4 +215,79 @@ test('rejects out-of-range controls and rehashed invalid backup anchors without 
     await page.keyboard.press('Escape')
   }
   expect(await catalogContents(page)).toEqual(original)
+})
+
+test('horizontal rays start at their anchor and trend lines retain two exact endpoints through backup', async ({ page }) => {
+  await traceDrawings(page)
+  const trace = () => page.evaluate(() => window.chartMarks)
+  const csv = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-directional.csv', import.meta.url), 'utf8')
+  await page.goto('/')
+  await openImport(page, 'ANNOTATIONS', csv)
+  await submitImport(page, 'ANNOTATIONS')
+  const left = pane(page)
+  const first = '2026-01-01T09:02:00Z'
+  const anchor = '2026-01-01T09:04:00Z'
+  const last = '2026-01-01T09:06:00Z'
+  for (const time of [first, anchor, last]) await add(left, 'Time marker', time)
+  const legacy = await downloadWorkspace(page)
+  expect(legacy.version).toBe(31)
+  const before = await trace()
+  const [firstX, anchorX, lastX] = before.times.map(path => path[0][0])
+
+  await tools(left).getByRole('button', { name: 'New horizontal ray' }).click()
+  const ray = editor(left, 'Horizontal ray')
+  await ray.getByRole('textbox', { name: 'Time (UTC)' }).fill(anchor)
+  await ray.getByRole('textbox', { name: 'Price' }).fill('-2.000001')
+  await ray.getByRole('button', { name: 'Save horizontal ray' }).click()
+  await expect(tools(left).getByText('Horizontal ray -2.000001 at ' + anchor)).toBeVisible()
+
+  await tools(left).getByRole('button', { name: 'New trend line' }).click()
+  const trend = editor(left, 'Trend line')
+  const end = point => trend.getByRole('group', { name: point, exact: true })
+  const canvas = left.getByLabel(/^ANNOTATIONS interactive/)
+  await trend.getByRole('button', { name: 'Pick end on chart' }).click()
+  await canvas.click({ position: { x: lastX, y: 75 } })
+  await expect(end('End').getByRole('textbox', { name: 'Time (UTC)' })).toHaveValue(last)
+  await end('End').getByRole('textbox', { name: 'Price' }).fill('12')
+  await end('Start').getByRole('textbox', { name: 'Time (UTC)' }).fill(last)
+  await end('Start').getByRole('textbox', { name: 'Price' }).fill('12')
+  await trend.getByRole('button', { name: 'Save trend line' }).click()
+  await expect(trend.getByRole('alert')).toContainText('two different points')
+  await end('Start').getByRole('textbox', { name: 'Time (UTC)' }).fill(first)
+  await end('Start').getByRole('textbox', { name: 'Price' }).fill('-7')
+  await trend.getByRole('button', { name: 'Save trend line' }).click()
+  const trendLabel = 'Trend line -7 at ' + first + ' to 12 at ' + last
+  await expect(tools(left).getByText(trendLabel, { exact: true })).toBeVisible()
+
+  await expect.poll(async () => [(await trace()).rays.length, (await trace()).trends.length]).toEqual([1, 1])
+  const marks = await trace()
+  expect(marks.rays[0].map(([x]) => x)).toEqual([anchorX, marks.grid[0][1][0]])
+  expect(marks.rays[0][0][1]).toEqual(marks.rays[0][1][1])
+  expect(marks.trends[0].map(([x]) => x)).toEqual([firstX, lastX])
+  expect(marks.trends[0][0][1]).toBeGreaterThan(marks.trends[0][1][1])
+  await left.getByRole('button', { name: 'Zoom in', exact: true }).click()
+  await expect.poll(async () => (await trace()).trends[0][1][0]).not.toBe(lastX)
+  const zoomed = await trace()
+  expect(zoomed.rays[0][1][0]).toEqual(zoomed.grid[0][1][0])
+  await left.getByRole('button', { name: 'Reset chart view' }).click()
+
+  const observed = value => Date.parse(value) / 1000
+  const backup = await downloadWorkspace(page)
+  expect(backup.version).toBe(32)
+  const records = backup.manifest.preferences.annotations['LOCAL:ANNOTATIONS']
+  expect(records.slice(-2).map(({ id, ...record }) => record)).toEqual([
+    { kind: 'ray', start: { time: observed(anchor), ticks: -2000001 } },
+    { kind: 'trend', start: { time: observed(first), ticks: -7000000 }, end: { time: observed(last), ticks: 12000000 } },
+  ])
+  await restore(page, legacy)
+  await expect(tools(left).getByRole('listitem')).toHaveCount(3)
+  await restore(page, backup)
+  await page.reload()
+  await expect(tools(left).getByText(trendLabel, { exact: true })).toBeVisible()
+  await tools(left).getByRole('button', { name: 'Remove ' + trendLabel, exact: true }).click()
+  await expect(tools(left).getByRole('listitem')).toHaveCount(4)
+  expect((await downloadWorkspace(page)).version).toBe(32)
+  await tools(left).getByRole('button', { name: 'Remove Horizontal ray -2.000001 at ' + anchor, exact: true }).click()
+  await expect(tools(left).getByRole('listitem')).toHaveCount(3)
+  expect((await downloadWorkspace(page)).version).toBe(31)
 })

@@ -1,25 +1,60 @@
 import { useState } from 'react'
-import {
-  annotationAnchor, ANNOTATION_NAMES, formatAnnotationAnchor, makeAnnotation, parseAnnotationAnchor,
-} from './chart-annotations'
-import type { AnnotationKind, ChartAnnotation } from './chart-annotations'
+import { ANNOTATION_NAMES, formatAnnotationAnchor, parseAnnotationAnchor, sameEndpoint } from './chart-annotations'
+import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
+import type { DrawingEndpoint } from './market-core'
 
+type Point = 'start' | 'end'
+type PointFields = Record<AnnotationCoordinate, string>
 type Draft = {
   kind: AnnotationKind
-  value: string
+  points: Record<Point, PointFields>
   original?: ChartAnnotation
 }
 
-export type AnnotationPicker = { kind: AnnotationKind; accept: (anchor: number) => void }
+export type AnnotationPicker = { point: Point; accept: (anchor: DrawingEndpoint) => void }
+
+function pointFields({ ticks, time }: DrawingEndpoint): PointFields {
+  return { price: formatAnnotationAnchor('price', ticks), time: formatAnnotationAnchor('time', time) }
+}
+
+function pointValue(fields: PointFields): DrawingEndpoint {
+  return { time: parseAnnotationAnchor('time', fields.time), ticks: parseAnnotationAnchor('price', fields.price) }
+}
+
+function draftAnnotation(draft: Draft, id: string): ChartAnnotation {
+  const { kind, points } = draft
+  if (kind === 'price') return { id, kind, ticks: parseAnnotationAnchor(kind, points.start.price) }
+  if (kind === 'time') return { id, kind, time: parseAnnotationAnchor(kind, points.start.time) }
+  const start = pointValue(points.start)
+  if (kind === 'ray') return { id, kind, start }
+  const end = pointValue(points.end)
+  if (sameEndpoint(start, end)) throw Error('A trend line must have two different points.')
+  return { id, kind, start, end }
+}
+
+function describePoint(point: DrawingEndpoint): string {
+  const { time, price } = pointFields(point)
+  return price + ' at ' + time
+}
+
+function describeAnnotation(entry: ChartAnnotation): string {
+  const name = ANNOTATION_NAMES[entry.kind] + ' '
+  switch (entry.kind) {
+    case 'price': return name + formatAnnotationAnchor('price', entry.ticks)
+    case 'time': return name + formatAnnotationAnchor('time', entry.time)
+    case 'ray': return name + describePoint(entry.start)
+    case 'trend': return name + describePoint(entry.start) + ' to ' + describePoint(entry.end)
+  }
+}
 
 export function ChartAnnotations({
   entries, busy, picking, setPicker, defaults, save,
 }: {
   entries: readonly ChartAnnotation[]
   busy: boolean
-  picking: boolean
+  picking: Point | null
   setPicker: (picker: AnnotationPicker | null) => void
-  defaults: Record<AnnotationKind, number>
+  defaults: Record<Point, DrawingEndpoint>
   save: (before: ChartAnnotation | undefined, after: ChartAnnotation | undefined) => Promise<void>
 }) {
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -28,7 +63,12 @@ export function ChartAnnotations({
   function edit(kind: AnnotationKind, original?: ChartAnnotation) {
     setPicker(null)
     setError('')
-    setDraft({ kind, original, value: formatAnnotationAnchor(kind, original ? annotationAnchor(original) : defaults[kind]) })
+    const points = { start: pointFields(kind === 'trend' ? defaults.start : defaults.end), end: pointFields(defaults.end) }
+    if (original?.kind === 'price') points.start.price = formatAnnotationAnchor('price', original.ticks)
+    if (original?.kind === 'time') points.start.time = formatAnnotationAnchor('time', original.time)
+    if (original?.kind === 'ray' || original?.kind === 'trend') points.start = pointFields(original.start)
+    if (original?.kind === 'trend') points.end = pointFields(original.end)
+    setDraft({ kind, original, points })
   }
 
   function cancel() {
@@ -40,9 +80,7 @@ export function ChartAnnotations({
   async function commit(remove = false, original = draft?.original) {
     if (busy) return
     try {
-      const next = !remove && draft ? makeAnnotation(
-        original?.id ?? crypto.randomUUID(), draft.kind, parseAnnotationAnchor(draft.kind, draft.value),
-      ) : undefined
+      const next = !remove && draft ? draftAnnotation(draft, original?.id ?? crypto.randomUUID()) : undefined
       await save(original, next)
       cancel()
     } catch (cause) {
@@ -50,28 +88,42 @@ export function ChartAnnotations({
     }
   }
 
-  function pick() {
-    if (!draft || picking) { setPicker(null); return }
-    const { kind } = draft
-    setPicker({ kind, accept(anchor) {
+  function pick(point: Point) {
+    if (!draft || picking === point) { setPicker(null); return }
+    setPicker({ point, accept(anchor) {
       setError('')
-      setDraft(current => current && { ...current, value: formatAnnotationAnchor(kind, anchor) })
+      setDraft(current => current && { ...current, points: { ...current.points, [point]: pointFields(anchor) } })
     } })
+  }
+
+  function pointEditor(point: Point, current: Draft) {
+    const outerLabel = point === 'start' ? 'Start' : 'End'
+    const trend = current.kind === 'trend'
+    const coordinates: readonly AnnotationCoordinate[] = current.kind === 'price' || current.kind === 'time' ?
+      [current.kind] : ['time', 'price']
+    return <fieldset key={point}>
+      <legend>{trend ? outerLabel : ANNOTATION_NAMES[current.kind]}</legend>
+      {coordinates.map(coordinate => <label key={coordinate}>{coordinate === 'price' ? 'Price' : 'Time (UTC)'}
+        <input type="text" inputMode={coordinate === 'price' ? 'decimal' : undefined}
+          spellCheck={false} value={current.points[point][coordinate]} disabled={busy}
+          onChange={event => {
+            const fields = { ...current.points[point], [coordinate]: event.target.value }
+            setDraft({ ...current, points: { ...current.points, [point]: fields } })
+            setError('')
+          }} />
+      </label>)}
+      <button type="button" aria-pressed={picking === point} disabled={busy} onClick={() => pick(point)}>
+        {trend ? 'Pick ' + point + ' on chart' : 'Pick on chart'}
+      </button>
+    </fieldset>
   }
 
   return (
     <section className="annotation-tools" aria-label="Chart drawings">
       {draft ? <form className="drawing-editor" aria-label={ANNOTATION_NAMES[draft.kind]}
         onSubmit={event => { event.preventDefault(); void commit() }}>
-        <fieldset>
-          <legend>{ANNOTATION_NAMES[draft.kind]}</legend>
-          <label>{draft.kind === 'price' ? 'Price' : 'Time (UTC)'}
-            <input type="text" inputMode={draft.kind === 'price' ? 'decimal' : undefined}
-              spellCheck={false} value={draft.value} disabled={busy}
-              onChange={event => { setDraft({ ...draft, value: event.target.value }); setError('') }} />
-          </label>
-          <button type="button" aria-pressed={picking} disabled={busy} onClick={pick}>Pick on chart</button>
-        </fieldset>
+        {pointEditor('start', draft)}
+        {draft.kind === 'trend' && pointEditor('end', draft)}
         {picking && <p role="status">Select a point in the price plot.</p>}
         {error && <p role="alert">{error}</p>}
         <div className="drawing-buttons">
@@ -80,13 +132,15 @@ export function ChartAnnotations({
         </div>
       </form> : <>
         <div className="drawing-buttons">
-          <button type="button" disabled={busy} onClick={() => edit('price')}>New price line</button>
-          <button type="button" disabled={busy} onClick={() => edit('time')}>New time marker</button>
+          {(Object.keys(ANNOTATION_NAMES) as AnnotationKind[]).map(kind =>
+            <button key={kind} type="button" disabled={busy} onClick={() => edit(kind)}>
+              New {ANNOTATION_NAMES[kind].toLowerCase()}
+            </button>
+          )}
         </div>
         {entries.length > 0 && <ul className="annotation-list">
           {entries.map(entry => {
-            const description = ANNOTATION_NAMES[entry.kind] + ' ' +
-              formatAnnotationAnchor(entry.kind, annotationAnchor(entry))
+            const description = describeAnnotation(entry)
             return <li key={entry.id}>
               <span>{description}</span>
               <div className="drawing-buttons">

@@ -72,6 +72,14 @@ A price line spans the visible price plot when its price is within the current s
 
 Both panes show the same saved annotations when they display the same instrument. Annotations are kept for instruments removed from the watchlist. Workspace backup version 31 saves each exact price or UTC timestamp and restores earlier measurement-only backups. [Backup format](workspace-backup.md)
 
+## Horizontal rays and trend lines
+
+Choose **New horizontal ray** to set a signed price and a UTC start time. Its line begins at that time and extends to the right edge of the price plot. A ray anchored before the displayed range can cross the entire visible plot. The price scale follows the chart data and enabled overlays.
+
+Choose **New trend line** to set two distinct price and UTC points. The line extends between those points and its visible part stays inside the price plot. Enter the coordinates or use the two chart pick buttons to snap each time to a displayed observation and each price to a tick. The projection uses the same elapsed-time interpolation as UTC markers when an anchor falls between observations.
+
+Both tools share the instrument's existing drawing list and preserve exact coordinates in backup version 32. With only price lines and time markers saved, backup version 31 still applies. [Backup format](workspace-backup.md)
+
 ## Moving-average periods
 
 Open **Indicators** to configure the primary chart. When the comparison pane is open, the same dialog provides a separate pair of period fields for it. Each field accepts a whole period from 1 to 100,000 bars. The default periods are 20 bars for SMA and 9 bars for EMA. Each overlay can be enabled independently.

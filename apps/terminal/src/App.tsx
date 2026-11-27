@@ -16,7 +16,7 @@ import { Spark } from './Chart'
 import { TimeframeChart } from './TimeframeChart'
 import { FootprintResearch } from './FootprintResearch'
 import { IndicatorPeriods, StudyControls } from './IndicatorPeriods'
-import { annotationAnchor, EMPTY_ANNOTATIONS } from './chart-annotations'
+import { EMPTY_ANNOTATIONS, sameAnnotation } from './chart-annotations'
 import type { ChartAnnotation } from './chart-annotations'
 import { Icon, Mark } from './Icons'
 import { changeString, dateLabel, movement, price, volume } from './workspace'
@@ -37,13 +37,16 @@ import type {
 import { defaultStudySettings, extraStudyPeriods, STUDIES, STUDY_KINDS } from './studies'
 import type { StudyKind, StudySet, StudySettings } from './studies'
 import { WorkspaceBackup } from './WorkspaceBackup'
-import { HistoricalReplay } from './HistoricalReplay'
 import { checkImportRows, type ImportPolicy } from './import-policy'
 import { MAX_PROVIDER_VERIFICATION_BYTES } from './provider-signature'
 
 declare const __MARKETWEFT_IMPORT_POLICY__: ImportPolicy
 const importPolicy = __MARKETWEFT_IMPORT_POLICY__
 const researchLoading = <p role="status">Loading research…</p>
+const HistoricalReplay = lazy(async () => {
+  const module = await import('./HistoricalReplay')
+  return { default: module.HistoricalReplay }
+})
 const TickBarsResearch = lazy(async () => {
   const module = await import('./TickBarsResearch')
   return { default: module.TickBarsResearch }
@@ -660,7 +663,7 @@ export function App({
         const entries = [...(annotations[id] ?? [])]
         const position = entries.findIndex(entry => entry.id === original.id)
         const previous = entries[position]
-        if (before ? !previous || previous.kind !== before.kind || annotationAnchor(previous) !== annotationAnchor(before)
+        if (before ? !previous || !sameAnnotation(previous, before)
           : previous !== undefined)
           throw Error('This drawing changed while you were editing. Cancel and reopen it.')
         if (position < 0 && next) entries.push(next)
@@ -735,15 +738,17 @@ export function App({
   }
   if (replaying) {
     return (
-      <HistoricalReplay
-        core={core}
-        assets={assets.filter((item) => item.source === 'import')}
-        selected={ws.selected}
-        close={() => {
-          restoreReplayFocus.current = true
-          setReplaying(false)
-        }}
-      />
+      <Suspense fallback={researchLoading}>
+        <HistoricalReplay
+          core={core}
+          assets={assets.filter((item) => item.source === 'import')}
+          selected={ws.selected}
+          close={() => {
+            restoreReplayFocus.current = true
+            setReplaying(false)
+          }}
+        />
+      </Suspense>
     )
   }
   return (

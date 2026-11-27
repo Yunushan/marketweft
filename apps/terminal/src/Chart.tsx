@@ -446,19 +446,39 @@ function draw(
   ctx.fillRect(right, at - 9, width - right, 18)
   ctx.fillStyle = '#0e1915'
   ctx.fillText(closeLabel, right + 6, at)
-  for (const annotation of annotations) {
+  if (annotations.length) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(left, top, right - left, priceBottom - top)
+    ctx.clip()
     ctx.lineWidth = 1.25
-    if (annotation.kind === 'price') {
-      const price = annotation.ticks / 1e6
-      if (price < low || price > high) continue
-      const level = y(price)
-      line(left, level, right, level, '#e4b96a')
-    } else {
-      const column = markerColumn(markerTimeline, annotation.time)
-      if (column === null || column < start - 0.5 || column > view.end - 0.5) continue
-      const axis = x(column)
-      line(axis, top, axis, priceBottom, '#ad9df5')
+    for (const annotation of annotations) {
+      if (annotation.kind === 'price') {
+        const price = annotation.ticks / 1e6
+        if (price < low || price > high) continue
+        const level = y(price)
+        line(left, level, right, level, '#e4b96a')
+      } else if (annotation.kind === 'time') {
+        const column = markerColumn(markerTimeline, annotation.time)
+        if (column === null || column < start - 0.5 || column > view.end - 0.5) continue
+        const axis = x(column)
+        line(axis, top, axis, priceBottom, '#ad9df5')
+      } else {
+        const from = markerColumn(markerTimeline, annotation.start.time)
+        const level = y(annotation.start.ticks / 1e6)
+        if (annotation.kind === 'ray') {
+          if (level < top || level > priceBottom) continue
+          const beforeHistory = markerTimeline.length > 0 && annotation.start.time < markerTimeline[0].time
+          const begin = beforeHistory ? left : from === null ? right : Math.max(left, x(from))
+          if (begin < right) line(begin, level, right, level, '#83d1ef')
+        } else {
+          const to = markerColumn(markerTimeline, annotation.end.time)
+          if (from === null || to === null) continue
+          line(x(from), level, x(to), y(annotation.end.ticks / 1e6), '#ee9dbd')
+        }
+      }
     }
+    ctx.restore()
   }
   if (drawing) {
     const columns = kagi?.byTime ?? pointFigure?.byTime
@@ -665,9 +685,9 @@ export function Chart({
   const start = view.end - view.count
   const observationsByTime = kagi?.byTime ?? pointFigure?.byTime
   const annotations = drawingTools?.annotations ?? EMPTY_ANNOTATIONS
-  const hasTimeMarker = annotations.some(annotation => annotation.kind === 'time')
+  const needsTimeline = annotations.some(annotation => annotation.kind !== 'price')
   const markerTimeline = useMemo(() => {
-    if (!hasTimeMarker) return []
+    if (!needsTimeline) return []
     const columns = new Map<number, number>()
     if (observationsByTime) {
       for (const [time, observation] of observationsByTime) columns.set(time, observation.column)
@@ -675,7 +695,7 @@ export function Chart({
       bars.forEach((bar, index) => columns.set(bar.time, index))
     }
     return Array.from(columns, ([time, column]) => ({ time, column }))
-  }, [bars, hasTimeMarker, observationsByTime])
+  }, [bars, needsTimeline, observationsByTime])
   const linkedObservation = linkedTimestamp == null ? undefined : observationsByTime?.get(linkedTimestamp)
   const linkedIndex = observationsByTime ?
     linkedObservation && linkedObservation.column >= start && linkedObservation.column < view.end ? linkedObservation.column : null :
@@ -693,6 +713,7 @@ export function Chart({
   const closeBased = Boolean(observationsByTime || priceMovements)
   const sourceIndex = selectedObservation?.sourceIndex ?? movement?.sourceIndex ?? readoutIndex
   const time = selectedObservation?.sourceTime ?? b.time
+  const prior = asset.bars[Math.max(0, sourceIndex - 1)]
   const studyValues = useMemo(() => panels.map(study => study.lines.map(line => line.series[sourceIndex])),
     [panels, sourceIndex])
   const activeStudyPlotValues = useMemo(() => studyValues.map(values => values.map(plotValue)), [studyValues])
@@ -855,7 +876,7 @@ export function Chart({
     if (index === null || y < bounds.top || y > bounds.bottom) return
     const ticks = clamp(priceTicksAt(y, bounds), -MAX_CHART_PRICE_TICKS, MAX_CHART_PRICE_TICKS)
     const observed = observationAt(index, ticks)
-    picker.accept(picker.kind === 'price' ? ticks : observed?.sourceTime ?? bars[index].time)
+    picker.accept({ ticks, time: observed?.sourceTime ?? bars[index].time })
     setAnnotationPicker(null)
   }
   return (
@@ -1086,12 +1107,15 @@ export function Chart({
               {drawingError && <p role="alert">{drawingError}</p>}
             </div>
           )}
-          <ChartAnnotations entries={annotations} busy={drawingTools.busy} picking={annotationPicker !== null}
+          <ChartAnnotations entries={annotations} busy={drawingTools.busy} picking={annotationPicker?.point ?? null}
             setPicker={picker => {
               if (picker) setPicking(null)
               setAnnotationPicker(picker)
             }}
-            defaults={{ price: Math.round(asset.bars[sourceIndex].close * 1e6), time }}
+            defaults={{
+              start: { ticks: Math.round(prior.close * 1e6), time: prior.time },
+              end: { ticks: Math.round(asset.bars[sourceIndex].close * 1e6), time },
+            }}
             save={drawingTools.saveAnnotation} />
         </div>
       )}

@@ -1,10 +1,14 @@
 import { fixed, MAX_CHART_PRICE_TICKS, parsePriceSize } from './fixed-point'
+import type { DrawingEndpoint } from './market-core'
 import { utc } from './workspace'
 
-export type AnnotationKind = 'price' | 'time'
+export type AnnotationCoordinate = 'price' | 'time'
 export type ChartAnnotation = { id: string } & (
-  { kind: 'price'; ticks: number } | { kind: 'time'; time: number }
+  { kind: 'price'; ticks: number } | { kind: 'time'; time: number } |
+  { kind: 'ray'; start: DrawingEndpoint } |
+  { kind: 'trend'; start: DrawingEndpoint; end: DrawingEndpoint }
 )
+export type AnnotationKind = ChartAnnotation['kind']
 export type TimeColumn = { time: number; column: number }
 
 export const EMPTY_ANNOTATIONS: readonly ChartAnnotation[] = []
@@ -12,23 +16,35 @@ export const EMPTY_ANNOTATIONS: readonly ChartAnnotation[] = []
 export const ANNOTATION_NAMES = {
   price: 'Price line',
   time: 'Time marker',
+  ray: 'Horizontal ray',
+  trend: 'Trend line',
 } as const
 
-export function annotationAnchor(annotation: ChartAnnotation): number {
-  return annotation.kind === 'price' ? annotation.ticks : annotation.time
+export function sameEndpoint(first: DrawingEndpoint, second: DrawingEndpoint): boolean {
+  return first.ticks === second.ticks && first.time === second.time
 }
 
-export function formatAnnotationAnchor(kind: AnnotationKind, anchor: number): string {
+export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation): boolean {
+  switch (first.kind) {
+    case 'price': return second.kind === 'price' && first.ticks === second.ticks
+    case 'time': return second.kind === 'time' && first.time === second.time
+    case 'ray': return second.kind === 'ray' && sameEndpoint(first.start, second.start)
+    case 'trend': return second.kind === 'trend' &&
+      sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
+  }
+}
+
+export function formatAnnotationAnchor(kind: AnnotationCoordinate, anchor: number): string {
   return kind === 'price' ? fixed(BigInt(anchor), 6) : utc(anchor)
 }
 
-export function validAnnotationAnchor(kind: AnnotationKind, anchor: unknown): anchor is number {
+export function validAnnotationAnchor(kind: AnnotationCoordinate, anchor: unknown): anchor is number {
   if (typeof anchor !== 'number' || !Number.isSafeInteger(anchor)) return false
   return kind === 'price' ? Math.abs(anchor) <= MAX_CHART_PRICE_TICKS :
     anchor >= -62_135_596_800 && anchor <= 253_402_300_799
 }
 
-export function parseAnnotationAnchor(kind: AnnotationKind, value: string): number {
+export function parseAnnotationAnchor(kind: AnnotationCoordinate, value: string): number {
   const text = value.trim()
   if (kind === 'price') {
     const negative = text.startsWith('-')
@@ -42,10 +58,6 @@ export function parseAnnotationAnchor(kind: AnnotationKind, value: string): numb
       !validAnnotationAnchor('time', time) || utc(time) !== text)
     throw Error('Enter a time as YYYY-MM-DDTHH:MM:SSZ in UTC.')
   return time
-}
-
-export function makeAnnotation(id: string, kind: AnnotationKind, anchor: number): ChartAnnotation {
-  return kind === 'price' ? { id, kind, ticks: anchor } : { id, kind, time: anchor }
 }
 
 export function markerColumn(timeline: readonly TimeColumn[], time: number): number | null {
