@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.136.0 · Signed HTTPS webhook delivery
+
+| Check | Evidence |
+| --- | --- |
+| TLS receiver | The native integration test provisions a certificate for an explicit IP, verifies the signed request bytes and checks the persisted HTTPS receipt. |
+| Certificate and destination | The tests reject an unrelated trust anchor, a mismatched hostname and an out-of-range port. TLS failures record a single rejection before the receiver handles any HTTP body. |
+
+[Signed webhook delivery](local-webhook-delivery.md) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.135.0 · Signed loopback webhook delivery
 
 | Check | Evidence |

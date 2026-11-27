@@ -1,4 +1,4 @@
-# Local webhook delivery
+# Signed webhook delivery
 
 Build the standalone research-service binary and run its explicit delivery command.
 

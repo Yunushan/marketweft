@@ -39,4 +39,4 @@ The inbox shows these records alongside threshold and moving-average crossings. 
 
 Structured source grants must allow both automated use and storage when saving raw evidence. The inbox remains local to IndexedDB on the current browser origin.
 
-Operators can use the standalone service's [local webhook delivery command](local-webhook-delivery.md) to deliver an explicitly supplied event file.
+Operators can use the standalone service's [signed webhook delivery command](local-webhook-delivery.md) to deliver an explicitly supplied event file.
