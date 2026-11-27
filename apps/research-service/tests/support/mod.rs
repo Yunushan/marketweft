@@ -31,6 +31,7 @@ impl ResearchProcess {
         command
             .env("MARKETWEFT_FORMULA_TOKEN", FORMULA_TOKEN)
             .env("MARKETWEFT_SCREEN_TOKEN", SCREEN_TOKEN)
+            .env_remove("MARKETWEFT_OPTIONS_TOKEN")
             .env("MARKETWEFT_RESEARCH_PORT", "0")
             .env_remove("MARKETWEFT_RESEARCH_AUDIT_DB")
             .env_remove("MARKETWEFT_RESEARCH_SLOTS")

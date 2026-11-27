@@ -18,6 +18,7 @@ The service prints the bound loopback address. The port defaults to 4174. Set `M
 | --- | --- | --- |
 | `POST /v1/formula` | `MARKETWEFT_FORMULA_TOKEN` | `formula`, `history_csv`, optional `observed_through` UTC seconds and ordered `functions` |
 | `POST /v1/universe/screen` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `prices_csv`, `baseline_at`, `effective_at` and `known_at` |
+| `POST /v1/options/snapshot` | `MARKETWEFT_OPTIONS_TOKEN` | `underlying_csv`, `quotes_csv`, `effective_at`, `known_at` and optional `max_age` |
 
 Both endpoints accept `offset` and `limit`. The default page contains up to 200 rows. Pages can contain at most 1,000 rows. Reuse the same query and apply `next_offset` to obtain the next page. A screen ranks the full effective universe before slicing the result.
 
@@ -50,7 +51,7 @@ Send the bearer token as `authorization` metadata. Reuse the same query and its 
 
 To enable the audit trail, set `MARKETWEFT_RESEARCH_AUDIT_DB` to a database file in a private local directory before starting the service. On first use, the service creates and versions the database. Start with the same path to retain the receipt history across restarts.
 
-Each admitted research request records only its receipt ID, transport, formula or screen scope, UTC timestamps and outcome. Authentication and capacity checks precede admission. The service records the admission before evaluating the query. A receipt with an empty outcome and finish time identifies an admission without a recorded conclusion, such as one interrupted by a process exit. A WebSocket receipt covers the stream until it closes.
+Each admitted research request records only its receipt ID, transport, formula, screen or options scope, UTC timestamps and outcome. Authentication and capacity checks precede admission. The service records the admission before evaluating the query. A receipt with an empty outcome and finish time identifies an admission without a recorded conclusion, such as one interrupted by a process exit. A WebSocket receipt covers the stream until it closes.
 
 Open the ledger with the SQLite command-line tool to read the receipts.
 
@@ -87,7 +88,7 @@ export MARKETWEFT_RESEARCH_CREDENTIALS_DB="$PWD/research-credentials.sqlite"
 ./marketweft-research-service
 ```
 
-The issue command prints the bearer token once with its credential ID, scope and expiration as JSON. Transfer the token to the authorized client. The SQLite database stores its SHA-256 digest and lifecycle fields. The service opens the database read-only and can use managed credentials alone or alongside static tokens. Keep the credential store in a private local directory.
+The issue command accepts the `formula`, `screen` and `options` scopes. It prints the bearer token once with its credential ID, scope and expiration as JSON. Transfer the token to the authorized client. The SQLite database stores its SHA-256 digest and lifecycle fields. The service opens the database read-only and can use managed credentials alone or alongside static tokens. An administrative issue or revoke operation upgrades a version 1 store to version 2 in a transaction and preserves the existing credentials. Keep the credential store in a private local directory.
 
 Set `CREDENTIAL_ID` to the issued ID to revoke it while the service is running.
 
@@ -107,7 +108,7 @@ The service prints the HTTPS address it bound. Use that authority for REST and g
 
 To serve a separate client on a private network, set `MARKETWEFT_RESEARCH_BIND_IP` to a specific private IPv4 address assigned to the server. Set `MARKETWEFT_RESEARCH_AUTHORITY` to the lower-case name or that same private address, with the configured research port. Use port 443 for the default HTTPS authority without a port suffix.
 
-Private-interface operation requires the TLS certificate and key and a managed credential database. The certificate must cover the advertised host, and each client must trust its issuing CA. Use managed credentials for the formula and screen scopes. Static environment tokens are for loopback listeners.
+Private-interface operation requires the TLS certificate and key and a managed credential database. The certificate must cover the advertised host, and each client must trust its issuing CA. Use managed credentials for the formula, screen and options scopes. Static environment tokens are for loopback listeners.
 
 The server prints the advertised HTTPS address and only listens on the selected interface. Clients must use its authority and scheme. Optional SQLite audit receipts record admitted research on the private listener.
 
@@ -227,7 +228,7 @@ The destination continues the receipt sequence from the snapshot.
 
 ## Verify a portable audit snapshot
 
-Run `audit verify` on the single SQLite file produced by `audit backup`. The command checks the application ID, audit schema version and SQLite integrity. It prints the exact file length, SHA-256 digest, total receipt count and unfinished count as JSON.
+Run `audit verify` on the single SQLite file produced by `audit backup`. The command checks the application ID, audit schema version and SQLite integrity. Versions 1 and 2 can be verified or copied. Starting the service with a version 1 audit database upgrades it to version 2 and preserves receipt IDs and their sequence. It prints the exact file length, SHA-256 digest, total receipt count and unfinished count as JSON.
 
 ```sh
 ./marketweft-research-service audit verify ./transfer.sqlite
@@ -260,3 +261,12 @@ curl -i http://127.0.0.1:4175/readyz
 ```
 
 The route returns HTTP 503 with `busy`, `draining`, `audit unavailable` or `audit probe busy`. The audit check allows one probe at a time and rolls back without adding a receipt. `/healthz` continues to report process liveness. `/readyz` reflects the current state and reserves no worker slot.
+
+
+## Option chain snapshots
+
+Post JSON to `/v1/options/snapshot` with the bearer token for the `options` scope. For loopback, set `MARKETWEFT_OPTIONS_TOKEN` to a separate token before starting the process. For a private TLS deployment, issue an `options` credential against the service's credential database.
+
+Send `underlying_csv` and `quotes_csv` as UTF-8 file contents and supply independent `effective_at` and `known_at` UTC timestamps. Each CSV is limited to 2 MiB. `max_age` is a whole number of seconds and defaults to 300 for both underlying and option quotes. Use `limit` and `offset` to page the visible contracts. The default is 200 contracts and the maximum page is 1,000. Repeat the same inputs with the returned `next_offset` for the next page.
+
+The response provides both cutoffs, the instrument and currency, the selected underlying, and the visible option rows. Quotes carry exact tick amounts as strings, UTC quote and observation times, exercise style and a model status. An eligible European quote has analytics. A missing bid or ask and unavailable analytics are represented by `null`. Use the bundled option fixture to see the underlying move from USD 100 to USD 100.50 after its report appears, with the delayed American call visible at later knowledge cutoffs. [Option CSV formats and cutoffs](option-chain.md).

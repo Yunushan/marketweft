@@ -19,7 +19,7 @@ def fixture(name):
     return (FIXTURES / name).read_text(encoding="utf-8")
 
 
-def verify(origin, formula_token, screen_token):
+def verify(origin, formula_token, screen_token, options_token):
     assert origin.startswith("http://127.0.0.1:"), origin
     opener = build_opener(ProxyHandler({}))
 
@@ -65,10 +65,34 @@ def verify(origin, formula_token, screen_token):
     assert ranks("14:20", "14:25") == [("BETA-001", 1, "80000")]
 
 
+    option_input = {
+        "underlying_csv": fixture("synthetic-option-underlying.csv"),
+        "quotes_csv": fixture("synthetic-option-exercise-quotes.csv"),
+        "effective_at": "2025-04-03T14:00:00Z",
+    }
+
+    def options(known_at):
+        payload = dict(option_input, known_at=f"2025-04-03T{known_at}Z")
+        assert post("/v1/options/snapshot", screen_token, payload)[0] == 403
+        status, result = post("/v1/options/snapshot", options_token, payload)
+        assert status == 200, result
+        return result, {row["contract_id"]: row for row in result["rows"]}
+
+    initial, initial_rows = options("14:00:00")
+    assert initial["underlying"]["spot_ticks"] == "100000000"
+    assert "APR-AM-C90" not in initial_rows
+    assert initial_rows["APR-C100"]["bid_ticks"] == "8807321"
+    later, later_rows = options("14:04:00")
+    assert later["underlying"]["spot_ticks"] == "100500000"
+    assert later_rows["APR-AM-C90"]["exercise_style"] == "american"
+    assert later_rows["APR-P110"]["status"] == "ok"
+
+
 @contextmanager
 def research_process(executable, formula_token, screen_token, **overrides):
     settings = dict(
-        {key: value for key, value in os.environ.items() if not key.startswith("MARKETWEFT_RESEARCH_")},
+        {key: value for key, value in os.environ.items()
+         if not key.startswith("MARKETWEFT_RESEARCH_") and key != "MARKETWEFT_OPTIONS_TOKEN"},
         MARKETWEFT_RESEARCH_PORT="0",
         MARKETWEFT_FORMULA_TOKEN=formula_token,
         MARKETWEFT_SCREEN_TOKEN=screen_token,
@@ -102,10 +126,12 @@ def research_process(executable, formula_token, screen_token, **overrides):
 
 
 def main(executable):
-    formula_token, screen_token = secrets.token_hex(32), secrets.token_hex(32)
-    with research_process(executable, formula_token, screen_token) as (_, origin, _):
-        verify(origin, formula_token, screen_token)
-    print("Verified scope separation, exact formula ticks and point-in-time ranks over loopback TCP.")
+    formula_token, screen_token, options_token = (secrets.token_hex(32) for _ in range(3))
+    with research_process(
+        executable, formula_token, screen_token, MARKETWEFT_OPTIONS_TOKEN=options_token,
+    ) as (_, origin, _):
+        verify(origin, formula_token, screen_token, options_token)
+    print("Verified scoped formula, universe screen and option snapshots over loopback TCP.")
 
 
 if __name__ == "__main__":

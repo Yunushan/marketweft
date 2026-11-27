@@ -109,7 +109,7 @@ fn verify_snapshot(path: &Path) -> CopyResult<VerifiedSnapshot> {
     )?;
     database.pragma_update(None, "trusted_schema", false)?;
     let (application, version) = schema_version(&database)?;
-    if (application, version) != (APPLICATION_ID, SCHEMA_VERSION) {
+    if !matches!((application, version), (APPLICATION_ID, 1 | SCHEMA_VERSION)) {
         return Err(
             io::Error::other("The snapshot is not a supported research audit database.").into(),
         );
@@ -151,7 +151,8 @@ fn copy_database(source: &Path, destination: &Path) -> CopyResult<AuditSummary> 
     source.busy_timeout(Duration::from_millis(350))?;
     source.pragma_update(None, "trusted_schema", false)?;
     let snapshot = source.transaction()?;
-    if schema_version(&snapshot)? != (APPLICATION_ID, SCHEMA_VERSION) {
+    let source_schema = schema_version(&snapshot)?;
+    if !matches!(source_schema, (APPLICATION_ID, 1 | SCHEMA_VERSION)) {
         return Err(
             io::Error::other("The source is not a supported research audit database.").into(),
         );
@@ -185,8 +186,7 @@ fn copy_database(source: &Path, destination: &Path) -> CopyResult<AuditSummary> 
     target.pragma_update(None, "trusted_schema", false)?;
     // A published snapshot must be portable as a single file.
     target.pragma_update(None, "journal_mode", "DELETE")?;
-    if schema_version(&target)? != (APPLICATION_ID, SCHEMA_VERSION) || verify(&target)? != expected
-    {
+    if schema_version(&target)? != source_schema || verify(&target)? != expected {
         return Err(io::Error::other("The audit database copy failed verification.").into());
     }
     target.close().map_err(|(_, error)| error)?;

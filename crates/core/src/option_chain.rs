@@ -67,6 +67,26 @@ pub enum QuoteStatus {
     Model(ModelError),
 }
 
+impl QuoteStatus {
+    /// The stable wire code for an unavailable quote or model.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Expired => "expired",
+            Self::StaleQuote => "stale-option",
+            Self::MissingBidAsk => "missing-bid-ask",
+            Self::CrossedQuote => "crossed",
+            Self::MissingUnderlying => "missing-underlying",
+            Self::StaleUnderlying => "stale-underlying",
+            Self::AmericanVolatilityRequired => "american-volatility-required",
+            Self::MissingContract => "missing-contract",
+            Self::EuropeanContract => "european-contract",
+            Self::Model(ModelError::InputsOutOfRange) => "model-range",
+            Self::Model(ModelError::PriceOutsideBounds) => "price-bounds",
+            Self::Model(ModelError::VolatilityUnresolved) => "unresolved-vol",
+        }
+    }
+}
+
 pub struct OptionRow<'a> {
     pub contract: &'a Contract,
     pub quote: &'a OptionQuote,

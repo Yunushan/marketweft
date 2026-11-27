@@ -69,12 +69,22 @@ impl Token {
 pub struct Tokens {
     formula: Option<Token>,
     screen: Option<Token>,
+    options: Option<Token>,
     managed: Option<CredentialStore>,
 }
 
 impl Tokens {
     pub fn new(formula: Option<&str>, screen: Option<&str>) -> Result<Self, &'static str> {
-        Self::configured(formula, screen, None)
+        Self::with_options(formula, screen, None)
+    }
+
+    /// Configure the static tokens for the three independent research scopes.
+    pub fn with_options(
+        formula: Option<&str>,
+        screen: Option<&str>,
+        options: Option<&str>,
+    ) -> Result<Self, &'static str> {
+        Self::configured(formula, screen, options, None)
     }
 
     /// Enable an issued-credential database and any configured static tokens.
@@ -83,13 +93,24 @@ impl Tokens {
         screen: Option<&str>,
         path: &Path,
     ) -> io::Result<Self> {
+        Self::with_managed_options(formula, screen, None, path)
+    }
+
+    /// Enable a read-only issued-credential store alongside the static scopes.
+    pub fn with_managed_options(
+        formula: Option<&str>,
+        screen: Option<&str>,
+        options: Option<&str>,
+        path: &Path,
+    ) -> io::Result<Self> {
         let managed = CredentialStore::open(path)?;
-        Self::configured(formula, screen, Some(managed)).map_err(io::Error::other)
+        Self::configured(formula, screen, options, Some(managed)).map_err(io::Error::other)
     }
 
     fn configured(
         formula: Option<&str>,
         screen: Option<&str>,
+        options: Option<&str>,
         managed: Option<CredentialStore>,
     ) -> Result<Self, &'static str> {
         let parse = |token: Option<&str>| {
@@ -101,19 +122,25 @@ impl Tokens {
                 })
                 .transpose()
         };
-        let (formula, screen) = (parse(formula)?, parse(screen)?);
-        match (&formula, &screen) {
-            (None, None) if managed.is_none() => {
-                return Err("Configure at least one research scope token.")
-            }
-            (Some(left), Some(right)) if left.matches(right) => {
-                return Err("Use separate tokens for formula and screen access.");
-            }
-            _ => {}
+        let (formula, screen, options) = (parse(formula)?, parse(screen)?, parse(options)?);
+        if formula.is_none() && screen.is_none() && options.is_none() && managed.is_none() {
+            return Err("Configure at least one research scope token.");
+        }
+        let pairs = [
+            (formula.as_ref(), screen.as_ref()),
+            (formula.as_ref(), options.as_ref()),
+            (screen.as_ref(), options.as_ref()),
+        ];
+        if pairs.into_iter().any(|(left, right)| {
+            left.zip(right)
+                .is_some_and(|(left, right)| left.matches(right))
+        }) {
+            return Err("Use separate tokens for each research scope.");
         }
         Ok(Self {
             formula,
             screen,
+            options,
             managed,
         })
     }
@@ -123,6 +150,26 @@ impl Tokens {
 enum Scope {
     Formula,
     Screen,
+    Options,
+}
+
+impl Scope {
+    fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "formula" => Some(Self::Formula),
+            "screen" => Some(Self::Screen),
+            "options" => Some(Self::Options),
+            _ => None,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Formula => "formula",
+            Self::Screen => "screen",
+            Self::Options => "options",
+        }
+    }
 }
 
 struct Server {
@@ -293,7 +340,11 @@ pub fn configured_controlled_research_router(
         return Err(io::Error::other("Private-interface research requires TLS."));
     }
     let (authority, default_port_alias) = private_authority(address, advertised)?;
-    if tokens.managed.is_none() || tokens.formula.is_some() || tokens.screen.is_some() {
+    if tokens.managed.is_none()
+        || tokens.formula.is_some()
+        || tokens.screen.is_some()
+        || tokens.options.is_some()
+    {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "Private-interface research requires managed credentials only.",
@@ -426,6 +477,7 @@ fn route_authority(
     Router::new()
         .route("/v1/formula", post(formula))
         .route("/v1/universe/screen", post(screen))
+        .route("/v1/options/snapshot", post(option_snapshot))
         .route("/v1/formula/stream", get(websocket::formula))
         .route("/v1/universe/screen/stream", get(websocket::screen))
         .with_state(state)
@@ -509,10 +561,16 @@ impl Server {
             .screen
             .as_ref()
             .is_some_and(|known| token.matches(known));
-        let granted = match (formula, screen, &self.tokens.managed) {
-            (true, _, _) => Some(Scope::Formula),
-            (_, true, _) => Some(Scope::Screen),
-            (_, _, Some(store)) => store.lookup(&token.0).await?,
+        let options = self
+            .tokens
+            .options
+            .as_ref()
+            .is_some_and(|known| token.matches(known));
+        let granted = match (formula, screen, options, &self.tokens.managed) {
+            (true, _, _, _) => Some(Scope::Formula),
+            (_, true, _, _) => Some(Scope::Screen),
+            (_, _, true, _) => Some(Scope::Options),
+            (_, _, _, Some(store)) => store.lookup(&token.0).await?,
             _ => None,
         }
         .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Invalid research bearer token."))?;
@@ -583,4 +641,11 @@ async fn screen(
     request: Request,
 ) -> Result<Json<ResearchPage>, ApiError> {
     execute(state, request, Scope::Screen, analytics::screen).await
+}
+
+async fn option_snapshot(
+    State(state): State<Arc<Server>>,
+    request: Request,
+) -> Result<Json<ResearchPage>, ApiError> {
+    execute(state, request, Scope::Options, analytics::option_snapshot).await
 }

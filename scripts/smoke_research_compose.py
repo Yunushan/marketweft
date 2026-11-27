@@ -80,7 +80,7 @@ def exercise(image, tls, peer, restore_from=None):
             operator = ("run", "--rm", "--no-deps", "-T", "--volume", f"{restore_from}:{source}:ro", "audit-admin")
             verification = json.loads(compose(*operator, "audit", "verify", source))
             assert verification == {
-                "schema_version": 1, "receipts": 6, "unfinished": 0,
+                "schema_version": 2, "receipts": 6, "unfinished": 0,
                 "bytes": restore_from.stat().st_size,
                 "sha256": hashlib.sha256(restore_from.read_bytes()).hexdigest(),
             }

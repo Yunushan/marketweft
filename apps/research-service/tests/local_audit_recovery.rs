@@ -119,7 +119,7 @@ fn verifies_exact_snapshot_bytes_and_rejects_nonportable_inputs() {
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&result.stdout).unwrap(),
         json!({
-            "schema_version": 1, "receipts": 1, "unfinished": 1, "bytes": bytes.len(),
+            "schema_version": 2, "receipts": 1, "unfinished": 1, "bytes": bytes.len(),
             "sha256": digest,
         })
     );

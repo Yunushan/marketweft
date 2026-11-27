@@ -7,12 +7,12 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub(crate) const APPLICATION_ID: i32 = 0x4D57_5241;
-pub(crate) const SCHEMA_VERSION: i32 = 1;
+pub(crate) const SCHEMA_VERSION: i32 = 2;
 const SCHEMA: &str = r#"
     CREATE TABLE research_receipts (
         receipt_id INTEGER PRIMARY KEY AUTOINCREMENT,
         transport TEXT NOT NULL CHECK (transport IN ('rest', 'websocket', 'grpc')),
-        scope TEXT NOT NULL CHECK (scope IN ('formula', 'screen')),
+        scope TEXT NOT NULL CHECK (scope IN ('formula', 'screen', 'options')),
         started_at INTEGER NOT NULL DEFAULT (unixepoch()),
         finished_at INTEGER,
         outcome TEXT CHECK (outcome IN ('completed', 'rejected', 'timed_out', 'interrupted', 'failed')),
@@ -126,6 +126,24 @@ impl Trail {
                 schema.pragma_update(None, "application_id", APPLICATION_ID)?;
                 schema.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             }
+            (APPLICATION_ID, 1) => {
+                schema.execute_batch(
+                    "ALTER TABLE research_receipts RENAME TO research_receipts_v1;",
+                )?;
+                schema.execute_batch(SCHEMA)?;
+                schema.execute_batch(
+                    "INSERT INTO research_receipts (receipt_id, transport, scope, started_at, finished_at, outcome)
+                     SELECT receipt_id, transport, scope, started_at, finished_at, outcome FROM research_receipts_v1;
+                     UPDATE sqlite_sequence SET seq = MAX(seq, COALESCE(
+                        (SELECT seq FROM sqlite_sequence WHERE name = 'research_receipts_v1'), 0))
+                     WHERE name = 'research_receipts';
+                     INSERT INTO sqlite_sequence (name, seq)
+                       SELECT 'research_receipts', seq FROM sqlite_sequence WHERE name = 'research_receipts_v1'
+                       AND NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'research_receipts');
+                     DROP TABLE research_receipts_v1;",
+                )?;
+                schema.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+            }
             (APPLICATION_ID, SCHEMA_VERSION) => {
                 schema.prepare("SELECT receipt_id, transport, scope, started_at, finished_at, outcome FROM research_receipts")?;
             }
@@ -146,10 +164,7 @@ impl Trail {
         scope: Scope,
     ) -> Result<Receipt, ApiError> {
         let worker = self.clone();
-        let scope = match scope {
-            Scope::Formula => "formula",
-            Scope::Screen => "screen",
-        };
+        let scope = scope.label();
         let id = tokio::task::spawn_blocking(move || {
             let database = worker.0.lock().map_err(|_| unavailable())?;
             database

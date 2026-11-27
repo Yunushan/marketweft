@@ -10,13 +10,13 @@ use std::time::Duration;
 use tokio::sync::Semaphore;
 
 const APPLICATION_ID: i32 = 0x4D57_5243;
-const SCHEMA_VERSION: i32 = 1;
+const SCHEMA_VERSION: i32 = 2;
 const MAX_TTL: u32 = 86_400;
 const SCHEMA: &str = r#"
     CREATE TABLE research_credentials (
         credential_id TEXT PRIMARY KEY CHECK (length(credential_id) = 32),
         digest BLOB NOT NULL UNIQUE CHECK (length(digest) = 32),
-        scope TEXT NOT NULL CHECK (scope IN ('formula', 'screen')),
+        scope TEXT NOT NULL CHECK (scope IN ('formula', 'screen', 'options')),
         issued_at INTEGER NOT NULL,
         expires_at INTEGER NOT NULL CHECK (expires_at > issued_at),
         revoked_at INTEGER CHECK (revoked_at >= issued_at)
@@ -40,15 +40,9 @@ pub fn issue_research_credential(
     scope: &str,
     lifetime: u32,
 ) -> io::Result<IssuedCredential> {
-    let scope = match scope {
-        "formula" => "formula",
-        "screen" => "screen",
-        _ => {
-            return Err(io::Error::other(
-                "Choose the formula or screen credential scope.",
-            ))
-        }
-    };
+    let scope = Scope::parse(scope)
+        .ok_or_else(|| io::Error::other("Choose the formula, screen or options credential scope."))?
+        .label();
     if !(1..=MAX_TTL).contains(&lifetime) {
         return Err(io::Error::other(
             "Set a credential lifetime from 1 to 86400 seconds.",
@@ -134,13 +128,27 @@ fn admin_connection(path: &Path, create: bool) -> StoreResult<Connection> {
         schema.pragma_update(None, "application_id", APPLICATION_ID)?;
         schema.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     }
+    if schema_version(&schema)? == (APPLICATION_ID, 1) {
+        schema
+            .execute_batch("ALTER TABLE research_credentials RENAME TO research_credentials_v1;")?;
+        schema.execute_batch(SCHEMA)?;
+        schema.execute_batch(
+            "INSERT INTO research_credentials (credential_id, digest, scope, issued_at, expires_at, revoked_at)
+             SELECT credential_id, digest, scope, issued_at, expires_at, revoked_at FROM research_credentials_v1;
+             DROP TABLE research_credentials_v1;",
+        )?;
+        schema.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+    }
     verify(&schema)?;
     schema.commit()?;
     Ok(database)
 }
 
 fn verify(database: &Connection) -> StoreResult<()> {
-    if schema_version(database)? != (APPLICATION_ID, SCHEMA_VERSION) {
+    if !matches!(
+        schema_version(database)?,
+        (APPLICATION_ID, 1 | SCHEMA_VERSION)
+    ) {
         return Err(io::Error::other("The database is not a supported credential store.").into());
     }
     database.prepare(
@@ -181,11 +189,7 @@ impl CredentialStore {
                 [&digest[..]],
                 |row| row.get::<_, String>(0),
             ).optional().map_err(|_| unavailable())?
-                .map(|scope| match scope.as_str() {
-                    "formula" => Ok(Scope::Formula),
-                    "screen" => Ok(Scope::Screen),
-                    _ => Err(unavailable()),
-                }).transpose()
+                .map(|scope| Scope::parse(&scope).ok_or_else(unavailable)).transpose()
         })
         .await
         .map_err(|_| unavailable())?

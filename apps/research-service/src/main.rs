@@ -96,11 +96,16 @@ async fn serve_async() -> Result<(), Box<dyn std::error::Error>> {
     let advertised = setting("MARKETWEFT_RESEARCH_AUTHORITY")?;
     let formula = setting("MARKETWEFT_FORMULA_TOKEN")?;
     let screen = setting("MARKETWEFT_SCREEN_TOKEN")?;
+    let options = setting("MARKETWEFT_OPTIONS_TOKEN")?;
     let tokens = match env::var_os("MARKETWEFT_RESEARCH_CREDENTIALS_DB") {
-        Some(path) => {
-            Tokens::with_managed(formula.as_deref(), screen.as_deref(), Path::new(&path))?
-        }
-        None => Tokens::new(formula.as_deref(), screen.as_deref()).map_err(io::Error::other)?,
+        Some(path) => Tokens::with_managed_options(
+            formula.as_deref(),
+            screen.as_deref(),
+            options.as_deref(),
+            Path::new(&path),
+        )?,
+        None => Tokens::with_options(formula.as_deref(), screen.as_deref(), options.as_deref())
+            .map_err(io::Error::other)?,
     };
     let slots = setting("MARKETWEFT_RESEARCH_SLOTS")?
         .map(|value| value.parse::<usize>())

@@ -4,8 +4,9 @@ use crate::{
 };
 use axum::http::StatusCode;
 use marketweft_core::{
-    parse_csv, parse_exact_utc, parse_universe, Formula, FormulaFunctionDefinition, FormulaLibrary,
-    PriceBook, PriceObservation, FORMULA_VERSION,
+    parse_csv, parse_exact_utc, parse_universe, ExerciseStyle, Formula, FormulaFunctionDefinition,
+    FormulaLibrary, OptionAnalytics, OptionBook, OptionSide, PriceBook, PriceObservation,
+    FORMULA_VERSION,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -18,6 +19,7 @@ const MAX_RESULTS: u64 = 1000;
 pub(crate) enum ResearchPage {
     Formula(FormulaPage),
     Screen(ScreenPage),
+    Options(OptionPage),
 }
 
 pub(crate) fn present_u64<'de, D: Deserializer<'de>>(input: D) -> Result<Option<u64>, D::Error> {
@@ -221,5 +223,151 @@ pub(crate) fn evaluate_screen(
                 .collect(),
         },
     );
+    Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OptionQuery {
+    underlying_csv: String,
+    quotes_csv: String,
+    effective_at: String,
+    known_at: String,
+    #[serde(default = "default_quote_age")]
+    max_age: u32,
+    #[serde(default, deserialize_with = "present_u64")]
+    offset: Option<u64>,
+    #[serde(default, deserialize_with = "present_u64")]
+    limit: Option<u64>,
+}
+
+const fn default_quote_age() -> u32 {
+    300
+}
+
+#[derive(Serialize)]
+pub(crate) struct OptionPage {
+    instrument: String,
+    currency: String,
+    effective_at: String,
+    known_at: String,
+    underlying: Option<OptionUnderlying>,
+    total_rows: u32,
+    offset: u32,
+    next_offset: Option<u32>,
+    rows: Vec<OptionRow>,
+}
+
+#[derive(Serialize)]
+struct OptionUnderlying {
+    quote_at: i64,
+    observed_at: i64,
+    spot_ticks: String,
+    rate_units: String,
+    dividend_yield_units: String,
+}
+
+#[derive(Serialize)]
+struct OptionRow {
+    contract_id: String,
+    expiration: i64,
+    strike_ticks: String,
+    side: &'static str,
+    exercise_style: &'static str,
+    quote_at: i64,
+    observed_at: i64,
+    bid_ticks: Option<String>,
+    ask_ticks: Option<String>,
+    status: &'static str,
+    analytics: Option<OptionModel>,
+}
+
+#[derive(Serialize)]
+struct OptionModel {
+    volatility: f64,
+    price: f64,
+    delta: f64,
+    gamma: f64,
+    vega: f64,
+    theta: f64,
+    rho: f64,
+}
+
+impl From<OptionAnalytics> for OptionModel {
+    fn from(value: OptionAnalytics) -> Self {
+        Self {
+            volatility: value.volatility,
+            price: value.price,
+            delta: value.delta,
+            gamma: value.gamma,
+            vega: value.vega,
+            theta: value.theta,
+            rho: value.rho,
+        }
+    }
+}
+
+pub(crate) fn option_snapshot(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    let params: OptionQuery = request(bytes)?;
+    let (offset, limit) = pagination(params.offset, params.limit, 20_000)?;
+    let (Some(effective), Some(known)) = (
+        parse_exact_utc(&params.effective_at),
+        parse_exact_utc(&params.known_at),
+    ) else {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Supply exact effective and known UTC times.",
+        ));
+    };
+    let book = OptionBook::parse(&params.underlying_csv, &params.quotes_csv)
+        .map_err(|error| analytical_error(error.to_string()))?;
+    let source = book.underlying();
+    let snapshot = book.snapshot(effective, known, params.max_age);
+    let (range, next_offset) = bounds(offset, limit, snapshot.options.len());
+    let rows = snapshot.options[range]
+        .iter()
+        .map(|row| OptionRow {
+            contract_id: row.contract.id.clone(),
+            expiration: row.contract.expiration,
+            strike_ticks: row.contract.strike.to_string(),
+            side: match row.contract.side {
+                OptionSide::Call => "call",
+                OptionSide::Put => "put",
+            },
+            exercise_style: match row.contract.exercise_style {
+                ExerciseStyle::European => "european",
+                ExerciseStyle::American => "american",
+            },
+            quote_at: row.quote.at,
+            observed_at: row.quote.observed_at,
+            bid_ticks: row.quote.bid.map(|ticks| ticks.to_string()),
+            ask_ticks: row.quote.ask.map(|ticks| ticks.to_string()),
+            status: row
+                .analytics
+                .as_ref()
+                .map_or_else(|error| error.code(), |_| "ok"),
+            analytics: row.analytics.ok().map(OptionModel::from),
+        })
+        .collect();
+    emit(ResearchPage::Options(OptionPage {
+        instrument: source.instrument.to_string(),
+        currency: source.currency.clone(),
+        effective_at: params.effective_at,
+        known_at: params.known_at,
+        underlying: snapshot.underlying.map(|quote| OptionUnderlying {
+            quote_at: quote.at,
+            observed_at: quote.observed_at,
+            spot_ticks: quote.spot.to_string(),
+            rate_units: quote.rate.to_string(),
+            dividend_yield_units: quote.yield_rate.to_string(),
+        }),
+        total_rows: snapshot.options.len() as u32,
+        offset: offset as u32,
+        next_offset: next_offset.map(|value| value as u32),
+        rows,
+    }));
     Ok(())
 }

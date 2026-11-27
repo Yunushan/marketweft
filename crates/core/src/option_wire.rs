@@ -1,6 +1,4 @@
-use crate::{
-    CashOptionError, ChainSnapshot, Dividend, ExerciseStyle, ModelError, OptionSide, QuoteStatus,
-};
+use crate::{CashOptionError, ChainSnapshot, Dividend, ExerciseStyle, OptionSide};
 use std::fmt::Write;
 
 pub(crate) fn option_snapshot_rows(view: ChainSnapshot<'_>) -> String {
@@ -38,7 +36,7 @@ pub(crate) fn option_snapshot_rows(view: ChainSnapshot<'_>) -> String {
             optional_number(quote.ask),
             row.analytics
                 .as_ref()
-                .map_or_else(|status| option_status(*status), |_| "ok")
+                .map_or_else(|status| status.code(), |_| "ok")
         )
         .unwrap();
         if let Ok(a) = row.analytics {
@@ -56,23 +54,6 @@ pub(crate) fn option_snapshot_rows(view: ChainSnapshot<'_>) -> String {
         writeln!(text, "\t{style}").unwrap();
     }
     text
-}
-
-pub(crate) fn option_status(status: QuoteStatus) -> &'static str {
-    match status {
-        QuoteStatus::Expired => "expired",
-        QuoteStatus::StaleQuote => "stale-option",
-        QuoteStatus::MissingBidAsk => "missing-bid-ask",
-        QuoteStatus::CrossedQuote => "crossed",
-        QuoteStatus::MissingUnderlying => "missing-underlying",
-        QuoteStatus::StaleUnderlying => "stale-underlying",
-        QuoteStatus::AmericanVolatilityRequired => "american-volatility-required",
-        QuoteStatus::MissingContract => "missing-contract",
-        QuoteStatus::EuropeanContract => "european-contract",
-        QuoteStatus::Model(ModelError::InputsOutOfRange) => "model-range",
-        QuoteStatus::Model(ModelError::PriceOutsideBounds) => "price-bounds",
-        QuoteStatus::Model(ModelError::VolatilityUnresolved) => "unresolved-vol",
-    }
 }
 
 pub(crate) fn option_dividend_rows(text: &mut String, reports: Vec<&Dividend>) {
@@ -94,7 +75,7 @@ pub(crate) fn option_dividend_rows(text: &mut String, reports: Vec<&Dividend>) {
 
 pub(crate) fn option_cash_status(error: CashOptionError) -> Result<&'static str, String> {
     match error {
-        CashOptionError::Quote(status) => Ok(option_status(status)),
+        CashOptionError::Quote(status) => Ok(status.code()),
         CashOptionError::InstrumentMismatch => {
             Err("Cash dividend instrument must match the option chain.".into())
         }

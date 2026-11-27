@@ -1,9 +1,7 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
 use crate::formula::{decode_formula_library, MAX_FORMULA_LIBRARY_BYTES};
-use crate::option_wire::{
-    option_cash_status, option_dividend_rows, option_snapshot_rows, option_status,
-};
+use crate::option_wire::{option_cash_status, option_dividend_rows, option_snapshot_rows};
 use crate::{
     aggregate_session_timeframe, aggregate_timeframe, measure_drawing, AlertBook, AlertDirection,
     Comparator, DrawingEndpoint, TimeframeBar,
@@ -2067,7 +2065,7 @@ pub extern "C" fn mw_american_option_price(
         let result = book.price_american(contract, effective, known, max_age, volatility, steps);
         Ok(match result {
             Ok(price) => format!("value\t{price}"),
-            Err(status) => option_status(status).to_owned(),
+            Err(status) => status.code().to_owned(),
         }
         .into_bytes())
     })
@@ -2085,7 +2083,7 @@ pub extern "C" fn mw_american_option_implied(
         let result = book.implied_american(contract, effective, known, max_age, steps);
         Ok(match result {
             Ok(model) => format!("value\t{}\t{}", model.volatility, model.price),
-            Err(status) => option_status(status).to_owned(),
+            Err(status) => status.code().to_owned(),
         }
         .into_bytes())
     })

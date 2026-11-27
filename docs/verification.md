@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.99.0 · Scoped REST option snapshots
+
+| Check | Evidence |
+| --- | --- |
+| REST replay | The standalone service over loopback TCP exposes exact quote fields, the delayed American contract, the corrected spread and the underlying revision. Offset pages reconstruct the same ordered snapshot. |
+| Scope isolation | The integration tests verify missing credentials, rejection of a formula credential for options, rejection of an options credential for formulas, and managed credentials on private TLS. |
+| SQLite compatibility | A version 1 credential database stays readable and safely adds the new scope on issuance. Upgrading version 1 audit receipts preserves the prior entries and the next receipt ID. Version 1 audit snapshots still verify and copy. |
+
+[REST option snapshots](local-rest-research.md#option-chain-snapshots) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.98.0 · MCP American option valuations
 
 | Check | Evidence |
