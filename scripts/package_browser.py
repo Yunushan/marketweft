@@ -104,6 +104,9 @@ Keep effective time at 2025-06-02T14:06:00Z, then advance knowledge from
 14:04 to 14:08 UTC to see the receivable, payment, terms revision and
 cancellation. The cross-section membership, dividend and delisting CSVs
 support the same workflow through file uploads.
+Add the sample successor share terms or upload paper-successor-shares.csv.
+With effective time at 14:06, compare knowledge at 14:06 and 14:07 UTC to
+see a delivered 4/3 shares become a receivable of two shares after revision.
 
 Select the NVDA chart and open Recorded market depth. Choose Load depth demo
 or open depth.csv. Inspect the sequence gap at 14:00:05 UTC and the recovered
@@ -220,6 +223,7 @@ def main():
     files["cross-section-membership.csv"] = (fixture / "synthetic-cross-section-membership.csv").read_bytes()
     files["cross-section-dividends.csv"] = (fixture / "synthetic-cross-section-dividends.csv").read_bytes()
     files["cross-section-delisting.csv"] = (fixture / "synthetic-cross-section-delisting.csv").read_bytes()
+    files["paper-successor-shares.csv"] = (fixture / "synthetic-paper-successor-shares.csv").read_bytes()
     files["universe-sectors.csv"] = (fixture / "synthetic-universe-sectors.csv").read_bytes()
     files["financial-filings.csv"] = (fixture / "synthetic-financial-filings.csv").read_bytes()
     files["financial-market-caps.csv"] = (fixture / "synthetic-financial-market-caps.csv").read_bytes()

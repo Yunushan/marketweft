@@ -93,7 +93,7 @@ pub use cross_section::{
     CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,
     CrossSectionDelistingClaim, CrossSectionDelistingPosting, CrossSectionDividendPosting,
     CrossSectionEvent, CrossSectionFold, CrossSectionPosition, CrossSectionReport,
-    CrossSectionScore, CrossSectionWalkConfig, RankingDecision,
+    CrossSectionScore, CrossSectionSuccessorClaim, CrossSectionWalkConfig, RankingDecision,
 };
 pub use cross_section_liquidity::{LiquidityTape, ReplayLiquidity};
 pub use cumulative_volume::{cumulative_volume, CumulativeVolume};

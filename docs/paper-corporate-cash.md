@@ -27,3 +27,23 @@ Open **Start corporate cash demo** in Universe replay. In Cross-sectional paper 
 | 14:08 | 536.6 | The canceled delisting reverses 520 USD and restores four A shares at the original 463.4 cost basis. |
 
 Rewind knowledge to 14:05 UTC to reproduce the earlier CSV. The packaged files also support the upload workflow after the terminal cache is ready.
+
+## Successor share claims
+
+Under **Corporate cash reports**, upload a **Paper successor share terms CSV**. The [portfolio successor CSV format](portfolio-replay.md#delisting-successor-shares-csv) identifies the delisting and successor by stable listing ID and contains dated exchange ratios and delivery terms. Paper replay uses the simulated holding immediately before the effective delisting, with fills recorded at observation time. A fill reported at the exact effective time falls outside the entitlement. The latest terms known at the cutoff supply the ratio and delivery status. An explicit zero ratio removes the stock value, and a canceled delisting removes the claim and restores the ordinary holding through the cash workflow.
+
+Both receivable and delivered claims contribute to marked equity using the successor's exact close at the effective cutoff and its latest observation by the knowledge cutoff. Prices use the paper account currency. The engine applies the reduced share fraction and rounds each value once to the nearest millionth of that currency. An unavailable close makes equity incomplete. Supply a zero cash offer for a stock-only event to establish its cash component. Claims contribute to research equity only. The ordinary paper ledger supplies spendable cash, order inventory and position cost basis. Walk-forward scoring values the claims from each window's own fills and reports.
+
+To verify the packaged example, load **Use sample corporate reports** and **Use sample successor share terms** before running the replay. The tables use the same limit fills as the corporate cash demo.
+
+| Effective UTC | Known UTC | Successor claim | Equity in USD |
+| --- | --- | --- | --- |
+| 14:06 | 14:05 | No terms have been observed. | 1,040.6 |
+| 14:05 | 14:05:30 | Four pre-delisting shares produce a receivable of 4/3 B shares, marked at 97.2. | 1,137.8 |
+| 14:06 | 14:05:30 | The claim is delivered. The close for 14:06 has yet to be observed. | Incomplete |
+| 14:06 | 14:06 | The delivered shares are marked at 97.2. | 1,137.8 |
+| 14:06 | 14:07 | Revised terms make two B shares receivable again, marked at 145.8. | 1,202.4 |
+| 14:06 | 14:07:30 | A zero ratio removes the stock value. | 1,056.6 |
+| 14:06 | 14:08 | The delisting is canceled and the original four shares return. | 1,069 |
+
+**Download paper successor shares** exports the exact fraction, both cutoffs, terms, entitlement time, close observation and value. Rewind to the first receivable to reproduce the earlier CSV. [Synthetic terms](../crates/core/tests/fixtures/synthetic-paper-successor-shares.csv)

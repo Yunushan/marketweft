@@ -564,6 +564,34 @@ test('cross-sectional paper replay executes only later observed liquidity and re
   assert.equal(run(6, marksWithoutA(prices)).equity, null);
 });
 
+test('paper successor shares survive the replay and walk-forward Wasm boundaries', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, prices, liquidity, walkLiquidity, dividends, delistings, successorShares] = await Promise.all([
+    fixture('synthetic-cross-section-membership'), fixture('synthetic-listing-risk-prices'),
+    fixture('synthetic-cross-section-liquidity'), fixture('synthetic-cross-section-walk-liquidity'),
+    fixture('synthetic-cross-section-dividends'), fixture('synthetic-cross-section-delisting'),
+    fixture('synthetic-paper-successor-shares'),
+  ]);
+  const cfg = { paper: { startingCash: '1000', positionLimit: '10', exposureLimit: '1000', feePerShare: '0.1', feePerOrder: '0.5' },
+    decisionSeconds: '60', lookbackSeconds: '60', topListings: '1', targetShares: '4', limitBuffer: '1000', participation: '10000' };
+  const start = '2025-06-02T14:01:00Z';
+  const end = '2025-06-02T14:06:00Z';
+  const base = { accountCurrency: 'USD', dividends, delistings };
+  const actions = { ...base, successorShares };
+  const before = core.crossSectionReplay(membership, prices, liquidity, start, end, '2025-06-02T14:05:29Z', cfg, actions);
+  assert.deepEqual(before.successorClaims, []);
+  const { equity, cash, successorClaims: [claim] } = core.crossSectionReplay(membership, prices, liquidity, start, end, end, cfg, actions);
+  assert.equal(equity, 1137800000n);
+  assert.equal(cash, 1040600000n);
+  assert.deepEqual([claim.state, claim.ratio, claim.shares, claim.mark, claim.value], ['delivered', '1/3', '4/3', 72900000n, 97200000n]);
+  const walk = { trainingDecisions: '2', testDecisions: '4', candidates: '60:1,60:2' };
+  const [baseline] = core.crossSectionWalk(membership, prices, walkLiquidity, start, end, end, cfg, walk, base);
+  const [observed] = core.crossSectionWalk(membership, prices, walkLiquidity, start, end, end, cfg, walk, actions);
+  assert.deepEqual(observed.trainingScores, baseline.trainingScores);
+  assert.equal(observed.testScore.equity, baseline.testScore.equity + 97200000n);
+  assert.equal(observed.testScore.cash, baseline.testScore.cash);
+});
+
 function marksWithoutA(prices) {
   return prices.split('\n').filter(line => !line.startsWith('RISK,A,2025-06-02T14:06:00Z')).join('\n');
 }

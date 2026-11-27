@@ -35,9 +35,26 @@ pub struct SuccessorShareRow<'a> {
     pub successor_shares: Option<ChildShares>,
 }
 
-type SuccessorReports = BTreeMap<String, BTreeMap<i64, SuccessorShareTerms>>;
+pub(crate) struct SuccessorReports(BTreeMap<String, BTreeMap<i64, SuccessorShareTerms>>);
 
-fn parse_terms(universe: &UniverseBook, csv: &str) -> Result<SuccessorReports, String> {
+impl SuccessorReports {
+    pub(crate) fn known_terms(
+        &self,
+        change_id: &str,
+        known_at: i64,
+    ) -> Option<&SuccessorShareTerms> {
+        self.0
+            .get(change_id)?
+            .range(..=known_at)
+            .next_back()
+            .map(|(_, report)| report)
+    }
+}
+
+pub(crate) fn parse_successor_terms(
+    universe: &UniverseBook,
+    csv: &str,
+) -> Result<SuccessorReports, String> {
     if csv.len() > 1024 * 1024 {
         return Err("Successor share terms CSV exceeds 1 MiB.".into());
     }
@@ -51,7 +68,7 @@ fn parse_terms(universe: &UniverseBook, csv: &str) -> Result<SuccessorReports, S
     }
     let listings = universe.listing_ids();
     let delistings = universe.delisting_ids();
-    let mut reports = SuccessorReports::new();
+    let mut reports = BTreeMap::<String, BTreeMap<i64, SuccessorShareTerms>>::new();
     for (index, (line, record)) in lines.enumerate() {
         let invalid = |reason| format!("Successor share terms line {}: {reason}", line + 1);
         if index == MAX_REPORTS {
@@ -114,7 +131,36 @@ fn parse_terms(universe: &UniverseBook, csv: &str) -> Result<SuccessorReports, S
     if reports.is_empty() {
         return Err("Successor share terms CSV contains no reports.".into());
     }
-    Ok(reports)
+    Ok(SuccessorReports(reports))
+}
+
+pub(crate) fn value_successor_shares(
+    entitled_shares: Option<u32>,
+    terms: Option<&SuccessorShareTerms>,
+    effective_at: i64,
+) -> (Option<ChildShares>, SuccessorShareState) {
+    let shares = match (entitled_shares, terms) {
+        (Some(0), _) | (_, Some(SuccessorShareTerms { numerator: 0, .. })) => Some(ChildShares {
+            numerator: 0,
+            denominator: 1,
+        }),
+        (Some(shares), Some(report)) => Some(ChildShares::from_rate(
+            shares,
+            report.numerator,
+            report.denominator,
+        )),
+        _ => None,
+    };
+    let state = match (shares, terms) {
+        (Some(ChildShares { numerator: 0, .. }), _) => SuccessorShareState::NoDistribution,
+        (_, None) => SuccessorShareState::MissingTerms,
+        (None, _) => SuccessorShareState::UnknownPosition,
+        (Some(_), Some(report)) if report.deliver_at.is_some_and(|at| at <= effective_at) => {
+            SuccessorShareState::Delivered
+        }
+        (Some(_), Some(_)) => SuccessorShareState::Receivable,
+    };
+    (shares, state)
 }
 
 /// Recognize reported stock consideration for delistings visible at both cutoffs.
@@ -127,49 +173,22 @@ pub fn portfolio_successor_shares_as_of<'a>(
     known_at: i64,
 ) -> Result<Vec<SuccessorShareRow<'a>>, String> {
     let holdings = parse_holdings(universe, holdings)?;
-    let reports = parse_terms(universe, terms)?;
+    let reports = parse_successor_terms(universe, terms)?;
     let mut rows = Vec::new();
     for delisting in universe.as_of(effective_at, known_at) {
         if delisting.action != UniverseAction::Delist {
             continue;
         }
         let position = holdings.get(&delisting.listing_id);
-        let revisions = reports.get(&delisting.change_id);
-        if position.is_none() && revisions.is_none() {
+        if position.is_none() && !reports.0.contains_key(&delisting.change_id) {
             continue;
         }
-        let terms = revisions.and_then(|reports| {
-            reports
-                .range(..=known_at)
-                .next_back()
-                .map(|(_, report)| report)
-        });
+        let terms = reports.known_terms(&delisting.change_id, known_at);
         let position =
             position.and_then(|series| series.position(Excluded(delisting.effective_at), known_at));
         let entitled_shares = position.map(|(_, _, shares)| shares);
-        let successor_shares = match (entitled_shares, terms) {
-            (Some(0), _) | (_, Some(SuccessorShareTerms { numerator: 0, .. })) => {
-                Some(ChildShares {
-                    numerator: 0,
-                    denominator: 1,
-                })
-            }
-            (Some(shares), Some(report)) => Some(ChildShares::from_rate(
-                shares,
-                report.numerator,
-                report.denominator,
-            )),
-            _ => None,
-        };
-        let state = match (successor_shares, terms) {
-            (Some(ChildShares { numerator: 0, .. }), _) => SuccessorShareState::NoDistribution,
-            (_, None) => SuccessorShareState::MissingTerms,
-            (None, _) => SuccessorShareState::UnknownPosition,
-            (Some(_), Some(report)) if report.deliver_at.is_some_and(|at| at <= effective_at) => {
-                SuccessorShareState::Delivered
-            }
-            (Some(_), Some(_)) => SuccessorShareState::Receivable,
-        };
+        let (successor_shares, state) =
+            value_successor_shares(entitled_shares, terms, effective_at);
         rows.push(SuccessorShareRow {
             delisting,
             terms: terms.cloned(),

@@ -56,11 +56,7 @@ impl<'a> DelistingReplay<'a> {
         self.claims.values()
     }
 
-    pub fn advance(
-        &mut self,
-        replay: &mut Replay<'_>,
-        effective: i64,
-    ) -> Result<Vec<String>, String> {
+    pub fn advance(&mut self, replay: &mut Replay<'_>, effective: i64) -> Result<(), String> {
         let at = self
             .schedule
             .next()
@@ -74,11 +70,9 @@ impl<'a> DelistingReplay<'a> {
             .filter(|row| row.action == UniverseAction::Delist)
             .map(|row| (row.listing_id.as_str(), row))
             .collect();
-        let mut position_changes = Vec::new();
         for (listing, previous) in std::mem::take(&mut self.claims) {
             if !delisted.contains_key(listing.as_str()) {
                 replay.move_position(&listing, at, &previous.change_id, false)?;
-                position_changes.push(listing);
                 self.post_delta(replay, at, Some(&previous), None)?;
             } else {
                 self.claims.insert(listing, previous);
@@ -91,7 +85,6 @@ impl<'a> DelistingReplay<'a> {
             }
             if replay.shares(listing) > 0 {
                 replay.move_position(listing, at, &change.change_id, true)?;
-                position_changes.push(listing.to_owned());
             }
             let Some(position) = replay.ledger.retired_position(&replay.aliases[listing]) else {
                 continue;
@@ -116,7 +109,7 @@ impl<'a> DelistingReplay<'a> {
             self.post_delta(replay, at, previous.as_ref(), Some(&claim))?;
             self.claims.insert(claim.listing_id.clone(), claim);
         }
-        Ok(position_changes)
+        Ok(())
     }
 
     fn post_delta(

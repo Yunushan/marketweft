@@ -1,7 +1,7 @@
 use marketweft_core::{
     parse_universe, CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,
     CrossSectionWalkConfig, DelistingState, LiquidityTape, PaperAction, PaperConfig, PriceBook,
-    SCALE,
+    SuccessorShareState, SCALE,
 };
 
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-listing-risk-membership.csv");
@@ -11,6 +11,7 @@ const DIVIDENDS: &str = include_str!("fixtures/synthetic-cross-section-dividends
 const ACTION_MEMBERSHIP: &str = include_str!("fixtures/synthetic-cross-section-membership.csv");
 const DELISTING: &str = include_str!("fixtures/synthetic-cross-section-delisting.csv");
 const WALK_LIQUIDITY: &str = include_str!("fixtures/synthetic-cross-section-walk-liquidity.csv");
+const SUCCESSORS: &str = include_str!("fixtures/synthetic-paper-successor-shares.csv");
 
 const CANDIDATES: [CrossSectionCandidate; 2] = [
     CrossSectionCandidate {
@@ -199,6 +200,114 @@ fn delisting_settlement_is_causal_and_cancellation_restores_exact_basis() {
         -520_000_000
     );
     assert_eq!(replay(6, 5, DELISTING), receivable);
+}
+
+#[test]
+fn paper_successor_shares_observe_terms_holdings_deliveries_and_marks_independently() {
+    let universe = parse_universe(ACTION_MEMBERSHIP).unwrap();
+    let book = PriceBook::parse(&universe, PRICES).unwrap();
+    let liquidity = LiquidityTape::parse(&universe, LIQUIDITY).unwrap();
+    let start = universe.checkpoints()[0];
+    let sources = CrossSectionActionSources {
+        dividends: DIVIDENDS,
+        delistings: DELISTING,
+        account_currency: "USD",
+    };
+    let replay = |effective: i64, known: i64, liquidity: &LiquidityTape| {
+        let query = CrossSectionConfig {
+            through_at: start + effective,
+            known_at: start + known,
+            ..settings(start, 6)
+        };
+        book.cross_section_with_successor_shares(liquidity, query, sources, SUCCESSORS)
+            .unwrap()
+    };
+
+    assert!(replay(360, 329, &liquidity).successor_claims.is_empty());
+    let unpaid = replay(300, 330, &liquidity);
+    let claim = &unpaid.successor_claims[0];
+    assert_eq!(claim.state, SuccessorShareState::Receivable);
+    assert_eq!(claim.position_at, start + 180);
+    assert_eq!(claim.entitled_shares, 4);
+    assert_eq!(claim.terms.successor_listing, "B");
+    assert_eq!((claim.shares.numerator, claim.shares.denominator), (4, 3));
+    assert_eq!(claim.mark.unwrap().observed_at, start + 300);
+    assert_eq!(claim.value, Some(97_200_000));
+    assert_eq!(unpaid.cash, 540_600_000);
+    assert_eq!(unpaid.equity, Some(1_137_800_000));
+    let missing_mark = replay(360, 330, &liquidity);
+    assert_eq!(
+        missing_mark.successor_claims[0].state,
+        SuccessorShareState::Delivered
+    );
+    assert_eq!(missing_mark.successor_claims[0].value, None);
+    assert_eq!(missing_mark.equity, None);
+
+    let paid = replay(360, 360, &liquidity);
+    assert_eq!(
+        paid.successor_claims[0].state,
+        SuccessorShareState::Delivered
+    );
+    assert_eq!(paid.cash, 1_040_600_000);
+    assert_eq!(paid.equity, Some(1_137_800_000));
+    assert!(paid.positions.is_empty());
+    let revised = replay(360, 420, &liquidity);
+    assert_eq!(
+        revised.successor_claims[0].state,
+        SuccessorShareState::Receivable
+    );
+    assert_eq!(revised.successor_claims[0].shares.numerator, 2);
+    assert_eq!(revised.equity, Some(1_202_400_000));
+    let zeroed = replay(360, 450, &liquidity);
+    assert_eq!(
+        zeroed.successor_claims[0].state,
+        SuccessorShareState::NoDistribution
+    );
+    assert_eq!(zeroed.successor_claims[0].value, Some(0));
+    assert_eq!(zeroed.equity, Some(1_056_600_000));
+    let canceled = replay(360, 480, &liquidity);
+    assert!(canceled.successor_claims.is_empty());
+    assert_eq!(canceled.positions[0].shares, 4);
+    assert_eq!(paid, replay(360, 360, &liquidity));
+
+    let late = LIQUIDITY.replace(
+        "14:03:00Z,2025-06-02T14:03:00Z",
+        "14:03:30Z,2025-06-02T14:04:00Z",
+    );
+    let late = LiquidityTape::parse(&universe, &late).unwrap();
+    let boundary = replay(360, 360, &late);
+    assert_eq!(boundary.delisting_claims[0].shares, 4);
+    assert_eq!(boundary.successor_claims[0].entitled_shares, 2);
+    assert_eq!(boundary.successor_claims[0].position_at, start + 120);
+}
+
+#[test]
+fn walk_forward_includes_only_successors_visible_in_its_own_test_account() {
+    let universe = parse_universe(ACTION_MEMBERSHIP).unwrap();
+    let prices = PriceBook::parse(&universe, PRICES).unwrap();
+    let liquidity = LiquidityTape::parse(&universe, WALK_LIQUIDITY).unwrap();
+    let request = CrossSectionWalkConfig {
+        replay: settings(universe.checkpoints()[0], 8),
+        training_decisions: 2,
+        test_decisions: 4,
+        candidates: &CANDIDATES,
+        corporate: Some(CrossSectionActionSources {
+            dividends: DIVIDENDS,
+            delistings: DELISTING,
+            account_currency: "USD",
+        }),
+    };
+    let baseline = prices
+        .cross_section_walk_forward(&liquidity, request)
+        .unwrap();
+    let shares = prices
+        .cross_section_walk_with_successor_shares(&liquidity, request, SUCCESSORS)
+        .unwrap();
+    assert_eq!(shares[0].training_scores, baseline[0].training_scores);
+    let previous = baseline[0].test_score.as_ref().unwrap();
+    let current = shares[0].test_score.as_ref().unwrap();
+    assert_eq!(current.cash, previous.cash);
+    assert_eq!(current.equity, Some(previous.equity.unwrap() + 97_200_000));
 }
 
 #[test]

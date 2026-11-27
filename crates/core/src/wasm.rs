@@ -438,14 +438,7 @@ pub extern "C" fn mw_portfolio_successor_shares_as_of(
         let optional_time =
             |value: Option<i64>| value.map(|time| time.to_string()).unwrap_or_default();
         for row in rows {
-            use crate::SuccessorShareState::*;
-            let state = match row.state {
-                MissingTerms => "missing-terms",
-                UnknownPosition => "unknown-position",
-                NoDistribution => "no-distribution",
-                Receivable => "receivable",
-                Delivered => "delivered",
-            };
+            let state = successor_share_state(row.state);
             let terms = row.terms.as_ref();
             let rate = terms.map(|term| format!("{}/{}", term.numerator, term.denominator));
             let amount = row
@@ -1036,7 +1029,7 @@ pub extern "C" fn mw_cross_section_actions(
             input,
             membership_bytes,
             price_bytes,
-            Some((liquidity_bytes, dividend_bytes)),
+            Some((liquidity_bytes, dividend_bytes, None)),
             false,
         )
     })
@@ -1054,8 +1047,28 @@ pub extern "C" fn mw_cross_section_walk(
             input,
             membership_bytes,
             price_bytes,
-            Some((liquidity_bytes, dividend_bytes)),
+            Some((liquidity_bytes, dividend_bytes, None)),
             true,
+        )
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_cross_section_with_successors(
+    membership_bytes: usize,
+    price_bytes: usize,
+    liquidity_bytes: usize,
+    dividend_bytes: usize,
+    delisting_bytes: usize,
+    walk: u32,
+) -> u32 {
+    process(|input| {
+        cross_section_input(
+            input,
+            membership_bytes,
+            price_bytes,
+            Some((liquidity_bytes, dividend_bytes, Some(delisting_bytes))),
+            walk != 0,
         )
     })
 }
@@ -1064,7 +1077,7 @@ fn cross_section_input(
     input: &[u8],
     membership_bytes: usize,
     price_bytes: usize,
-    reports: Option<(usize, usize)>,
+    reports: Option<(usize, usize, Option<usize>)>,
     walk: bool,
 ) -> Result<Vec<u8>, String> {
     let ([from_at, through_at, known_at], rest) = screen_inputs(input)?;
@@ -1114,14 +1127,22 @@ fn cross_section_input(
     };
     let universe = parse_universe(membership)?;
     let book = PriceBook::parse(&universe, prices)?;
-    let report = if let Some((liquidity_bytes, dividend_bytes)) = reports {
+    let report = if let Some((liquidity_bytes, dividend_bytes, delisting_bytes)) = reports {
         let (liquidity, rest) = rest
             .split_at_checked(liquidity_bytes)
             .ok_or("Invalid liquidity data.")?;
-        let (dividends, delistings) = rest
+        let (dividends, rest) = rest
             .split_at_checked(dividend_bytes)
             .ok_or("Invalid dividend data.")?;
+        let (delistings, successors) = rest
+            .split_at_checked(delisting_bytes.unwrap_or(rest.len()))
+            .ok_or("Invalid delisting data.")?;
         let tape = crate::LiquidityTape::parse(&universe, liquidity)?;
+        let corporate = crate::CrossSectionActionSources {
+            dividends,
+            delistings,
+            account_currency: currency,
+        };
         if let Some(settings) = fold_settings {
             let [training, test, candidates] = settings
                 .splitn(3, ',')
@@ -1141,27 +1162,25 @@ fn cross_section_input(
                     top_listings: top.parse().map_err(error)?,
                 });
             }
-            if currency.is_empty() && (!dividends.is_empty() || !delistings.is_empty()) {
+            if currency.is_empty()
+                && (!dividends.is_empty() || !delistings.is_empty() || !successors.is_empty())
+            {
                 return Err("Supply the paper account currency for corporate reports.".into());
             }
-            let corporate = (!currency.is_empty()).then_some(crate::CrossSectionActionSources {
-                dividends,
-                delistings,
-                account_currency: currency,
-            });
-            let folds = book.cross_section_walk_forward(
+            let folds = book.cross_section_walk_with_successor_shares(
                 &tape,
                 crate::CrossSectionWalkConfig {
                     replay: query,
                     training_decisions: training.parse().map_err(error)?,
                     test_decisions: test.parse().map_err(error)?,
                     candidates: &parsed,
-                    corporate,
+                    corporate: (!currency.is_empty()).then_some(corporate),
                 },
+                successors,
             )?;
             return Ok(encode_cross_section_walk(&folds).into_bytes());
         }
-        book.cross_section_with_actions(&tape, query, dividends, delistings, currency)?
+        book.cross_section_with_successor_shares(&tape, query, corporate, successors)?
     } else {
         let tape = crate::LiquidityTape::parse(&universe, rest)?;
         book.cross_section_replay(&tape, query)?
@@ -1284,7 +1303,42 @@ fn encode_cross_section(report: crate::CrossSectionReport) -> String {
         )
         .unwrap();
     }
+    for row in report.successor_claims {
+        writeln!(
+            &mut text,
+            "X\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}/{}\t{}/{}\t{}\t{}\t{}\t{}",
+            row.listing_id,
+            row.change_id,
+            row.effective_at,
+            row.observed_at,
+            row.position_at,
+            row.entitled_shares,
+            row.terms.successor_listing,
+            row.terms.observed_at,
+            optional_number(row.terms.deliver_at),
+            row.terms.numerator,
+            row.terms.denominator,
+            row.shares.numerator,
+            row.shares.denominator,
+            successor_share_state(row.state),
+            optional_number(row.mark.map(|mark| mark.observed_at)),
+            optional_number(row.mark.map(|mark| mark.ticks)),
+            optional_number(row.value),
+        )
+        .unwrap();
+    }
     text
+}
+
+fn successor_share_state(state: crate::SuccessorShareState) -> &'static str {
+    use crate::SuccessorShareState::*;
+    match state {
+        MissingTerms => "missing-terms",
+        UnknownPosition => "unknown-position",
+        NoDistribution => "no-distribution",
+        Receivable => "receivable",
+        Delivered => "delivered",
+    }
 }
 
 fn write_delisting_claim(text: &mut String, claim: &crate::CrossSectionDelistingClaim) {

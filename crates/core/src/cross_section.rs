@@ -1,8 +1,15 @@
 use crate::{
-    delisting::valid_currency, history::valid_second, paper::MAX_SHARES, parse_delistings,
-    portfolio::PortfolioIncomeReports, DelistingBook, DelistingState, LiquidityTape, PaperAccount,
-    PaperAction, PaperConfig, PaperEvent, PaperOrderStatus, PaperReceipt, PaperSide, PriceBook,
-    UniverseAction, MAX_TICKS,
+    delisting::valid_currency,
+    history::valid_second,
+    paper::MAX_SHARES,
+    parse_delistings,
+    portfolio::{
+        parse_successor_terms, value_successor_shares, PortfolioIncomeReports, SuccessorReports,
+    },
+    screen::rounded_div,
+    ChildShares, DelistingBook, DelistingState, LiquidityTape, PaperAccount, PaperAction,
+    PaperConfig, PaperEvent, PaperOrderStatus, PaperReceipt, PaperSide, PriceBook,
+    PriceObservation, SuccessorShareState, SuccessorShareTerms, UniverseAction, MAX_TICKS,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -79,6 +86,7 @@ pub struct CrossSectionActionSources<'a> {
 struct CorporateReports<'a> {
     income: Option<PortfolioIncomeReports>,
     delistings: DelistingBook,
+    successors: Option<SuccessorReports>,
     currency: &'a str,
 }
 
@@ -86,6 +94,7 @@ impl<'a> CorporateReports<'a> {
     fn parse(
         prices: &PriceBook<'_>,
         sources: CrossSectionActionSources<'a>,
+        successor_terms: &str,
     ) -> Result<Self, String> {
         if !valid_currency(sources.account_currency) {
             return Err("Use a three-letter uppercase paper account currency.".into());
@@ -101,6 +110,9 @@ impl<'a> CorporateReports<'a> {
         Ok(Self {
             income,
             delistings,
+            successors: (!successor_terms.is_empty())
+                .then(|| parse_successor_terms(prices.universe, successor_terms))
+                .transpose()?,
             currency: sources.account_currency,
         })
     }
@@ -131,6 +143,21 @@ pub struct CrossSectionPosition {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CrossSectionSuccessorClaim {
+    pub listing_id: String,
+    pub change_id: String,
+    pub effective_at: i64,
+    pub observed_at: i64,
+    pub terms: SuccessorShareTerms,
+    pub position_at: i64,
+    pub entitled_shares: u64,
+    pub shares: ChildShares,
+    pub state: SuccessorShareState,
+    pub mark: Option<PriceObservation>,
+    pub value: Option<i128>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CrossSectionReport {
     pub config: CrossSectionConfig,
     pub decisions: Vec<RankingDecision>,
@@ -144,7 +171,10 @@ pub struct CrossSectionReport {
     pub dividend_postings: Vec<CrossSectionDividendPosting>,
     pub delisting_claims: Vec<CrossSectionDelistingClaim>,
     pub delisting_postings: Vec<CrossSectionDelistingPosting>,
+    pub successor_claims: Vec<CrossSectionSuccessorClaim>,
 }
+
+type PaperHoldings = BTreeMap<String, BTreeMap<i64, u64>>;
 
 struct Replay<'a> {
     prices: &'a PriceBook<'a>,
@@ -152,6 +182,7 @@ struct Replay<'a> {
     aliases: BTreeMap<&'a str, crate::Instrument>,
     pending: BTreeMap<&'a str, String>,
     events: Vec<CrossSectionEvent>,
+    holdings: Option<PaperHoldings>,
 }
 
 impl Replay<'_> {
@@ -183,6 +214,23 @@ impl Replay<'_> {
             | PaperAction::CorporatePosition { .. }
             | PaperAction::Halt => None,
         };
+        if let Some(holdings) = self.holdings.as_mut().filter(|_| {
+            receipt.rejection.is_none()
+                && matches!(
+                    event.action,
+                    PaperAction::Fill { .. } | PaperAction::CorporatePosition { .. }
+                )
+        }) {
+            let shares = self
+                .ledger
+                .positions()
+                .get(&self.aliases[listing_id].to_string())
+                .map_or(0, |position| position.shares);
+            holdings
+                .entry(listing_id.to_owned())
+                .or_default()
+                .insert(at, shares);
+        }
         self.events.push(CrossSectionEvent {
             listing_id: listing_id.to_owned(),
             event,
@@ -192,13 +240,13 @@ impl Replay<'_> {
         Ok(receipt)
     }
 
-    fn fill(&mut self, quote: &crate::ReplayLiquidity, participation: u16) -> Result<bool, String> {
+    fn fill(&mut self, quote: &crate::ReplayLiquidity, participation: u16) -> Result<(), String> {
         let Some(order_id) = self.pending.get(quote.listing_id.as_str()).cloned() else {
-            return Ok(false);
+            return Ok(());
         };
         let order = &self.ledger.orders()[&order_id];
         if quote.price_at <= order.submitted_at {
-            return Ok(false);
+            return Ok(());
         }
         let state = self
             .prices
@@ -210,14 +258,14 @@ impl Replay<'_> {
         if !matches!(state, Some(UniverseAction::Add | UniverseAction::Remove))
             || (order.side == PaperSide::Buy && state != Some(UniverseAction::Add))
         {
-            return Ok(false);
+            return Ok(());
         }
         let available = (i128::from(quote.shares) * i128::from(participation) / BPS) as u64;
         let shares = order.remaining.min(available);
         if shares == 0 {
-            return Ok(false);
+            return Ok(());
         }
-        let receipt = self.record(
+        self.record(
             &quote.listing_id,
             quote.observed_at,
             PaperAction::Fill {
@@ -231,7 +279,7 @@ impl Replay<'_> {
         if self.ledger.orders()[&order_id].status == PaperOrderStatus::Filled {
             self.pending.remove(quote.listing_id.as_str());
         }
-        Ok(receipt.rejection.is_none())
+        Ok(())
     }
 
     fn shares(&self, listing: &str) -> u64 {
@@ -403,14 +451,26 @@ impl PriceBook<'_> {
         delisting_csv: &str,
         account_currency: &str,
     ) -> Result<CrossSectionReport, String> {
-        let reports = CorporateReports::parse(
-            self,
+        self.cross_section_with_successor_shares(
+            liquidity,
+            config,
             CrossSectionActionSources {
                 dividends: dividend_csv,
                 delistings: delisting_csv,
                 account_currency,
             },
-        )?;
+            "",
+        )
+    }
+
+    pub fn cross_section_with_successor_shares(
+        &self,
+        liquidity: &LiquidityTape,
+        config: CrossSectionConfig,
+        corporate: CrossSectionActionSources<'_>,
+        successor_terms: &str,
+    ) -> Result<CrossSectionReport, String> {
+        let reports = CorporateReports::parse(self, corporate, successor_terms)?;
         self.run_cross_section(liquidity, config, Some(&reports))
     }
 
@@ -426,6 +486,7 @@ impl PriceBook<'_> {
         let count = config.decisions()?;
         let step = i64::from(config.decision_seconds);
         let account_currency = corporate.map_or("", |reports| reports.currency);
+        let successors = corporate.and_then(|reports| reports.successors.as_ref());
         let mut dividends = corporate
             .and_then(|reports| reports.income.as_ref())
             .map(|income| DividendReplay::new(income, account_currency));
@@ -457,6 +518,7 @@ impl PriceBook<'_> {
             aliases,
             pending: BTreeMap::new(),
             events: Vec::new(),
+            holdings: (dividends.is_some() || successors.is_some()).then(BTreeMap::new),
         };
         let observed = liquidity.through(config.known_at);
         let first = observed.partition_point(|quote| quote.observed_at < config.from_at);
@@ -480,18 +542,15 @@ impl PriceBook<'_> {
                     break;
                 }
                 if delisting_time == Some(at) {
-                    let changes = delistings
+                    delistings
                         .as_mut()
                         .unwrap()
                         .advance(replay, config.through_at)?;
-                    if let Some(income) = dividends.as_mut() {
-                        for listing in changes {
-                            income.observe_position(&listing, at, replay.shares(&listing));
-                        }
-                    }
                 } else if dividend_time == Some(at) {
                     let income = dividends.as_mut().unwrap();
-                    for mut posting in income.next_postings(config.through_at) {
+                    for mut posting in
+                        income.next_postings(config.through_at, replay.holdings.as_ref().unwrap())
+                    {
                         if posting.currency == income.currency {
                             posting.receipt_id = Some(replay.post_cash(
                                 &posting.listing_id,
@@ -504,14 +563,7 @@ impl PriceBook<'_> {
                     }
                 } else {
                     let quote = observed.next().unwrap();
-                    let executed = replay.fill(quote, config.participation_bps)?;
-                    if let Some(income) = dividends.as_mut().filter(|_| executed) {
-                        income.observe_position(
-                            &quote.listing_id,
-                            at,
-                            replay.shares(&quote.listing_id),
-                        );
-                    }
+                    replay.fill(quote, config.participation_bps)?;
                 }
             }
             Ok(())
@@ -530,8 +582,16 @@ impl PriceBook<'_> {
             .universe
             .as_of(config.through_at, config.known_at)
             .into_iter()
-            .map(|row| (row.listing_id.as_str(), row.action))
+            .map(|row| (row.listing_id.as_str(), row))
             .collect();
+        let mark = |listing: &str| {
+            matches!(
+                membership.get(listing).map(|row| row.action),
+                Some(UniverseAction::Add | UniverseAction::Remove)
+            )
+            .then(|| self.exact_close(listing, config.through_at, config.known_at))
+            .flatten()
+        };
         let positions: Vec<_> = replay
             .aliases
             .iter()
@@ -540,18 +600,11 @@ impl PriceBook<'_> {
                 if position.shares == 0 {
                     return None;
                 }
-                let mark = matches!(
-                    membership.get(listing_id),
-                    Some(UniverseAction::Add | UniverseAction::Remove)
-                )
-                .then(|| self.exact_close(listing_id, config.through_at, config.known_at))
-                .flatten()
-                .map(|quote| quote.ticks);
                 Some(CrossSectionPosition {
                     listing_id: listing_id.to_owned(),
                     shares: position.shares,
                     cost: position.cost,
-                    mark,
+                    mark: mark(listing_id).map(|quote| quote.ticks),
                 })
             })
             .collect();
@@ -577,6 +630,62 @@ impl PriceBook<'_> {
                     _ => Some(total),
                 })
         });
+        let mut successor_claims = Vec::new();
+        if let Some(reports) = successors {
+            let holdings = replay.holdings.as_ref().unwrap();
+            for (&listing, change) in membership
+                .iter()
+                .filter(|(_, row)| row.action == UniverseAction::Delist)
+            {
+                let Some((&position_at, &entitled_shares)) = holdings
+                    .get(listing)
+                    .and_then(|history| history.range(..change.effective_at).next_back())
+                    .filter(|(_, shares)| **shares > 0)
+                else {
+                    continue;
+                };
+                let Some(terms) = reports.known_terms(&change.change_id, config.known_at) else {
+                    continue;
+                };
+                let (shares, state) = value_successor_shares(
+                    Some(entitled_shares as u32),
+                    Some(terms),
+                    config.through_at,
+                );
+                let shares = shares.expect("a known holding and ratio produce successor shares");
+                let mark = (shares.numerator > 0)
+                    .then(|| mark(&terms.successor_listing))
+                    .flatten();
+                let value = if shares.numerator == 0 {
+                    Some(0)
+                } else {
+                    mark.map(|quote| {
+                        rounded_div(
+                            i128::from(quote.ticks) * i128::from(shares.numerator),
+                            i128::from(shares.denominator),
+                        )
+                    })
+                };
+                successor_claims.push(CrossSectionSuccessorClaim {
+                    listing_id: listing.to_owned(),
+                    change_id: change.change_id.clone(),
+                    effective_at: change.effective_at,
+                    observed_at: change.observed_at,
+                    terms: terms.clone(),
+                    position_at,
+                    entitled_shares,
+                    shares,
+                    state,
+                    mark,
+                    value,
+                });
+            }
+        }
+        let equity = equity.and_then(|total| {
+            successor_claims
+                .iter()
+                .try_fold(total, |total, claim| Some(total + claim.value?))
+        });
         let fees = replay.events.iter().map(|event| event.receipt.fee).sum();
         let turnover = replay
             .events
@@ -601,6 +710,7 @@ impl PriceBook<'_> {
             dividend_postings: dividends.map_or_else(Vec::new, |income| income.postings),
             delisting_claims,
             delisting_postings: delistings.map_or_else(Vec::new, |book| book.postings),
+            successor_claims,
         })
     }
 }

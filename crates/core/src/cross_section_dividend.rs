@@ -1,3 +1,4 @@
+use super::PaperHoldings;
 use crate::{dividend::DividendSchedule, portfolio::PortfolioIncomeReports};
 use std::{collections::BTreeMap, iter::Peekable, vec};
 
@@ -19,7 +20,6 @@ pub(super) struct DividendReplay<'a> {
     pub currency: &'a str,
     pub postings: Vec<CrossSectionDividendPosting>,
     schedule: Peekable<vec::IntoIter<(&'a str, DividendSchedule<'a>)>>,
-    holdings: BTreeMap<String, BTreeMap<i64, u64>>,
     paid: BTreeMap<(&'a str, &'a str), (&'a str, i128)>,
 }
 
@@ -36,31 +36,26 @@ impl<'a> DividendReplay<'a> {
             currency,
             postings: Vec::new(),
             schedule: schedule.into_iter().peekable(),
-            holdings: BTreeMap::new(),
             paid: BTreeMap::new(),
         }
-    }
-
-    pub fn observe_position(&mut self, listing: &str, observed_at: i64, shares: u64) {
-        self.holdings
-            .entry(listing.to_owned())
-            .or_default()
-            .insert(observed_at, shares);
     }
 
     pub fn next_time(&mut self) -> Option<i64> {
         self.schedule.peek().map(|(_, event)| event.at)
     }
 
-    pub fn next_postings(&mut self, effective: i64) -> Vec<CrossSectionDividendPosting> {
+    pub fn next_postings(
+        &mut self,
+        effective: i64,
+        holdings: &PaperHoldings,
+    ) -> Vec<CrossSectionDividendPosting> {
         let (listing, event) = self
             .schedule
             .next()
             .expect("a dividend checkpoint is pending");
         let report = event.row;
         let key = (listing, report.id.as_str());
-        let entitled_shares = self
-            .holdings
+        let entitled_shares = holdings
             .get(listing)
             .and_then(|history| history.range(..report.ex_at).next_back())
             .map_or(0, |(_, shares)| *shares);
