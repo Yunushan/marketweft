@@ -33,22 +33,31 @@ func chooseSimulatorFile(in app: XCUIApplication, input: String, folders: [Strin
         XCTAssertTrue(location.waitForExistence(timeout: 15), app.debugDescription)
         location.tap()
     }
+    let entries = app.collectionViews["File View"].cells
     for folder in folders {
-        let entry = app.staticTexts[folder].firstMatch
-        XCTAssertTrue(entry.waitForExistence(timeout: 15), app.debugDescription)
-        entry.tap()
+        let entry = entries.matching(NSPredicate(
+            format: "identifier == %@ OR label == %@ OR label BEGINSWITH %@",
+            "\(folder), Folder", folder, "\(folder),"
+        )).firstMatch
+        XCTAssertTrue(entry.waitForExistence(timeout: 20), "Missing Files folder \(folder). \(app.debugDescription)")
+        tapFilesCell(entry)
     }
     let baseName = (filename as NSString).deletingPathExtension
     let fileExtension = (filename as NSString).pathExtension
-    let document = app.collectionViews["File View"].cells
+    let document = entries
         .matching(NSPredicate(format: "identifier IN %@", [filename, "\(baseName), \(fileExtension)"])).firstMatch
     XCTAssertTrue(document.waitForExistence(timeout: 20), app.debugDescription)
-    let icon = document.images.firstMatch
-    if icon.exists && icon.isHittable { icon.tap() } else { document.tap() }
+    tapFilesCell(document)
     let confirm = app.navigationBars.buttons["Open"].firstMatch
     if confirm.waitForExistence(timeout: 2), confirm.isHittable { confirm.tap() }
     let selectedFile = web.buttons.matching(NSPredicate(
         format: "label BEGINSWITH %@ AND value CONTAINS[c] %@", input, baseName
     )).firstMatch
     XCTAssertTrue(selectedFile.waitForExistence(timeout: 15), app.debugDescription)
+}
+
+@MainActor
+private func tapFilesCell(_ cell: XCUIElement) {
+    let icon = cell.images.firstMatch
+    if icon.exists && icon.isHittable { icon.tap() } else { cell.tap() }
 }
