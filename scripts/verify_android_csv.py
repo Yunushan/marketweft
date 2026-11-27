@@ -48,14 +48,15 @@ class AndroidUI:
             sleep(1)
         raise RuntimeError(f"Could not find {description}. Last hierarchy: {self.evidence}")
 
-    def tap(self, element):
+    def tap(self, element, below_center=False):
         bounds = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", element.get("bounds", ""))
         if not bounds:
             raise ValueError("The selected Android control has no screen bounds.")
         left, top, right, bottom = map(int, bounds.groups())
         if right <= left or bottom <= top:
             raise ValueError("The selected Android control is outside the screen.")
-        self.adb("shell", "input", "tap", (left + right) // 2, (top + bottom) // 2)
+        y = top + (bottom - top) * 3 // 4 if below_center else (top + bottom) // 2
+        self.adb("shell", "input", "tap", (left + right) // 2, y)
 
 
 def verify_import(ui, package, activity, fixture):
@@ -67,7 +68,8 @@ def verify_import(ui, package, activity, fixture):
     ui.adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
            "-d", f"file://{REMOTE_FIXTURE}")
 
-    ui.tap(ui.find("the terminal CSV action", app_label("Import CSV")))
+    # The top edge of the WebView can sit behind the Android status bar.
+    ui.tap(ui.find("the terminal CSV action", app_label("Import CSV")), below_center=True)
     symbol_group = ui.find("the listing symbol field group", lambda node: (
         node.get("package") == package and any("Symbol" in labels(child) for child in node)
         and any(child.get("class") == "android.widget.EditText" for child in node)
