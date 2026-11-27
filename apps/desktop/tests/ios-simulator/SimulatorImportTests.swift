@@ -66,11 +66,17 @@ final class SimulatorImportTests: XCTestCase {
         let folder = app.staticTexts["MarketWeft Test Files"].firstMatch
         XCTAssertTrue(folder.waitForExistence(timeout: 15), app.debugDescription)
         folder.tap()
-        let fixture = app.staticTexts.matching(NSPredicate(format: "label IN %@", ["native-verification", "native-verification.csv"])).firstMatch
+        let fixture = app.collectionViews["File View"].cells
+            .matching(NSPredicate(format: "identifier IN %@", ["native-verification, csv", "native-verification.csv"])).firstMatch
         XCTAssertTrue(fixture.waitForExistence(timeout: 15), app.debugDescription)
-        fixture.tap()
+        let icon = fixture.images.firstMatch
+        if icon.exists && icon.isHittable { icon.tap() } else { fixture.tap() }
         let confirm = app.navigationBars.buttons["Open"].firstMatch
         if confirm.waitForExistence(timeout: 2), confirm.isHittable { confirm.tap() }
+        let selectedFile = web.buttons.matching(NSPredicate(
+            format: "label BEGINSWITH %@ AND value CONTAINS[c] %@", "Historical CSV file", "native-verification"
+        )).firstMatch
+        XCTAssertTrue(selectedFile.waitForExistence(timeout: 15), app.debugDescription)
 
         let submit = web.buttons["Import to watchlist"]
         XCTAssertTrue(submit.waitForExistence(timeout: 15), app.debugDescription)
