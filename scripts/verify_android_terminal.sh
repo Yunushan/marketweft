@@ -56,19 +56,21 @@ test "$("${device[@]}" shell getprop ro.product.cpu.abi | tr -d '\r')" = x86_64
 # Turn Wi-Fi off first so airplane mode cannot preserve an enabled Wi-Fi override.
 "${device[@]}" shell svc wifi disable
 "${device[@]}" shell svc data disable
-wifi_deadline=$((SECONDS + 15))
+"${device[@]}" shell cmd connectivity airplane-mode enable
+# Airplane mode can restore the emulator image's saved Wi-Fi override.
+offline_deadline=$((SECONDS + 15))
 while :; do
-    wifi=$("${device[@]}" shell settings get global wifi_on | tr -d '\r')
-    if [[ "$wifi" == 0 || "$wifi" == 3 ]]; then
-        break
-    fi
-    if (( SECONDS >= wifi_deadline )); then
-        printf 'The emulator could not disable Wi-Fi. Observed wifi_on=%s.\n' "$wifi" >&2
-        exit 1
-    fi
     "${device[@]}" shell svc wifi disable
     sleep 1
+    airplane=$("${device[@]}" shell settings get global airplane_mode_on | tr -d '\r')
+    wifi=$("${device[@]}" shell settings get global wifi_on | tr -d '\r')
+    if [[ "$airplane" == 1 && ( "$wifi" == 0 || "$wifi" == 3 ) ]]; then
+        break
+    fi
+    if (( SECONDS >= offline_deadline )); then
+        printf 'The emulator could not become offline. Observed airplane_mode_on=%s wifi_on=%s.\n' "$airplane" "$wifi" >&2
+        exit 1
+    fi
 done
-"${device[@]}" shell cmd connectivity airplane-mode enable
 bash scripts/verify_android_on_device.sh "$serial" x86_64 "$apk" reports "$@"
 (cd reports && sha256sum "$name" >"$name.sha256")

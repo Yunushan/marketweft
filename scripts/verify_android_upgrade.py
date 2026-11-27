@@ -98,8 +98,10 @@ def verify_upgrade(args):
             raise RuntimeError("The Android upgrade changed or dropped the saved document.")
         ui.evidence = args.evidence / "android-upgraded-quote.xml"
         verify_reopened(ui, args.package, args.activity)
-        if ui.adb("shell", "settings", "get", "global", "airplane_mode_on").strip() != b"1":
-            raise RuntimeError("The Android upgrade must complete in airplane mode.")
+        airplane = ui.adb("shell", "settings", "get", "global", "airplane_mode_on").strip()
+        wifi = ui.adb("shell", "settings", "get", "global", "wifi_on").strip()
+        if airplane != b"1" or wifi not in (b"0", b"3"):
+            raise RuntimeError(f"The Android upgrade must complete offline. Airplane mode={airplane!r}, Wi-Fi={wifi!r}.")
     print("Verified an in-place Android upgrade preserved the saved document and exact OHLCV offline.")
 
 
