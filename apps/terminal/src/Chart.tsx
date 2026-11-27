@@ -63,6 +63,7 @@ const chartNames: Record<ChartType, string> = {
   line: 'close line',
   area: 'close area',
   'step-line': 'step line',
+  baseline: 'baseline',
   ohlc: 'OHLC bar',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
@@ -150,6 +151,7 @@ function draw(
   annotations: readonly ChartAnnotation[],
   markerTimeline: readonly TimeColumn[],
   type: ChartType,
+  baselineTicks: number,
   kagi: KagiLayout | undefined,
   pointFigure: PointFigureLayout | undefined,
   activePrice: number | undefined,
@@ -163,7 +165,8 @@ function draw(
   canvas.width = Math.round(width * dpr)
   canvas.height = Math.round(height * dpr)
   ctx.scale(dpr, dpr)
-  const closeTrace = type === 'line' || type === 'area' || type === 'step-line'
+  const baseline = type === 'baseline' ? baselineTicks / 1e6 : undefined
+  const closeTrace = type === 'line' || type === 'area' || type === 'step-line' || baseline !== undefined
   const isPriceMovement = type === 'renko' || type === 'three-line-break'
   const closeBased = isPriceMovement || kagi !== undefined || pointFigure !== undefined
   const left = 10,
@@ -186,6 +189,10 @@ function draw(
         high = Math.max(high, value)
       }
     }
+  }
+  if (baseline !== undefined) {
+    low = Math.min(low, baseline)
+    high = Math.max(high, baseline)
   }
   const delta =
     high === low
@@ -401,6 +408,8 @@ function draw(
     ctx.strokeStyle = CLOSE_LINE
     ctx.lineWidth = 2
     let prior = y(bars[start].close)
+    const fill = baseline === undefined ? undefined : new Path2D()
+    fill?.moveTo(x(start), prior)
     ctx.moveTo(x(start), prior)
     for (const { first, last, lowestClose, highestClose } of groups) {
       const indices = first === last ? [first] :
@@ -411,9 +420,33 @@ function draw(
         if (type === 'step-line') ctx.lineTo(axis, prior)
         prior = y(bars[index].close)
         ctx.lineTo(axis, prior)
+        fill?.lineTo(axis, prior)
       }
     }
-    ctx.stroke()
+    if (fill && baseline !== undefined) {
+      const reference = y(baseline)
+      fill.lineTo(x(view.end - 1), reference)
+      fill.lineTo(x(start), reference)
+      fill.closePath()
+      // Draw the line first, then clip the same fill path to both sides of the reference.
+      ctx.stroke()
+      for (const [from, to, color] of [
+        [top, reference, 'rgba(104, 215, 177, 0.20)'],
+        [reference, priceBottom, 'rgba(236, 129, 126, 0.20)'],
+      ] as const) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(left, from, right - left, to - from)
+        ctx.clip()
+        ctx.fillStyle = color
+        ctx.fill(fill)
+        ctx.restore()
+      }
+      ctx.lineWidth = 1
+      line(left, reference, right, reference, '#899eb0')
+    } else {
+      ctx.stroke()
+    }
     if (type === 'area' && view.count > 1) {
       ctx.lineTo(x(view.end - 1), priceBottom)
       ctx.lineTo(x(start), priceBottom)
@@ -741,6 +774,7 @@ export function Chart({
   periods,
   exportOptions,
   type = 'candles',
+  baselineTicks = 0,
   timeframe,
   ticks,
   ranges,
@@ -762,6 +796,7 @@ export function Chart({
   periods?: OverlayPeriods
   exportOptions?: { metadata?: SeriesMetadata }
   type?: ChartType
+  baselineTicks?: number
   timeframe?: TimeframeView
   ticks?: TickBar[]
   ranges?: RangeBar[]
@@ -932,6 +967,7 @@ export function Chart({
           annotations,
           markerTimeline,
           type,
+          baselineTicks,
           kagi,
           pointFigure,
           crosshairPrice,
@@ -939,7 +975,7 @@ export function Chart({
           plottedPriceLines,
           activeStudyPlotValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, baselineTicks, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))

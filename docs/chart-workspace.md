@@ -20,6 +20,12 @@ Choose **Candles** for a filled price body, **OHLC bars** for a high-to-low stem
 
 Choose the chart type independently in either pane. A workspace containing either type uses version 38, including any annotations already stored with the pane. The new chart types leave the source OHLCV and research exports intact.
 
+### Baseline chart
+
+Choose **Baseline** and set the **Baseline price** independently in each pane. The reference starts at zero. Enter a signed price with up to six decimal places and choose **Apply baseline**. The close trace is shaded green above the reference and red below it. When the trace crosses the reference, each fill stops at that intersection.
+
+The price axis includes the reference, observed closes and enabled price overlays. The setting survives a temporary switch to another chart type. Version 39 backs up the selected type and any reference values.
+
 The x-axis places consecutive observed bars at regular bar spacing. An unobserved timestamp has no chart point or linked crosshair. Switching among time-based chart types keeps the visible range. Switching to or from Renko, Three Line Break, Kagi or Point and Figure resets the visible range. The pane keeps its indicator settings. Each pane saves its own chart type. [Backup format](workspace-backup.md)
 
 ### Heikin-Ashi

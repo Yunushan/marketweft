@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
+import { parseAnnotationAnchor } from './chart-annotations'
 import { Chart } from './Chart'
 import { ChartExport } from './ChartExport'
 import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, MAX_CHART_PRICE_TICKS } from './catalog-schema'
@@ -19,6 +20,7 @@ type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'tim
   kagiTicks?: number
   pointFigureTicks?: number
   priceSizeSaving?: boolean
+  onBaselineTicks?: (ticks: number) => void
   onRenkoTicks?: (ticks: number) => void
   onKagiTicks?: (ticks: number) => void
   onPointFigureTicks?: (ticks: number) => void
@@ -52,9 +54,32 @@ function PriceSize({ ticks, saving, apply, type }: {
   </form>
 }
 
+function BaselinePrice({ ticks, saving, apply }: {
+  ticks: number; saving?: boolean; apply: (ticks: number) => void
+}) {
+  const [error, setError] = useState('')
+  return <form className="chart-export price-size-control" aria-label="Baseline settings" onSubmit={event => {
+    event.preventDefault()
+    try {
+      const price = String(new FormData(event.currentTarget).get('baseline'))
+      apply(parseAnnotationAnchor('price', price))
+      setError('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Enter a valid baseline price.')
+    }
+  }}>
+    <label>Baseline price
+      <input name="baseline" inputMode="decimal" maxLength={19} defaultValue={fixed(BigInt(ticks), 6)}
+        disabled={saving} onChange={() => setError('')} />
+    </label>
+    <button className="outline" type="submit" disabled={saving}>Apply baseline</button>
+    {error && <p role="alert">{error}</p>}
+  </form>
+}
+
 export function TimeframeChart({ core, activeSma, activeEma, studySettings, asset, periods, onTimestamp,
   renkoTicks = DEFAULT_RENKO_TICKS, kagiTicks = DEFAULT_KAGI_TICKS, pointFigureTicks = DEFAULT_POINT_FIGURE_TICKS,
-  priceSizeSaving, onRenkoTicks, onKagiTicks, onPointFigureTicks, ...chart }: Props) {
+  baselineTicks = 0, priceSizeSaving, onBaselineTicks, onRenkoTicks, onKagiTicks, onPointFigureTicks, ...chart }: Props) {
   const initialSource = asset.source === 'sample' ? '86400' : ''
   const [source, setSource] = useState(initialSource)
   const [target, setTarget] = useState('')
@@ -164,6 +189,8 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
           onTimestamp?.(null)
           applySize(ticks)
         }} />}
+      {type === 'baseline' && onBaselineTicks &&
+        <BaselinePrice key={baselineTicks} ticks={baselineTicks} saving={priceSizeSaving} apply={onBaselineTicks} />}
       {transformed && !count ? <>
         {transformed.error ? <p role="alert">{transformed.error}</p> :
           <p role="status">{type === 'renko' ? 'No source close has moved far enough to form a brick at this size.' :
@@ -181,7 +208,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
           ]} />}
       </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceChartKey}`}
         asset={display} displayBars={displayBars} priceMovements={transformed?.priceMovements} kagiSegments={transformed?.kagiSegments}
-        pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6}
+        pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6} baselineTicks={baselineTicks}
         sma={sma} ema={ema} periods={periods} studies={studies}
         timeframe={timeframe} onTimestamp={onTimestamp} />}
     </>

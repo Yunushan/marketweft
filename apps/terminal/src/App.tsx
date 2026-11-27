@@ -76,6 +76,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   line: 'Close line',
   area: 'Close area',
   'step-line': 'Step line',
+  baseline: 'Baseline',
   ohlc: 'OHLC bars',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
@@ -648,7 +649,7 @@ export function App({
     else chartTypes[pane] = type
     update(Object.keys(chartTypes).length ? { ...preferences, chartTypes } : preferences)
   }
-  function setChartPriceTicks(pane: ChartPane, setting: 'renkoTicks' | 'kagiTicks' | 'pointFigureTicks', ticks: number) {
+  function setChartPriceTicks(pane: ChartPane, setting: 'renkoTicks' | 'kagiTicks' | 'pointFigureTicks' | 'baselineTicks', ticks: number) {
     update({ ...ws, [setting]: { ...ws[setting], [pane]: ticks } })
   }
   function drawingTools(id: string) {
@@ -937,7 +938,8 @@ export function App({
                   studySettings={primaryStudies}
                   type={ws.chartTypes?.primary}
                   renkoTicks={ws.renkoTicks?.primary} kagiTicks={ws.kagiTicks?.primary}
-                  pointFigureTicks={ws.pointFigureTicks?.primary} priceSizeSaving={saving}
+                  pointFigureTicks={ws.pointFigureTicks?.primary} baselineTicks={ws.baselineTicks?.primary} priceSizeSaving={saving}
+                  onBaselineTicks={ticks => setChartPriceTicks('primary', 'baselineTicks', ticks)}
                   onRenkoTicks={ticks => setChartPriceTicks('primary', 'renkoTicks', ticks)}
                   onKagiTicks={ticks => setChartPriceTicks('primary', 'kagiTicks', ticks)}
                   onPointFigureTicks={ticks => setChartPriceTicks('primary', 'pointFigureTicks', ticks)}
@@ -956,7 +958,8 @@ export function App({
                     studySettings={comparisonStudies}
                     type={ws.chartTypes?.comparison}
                     renkoTicks={ws.renkoTicks?.comparison} kagiTicks={ws.kagiTicks?.comparison}
-                    pointFigureTicks={ws.pointFigureTicks?.comparison} priceSizeSaving={saving}
+                    pointFigureTicks={ws.pointFigureTicks?.comparison} baselineTicks={ws.baselineTicks?.comparison} priceSizeSaving={saving}
+                    onBaselineTicks={ticks => setChartPriceTicks('comparison', 'baselineTicks', ticks)}
                     onRenkoTicks={ticks => setChartPriceTicks('comparison', 'renkoTicks', ticks)}
                     onKagiTicks={ticks => setChartPriceTicks('comparison', 'kagiTicks', ticks)}
                     onPointFigureTicks={ticks => setChartPriceTicks('comparison', 'pointFigureTicks', ticks)}

@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.140.0 · Configurable baseline chart
+
+| Check | Evidence |
+| --- | --- |
+| Browser chart | Chromium verifies signed, visibly distinct reference levels, a close trace that crosses the reference, and fill clips that meet at that line. |
+| Workspace backup | The test verifies exact integer ticks in both panes, validation near the chart price limit, type switches, version 39 reload, and version 38 restoration. |
+
+[Baseline chart](chart-workspace.md#baseline-chart) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.139.0 · Close-area and step-line charts
 
 | Check | Evidence |

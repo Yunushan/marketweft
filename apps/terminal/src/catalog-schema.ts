@@ -26,10 +26,11 @@ export type Preferences = {
   pointFigureTicks?: Partial<Record<ChartPane, number>>
   rangeTicks?: Partial<Record<ChartPane, number>>
   volumeTicks?: Partial<Record<ChartPane, number>>
+  baselineTicks?: Partial<Record<ChartPane, number>>
 }
 
 export type ChartPane = 'primary' | 'comparison'
-export type ChartType = 'candles' | 'line' | 'area' | 'step-line' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
+export type ChartType = 'candles' | 'line' | 'area' | 'step-line' | 'baseline' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
 export const DEFAULT_RENKO_TICKS = 1_000_000
 export const DEFAULT_KAGI_TICKS = 1_000_000
 export const DEFAULT_POINT_FIGURE_TICKS = 1_000_000
@@ -142,7 +143,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   if (value && typeof value === 'object' && Object.hasOwn(value, 'chartTypes')) keys.push('chartTypes')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'rsi')) keys.push('rsi')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'studies')) keys.push('studies')
-  const tickSettings = ['renkoTicks', 'kagiTicks', 'pointFigureTicks', 'rangeTicks', 'volumeTicks'] as const
+  const tickSettings = ['renkoTicks', 'kagiTicks', 'pointFigureTicks', 'rangeTicks', 'volumeTicks', 'baselineTicks'] as const
   for (const key of tickSettings) {
     if (value && typeof value === 'object' && Object.hasOwn(value, key)) keys.push(key)
   }
@@ -323,7 +324,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       throw Error('Invalid workspace chart types.')
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, type]) =>
-      (pane !== 'primary' && pane !== 'comparison') || (type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
+      (pane !== 'primary' && pane !== 'comparison') || (type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'baseline' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
         type !== 'three-line-break' && type !== 'kagi' && type !== 'point-and-figure'))) {
       throw Error('Unknown pane or chart type in the workspace.')
     }
@@ -336,9 +337,10 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       throw Error('Invalid chart price size settings.')
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, ticks]) =>
-      (pane !== 'primary' && pane !== 'comparison') || typeof ticks !== 'number' ||
-      !Number.isSafeInteger(ticks) || ticks <= 0 || ticks > MAX_CHART_PRICE_TICKS)) {
-      throw Error('Chart sizes must be positive whole price ticks within the supported range.')
+      (pane !== 'primary' && pane !== 'comparison') || !validAnnotationAnchor('price', ticks) ||
+      (key !== 'baselineTicks' && ticks <= 0))) {
+      throw Error(key === 'baselineTicks' ? 'Chart baselines must be signed whole price ticks within the supported range.' :
+        'Chart sizes must be positive whole price ticks within the supported range.')
     }
     result[key] = Object.fromEntries(entries)
   }
