@@ -1,5 +1,5 @@
 import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core'
-import { validAnnotationAnchor, validateAnnotationGeometry } from './chart-annotations'
+import { validAnnotationAnchor, validateAnnotationGeometry, validatePolyline } from './chart-annotations'
 import type { ChartAnnotation } from './chart-annotations'
 import { MAX_CHART_PRICE_TICKS } from './fixed-point'
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
@@ -193,12 +193,13 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       if (!ids.has(instrument) || !Array.isArray(entries) || !entries.length)
         throw Error('Invalid chart annotations for an instrument.')
       const annotationIds = new Set<string>()
-      return [instrument, entries.map((entry: unknown) => {
+      return [instrument, Array.from(entries, (entry: unknown) => {
         const kind = entry && typeof entry === 'object' && Object.hasOwn(entry, 'kind') ?
           (entry as { kind: unknown }).kind : undefined
         const coordinateFields = {
           price: ['ticks'], time: ['time'], ray: ['start'], trend: ['start', 'end'],
           rectangle: ['start', 'end'], channel: ['start', 'end', 'offsetTicks'],
+          polyline: ['points'], fibonacci: ['start', 'end'],
         }
         if (typeof kind !== 'string' || !Object.hasOwn(coordinateFields, kind))
           throw Error('Invalid chart annotation type.')
@@ -216,6 +217,12 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
         if (type === 'time') {
           if (!validAnnotationAnchor(type, entry.time)) throw Error('Invalid chart annotation time.')
           return { id, kind: type, time: entry.time }
+        }
+        if (type === 'polyline') {
+          if (!Array.isArray(entry.points)) throw Error('Invalid chart polyline points.')
+          const points = Array.from(entry.points, annotationEndpoint)
+          validatePolyline(points)
+          return { id, kind: type, points }
         }
         const start = annotationEndpoint(entry.start)
         if (type === 'ray') return { id, kind: type, start }

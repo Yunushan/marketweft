@@ -88,6 +88,14 @@ Choose **New parallel channel** and enter or pick the two endpoints of its base 
 
 The selected chart type and viewport determine the visible portion of each drawing. Workspace backup version 33 preserves both shapes, including the exact signed channel offset. Earlier drawings still use their original backup versions when saved on their own. [Backup format](workspace-backup.md)
 
+## Polylines and Fibonacci retracements
+
+Choose **New polyline** to connect three or more points in the order you enter them. Each point accepts a signed price and UTC time or can be picked on the plot. **Add point** appends another point. A polyline can move forward or backward in time. Consecutive points must differ.
+
+Choose **New Fibonacci retracement** to enter or pick the start and end of a price move. The chart labels seven horizontal prices from 0% at the end of the move to 100% at its start, with 23.6%, 38.2%, 50%, 61.8% and 78.6% in between. Each level spans the two anchor times. Prices are rounded to the nearest millionth, with ties away from zero.
+
+The workspace keeps the exact anchors and point order. Version 34 backups store these tools and restore all earlier drawing formats. [Backup format](workspace-backup.md)
+
 ## Moving-average periods
 
 Open **Indicators** to configure the primary chart. When the comparison pane is open, the same dialog provides a separate pair of period fields for it. Each field accepts a whole period from 1 to 100,000 bars. The default periods are 20 bars for SMA and 9 bars for EMA. Each overlay can be enabled independently.

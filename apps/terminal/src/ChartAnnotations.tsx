@@ -1,20 +1,19 @@
 import { useState } from 'react'
 import {
-  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, validateAnnotationGeometry,
+  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, validateAnnotationGeometry, validatePolyline,
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint } from './market-core'
 
-type Point = 'start' | 'end'
 type PointFields = Record<AnnotationCoordinate, string>
 type Draft = {
   kind: AnnotationKind
-  points: Record<Point, PointFields>
+  points: PointFields[]
   offset: string
   original?: ChartAnnotation
 }
 
-export type AnnotationPicker = { point: Point; accept: (anchor: DrawingEndpoint) => void }
+export type AnnotationPicker = { point: number; accept: (anchor: DrawingEndpoint) => void }
 
 function pointFields({ ticks, time }: DrawingEndpoint): PointFields {
   return { price: formatAnnotationAnchor('price', ticks), time: formatAnnotationAnchor('time', time) }
@@ -26,11 +25,16 @@ function pointValue(fields: PointFields): DrawingEndpoint {
 
 function draftAnnotation(draft: Draft, id: string): ChartAnnotation {
   const { kind, points } = draft
-  if (kind === 'price') return { id, kind, ticks: parseAnnotationAnchor(kind, points.start.price) }
-  if (kind === 'time') return { id, kind, time: parseAnnotationAnchor(kind, points.start.time) }
-  const start = pointValue(points.start)
+  if (kind === 'price') return { id, kind, ticks: parseAnnotationAnchor(kind, points[0].price) }
+  if (kind === 'time') return { id, kind, time: parseAnnotationAnchor(kind, points[0].time) }
+  if (kind === 'polyline') {
+    const anchors = points.map(pointValue)
+    validatePolyline(anchors)
+    return { id, kind, points: anchors }
+  }
+  const start = pointValue(points[0])
   if (kind === 'ray') return { id, kind, start }
-  const end = pointValue(points.end)
+  const end = pointValue(points[1])
   const annotation = kind === 'channel' ?
     { id, kind, start, end, offsetTicks: parseAnnotationAnchor('price', draft.offset) } :
     { id, kind, start, end }
@@ -49,8 +53,12 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'price': return name + formatAnnotationAnchor('price', entry.ticks)
     case 'time': return name + formatAnnotationAnchor('time', entry.time)
     case 'ray': return name + describePoint(entry.start)
+    case 'polyline':
+      return name + entry.points.length + ' points, ' +
+        describePoint(entry.points[0]) + ' to ' + describePoint(entry.points[entry.points.length - 1])
     case 'trend':
     case 'rectangle':
+    case 'fibonacci':
       return name + describePoint(entry.start) + ' to ' + describePoint(entry.end)
     case 'channel':
       return name + describePoint(entry.start) + ' to ' + describePoint(entry.end) +
@@ -63,9 +71,9 @@ export function ChartAnnotations({
 }: {
   entries: readonly ChartAnnotation[]
   busy: boolean
-  picking: Point | null
+  picking: number | null
   setPicker: (picker: AnnotationPicker | null) => void
-  defaults: Record<Point, DrawingEndpoint>
+  defaults: { prior: DrawingEndpoint; start: DrawingEndpoint; end: DrawingEndpoint }
   save: (before: ChartAnnotation | undefined, after: ChartAnnotation | undefined) => Promise<void>
 }) {
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -74,11 +82,13 @@ export function ChartAnnotations({
   function edit(kind: AnnotationKind, original?: ChartAnnotation) {
     setPicker(null)
     setError('')
-    const points = { start: pointFields(hasTwoPoints(kind) ? defaults.start : defaults.end), end: pointFields(defaults.end) }
-    if (original?.kind === 'price') points.start.price = formatAnnotationAnchor('price', original.ticks)
-    if (original?.kind === 'time') points.start.time = formatAnnotationAnchor('time', original.time)
-    if (original && 'start' in original) points.start = pointFields(original.start)
-    if (original && 'end' in original) points.end = pointFields(original.end)
+    const points = kind === 'polyline' ?
+      (original?.kind === 'polyline' ? original.points : [defaults.prior, defaults.start, defaults.end]).map(pointFields) :
+      hasTwoPoints(kind) ? [pointFields(defaults.start), pointFields(defaults.end)] : [pointFields(defaults.end)]
+    if (original?.kind === 'price') points[0].price = formatAnnotationAnchor('price', original.ticks)
+    if (original?.kind === 'time') points[0].time = formatAnnotationAnchor('time', original.time)
+    if (original && 'start' in original) points[0] = pointFields(original.start)
+    if (original && 'end' in original) points[1] = pointFields(original.end)
     const offset = formatAnnotationAnchor('price', original?.kind === 'channel' ? original.offsetTicks : 1_000_000)
     setDraft({ kind, original, points, offset })
   }
@@ -100,33 +110,48 @@ export function ChartAnnotations({
     }
   }
 
-  function pick(point: Point) {
+  function pick(point: number) {
     if (!draft || picking === point) { setPicker(null); return }
     setPicker({ point, accept(anchor) {
       setError('')
-      setDraft(current => current && { ...current, points: { ...current.points, [point]: pointFields(anchor) } })
+      setDraft(current => current && {
+        ...current, points: current.points.map((value, index) => index === point ? pointFields(anchor) : value),
+      })
     } })
   }
 
-  function pointEditor(point: Point, current: Draft) {
-    const outerLabel = point === 'start' ? 'Start' : 'End'
-    const twoPoints = hasTwoPoints(current.kind)
+  function changePoints(next: PointFields[]) {
+    if (!draft) return
+    setDraft({ ...draft, points: next })
+    setPicker(null)
+    setError('')
+  }
+
+  function pointEditor(point: number, current: Draft) {
+    const polyline = current.kind === 'polyline'
+    const label = polyline ? 'Point ' + (point + 1) :
+      hasTwoPoints(current.kind) ? point === 0 ? 'Start' : 'End' : ANNOTATION_NAMES[current.kind]
+    const pickLabel = polyline || hasTwoPoints(current.kind) ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
     const coordinates: readonly AnnotationCoordinate[] = current.kind === 'price' || current.kind === 'time' ?
       [current.kind] : ['time', 'price']
     return <fieldset key={point}>
-      <legend>{twoPoints ? outerLabel : ANNOTATION_NAMES[current.kind]}</legend>
+      <legend>{label}</legend>
       {coordinates.map(coordinate => <label key={coordinate}>{coordinate === 'price' ? 'Price' : 'Time (UTC)'}
         <input type="text" inputMode={coordinate === 'price' ? 'decimal' : undefined}
           spellCheck={false} value={current.points[point][coordinate]} disabled={busy}
           onChange={event => {
             const fields = { ...current.points[point], [coordinate]: event.target.value }
-            setDraft({ ...current, points: { ...current.points, [point]: fields } })
+            setDraft({ ...current, points: current.points.map((value, index) => index === point ? fields : value) })
             setError('')
           }} />
       </label>)}
       <button type="button" aria-pressed={picking === point} disabled={busy} onClick={() => pick(point)}>
-        {twoPoints ? 'Pick ' + point + ' on chart' : 'Pick on chart'}
+        {pickLabel}
       </button>
+      {polyline && current.points.length > 3 && <button type="button" disabled={busy}
+        onClick={() => changePoints(current.points.filter((_, index) => index !== point))}>
+        Remove {label.toLowerCase()}
+      </button>}
     </fieldset>
   }
 
@@ -134,8 +159,9 @@ export function ChartAnnotations({
     <section className="annotation-tools" aria-label="Chart drawings">
       {draft ? <form className="drawing-editor" aria-label={ANNOTATION_NAMES[draft.kind]}
         onSubmit={event => { event.preventDefault(); void commit() }}>
-        {pointEditor('start', draft)}
-        {hasTwoPoints(draft.kind) && pointEditor('end', draft)}
+        {draft.points.map((_, index) => pointEditor(index, draft))}
+        {draft.kind === 'polyline' && <button type="button" disabled={busy}
+          onClick={() => changePoints([...draft.points, pointFields(defaults.end)])}>Add point</button>}
         {draft.kind === 'channel' && <fieldset>
           <legend>Parallel edge</legend>
           <label>Price offset
@@ -143,7 +169,7 @@ export function ChartAnnotations({
               onChange={event => { setDraft({ ...draft, offset: event.target.value }); setError('') }} />
           </label>
         </fieldset>}
-        {picking && <p role="status">Select a point in the price plot.</p>}
+        {picking !== null && <p role="status">Select a point in the price plot.</p>}
         {error && <p role="alert">{error}</p>}
         <div className="drawing-buttons">
           <button type="submit" disabled={busy}>Save {ANNOTATION_NAMES[draft.kind].toLowerCase()}</button>

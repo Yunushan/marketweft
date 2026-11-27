@@ -8,7 +8,9 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'ray'; start: DrawingEndpoint } |
   { kind: 'trend'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'rectangle'; start: DrawingEndpoint; end: DrawingEndpoint } |
-  { kind: 'channel'; start: DrawingEndpoint; end: DrawingEndpoint; offsetTicks: number }
+  { kind: 'channel'; start: DrawingEndpoint; end: DrawingEndpoint; offsetTicks: number } |
+  { kind: 'polyline'; points: DrawingEndpoint[] } |
+  { kind: 'fibonacci'; start: DrawingEndpoint; end: DrawingEndpoint }
 )
 type TwoPointAnnotation = Extract<ChartAnnotation, { end: DrawingEndpoint }>
 export type AnnotationKind = ChartAnnotation['kind']
@@ -23,6 +25,8 @@ export const ANNOTATION_NAMES = {
   trend: 'Trend line',
   rectangle: 'Rectangle',
   channel: 'Parallel channel',
+  polyline: 'Polyline',
+  fibonacci: 'Fibonacci retracement',
 } as const
 
 export function sameEndpoint(first: DrawingEndpoint, second: DrawingEndpoint): boolean {
@@ -36,7 +40,11 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'ray': return second.kind === 'ray' && sameEndpoint(first.start, second.start)
     case 'trend':
     case 'rectangle':
+    case 'fibonacci':
       return second.kind === first.kind && sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
+    case 'polyline':
+      return second.kind === 'polyline' && first.points.length === second.points.length &&
+        first.points.every((point, index) => sameEndpoint(point, second.points[index]))
     case 'channel':
       return second.kind === 'channel' && first.offsetTicks === second.offsetTicks &&
         sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
@@ -44,7 +52,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
 }
 
 export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
-  return kind === 'trend' || kind === 'rectangle' || kind === 'channel'
+  return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci'
 }
 
 export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void {
@@ -53,6 +61,8 @@ export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void
     throw Error('A trend line must have two different points.')
   if (kind === 'rectangle' && (start.time === end.time || start.ticks === end.ticks))
     throw Error('A rectangle needs two different times and two different prices.')
+  if (kind === 'fibonacci' && (start.time === end.time || start.ticks === end.ticks))
+    throw Error('A Fibonacci retracement needs two different times and two different prices.')
   if (kind === 'channel') {
     const offset = annotation.offsetTicks
     if (start.time === end.time || offset === 0)
@@ -60,6 +70,27 @@ export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void
     if (!validAnnotationAnchor('price', start.ticks + offset) || !validAnnotationAnchor('price', end.ticks + offset))
       throw Error('Both shifted channel prices must stay within the chart price bounds.')
   }
+}
+
+export function validatePolyline(points: readonly DrawingEndpoint[]): void {
+  if (points.length < 3) throw Error('A polyline needs at least three points.')
+  if (points.some((point, index) => index > 0 && sameEndpoint(points[index - 1], point)))
+    throw Error('Consecutive polyline points must differ.')
+}
+
+const RETRACEMENT_LEVELS = [
+  [0n, '0%'], [236n, '23.6%'], [382n, '38.2%'], [500n, '50%'],
+  [618n, '61.8%'], [786n, '78.6%'], [1000n, '100%'],
+] as const
+
+export function fibonacciRetracements(start: number, end: number): { ticks: number; label: string }[] {
+  const initial = BigInt(start)
+  const final = BigInt(end)
+  return RETRACEMENT_LEVELS.map(([ratio, label]) => {
+    const scaled = final * 1000n + (initial - final) * ratio
+    const rounded = (scaled + (scaled < 0n ? -500n : 500n)) / 1000n
+    return { ticks: Number(rounded), label }
+  })
 }
 
 export function formatAnnotationAnchor(kind: AnnotationCoordinate, anchor: number): string {

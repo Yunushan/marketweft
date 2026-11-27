@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.129.0 · Polylines and Fibonacci retracements
+
+| Check | Evidence |
+| --- | --- |
+| Browser chart | Chromium checks point insertion and removal, consecutive-duplicate rejection, backward time order, chart picking, all seven retracement labels and a negative half-tick tie. |
+| Workspace backup | Chromium checks exact ordered points and retracement anchors in version 34, prior version 31 restoration and reload. |
+
+[Polylines and Fibonacci retracements](chart-workspace.md#polylines-and-fibonacci-retracements) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.128.0 · Rectangles and parallel channels
 
 | Check | Evidence |

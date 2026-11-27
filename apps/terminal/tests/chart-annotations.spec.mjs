@@ -32,12 +32,15 @@ async function restore(page, backup) {
 async function traceDrawings(page) {
   await page.addInitScript(() => {
     const proto = CanvasRenderingContext2D.prototype
-    const { scale, beginPath, moveTo, lineTo, stroke, strokeRect } = proto
+    const { scale, beginPath, moveTo, lineTo, stroke, strokeRect, fillText } = proto
     const paths = new WeakMap()
     const primary = ctx => ctx.canvas.getAttribute('aria-label')?.startsWith('ANNOTATIONS interactive') &&
       ctx.canvas.closest('[aria-label="Primary chart pane"]')
     proto.scale = function (...args) {
-      if (primary(this)) window.chartMarks = { prices: [], times: [], rays: [], trends: [], rectangles: [], channels: [], grid: [] }
+      if (primary(this)) window.chartMarks = {
+        prices: [], times: [], rays: [], trends: [], rectangles: [], channels: [],
+        polylines: [], retracements: [], labels: [], grid: [],
+      }
       return scale.apply(this, args)
     }
     proto.beginPath = function () {
@@ -54,6 +57,10 @@ async function traceDrawings(page) {
       if (primary(this) && this.strokeStyle === '#7eb4e2') window.chartMarks.rectangles.push(box)
       return strokeRect.apply(this, box)
     }
+    proto.fillText = function (value, ...coords) {
+      if (primary(this) && this.fillStyle === '#cbbce8') window.chartMarks.labels.push(value)
+      return fillText.call(this, value, ...coords)
+    }
     proto.stroke = function () {
       if (primary(this)) {
         const path = paths.get(this) ?? []
@@ -62,6 +69,8 @@ async function traceDrawings(page) {
         if (this.strokeStyle === '#83d1ef') window.chartMarks.rays.push(path)
         if (this.strokeStyle === '#ee9dbd') window.chartMarks.trends.push(path)
         if (this.strokeStyle === '#c3a662') window.chartMarks.channels.push(path)
+        if (this.strokeStyle === '#9aaef0') window.chartMarks.polylines.push(path)
+        if (this.strokeStyle === '#cbbce8') window.chartMarks.retracements.push(path)
         if (this.strokeStyle === '#293036' && path.length === 2) window.chartMarks.grid.push(path)
       }
       return stroke.apply(this, arguments)
@@ -375,4 +384,87 @@ test('rectangles and channels preserve area coordinates, parallel offsets and ea
   await page.reload()
   await expect(tools(left).getByText(boxText, { exact: true })).toBeVisible()
   await expect(tools(left).getByText(channelText, { exact: true })).toBeVisible()
+})
+
+test('polylines preserve point order and Fibonacci levels round exact signed prices', async ({ page }) => {
+  await traceDrawings(page)
+  const trace = () => page.evaluate(() => window.chartMarks)
+  const csv = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-directional.csv', import.meta.url), 'utf8')
+  await page.goto('/')
+  await openImport(page, 'ANNOTATIONS', csv)
+  await submitImport(page, 'ANNOTATIONS')
+  const left = pane(page)
+  const first = '2026-01-01T09:02:00Z'
+  const middle = '2026-01-01T09:04:00Z'
+  const last = '2026-01-01T09:06:00Z'
+  for (const time of [first, middle, last]) await add(left, 'Time marker', time)
+  const legacy = await downloadWorkspace(page)
+  expect(legacy.version).toBe(31)
+  const [x1, xMid, x2] = (await trace()).times.map(path => path[0][0])
+
+  async function setPoint(form, group, time, price) {
+    const point = form.getByRole('group', { name: group, exact: true })
+    await point.getByRole('textbox', { name: 'Time (UTC)' }).fill(time)
+    await point.getByRole('textbox', { name: 'Price' }).fill(price)
+    return point
+  }
+
+  await tools(left).getByRole('button', { name: 'New polyline' }).click()
+  const polyline = editor(left, 'Polyline')
+  await polyline.getByRole('button', { name: 'Add point' }).click()
+  await expect(polyline.getByRole('group', { name: 'Point 4', exact: true })).toBeVisible()
+  await polyline.getByRole('button', { name: 'Remove point 4' }).click()
+  await expect(polyline.getByRole('group')).toHaveCount(3)
+  await setPoint(polyline, 'Point 1', first, '-5')
+  await setPoint(polyline, 'Point 2', last, '4')
+  await setPoint(polyline, 'Point 3', last, '4')
+  await polyline.getByRole('button', { name: 'Save polyline' }).click()
+  await expect(polyline.getByRole('alert')).toContainText('Consecutive polyline points')
+  await setPoint(polyline, 'Point 3', middle, '1')
+  await polyline.getByRole('button', { name: 'Save polyline' }).click()
+  const polylineText = 'Polyline 3 points, -5 at ' + first + ' to 1 at ' + middle
+  await expect(tools(left).getByText(polylineText, { exact: true })).toBeVisible()
+  expect((await trace()).polylines[0].map(([x]) => x)).toEqual([x1, x2, xMid])
+
+  await tools(left).getByRole('button', { name: 'New Fibonacci retracement' }).click()
+  const fib = editor(left, 'Fibonacci retracement')
+  const start = await setPoint(fib, 'Start', first, '-5.000001')
+  await fib.getByRole('button', { name: 'Pick start on chart' }).click()
+  await expect(fib.getByRole('status')).toContainText('Select a point')
+  await left.getByLabel(/^ANNOTATIONS interactive/).click({ position: { x: x1, y: 80 } })
+  await expect(start.getByRole('textbox', { name: 'Time (UTC)' })).toHaveValue(first)
+  await start.getByRole('textbox', { name: 'Price' }).fill('-5.000001')
+  await setPoint(fib, 'End', last, '4')
+  await fib.getByRole('button', { name: 'Save Fibonacci retracement' }).click()
+  const fibText = 'Fibonacci retracement -5.000001 at ' + first + ' to 4 at ' + last
+  await expect(tools(left).getByText(fibText, { exact: true })).toBeVisible()
+  const marks = await trace()
+  expect(marks.labels).toEqual([
+    '0% 4', '23.6% 1.876', '38.2% 0.562', '50% -0.500001',
+    '61.8% -1.562001', '78.6% -3.074001', '100% -5.000001',
+  ])
+  expect(marks.retracements).toHaveLength(7)
+  for (const [start, end] of marks.retracements) {
+    expect([start[0], end[0]]).toEqual([x1, x2])
+    expect(start[1]).toEqual(end[1])
+  }
+
+  const backup = await downloadWorkspace(page)
+  expect(backup.version).toBe(34)
+  const entries = backup.manifest.preferences.annotations['LOCAL:ANNOTATIONS']
+  const seconds = time => Date.parse(time) / 1000
+  expect(entries.slice(-2).map(({ id, ...entry }) => entry)).toEqual([
+    { kind: 'polyline', points: [
+      { time: seconds(first), ticks: -5000000 }, { time: seconds(last), ticks: 4000000 },
+      { time: seconds(middle), ticks: 1000000 },
+    ] },
+    { kind: 'fibonacci', start: { time: seconds(first), ticks: -5000001 }, end: { time: seconds(last), ticks: 4000000 } },
+  ])
+
+  await restore(page, legacy)
+  await expect(tools(left).getByRole('listitem')).toHaveCount(3)
+  await restore(page, backup)
+  await page.reload()
+  await expect(tools(left).getByText(polylineText, { exact: true })).toBeVisible()
+  await expect(tools(left).getByText(fibText, { exact: true })).toBeVisible()
 })

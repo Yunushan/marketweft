@@ -4,7 +4,7 @@ import { Icon } from './Icons'
 import { fixed, MAX_CHART_PRICE_TICKS, tickPrice } from './fixed-point'
 import { ChartAnnotations } from './ChartAnnotations'
 import type { AnnotationPicker } from './ChartAnnotations'
-import { EMPTY_ANNOTATIONS, markerColumn } from './chart-annotations'
+import { EMPTY_ANNOTATIONS, fibonacciRetracements, formatAnnotationAnchor, markerColumn } from './chart-annotations'
 import type { ChartAnnotation, TimeColumn } from './chart-annotations'
 import { isPriceStudy, studyOverlays, STUDIES } from './studies'
 import type { PanelLine, PanelStudy, StudyValue, StudyValues } from './studies'
@@ -463,6 +463,22 @@ function draw(
         if (column === null || column < start - 0.5 || column > view.end - 0.5) continue
         const axis = x(column)
         line(axis, top, axis, priceBottom, '#ad9df5')
+      } else if (annotation.kind === 'polyline') {
+        ctx.strokeStyle = '#9aaef0'
+        ctx.beginPath()
+        let connected = false
+        for (const point of annotation.points) {
+          const column = markerColumn(markerTimeline, point.time)
+          if (column === null) {
+            connected = false
+          } else {
+            const price = y(point.ticks / 1e6)
+            if (connected) ctx.lineTo(x(column), price)
+            else ctx.moveTo(x(column), price)
+            connected = true
+          }
+        }
+        ctx.stroke()
       } else {
         const from = markerColumn(markerTimeline, annotation.start.time)
         const level = y(annotation.start.ticks / 1e6)
@@ -483,6 +499,17 @@ function draw(
             ctx.fillRect(...box)
             ctx.strokeStyle = '#7eb4e2'
             ctx.strokeRect(...box)
+          } else if (annotation.kind === 'fibonacci') {
+            const first = Math.min(x1, x2)
+            const last = Math.max(x1, x2)
+            if (last < left || first > right) continue
+            ctx.fillStyle = '#cbbce8'
+            for (const { ticks, label } of fibonacciRetracements(annotation.start.ticks, annotation.end.ticks)) {
+              const position = y(ticks / 1e6)
+              if (position < top || position > priceBottom) continue
+              line(first, position, last, position, '#cbbce8')
+              ctx.fillText(label + ' ' + formatAnnotationAnchor('price', ticks), Math.max(first, left) + 4, position - 7)
+            }
           } else if (annotation.kind === 'channel') {
             const offset1 = y((annotation.start.ticks + annotation.offsetTicks) / 1e6)
             const offset2 = y((annotation.end.ticks + annotation.offsetTicks) / 1e6)
@@ -738,6 +765,7 @@ export function Chart({
   const sourceIndex = selectedObservation?.sourceIndex ?? movement?.sourceIndex ?? readoutIndex
   const time = selectedObservation?.sourceTime ?? b.time
   const prior = asset.bars[Math.max(0, sourceIndex - 1)]
+  const preceding = asset.bars[Math.max(0, sourceIndex - 2)]
   const studyValues = useMemo(() => panels.map(study => study.lines.map(line => line.series[sourceIndex])),
     [panels, sourceIndex])
   const activeStudyPlotValues = useMemo(() => studyValues.map(values => values.map(plotValue)), [studyValues])
@@ -1137,6 +1165,7 @@ export function Chart({
               setAnnotationPicker(picker)
             }}
             defaults={{
+              prior: { ticks: Math.round(preceding.close * 1e6), time: preceding.time },
               start: { ticks: Math.round(prior.close * 1e6), time: prior.time },
               end: { ticks: Math.round(asset.bars[sourceIndex].close * 1e6), time },
             }}
