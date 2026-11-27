@@ -18,7 +18,7 @@ A successful web test validates a specific browser, build and host. Producing a 
 
 ## Windows native verification
 
-The Windows Server 2022 x64 job uses Microsoft Edge WebDriver to launch the built MarketWeft executable with a temporary WebView2 data folder. It checks the app's Tauri origin, records the native WebView2 version, imports the shared CSV through the file input and checks the exact candlestick quote. [Microsoft WebView2 WebDriver guide](https://learn.microsoft.com/en-us/microsoft-edge/webview2/how-to/webdriver) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+The Windows Server 2022 x64 job selects the Microsoft-signed Edge WebDriver that matches the installed WebView2 Runtime. The driver launches the built MarketWeft executable with a temporary data folder. The fixture checks the app's Tauri origin, records the native runtime version, imports the shared CSV through the file input and checks the exact candlestick quote. [Microsoft WebView2 WebDriver guide](https://learn.microsoft.com/en-us/microsoft-edge/webview2/how-to/webdriver) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 With a matching Edge WebDriver and WebView2 runtime, run the same fixture from the repository root after building the desktop executable.
 

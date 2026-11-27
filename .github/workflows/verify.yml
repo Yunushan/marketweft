@@ -313,7 +313,8 @@ jobs:
         shell: pwsh
         run: |
           if ($env:RUNNER_ARCH -ne 'X64') { throw 'Expected an x64 Windows host.' }
-          python -B apps/desktop/tests/import_webview.py apps/desktop/target/debug/marketweft-desktop.exe
+          $driver = & scripts/stage_edge_webdriver.ps1 -Architecture x64 -OutputDirectory (Join-Path $env:RUNNER_TEMP 'marketweft-webview2-driver')
+          python -B apps/desktop/tests/import_webview.py apps/desktop/target/debug/marketweft-desktop.exe --driver $driver
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify the native macOS host and Mach-O binaries
         if: runner.os == 'macOS'
