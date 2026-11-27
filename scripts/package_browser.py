@@ -142,6 +142,10 @@ Load the settlement journal demo or supply rights-journal.csv as the
 exercise reports file. Expand Subscription settlement journal. At effective
 15:00 UTC, advance knowledge through 14:57, 14:59, 15:01 and 15:02 to replay
 the initial settlement, cash correction, currency change and cancellation.
+Load the capital return demo or upload capital-returns.csv,
+capital-return-basis.csv and rights-holdings.csv. At effective 14:50 UTC,
+advance knowledge from 14:49 to 14:55 to compare the USD basis reports.
+At effective 15:00 and known 15:02, inspect the reported EUR basis.
 Below the rankings, choose Load demo sectors or upload universe-sectors.csv
 with the matching membership and price reports. The Sector heatmap shows
 each listing's sector, weight, price return and observed contribution.
@@ -234,6 +238,8 @@ def main():
     files["rights-holdings.csv"] = (fixture / "synthetic-rights-holdings.csv").read_bytes()
     files["rights-exercises.csv"] = (fixture / "synthetic-rights-exercises.csv").read_bytes()
     files["rights-journal.csv"] = (fixture / "synthetic-rights-journal.csv").read_bytes()
+    files["capital-returns.csv"] = (fixture / "synthetic-capital-returns.csv").read_bytes()
+    files["capital-return-basis.csv"] = (fixture / "synthetic-capital-return-basis.csv").read_bytes()
     files["portfolio-dividends.csv"] = (fixture / "synthetic-portfolio-dividends.csv").read_bytes()
     files["split-revisions.csv"] = (fixture / "synthetic-split-revisions.csv").read_bytes()
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()

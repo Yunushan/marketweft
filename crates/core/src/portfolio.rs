@@ -7,6 +7,8 @@ use std::{
     ops::Bound::{self, Excluded, Included, Unbounded},
 };
 
+#[path = "portfolio_capital_return.rs"]
+mod capital_return;
 #[path = "portfolio_income.rs"]
 mod income;
 #[path = "portfolio_rights.rs"]
@@ -19,6 +21,9 @@ mod rights_journal;
 mod spinoff;
 #[path = "portfolio_successor.rs"]
 mod successor;
+pub use capital_return::{
+    portfolio_capital_returns_as_of, CapitalReturnBasis, PortfolioCapitalReturn,
+};
 pub(crate) use income::PortfolioIncomeReports;
 pub use income::{
     PortfolioDividendRow, PortfolioDividendState, PortfolioIncomeCurrency, PortfolioIncomeSnapshot,

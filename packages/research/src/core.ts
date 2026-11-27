@@ -993,6 +993,21 @@ export interface PortfolioSuccessorDeliveryPosting {
   balance: { numerator: bigint; denominator: number };
 }
 
+export interface PortfolioCapitalReturn {
+  listingId: string;
+  actionId: string;
+  announcedAt: number;
+  exAt: number;
+  payAt: number;
+  observedAt: number;
+  currency: string;
+  amountPerShare: bigint;
+  state: 'unknown-position' | 'no-payment' | 'receivable' | 'paid';
+  entitledShares: number | null;
+  amount: bigint | null;
+  basis: { observedAt: number; before: bigint; reduction: bigint; remaining: bigint; excess: bigint } | null;
+}
+
 export interface RightsSettlementPosting {
   offeringId: string;
   exerciseId: string;
@@ -1122,6 +1137,7 @@ export interface MarketCore {
   portfolioRightsAsOf(membership: string, holdings: string, reports: string, effectiveAt: string, knownAt: string): PortfolioRightsOffering[];
   portfolioRightsExercisesAsOf(membership: string, holdings: string, rights: string, exercises: string, effectiveAt: string, knownAt: string): PortfolioRightsExercise[];
   portfolioRightsSettlementJournal(membership: string, rights: string, exercises: string, effectiveAt: string, knownAt: string): RightsSettlementPosting[];
+  portfolioCapitalReturnsAsOf(membership: string, holdings: string, returns: string, basis: string, effectiveAt: string, knownAt: string): PortfolioCapitalReturn[];
   portfolioSuccessorDeliveryLedger(membership: string, holdings: string, terms: string,
     effectiveAt: string, knownAt: string): PortfolioSuccessorDeliveryPosting[];
   portfolioSpinOffsAsOf(membership: string, holdings: string, reports: string,
@@ -1257,6 +1273,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_rights_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_rights_exercises_as_of(membershipBytes: number, holdingsBytes: number, rightsBytes: number): number;
   mw_portfolio_rights_settlement_journal(membershipBytes: number, rightsBytes: number): number;
+  mw_portfolio_capital_returns_as_of(membershipBytes: number, holdingBytes: number, returnsBytes: number): number;
   mw_portfolio_successor_delivery_ledger(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_offs_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_off_cash_as_of(membershipBytes: number, holdingsBytes: number, actionBytes: number): number;
@@ -2480,6 +2497,27 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
             rate: { numerator: Number(rateNumerator), denominator: Number(rateDenominator) },
           } : null,
           successorShares: shares ? { numerator: BigInt(numerator), denominator: Number(denominator) } : null,
+        };
+      });
+    },
+    portfolioCapitalReturnsAsOf(membership, holdings, returns, basis, effectiveAt, knownAt) {
+      portfolioInput(effectiveAt, knownAt, membership, holdings, returns, basis);
+      const text = decoder.decode(output(api.mw_portfolio_capital_returns_as_of(
+        encoder.encode(membership).length, encoder.encode(holdings).length, encoder.encode(returns).length,
+      )));
+      if (!text) return [];
+      return text.slice(0, -1).split('\n').map(line => {
+        const [listingId, actionId, announced, ex, pay, observed, currency, rate, state,
+          shares, amount, basisObserved, before, reduction, remaining, excess] = line.split('\t');
+        return {
+          listingId, actionId, announcedAt: Number(announced), exAt: Number(ex), payAt: Number(pay),
+          observedAt: Number(observed), currency, amountPerShare: BigInt(rate),
+          state: state as PortfolioCapitalReturn['state'],
+          entitledShares: shares === '' ? null : Number(shares), amount: amount === '' ? null : BigInt(amount),
+          basis: basisObserved === undefined ? null : {
+            observedAt: Number(basisObserved), before: BigInt(before), reduction: BigInt(reduction),
+            remaining: BigInt(remaining), excess: BigInt(excess),
+          },
         };
       });
     },

@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.199.0 · Point-in-time returns of capital
+
+- The Rust fixture covers independent ex-date, payment and observation cutoffs, a delayed holdings correction, a rescheduled payment in another currency, a zero distribution, and missing versus explicit zero holdings and basis.
+- Wasm and offline Chromium show the reported 25 USD cash and 5 USD remaining basis, then the revised 24.000008 EUR cash and 15.875007 EUR above basis. Chromium loads returns without a basis or closes file, then adds basis and reproduces the prior export byte for byte on rewind.
+- An offline upgrade from the hosted 0.198.0 archive to the locally built 0.199.0 archive preserved the same saved quote and reproduced both capital return results.
+
+[Capital returns](portfolio-capital-returns.md)
+
 ## 0.198.0 · Subscription settlement journal
 
 - The Rust fixtures verify selection between simultaneous reports, independence from source row order, and omission of a late revision to an older effective allocation.

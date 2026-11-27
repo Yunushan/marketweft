@@ -447,6 +447,75 @@ fn portfolio_action_input(
 }
 
 #[no_mangle]
+pub extern "C" fn mw_portfolio_capital_returns_as_of(
+    membership_bytes: usize,
+    holding_bytes: usize,
+    returns_bytes: usize,
+) -> u32 {
+    use crate::PortfolioDividendState;
+    use std::fmt::Write;
+    process(|input| {
+        let PortfolioActionInput {
+            effective,
+            known,
+            universe,
+            holdings,
+            terms,
+        } = portfolio_action_input(input, membership_bytes, holding_bytes)?;
+        let (returns, basis) = terms
+            .split_at_checked(returns_bytes)
+            .ok_or("Supply capital return reports.")?;
+        let rows = crate::portfolio_capital_returns_as_of(
+            &universe,
+            holdings,
+            returns,
+            (!basis.is_empty()).then_some(basis),
+            effective,
+            known,
+        )?;
+        let mut text = String::new();
+        for row in rows {
+            let report = row.report;
+            let state = match row.state {
+                PortfolioDividendState::UnknownPosition => "unknown-position",
+                PortfolioDividendState::NoPayment => "no-payment",
+                PortfolioDividendState::Receivable => "receivable",
+                PortfolioDividendState::Paid => "paid",
+            };
+            write!(
+                text,
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{state}\t{}\t{}",
+                row.listing_id,
+                report.id,
+                report.announced_at,
+                report.ex_at,
+                report.pay_at,
+                report.observed_at,
+                report.currency,
+                report.amount_per_share,
+                row.entitled_shares
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+                row.amount
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+            )
+            .unwrap();
+            if let Some(basis) = row.basis {
+                write!(
+                    text,
+                    "\t{}\t{}\t{}\t{}\t{}",
+                    basis.observed_at, basis.before, basis.reduction, basis.remaining, basis.excess
+                )
+                .unwrap();
+            }
+            text.push('\n');
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_portfolio_successor_shares_as_of(
     membership_bytes: usize,
     holding_bytes: usize,

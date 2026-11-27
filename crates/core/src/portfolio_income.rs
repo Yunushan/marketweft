@@ -42,23 +42,35 @@ pub(crate) struct PortfolioIncomeReports {
 
 impl PortfolioIncomeReports {
     pub(crate) fn parse(universe: &UniverseBook, csv: &str) -> Result<Self, String> {
+        Self::parse_named(universe, csv, HEADER, "dividend")
+    }
+
+    pub(super) fn parse_named(
+        universe: &UniverseBook,
+        csv: &str,
+        header: &str,
+        name: &str,
+    ) -> Result<Self, String> {
         if csv.len() > 1024 * 1024 {
-            return Err("Portfolio dividends CSV exceeds 1 MiB.".into());
+            return Err(format!("Portfolio {name}s CSV exceeds 1 MiB."));
         }
         let mut lines = csv
             .trim_start_matches('\u{feff}')
             .lines()
             .enumerate()
             .filter(|(_, line)| !line.trim().is_empty());
-        if lines.next().map(|(_, line)| line.trim()) != Some(HEADER) {
-            return Err(format!("Expected portfolio dividends header {HEADER}."));
+        if lines.next().map(|(_, line)| line.trim()) != Some(header) {
+            return Err(format!("Expected portfolio {name}s header {header}."));
         }
         let listing_ids = universe.listing_ids();
         let mut reports: BTreeMap<&str, Vec<Dividend>> = BTreeMap::new();
         for (index, (line, record)) in lines.enumerate() {
-            let error = |reason: &str| format!("Portfolio dividend line {}: {reason}", line + 1);
+            let error = |reason: &str| format!("Portfolio {name} line {}: {reason}", line + 1);
             if index == 1_000 {
-                return Err(error("Supply at most 1,000 portfolio dividend reports."));
+                return Err(format!(
+                    "Portfolio {name} line {}: Supply at most 1,000 portfolio {name} reports.",
+                    line + 1
+                ));
             }
             let mut fields = record.split(',').map(str::trim);
             let scope = fields.next();
@@ -74,7 +86,7 @@ impl PortfolioIncomeReports {
             reports.entry(listing).or_default().push(report);
         }
         if reports.is_empty() {
-            return Err("Portfolio dividends CSV contains no reports.".into());
+            return Err(format!("Portfolio {name}s CSV contains no reports."));
         }
         let listings = reports
             .into_iter()
@@ -91,9 +103,15 @@ impl PortfolioIncomeReports {
     }
 
     pub(crate) fn dividend_books(&self) -> impl Iterator<Item = (&str, &DividendBook)> {
+        self.listing_books().map(|(id, _, book)| (id, book))
+    }
+
+    pub(super) fn listing_books(
+        &self,
+    ) -> impl Iterator<Item = (&str, &UniverseBook, &DividendBook)> {
         self.listings
             .iter()
-            .map(|(id, (_, book))| (id.as_str(), book))
+            .map(|(id, (listing, book))| (id.as_str(), listing, book))
     }
 }
 
@@ -157,7 +175,7 @@ impl PortfolioBook<'_> {
     }
 }
 
-fn shares_at_ex(
+pub(super) fn shares_at_ex(
     listing: &UniverseBook,
     holdings: Option<&PositionSeries>,
     ex_at: i64,

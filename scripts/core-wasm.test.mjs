@@ -92,6 +92,36 @@ test('subscription settlement journal keeps exact signed changes and balances by
   assert.deepEqual(run('14:54:00', '14:57:00'), original);
 });
 
+
+test('capital returns separate cash from basis at each independent cutoff in Wasm', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
+  const [membership, holdings, returns, basis] = await Promise.all([
+    fixture('synthetic-universe.csv'), fixture('synthetic-rights-holdings.csv'), fixture('synthetic-capital-returns.csv'),
+    fixture('synthetic-capital-return-basis.csv'),
+  ]);
+  const time = label => '2025-06-02T' + label + 'Z';
+  const run = (effective, known, basisReports = basis) =>
+    core.portfolioCapitalReturnsAsOf(membership, holdings, returns, basisReports, time(effective), time(known));
+  assert.deepEqual(run('14:17:59', '14:49:00'), []);
+  const pending = run('14:49:59', '14:49:00')[0];
+  assert.equal(pending.state, 'receivable');
+  assert.equal(pending.amount, 25000000n);
+  assert.equal(pending.basis, null);
+  const first = run('14:50:00', '14:49:00');
+  assert.equal(first[0].basis.reduction, 25000000n);
+  assert.equal(first[0].basis.remaining, 5000000n);
+  assert.equal(run('14:50:00', '14:55:00')[0].basis.excess, 15000000n);
+  const revised = run('15:00:00', '15:01:59')[0];
+  assert.equal(revised.currency, 'EUR');
+  assert.equal(revised.entitledShares, 8);
+  assert.equal(revised.amount, 24000008n);
+  assert.equal(revised.basis, null);
+  assert.equal(run('15:00:00', '15:02:00')[0].basis.excess, 15875007n);
+  assert.equal(run('15:00:00', '15:04:00')[0].state, 'no-payment');
+  assert.equal(run('14:50:00', '14:49:00', '')[0].basis, null);
+  assert.deepEqual(run('14:50:00', '14:49:00'), first);
+});
+
 test('successor share bridge keeps exact quantities and absence at both cutoffs', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, terms] = await Promise.all([
