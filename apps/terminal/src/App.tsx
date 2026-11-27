@@ -16,6 +16,8 @@ import { Spark } from './Chart'
 import { TimeframeChart } from './TimeframeChart'
 import { FootprintResearch } from './FootprintResearch'
 import { IndicatorPeriods, StudyControls } from './IndicatorPeriods'
+import { annotationAnchor, EMPTY_ANNOTATIONS } from './chart-annotations'
+import type { ChartAnnotation } from './chart-annotations'
 import { Icon, Mark } from './Icons'
 import { changeString, dateLabel, movement, price, volume } from './workspace'
 import type { Asset, SavedImport } from './workspace'
@@ -648,7 +650,27 @@ export function App({
     return {
       core,
       saved: ws.drawings?.[id],
+      annotations: ws.annotations?.[id] ?? EMPTY_ANNOTATIONS,
       busy: saving,
+      async saveAnnotation(before: ChartAnnotation | undefined, next: ChartAnnotation | undefined) {
+        const { annotations: current, ...preferences } = saved.preferences
+        const original = before ?? next
+        if (!original) return
+        const annotations = { ...current }
+        const entries = [...(annotations[id] ?? [])]
+        const position = entries.findIndex(entry => entry.id === original.id)
+        const previous = entries[position]
+        if (before ? !previous || previous.kind !== before.kind || annotationAnchor(previous) !== annotationAnchor(before)
+          : previous !== undefined)
+          throw Error('This drawing changed while you were editing. Cancel and reopen it.')
+        if (position < 0 && next) entries.push(next)
+        else if (next) entries[position] = next
+        else entries.splice(position, 1)
+        if (entries.length) annotations[id] = entries
+        else delete annotations[id]
+        const updated = Object.keys(annotations).length ? { ...preferences, annotations } : preferences
+        await commit(() => catalog.savePreferences(saved.revision, updated))
+      },
       async save(drawing: MeasuredDrawing | null) {
         const { drawings: current, ...preferences } = saved.preferences
         const drawings = { ...current }

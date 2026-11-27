@@ -64,6 +64,14 @@ The readout reports signed elapsed seconds, price change and percentage change f
 
 The workspace saves one measurement per built-in or imported instrument, including instruments outside the watchlist. Workspace backups preserve drawings and any comparison settings. [Backup format](workspace-backup.md)
 
+## Horizontal price lines and UTC time markers
+
+Choose **New price line** below the chart and enter a signed price with up to six decimal places. Choose **New time marker** and enter a UTC timestamp such as `2025-01-02T14:30:00Z`. **Pick on chart** sets the nearest price tick or the UTC time of the selected observation. Choose **Save price line** or **Save time marker** to keep the result. Each saved entry can be edited or removed independently.
+
+A price line spans the visible price plot when its price is within the current scale. A UTC marker spans the height of the price plot at its time. Between two plotted observations, its position is interpolated by elapsed UTC time. When a price-movement chart uses one displayed column for multiple observations, the marker uses their plotted column. The current viewport and chart type determine placement.
+
+Both panes show the same saved annotations when they display the same instrument. Annotations are kept for instruments removed from the watchlist. Workspace backup version 31 saves each exact price or UTC timestamp and restores earlier measurement-only backups. [Backup format](workspace-backup.md)
+
 ## Moving-average periods
 
 Open **Indicators** to configure the primary chart. When the comparison pane is open, the same dialog provides a separate pair of period fields for it. Each field accepts a whole period from 1 to 100,000 bars. The default periods are 20 bars for SMA and 9 bars for EMA. Each overlay can be enabled independently.

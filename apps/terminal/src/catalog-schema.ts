@@ -1,4 +1,7 @@
 import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core'
+import { makeAnnotation, validAnnotationAnchor } from './chart-annotations'
+import type { ChartAnnotation } from './chart-annotations'
+import { MAX_CHART_PRICE_TICKS } from './fixed-point'
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
 import type { Asset, SavedImport } from './workspace'
 import { isSha256, sha256Text } from './sha256'
@@ -13,6 +16,7 @@ export type Preferences = {
   ema: boolean
   comparison?: ComparisonPreferences
   drawings?: Record<string, MeasuredDrawing>
+  annotations?: Record<string, ChartAnnotation[]>
   overlayPeriods?: Partial<Record<ChartPane, OverlayPeriods>>
   rsi?: Partial<Record<ChartPane, StudySettings>>
   studies?: Partial<Record<ChartPane, StudySet>>
@@ -29,7 +33,7 @@ export type ChartType = 'candles' | 'line' | 'ohlc' | 'heikin-ashi' | 'renko' | 
 export const DEFAULT_RENKO_TICKS = 1_000_000
 export const DEFAULT_KAGI_TICKS = 1_000_000
 export const DEFAULT_POINT_FIGURE_TICKS = 1_000_000
-export const MAX_CHART_PRICE_TICKS = 2_000_000_000_000_000
+export { MAX_CHART_PRICE_TICKS }
 export type OverlayPeriods = { sma: number; ema: number }
 
 export type ComparisonPreferences = {
@@ -126,6 +130,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   const keys = ['selected', 'watchlist', 'sma', 'ema']
   if (value && typeof value === 'object' && Object.hasOwn(value, 'comparison')) keys.push('comparison')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'drawings')) keys.push('drawings')
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'annotations')) keys.push('annotations')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'overlayPeriods')) keys.push('overlayPeriods')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'chartTypes')) keys.push('chartTypes')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'rsi')) keys.push('rsi')
@@ -171,6 +176,30 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       const drawing = { start: drawingEndpoint(value.start), end: drawingEndpoint(value.end) }
       core.measureDrawing(drawing)
       return [id, drawing]
+    }))
+  }
+  if (keys.includes('annotations')) {
+    const annotations = value.annotations
+    if (!annotations || typeof annotations !== 'object' || Array.isArray(annotations) || !Object.keys(annotations).length)
+      throw Error('Invalid chart annotations in the workspace.')
+    result.annotations = Object.fromEntries(Object.entries(annotations).map(([instrument, entries]) => {
+      if (!ids.has(instrument) || !Array.isArray(entries) || !entries.length)
+        throw Error('Invalid chart annotations for an instrument.')
+      const annotationIds = new Set<string>()
+      return [instrument, entries.map((entry: unknown) => {
+        const kind = entry && typeof entry === 'object' && Object.hasOwn(entry, 'kind') ?
+          (entry as { kind: unknown }).kind : undefined
+        if (kind !== 'price' && kind !== 'time') throw Error('Invalid chart annotation type.')
+        const coordinate = kind === 'price' ? 'ticks' : 'time'
+        fields(entry, ['id', 'kind', coordinate], 'chart annotation')
+        const { id } = entry
+        const anchor = entry[coordinate]
+        if (typeof id !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id) ||
+            annotationIds.has(id) || !validAnnotationAnchor(kind, anchor))
+          throw Error('Invalid chart annotation ID or coordinate.')
+        annotationIds.add(id)
+        return makeAnnotation(id, kind, anchor)
+      })]
     }))
   }
   if (keys.includes('overlayPeriods')) {

@@ -1,3 +1,5 @@
+export const MAX_CHART_PRICE_TICKS = 2_000_000_000_000_000
+
 export function fixed(value: bigint, places: number): string {
   const magnitude = (value < 0n ? -value : value).toString().padStart(places + 1, '0')
   const decimals = magnitude.slice(-places).replace(/0+$/, '')

@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.126.0 · Horizontal price lines and vertical UTC markers
+
+| Check | Evidence |
+| --- | --- |
+| Browser chart | Chromium checks signed price ticks, UTC positions at and between observations, canvas picks, and annotation placement after zoom. |
+| Concurrent edits | Chromium checks that both panes share the selected instrument's annotations, edits to different entries are preserved, and a stale edit to the same entry is rejected. |
+| Workspace backup | Chromium checks independent entries with the same anchor, version 31 round trips, version 3 measurement restoration, and rejection of unknown instruments, duplicate IDs, and out-of-range coordinates. |
+
+[Price lines and UTC markers](chart-workspace.md#horizontal-price-lines-and-utc-time-markers) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.125.0 · Aroon and Aroon Oscillator
 
 | Check | Evidence |

@@ -1,7 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from './Icons'
-import { fixed, tickPrice } from './fixed-point'
+import { fixed, MAX_CHART_PRICE_TICKS, tickPrice } from './fixed-point'
+import { ChartAnnotations } from './ChartAnnotations'
+import type { AnnotationPicker } from './ChartAnnotations'
+import { EMPTY_ANNOTATIONS, markerColumn } from './chart-annotations'
+import type { ChartAnnotation, TimeColumn } from './chart-annotations'
 import { isPriceStudy, studyOverlays, STUDIES } from './studies'
 import type { PanelLine, PanelStudy, StudyValue, StudyValues } from './studies'
 import { kagiLayout, kagiSegmentAt } from './kagi-chart'
@@ -44,8 +48,10 @@ type Plot = { left: number; right: number; top: number; bottom: number; high: nu
 type DrawingTools = {
   core: MarketCore
   saved?: MeasuredDrawing
+  annotations: readonly ChartAnnotation[]
   busy: boolean
   save: (drawing: MeasuredDrawing | null) => Promise<void>
+  saveAnnotation: (before: ChartAnnotation | undefined, after: ChartAnnotation | undefined) => Promise<void>
 }
 const UP = '#68d7b1',
   DOWN = '#ec817e',
@@ -139,6 +145,8 @@ function draw(
   ema: Series,
   active: number | null,
   drawing: MeasuredDrawing | undefined,
+  annotations: readonly ChartAnnotation[],
+  markerTimeline: readonly TimeColumn[],
   type: ChartType,
   kagi: KagiLayout | undefined,
   pointFigure: PointFigureLayout | undefined,
@@ -438,6 +446,20 @@ function draw(
   ctx.fillRect(right, at - 9, width - right, 18)
   ctx.fillStyle = '#0e1915'
   ctx.fillText(closeLabel, right + 6, at)
+  for (const annotation of annotations) {
+    ctx.lineWidth = 1.25
+    if (annotation.kind === 'price') {
+      const price = annotation.ticks / 1e6
+      if (price < low || price > high) continue
+      const level = y(price)
+      line(left, level, right, level, '#e4b96a')
+    } else {
+      const column = markerColumn(markerTimeline, annotation.time)
+      if (column === null || column < start - 0.5 || column > view.end - 0.5) continue
+      const axis = x(column)
+      line(axis, top, axis, priceBottom, '#ad9df5')
+    }
+  }
   if (drawing) {
     const columns = kagi?.byTime ?? pointFigure?.byTime
     const first = columns ? columns.get(drawing.start.time)?.column ?? null :
@@ -635,12 +657,25 @@ export function Chart({
   const [drawingFields, setDrawingFields] = useState<DrawingFields | null>(null)
   const drawingBeforeEdit = useRef<MeasuredDrawing | undefined>(undefined)
   const [picking, setPicking] = useState<EndpointName | null>(null)
+  const [annotationPicker, setAnnotationPicker] = useState<AnnotationPicker | null>(null)
   const [drawingError, setDrawingError] = useState('')
   const drawing = drawingTools?.saved
   const drawingCore = drawingTools?.core
   const measurement = useMemo(() => drawing && drawingCore?.measureDrawing(drawing), [drawing, drawingCore])
   const start = view.end - view.count
   const observationsByTime = kagi?.byTime ?? pointFigure?.byTime
+  const annotations = drawingTools?.annotations ?? EMPTY_ANNOTATIONS
+  const hasTimeMarker = annotations.some(annotation => annotation.kind === 'time')
+  const markerTimeline = useMemo(() => {
+    if (!hasTimeMarker) return []
+    const columns = new Map<number, number>()
+    if (observationsByTime) {
+      for (const [time, observation] of observationsByTime) columns.set(time, observation.column)
+    } else {
+      bars.forEach((bar, index) => columns.set(bar.time, index))
+    }
+    return Array.from(columns, ([time, column]) => ({ time, column }))
+  }, [bars, hasTimeMarker, observationsByTime])
   const linkedObservation = linkedTimestamp == null ? undefined : observationsByTime?.get(linkedTimestamp)
   const linkedIndex = observationsByTime ?
     linkedObservation && linkedObservation.column >= start && linkedObservation.column < view.end ? linkedObservation.column : null :
@@ -735,6 +770,8 @@ export function Chart({
           plottedEma,
           active,
           drawing,
+          annotations,
+          markerTimeline,
           type,
           kagi,
           pointFigure,
@@ -743,7 +780,7 @@ export function Chart({
           plottedPriceLines,
           activeStudyPlotValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, type, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -808,6 +845,18 @@ export function Chart({
       [point]: endpointFields({ time: observation?.sourceTime ?? bars[index].time, ticks }) })
     setPicking(null)
     setDrawingError('')
+  }
+  function pickAnnotation(event: ReactPointerEvent<HTMLCanvasElement>, picker: AnnotationPicker) {
+    const bounds = plot.current
+    if (!bounds) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const index = barIndexAt(event.clientX - rect.left, bounds)
+    const y = event.clientY - rect.top
+    if (index === null || y < bounds.top || y > bounds.bottom) return
+    const ticks = clamp(priceTicksAt(y, bounds), -MAX_CHART_PRICE_TICKS, MAX_CHART_PRICE_TICKS)
+    const observed = observationAt(index, ticks)
+    picker.accept(picker.kind === 'price' ? ticks : observed?.sourceTime ?? bars[index].time)
+    setAnnotationPicker(null)
   }
   return (
     <section className="plot" aria-label={closeBased ? chartNames[type] + ' chart' : 'Price and volume chart'}
@@ -905,7 +954,7 @@ export function Chart({
           })}
         </div>
       })}
-      <div ref={zone} className={picking ? 'canvas-zone picking-endpoint' : 'canvas-zone'}
+      <div ref={zone} className={picking || annotationPicker ? 'canvas-zone picking-endpoint' : 'canvas-zone'}
         style={panels.length ? { height: `calc(var(--price-chart-height) + ${110 * panels.length}px)` } : undefined}>
         <canvas
           tabIndex={0}
@@ -915,6 +964,10 @@ export function Chart({
             if (e.button !== 0) return
             if (picking) {
               pickEndpoint(e, picking)
+              return
+            }
+            if (annotationPicker) {
+              pickAnnotation(e, annotationPicker)
               return
             }
             drag.current = { x: e.clientX, end: view.end }
@@ -1018,7 +1071,10 @@ export function Chart({
                 setDrawingFields({ ...drawingFields, [point]: fields })
                 setDrawingError('')
               }}
-              onPick={point => setPicking(picking === point ? null : point)}
+              onPick={point => {
+                setAnnotationPicker(null)
+                setPicking(picking === point ? null : point)
+              }}
               onSave={() => void saveDrawing()} onCancel={stopEditing} />
           ) : (
             <div className="drawing-buttons">
@@ -1030,6 +1086,13 @@ export function Chart({
               {drawingError && <p role="alert">{drawingError}</p>}
             </div>
           )}
+          <ChartAnnotations entries={annotations} busy={drawingTools.busy} picking={annotationPicker !== null}
+            setPicker={picker => {
+              if (picker) setPicking(null)
+              setAnnotationPicker(picker)
+            }}
+            defaults={{ price: Math.round(asset.bars[sourceIndex].close * 1e6), time }}
+            save={drawingTools.saveAnnotation} />
         </div>
       )}
       {exportOptions && (

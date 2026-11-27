@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.125.0
+# Platform support · MarketWeft 0.126.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. No signed native distribution is part of this milestone.
 
