@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.172.0 · macOS disk images
+
+- The native macOS jobs build a compressed read-only disk image from the verified release bundle on Intel and Apple Silicon.
+- The jobs check the image, mount it read-only, verify the Applications shortcut and copy the bundle to an isolated Applications directory. After ejecting the image, they verify the copy's contents, architecture and code signature, then launch the exact copy through Launch Services.
+- Each successful job uploads its image and SHA-256 sidecar.
+
+[macOS disk images](platforms.md#macos-disk-images) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.171.0 · macOS application archives
 
 | Check | Evidence |
