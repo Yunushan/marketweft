@@ -2865,9 +2865,7 @@ pub extern "C" fn mw_bollinger_bands(period: usize) -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_donchian_channels(period: usize) -> u32 {
-    process(|input| {
-        crate::donchian_channels(period, &decode_bars(input)?).map(encode_price_bands)
-    })
+    process(|input| crate::donchian_channels(period, &decode_bars(input)?).map(encode_price_bands))
 }
 
 fn encode_price_bands(bands: Vec<Option<crate::PriceBand>>) -> Vec<u8> {

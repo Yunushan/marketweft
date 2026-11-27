@@ -96,10 +96,7 @@ impl Window {
 
 /// Use a full window of closes and two population standard deviations.
 /// Return exact millionths, rounded half away from zero only at the output.
-pub fn bollinger_bands(
-    period: usize,
-    closes: &[i64],
-) -> Result<Vec<Option<PriceBand>>, String> {
+pub fn bollinger_bands(period: usize, closes: &[i64]) -> Result<Vec<Option<PriceBand>>, String> {
     if !(1..=MAX_BARS).contains(&period) || closes.len() > MAX_BARS {
         return Err(
             "Bollinger periods must be 1–100,000 and histories at most 100,000 bars.".into(),

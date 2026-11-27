@@ -64,11 +64,10 @@ pub use backtest::{
     BacktestSignal, FormulaBacktestConfig, FormulaBacktestReport, FormulaBacktestSignal,
     RecordedBacktestCutoffs,
 };
-pub use bollinger::{bollinger_bands, PriceBand};
 pub use bollinger::PriceBand as BollingerBand;
+pub use bollinger::{bollinger_bands, PriceBand};
 pub use bollinger_measures::{bollinger_measures, BollingerMeasures};
 pub use chart_movement::PriceMovement;
-pub use donchian::donchian_channels;
 pub use cross_section::{
     CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,
     CrossSectionDelistingClaim, CrossSectionDelistingPosting, CrossSectionDividendPosting,
@@ -85,6 +84,7 @@ pub use dividend::{
     parse_dividend_positions, parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind,
     DividendMovement, DividendPositions, PositionObservation,
 };
+pub use donchian::donchian_channels;
 pub use drawing::{measure_drawing, DrawingEndpoint, DrawingMeasurement};
 pub use formula::{Formula, FormulaFunctionDefinition, FormulaLibrary, FORMULA_VERSION};
 pub use formula_walk::{
