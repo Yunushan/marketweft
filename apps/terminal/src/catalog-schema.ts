@@ -15,12 +15,14 @@ export type Preferences = {
   chartTypes?: Partial<Record<ChartPane, Exclude<ChartType, 'candles'>>>
   renkoTicks?: Partial<Record<ChartPane, number>>
   kagiTicks?: Partial<Record<ChartPane, number>>
+  pointFigureTicks?: Partial<Record<ChartPane, number>>
 }
 
 export type ChartPane = 'primary' | 'comparison'
-export type ChartType = 'candles' | 'line' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi'
+export type ChartType = 'candles' | 'line' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
 export const DEFAULT_RENKO_TICKS = 1_000_000
 export const DEFAULT_KAGI_TICKS = 1_000_000
+export const DEFAULT_POINT_FIGURE_TICKS = 1_000_000
 export const MAX_CHART_PRICE_TICKS = 2_000_000_000_000_000
 export type OverlayPeriods = { sma: number; ema: number }
 
@@ -120,7 +122,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   if (value && typeof value === 'object' && Object.hasOwn(value, 'drawings')) keys.push('drawings')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'overlayPeriods')) keys.push('overlayPeriods')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'chartTypes')) keys.push('chartTypes')
-  const tickSettings = ['renkoTicks', 'kagiTicks'] as const
+  const tickSettings = ['renkoTicks', 'kagiTicks', 'pointFigureTicks'] as const
   for (const key of tickSettings) {
     if (value && typeof value === 'object' && Object.hasOwn(value, key)) keys.push(key)
   }
@@ -188,7 +190,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, type]) =>
       (pane !== 'primary' && pane !== 'comparison') || (type !== 'line' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
-        type !== 'three-line-break' && type !== 'kagi'))) {
+        type !== 'three-line-break' && type !== 'kagi' && type !== 'point-and-figure'))) {
       throw Error('Unknown pane or chart type in the workspace.')
     }
     result.chartTypes = Object.fromEntries(entries)

@@ -1,9 +1,7 @@
+import { tickPrice } from './fixed-point'
 import type { Bar, KagiSegment } from './market-core'
 
 type KagiColumn = { segments: KagiSegment[]; change?: KagiSegment }
-export function tickPrice(ticks: bigint) {
-  return Number(ticks) / 1e6
-}
 
 export function kagiLayout(segments: KagiSegment[]) {
   const columns: KagiColumn[] = []

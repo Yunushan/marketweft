@@ -28,6 +28,15 @@ export interface KagiSegment {
   weightChangeTicks: bigint | null;
 }
 
+export interface PointFigureBox {
+  sourceTime: number;
+  sourceIndex: number;
+  column: number;
+  levelTicks: bigint;
+  sourceCloseTicks: bigint;
+  mark: 'X' | 'O';
+}
+
 export interface FormulaResult {
   version: number;
   values: (bigint | null)[];
@@ -816,6 +825,7 @@ export interface MarketCore {
   renko(bars: readonly Bar[], brickTicks: bigint): RenkoBrick[];
   threeLineBreak(bars: readonly Bar[]): PriceMovement[];
   kagi(bars: readonly Bar[], reversalTicks: bigint): KagiSegment[];
+  pointAndFigure(bars: readonly Bar[], boxTicks: bigint): PointFigureBox[];
   recordedTickBars(instrument: string, csv: string, targetTrades: number, knownAt?: string): TickBar[];
   footprintWindow(instrument: string, csv: string): FootprintWindow;
   recordedFootprint(instrument: string, csv: string, query: FootprintQuery): FootprintBar[];
@@ -902,6 +912,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_renko(brickTicks: bigint): number;
   mw_three_line_break(): number;
   mw_kagi(reversalTicks: bigint): number;
+  mw_point_and_figure(boxTicks: bigint): number;
   mw_tick_bars(targetTrades: number): number;
   mw_footprint_window(): number;
   mw_trade_footprint(bucketSeconds: number): number;
@@ -1566,6 +1577,24 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           toTicks: rows.getBigInt64(offset + 32, true),
           thickBefore: rows.getBigInt64(offset + 40, true) === 1n,
           weightChangeTicks: change === -(1n << 63n) ? null : change,
+        };
+      });
+    },
+    pointAndFigure(bars, boxTicks) {
+      if (boxTicks < 1n || boxTicks > 2_000_000_000_000_000n || bars.length > 100_000)
+        throw new Error('Use a positive six-place box size and at most 100,000 source bars.');
+      const dest = input(bars.length * 48);
+      for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Point and Figure');
+      const rows = output(api.mw_point_and_figure(boxTicks));
+      return Array.from({ length: rows.byteLength / 48 }, (_, index) => {
+        const offset = index * 48;
+        return {
+          sourceTime: Number(rows.getBigInt64(offset, true)),
+          sourceIndex: Number(rows.getBigInt64(offset + 8, true)),
+          column: Number(rows.getBigInt64(offset + 16, true)),
+          levelTicks: rows.getBigInt64(offset + 24, true),
+          sourceCloseTicks: rows.getBigInt64(offset + 32, true),
+          mark: rows.getBigInt64(offset + 40, true) === 1n ? 'X' : 'O',
         };
       });
     },

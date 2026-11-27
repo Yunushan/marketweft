@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.108.0 · Point and Figure chart
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | The shared $2 box fixture fixes 17 X/O marks in four columns. A move of six price units reverses, a one-tick shortfall leaves the column unchanged, and prior prefixes preserve every box. |
+| Browser chart | Offline Chromium inspects the X strokes and O rings, and hover distinguishes a grid level from its observed close. |
+| Workspace | The original source CSV, primary box size and Kagi comparison persist and restore. A legacy Kagi workspace backup still restores. |
+
+[Point and Figure](chart-workspace.md#point-and-figure) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.107.0 · Kagi chart
 
 | Check | Evidence |

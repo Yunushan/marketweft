@@ -2314,6 +2314,27 @@ pub extern "C" fn mw_kagi(reversal_ticks: i64) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_point_and_figure(box_ticks: i64) -> u32 {
+    process(|input| {
+        let boxes = crate::point_and_figure(&decode_bars(input)?, box_ticks)?;
+        let mut bytes = Vec::with_capacity(48 * boxes.len());
+        for item in boxes {
+            for value in [
+                item.source_time,
+                i64::from(item.source_index),
+                i64::from(item.column),
+                item.level,
+                item.source_close,
+                i64::from(item.mark == crate::PointFigureMark::X),
+            ] {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_tick_bars(target_trades: u32) -> u32 {
     process(|input| {
         let (identity, payload) = utf8(input)?

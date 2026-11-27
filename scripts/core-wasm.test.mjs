@@ -1169,3 +1169,21 @@ test('kagi uses signed six-place turns and switches weight only after a prior ex
   assert.deepEqual(core.kagi(bars.slice(0, 11), 2_000_000n), lines.slice(0, 8));
   assert.throws(() => core.kagi(bars, 0n), /positive/);
 });
+test('point and figure maps exact X and O boxes to the close that formed them', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-point-and-figure.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const boxes = core.pointAndFigure(bars, 2_000_000n);
+  assert.deepEqual(boxes.map(box => [box.sourceIndex, box.column, box.mark]), [
+    [2, 0, 'X'], [2, 0, 'X'], [2, 0, 'X'], [3, 0, 'X'],
+    [5, 1, 'O'], [5, 1, 'O'], [5, 1, 'O'], [6, 1, 'O'],
+    [8, 2, 'X'], [8, 2, 'X'], [8, 2, 'X'], [10, 2, 'X'], [10, 2, 'X'], [10, 2, 'X'],
+    [11, 3, 'O'], [11, 3, 'O'], [11, 3, 'O'],
+  ]);
+  assert.deepEqual(boxes.slice(4, 7).map(box => [box.levelTicks, box.sourceCloseTicks, box.sourceTime]), [
+    [106_000_000n, 102_000_000n, bars[5].time],
+    [104_000_000n, 102_000_000n, bars[5].time],
+    [102_000_000n, 102_000_000n, bars[5].time],
+  ]);
+  assert.deepEqual(core.pointAndFigure(bars.slice(0, 5), 2_000_000n), boxes.slice(0, 4));
+  assert.throws(() => core.pointAndFigure(bars, 1n), /Increase the box size/);
+});

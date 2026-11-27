@@ -26,6 +26,7 @@ mod option_price;
 mod option_wire;
 mod paper;
 mod paper_replay;
+mod point_figure;
 mod portfolio;
 mod provider_history;
 mod renko;
@@ -104,6 +105,7 @@ pub use paper::{
     Position as PaperPosition, Rejection as PaperRejection, Side as PaperSide,
 };
 pub use paper_replay::{parse_paper_config, PaperReplay};
+pub use point_figure::{point_and_figure, PointFigureBox, PointFigureMark};
 pub use portfolio::{
     PortfolioBook, PortfolioCurrency, PortfolioDividendRow, PortfolioDividendState,
     PortfolioIncomeCurrency, PortfolioIncomeSnapshot, PortfolioRow, PortfolioSnapshot,

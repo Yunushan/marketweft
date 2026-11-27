@@ -4,3 +4,7 @@ export function fixed(value: bigint, places: number): string {
   return (value < 0n ? '-' : '') + magnitude.slice(0, -places) +
     (decimals ? '.' + decimals : '')
 }
+
+export function tickPrice(ticks: bigint) {
+  return Number(ticks) / 1e6
+}

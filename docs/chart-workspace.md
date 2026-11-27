@@ -14,7 +14,7 @@ The comparison uses the original bars and timestamps from each saved series. Imp
 
 Choose **Candles** for a filled price body, **OHLC bars** for a high-to-low stem with a left open tick and right close tick, or **Close line** to trace observed closes. These three show observed volume and use the same source bars, overlays and cursor readout. **Heikin-Ashi** adds a derived candle view. When several bars share a display column, the candles and OHLC bars use the first open, highest high, lowest low and last close. The line keeps the first, last, highest and lowest closes in their original order. A single observed close is drawn as a point.
 
-The x-axis places consecutive observed bars at regular bar spacing. An unobserved timestamp has no chart point or linked crosshair. Switching among time-based chart types keeps the visible range. Switching to or from Renko, Three Line Break or Kagi resets the visible range. The pane keeps its indicator settings. Each pane saves its own chart type. [Backup format](workspace-backup.md)
+The x-axis places consecutive observed bars at regular bar spacing. An unobserved timestamp has no chart point or linked crosshair. Switching among time-based chart types keeps the visible range. Switching to or from Renko, Three Line Break, Kagi or Point and Figure resets the visible range. The pane keeps its indicator settings. Each pane saves its own chart type. [Backup format](workspace-backup.md)
 
 ### Heikin-Ashi
 
@@ -39,6 +39,12 @@ The readout shows the line number, UTC timestamp, and exact open and close. Time
 Choose **Kagi** and enter a fixed reversal size of up to six decimal places. The first observed close sets the base. Price must move at least the configured size to start the first line or turn in the opposite direction. A new extreme extends the current line. A reversal adds a horizontal connector and starts a new vertical line in the next column. [Kagi construction](https://financialdestination.in/wp-content/uploads/2025/12/3.-Beyond-candlesticks-steve-nison.pdf) · [Fixed reversal size](https://www.tradingview.com/support/solutions/43000502272-learn-to-use-kagi-charts/).
 
 An initial rise is thick and an initial fall is thin. A thin rising line becomes thick when it rises above the last turning high. A thick falling line becomes thin when it falls below the last turning low. Touching either price preserves the current weight. The chart changes the stroke at the crossed price. Move the pointer along a vertical line to see the exact source close, its UTC time and the resulting stroke weight. Linked panes match the source timestamps that extended Kagi lines. CSV uses the observed source bars, and backups save each pane’s reversal size.
+
+### Point and Figure
+
+Choose **Point and Figure** and enter a fixed box size of up to six decimal places. The first observed close anchors the price grid. Each full box of continued movement adds an X to a rising column or an O to a falling column. A close that moves at least three boxes in the opposite direction starts the next column. Its first box starts one level away from the old column's tip. One source close can fill several price levels. [Fixed box sizing](https://help.stockcharts.com/charts-and-tools/other-charting-tools/p-and-f-charts) · [Three-box reversal](https://nasdaqdorseywright.zendesk.com/hc/en-us/articles/12906431410829-Point-Figure-Basics).
+
+Hover a mark to see its column, box level, UTC source timestamp and observed close. A linked timestamp selects the last box filled at that source time. The pane saves its own box size, and its CSV export uses the observed source bars.
 
 ## Fixed-duration timeframes
 

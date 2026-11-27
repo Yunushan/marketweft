@@ -2,29 +2,31 @@ import { useMemo, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
 import { Chart } from './Chart'
 import { ChartExport } from './ChartExport'
-import { DEFAULT_KAGI_TICKS, DEFAULT_RENKO_TICKS, MAX_CHART_PRICE_TICKS } from './catalog-schema'
+import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, MAX_CHART_PRICE_TICKS } from './catalog-schema'
 import { fixed } from './fixed-point'
-import type { KagiSegment, PriceMovement } from './market-core'
+import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
 import type { TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
   renkoTicks?: number
   kagiTicks?: number
+  pointFigureTicks?: number
   priceSizeSaving?: boolean
   onRenkoTicks?: (ticks: number) => void
   onKagiTicks?: (ticks: number) => void
+  onPointFigureTicks?: (ticks: number) => void
 }
 
 function PriceSize({ ticks, saving, apply, type }: {
-  ticks: number; saving?: boolean; apply: (ticks: number) => void; type: 'renko' | 'kagi'
+  ticks: number; saving?: boolean; apply: (ticks: number) => void; type: 'renko' | 'kagi' | 'point-and-figure'
 }) {
-  const label = type === 'renko' ? 'Brick size' : 'Reversal size'
+  const label = type === 'renko' ? 'Brick size' : type === 'kagi' ? 'Reversal size' : 'Box size'
   const [error, setError] = useState('')
-  return <form className="chart-export price-size-control" aria-label={type === 'renko' ? 'Renko brick settings' : 'Kagi reversal settings'} onSubmit={event => {
+  return <form className="chart-export price-size-control" aria-label={type === 'renko' ? 'Renko brick settings' : type === 'kagi' ? 'Kagi reversal settings' : 'Point and Figure box settings'} onSubmit={event => {
     event.preventDefault()
     const value = String(new FormData(event.currentTarget).get('size')).trim()
     const parts = /^(\d+)(?:\.(\d{1,6}))?$/.exec(value)
@@ -50,7 +52,8 @@ function PriceSize({ ticks, saving, apply, type }: {
 }
 
 export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onTimestamp,
-  renkoTicks = DEFAULT_RENKO_TICKS, kagiTicks = DEFAULT_KAGI_TICKS, priceSizeSaving, onRenkoTicks, onKagiTicks, ...chart }: Props) {
+  renkoTicks = DEFAULT_RENKO_TICKS, kagiTicks = DEFAULT_KAGI_TICKS, pointFigureTicks = DEFAULT_POINT_FIGURE_TICKS,
+  priceSizeSaving, onRenkoTicks, onKagiTicks, onPointFigureTicks, ...chart }: Props) {
   const initialSource = asset.source === 'sample' ? '86400' : ''
   const [source, setSource] = useState(initialSource)
   const [target, setTarget] = useState('')
@@ -65,29 +68,30 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
     { ...asset, bars: timeframe.buckets.map(entry => entry.bar) } : asset, [asset, timeframe])
   const displayBars = useMemo(() => chart.type === 'heikin-ashi' ?
     core.heikinAshi(display.bars) : undefined, [core, chart.type, display.bars])
-  const isRenko = chart.type === 'renko'
-  const priceMovements = useMemo<{ lines: PriceMovement[]; error?: string } | undefined>(() => {
-    if (!isRenko && chart.type !== 'three-line-break') return undefined
+  const type = chart.type
+  const sizeTicks = type === 'renko' ? renkoTicks : type === 'kagi' ? kagiTicks : pointFigureTicks
+  const applySize = type === 'renko' ? onRenkoTicks : type === 'kagi' ? onKagiTicks : onPointFigureTicks
+  const isSized = type === 'renko' || type === 'kagi' || type === 'point-and-figure'
+  const transformed = useMemo<{
+    priceMovements?: PriceMovement[]; kagiSegments?: KagiSegment[]; pointFigureBoxes?: PointFigureBox[]; error?: string;
+  } | undefined>(() => {
     try {
-      return { lines: isRenko ? core.renko(display.bars, BigInt(renkoTicks)) : core.threeLineBreak(display.bars) }
+      switch (type) {
+        case 'renko': return { priceMovements: core.renko(display.bars, BigInt(sizeTicks)) }
+        case 'three-line-break': return { priceMovements: core.threeLineBreak(display.bars) }
+        case 'kagi': return { kagiSegments: core.kagi(display.bars, BigInt(sizeTicks)) }
+        case 'point-and-figure': return { pointFigureBoxes: core.pointAndFigure(display.bars, BigInt(sizeTicks)) }
+        default: return undefined
+      }
     } catch (cause) {
-      return { lines: [], error: cause instanceof Error ? cause.message : 'Could not construct the chart.' }
+      return { error: cause instanceof Error ? cause.message : 'Could not construct the chart.' }
     }
-  }, [core, chart.type, display.bars, isRenko, renkoTicks])
-  const kagi = useMemo<{ segments: KagiSegment[]; error?: string } | undefined>(() => {
-    if (chart.type !== 'kagi') return undefined
-    try {
-      return { segments: core.kagi(display.bars, BigInt(kagiTicks)) }
-    } catch (cause) {
-      return { segments: [], error: cause instanceof Error ? cause.message : 'Could not construct the chart.' }
-    }
-  }, [core, chart.type, display.bars, kagiTicks])
-  const applySize = isRenko ? onRenkoTicks : chart.type === 'kagi' ? onKagiTicks : undefined
-  const sizeTicks = isRenko ? renkoTicks : kagiTicks
-  const empty = (priceMovements && priceMovements.lines.length === 0) || (kagi && kagi.segments.length === 0)
-  const priceChartError = priceMovements?.error ?? kagi?.error
-  const priceChartKey = kagi ? 'kagi:' + kagiTicks + ':' + kagi.segments.length :
-    priceMovements ? chart.type + ':' + priceMovements.lines.length + ':' + (isRenko ? renkoTicks : '') : 'bars'
+  }, [core, type, display.bars, sizeTicks])
+  const count = transformed?.priceMovements?.length ?? transformed?.kagiSegments?.length ??
+    transformed?.pointFigureBoxes?.length ?? 0
+  const lastColumn = transformed?.kagiSegments?.at(-1)?.column ??
+    transformed?.pointFigureBoxes?.at(-1)?.column ?? count - 1
+  const priceChartKey = transformed ? type + ':' + count + ':' + lastColumn + ':' + (isSized ? sizeTicks : '') : 'bars'
   const sma = useMemo(() => activeSma && periods ?
     core.indicator('sma', periods.sma, display.bars) : [], [core, activeSma, periods?.sma, display.bars])
   const ema = useMemo(() => activeEma && periods ?
@@ -151,15 +155,16 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
           {error && <p role="alert">{error}</p>}
         </form>
       </details>
-      {applySize && <PriceSize key={chart.type + ':' + sizeTicks} ticks={sizeTicks} saving={priceSizeSaving}
-        type={isRenko ? 'renko' : 'kagi'} apply={ticks => {
+      {isSized && applySize && <PriceSize key={type + ':' + sizeTicks} ticks={sizeTicks} saving={priceSizeSaving}
+        type={type} apply={ticks => {
           onTimestamp?.(null)
           applySize(ticks)
         }} />}
-      {empty ? <>
-        {priceChartError ? <p role="alert">{priceChartError}</p> :
-          <p role="status">{isRenko ? 'No source close has moved far enough to form a brick at this size.' :
-            kagi ? 'No source close has reached the reversal size to start a line.' :
+      {transformed && !count ? <>
+        {transformed.error ? <p role="alert">{transformed.error}</p> :
+          <p role="status">{type === 'renko' ? 'No source close has moved far enough to form a brick at this size.' :
+            type === 'kagi' ? 'No source close has reached the reversal size to start a line.' :
+            type === 'point-and-figure' ? 'No source close has moved far enough to fill a box at this size.' :
             'No source close has moved beyond the first close to form a line.'}</p>}
         {chart.exportOptions && <ChartExport asset={display} visible={{ start: 0, end: display.bars.length }}
           metadata={chart.exportOptions.metadata} timeframe={timeframe}
@@ -168,7 +173,9 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
             { name: 'ema_' + periods.ema, series: ema },
           ].filter(overlay => overlay.series.length > 0) : []} />}
       </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceChartKey}`}
-        asset={display} displayBars={displayBars} priceMovements={priceMovements?.lines} kagiSegments={kagi?.segments} sma={sma} ema={ema} periods={periods}
+        asset={display} displayBars={displayBars} priceMovements={transformed?.priceMovements} kagiSegments={transformed?.kagiSegments}
+        pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6}
+        sma={sma} ema={ema} periods={periods}
         timeframe={timeframe} onTimestamp={onTimestamp} />}
     </>
   )
