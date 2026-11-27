@@ -23,7 +23,12 @@ test('six-place prices, the close change and fractional volume survive import an
   await expect(page.locator('.quote strong')).toHaveText('1.084532')
   await expect(page.locator('.quote')).toContainText('+0.000001')
   await expect(page.locator('.ohlc-vol')).toContainText('0.000001')
+  const quote = page.getByRole('group', {
+    name: 'EURUSD OHLCV. Open 1.084531, high 1.084532, low 1.084531, close 1.084532, volume 0.000001',
+  })
+  await expect(quote).toBeVisible()
   await page.reload()
+  await expect(quote).toBeVisible()
   await expect(page.locator('.range-label')).toContainText('Low 1.084531')
   await expect(page.locator('.range-label')).toContainText('High 1.084532')
 })

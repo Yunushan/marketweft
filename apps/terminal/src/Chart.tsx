@@ -1316,12 +1316,15 @@ export function Chart({
     picker.accept({ ticks, time: original ?? observed?.sourceTime ?? bars[index].time })
     setAnnotationPicker(null)
   }
+  const priceReadout = !swingChart && !percentAxis && !histogram && !box && !segment && !movement && !displayBars
+    ? `${asset.symbol} OHLCV. Open ${price(b.open)}, high ${price(b.high)}, low ${price(b.low)}, close ${price(b.close)}, volume ${volume(b.volume)}`
+    : undefined
   return (
     <section className="plot" aria-label={closeBased || histogram || percentAxis || swingChart ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : time}>
-      <div className="ohlc" role={displayBars || movement || selectedObservation ? 'group' : undefined}
+      <div className="ohlc" role={displayBars || movement || selectedObservation || priceReadout ? 'group' : undefined}
         aria-label={box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
-          displayBars ? 'Heikin-Ashi prices' : undefined}>
+          displayBars ? 'Heikin-Ashi prices' : priceReadout}>
         <time>{timeLabel(time)} UTC</time>
         {swingChart ? <>
           <span><small>Observed close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>

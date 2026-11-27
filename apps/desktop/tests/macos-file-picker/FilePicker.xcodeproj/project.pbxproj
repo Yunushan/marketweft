@@ -1,0 +1,132 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+		58C400000000000000000001 /* Project */ = {
+			isa = PBXProject;
+			buildConfigurationList = 58C400000000000000000009 /* Project configurations */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 58C400000000000000000002 /* Source group */;
+			productRefGroup = 58C400000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				58C400000000000000000004 /* FilePickerTests */,
+			);
+		};
+		58C400000000000000000002 /* Source group */ = {
+			isa = PBXGroup;
+			children = (
+				58C400000000000000000005 /* FilePickerTests.swift */,
+				58C40000000000000000000D /* FilePickerInfo.plist */,
+				58C400000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		58C400000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				58C400000000000000000006 /* FilePickerTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		58C400000000000000000004 /* FilePickerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 58C40000000000000000000A /* Test configurations */;
+			buildPhases = (
+				58C400000000000000000007 /* Sources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = FilePickerTests;
+			productName = FilePickerTests;
+			productReference = 58C400000000000000000006 /* FilePickerTests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		58C400000000000000000005 /* FilePickerTests.swift */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = FilePickerTests.swift;
+			sourceTree = "<group>";
+		};
+		58C400000000000000000006 /* FilePickerTests.xctest */ = {
+			isa = PBXFileReference;
+			explicitFileType = wrapper.cfbundle;
+			includeInIndex = 0;
+			path = FilePickerTests.xctest;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		58C400000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				58C400000000000000000008 /* FilePickerTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		58C400000000000000000008 /* FilePickerTests.swift in Sources */ = {
+			isa = PBXBuildFile;
+			fileRef = 58C400000000000000000005 /* FilePickerTests.swift */;
+		};
+		58C400000000000000000009 /* Project configurations */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				58C40000000000000000000B /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		58C40000000000000000000A /* Test configurations */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				58C40000000000000000000C /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		58C40000000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+			};
+			name = Debug;
+		};
+		58C40000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FilePickerInfo.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = org.marketweft.terminal.FilePickerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		58C40000000000000000000D /* FilePickerInfo.plist */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.plist.xml;
+			path = FilePickerInfo.plist;
+			sourceTree = "<group>";
+		};
+	};
+	rootObject = 58C400000000000000000001 /* Project */;
+}
