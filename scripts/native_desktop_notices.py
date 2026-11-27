@@ -16,6 +16,20 @@ PROJECT_NOTICES = {
     ("webview2-com-macros", "0.8.1"): ("dffa41a8a46d3f5565eefbff2de57d38d399f158", "webview2-rs-MIT.txt"),
     ("webview2-com-sys", "0.39.1"): ("edc2caf886175ccaebe86078c9cfe1ae2a187328", "webview2-rs-MIT.txt"),
 }
+OBJC2_REVISIONS = {
+    ("block2", "0.6.2"): "b4167b582b2f75f9a1be75495c41b765344fd03c",
+    ("dispatch2", "0.3.1"): "8852b424193ca41602281b3d7540d7c8ed51e49a",
+    ("objc2", "0.6.5"): "d7d2fa23ceaa5e6096c923b081040e5d81b3b9df",
+    ("objc2-app-kit", "0.3.2"): "7b1abfd750a2cacaea71d6a56ecfb83cb7de560b",
+    ("objc2-core-foundation", "0.3.2"): "7b1abfd750a2cacaea71d6a56ecfb83cb7de560b",
+    ("objc2-core-graphics", "0.3.2"): "7b1abfd750a2cacaea71d6a56ecfb83cb7de560b",
+    ("objc2-encode", "4.1.0"): "8d214f5477365ffcbcbb7de058c86ed9a518efb7",
+    ("objc2-exception-helper", "0.1.1"): "8d214f5477365ffcbcbb7de058c86ed9a518efb7",
+    ("objc2-foundation", "0.3.2"): "7b1abfd750a2cacaea71d6a56ecfb83cb7de560b",
+    ("objc2-io-surface", "0.3.2"): "7b1abfd750a2cacaea71d6a56ecfb83cb7de560b",
+    ("objc2-quartz-core", "0.3.2"): "7b1abfd750a2cacaea71d6a56ecfb83cb7de560b",
+    ("objc2-web-kit", "0.3.2"): "7b1abfd750a2cacaea71d6a56ecfb83cb7de560b",
+}
 
 
 def command(*args, cwd=ROOT, env=None):
@@ -69,6 +83,10 @@ def missing_crate_notices(package, packages):
         commit, notice = PROJECT_NOTICES[key]
         if vcs_revision(package) == commit:
             return [ROOT / "apps/desktop/notices" / notice]
+    if key in OBJC2_REVISIONS and vcs_revision(package) == OBJC2_REVISIONS[key]:
+        if package["license"] in {"MIT", "Zlib OR Apache-2.0 OR MIT"}:
+            notices = ROOT / "apps/desktop/notices"
+            return [notices / "objc2-MIT.txt", notices / "rust-objc-MIT.txt"]
     if key == ("libappindicator-sys", "0.9.0"):
         parent = packages["libappindicator", "0.9.0"]
         if package["license"] == parent["license"] and vcs_revision(package) == vcs_revision(parent):
