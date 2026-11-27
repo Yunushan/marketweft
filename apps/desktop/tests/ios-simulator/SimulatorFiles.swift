@@ -8,17 +8,41 @@ func importSimulatorCSV(in app: XCUIApplication, symbol: String) {
     XCTAssertTrue(open.waitForExistence(timeout: 35), app.debugDescription)
     open.tap()
 
-    let field = web.textFields.matching(NSPredicate(format: "label == %@ OR placeholderValue == %@", "Symbol", "e.g. ABC")).firstMatch
-    XCTAssertTrue(field.waitForExistence(timeout: 15), web.debugDescription)
-    field.tap()
-    field.typeText(symbol)
-
+    enterSimulatorSymbol(symbol, in: web)
     chooseSimulatorFile(in: app, input: "Historical CSV file", folders: ["MarketWeft Test Files"], filename: "native-verification.csv")
+
+    enterSimulatorSymbol(symbol, in: web)
 
     let submit = web.buttons["Import to watchlist"]
     XCTAssertTrue(submit.waitForExistence(timeout: 15), app.debugDescription)
     if !submit.isHittable { web.swipeUp() }
     submit.tap()
+}
+
+@MainActor
+func enterSimulatorSymbol(_ symbol: String, in web: XCUIElement) {
+    let field = web.textFields.matching(
+        NSPredicate(format: "label == %@ OR placeholderValue == %@", "Symbol", "e.g. ABC")
+    ).firstMatch
+    guard field.waitForExistence(timeout: 15) else {
+        XCTFail("The import symbol field was unavailable. \(web.debugDescription)")
+        return
+    }
+    for _ in 0..<2 {
+        if (field.value as? String) == symbol { return }
+        field.tap()
+        let value = field.value as? String ?? ""
+        let entered = value == field.placeholderValue ? "" : value
+        guard symbol.hasPrefix(entered) else {
+            XCTFail("Unexpected import symbol \(entered). \(field.debugDescription)")
+            return
+        }
+        let remaining = String(symbol.dropFirst(entered.count))
+        if !remaining.isEmpty { field.typeText(remaining) }
+        let typed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", symbol), object: field)
+        if XCTWaiter.wait(for: [typed], timeout: 3) == .completed { return }
+    }
+    XCTAssertEqual(field.value as? String, symbol, field.debugDescription)
 }
 
 @MainActor
