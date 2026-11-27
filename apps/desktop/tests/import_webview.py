@@ -1,5 +1,6 @@
 """Exercise CSV import in the built desktop binary using the native WebDriver."""
 import argparse
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -139,10 +140,27 @@ def verify(browser, binary, fixture, phase, edge_profile=None):
         browser.call("DELETE", browser.session)
 
 
+@contextmanager
+def temporary_workspace():
+    directory = tempfile.TemporaryDirectory(prefix="marketweft-webview-")
+    try:
+        yield Path(directory.name)
+    finally:
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                directory.cleanup()
+                break
+            except PermissionError:
+                # WebView2 may still be closing profile files after its session ends.
+                if os.name != "nt" or time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.25)
+
+
 def run(binary, workspace=None, phase='import', executable=None):
     binary = binary.resolve(strict=True)
-    with tempfile.TemporaryDirectory(prefix="marketweft-webview-") as directory:
-        root = Path(directory)
+    with temporary_workspace() as root:
         profile = root if workspace is None else workspace.resolve(strict=True)
         fixture = root / "native-verification.csv"
         fixture.write_bytes((Path(__file__).with_name("fixtures") / fixture.name).read_bytes())
