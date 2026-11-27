@@ -916,8 +916,12 @@ h1 {
 }
 .canvas-zone {
   position: relative;
-  height: clamp(285px, 40vh, 530px);
+  --price-chart-height: clamp(285px, 40vh, 530px);
+  height: var(--price-chart-height);
   margin: 0 7px;
+}
+.canvas-zone.with-rsi {
+  height: calc(var(--price-chart-height) + 110px);
 }
 .canvas-zone canvas {
   position: absolute;
@@ -1574,7 +1578,7 @@ pre {
     grid-template-columns: minmax(0, 1fr);
   }
   .canvas-zone {
-    height: clamp(275px, 40vh, 395px);
+    --price-chart-height: clamp(275px, 40vh, 395px);
   }
   aside {
     display: grid;

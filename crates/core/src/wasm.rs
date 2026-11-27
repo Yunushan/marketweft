@@ -2827,13 +2827,14 @@ pub extern "C" fn mw_indicator(kind: u32, period: usize) -> u32 {
         if !trailing.is_empty() || values.len() > MAX_BARS {
             return Err("Invalid series length.".into());
         }
-        let kind = match kind {
-            0 => Average::Simple,
-            1 => Average::Exponential,
+        let closes: Vec<i64> = values.iter().copied().map(i64::from_le_bytes).collect();
+        let results = match kind {
+            0 => indicator(Average::Simple, period, &closes)?,
+            1 => indicator(Average::Exponential, period, &closes)?,
+            2 => crate::relative_strength_index(period, &closes)?,
             _ => return Err("Unknown indicator.".into()),
         };
-        let closes: Vec<i64> = values.iter().copied().map(i64::from_le_bytes).collect();
-        Ok(indicator(kind, period, &closes)?
+        Ok(results
             .into_iter()
             .flat_map(|v| v.unwrap_or(i64::MIN).to_le_bytes())
             .collect())

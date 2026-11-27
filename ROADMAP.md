@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.110.0 adds volume bars from observed trades with exact fractional allocation and independent pane targets. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.111.0 adds Wilder's Relative Strength Index as a built-in chart study with separate settings for each pane. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -113,6 +113,7 @@
 | Delivered · 0.108.0 | Point and Figure chart (MW-012) | Verify exact X/O sequences, an inclusive three-box reversal, UTC source close inspection and pane restore. [Point and Figure](docs/chart-workspace.md#point-and-figure). |
 | Delivered · 0.109.0 | Recorded range bars (MW-012, MW-019) | Verify gap overshoot, exact observation cutoff, volume conservation, CSV provenance and saved sizes for both panes. [Recorded range bars](docs/chart-workspace.md#recorded-range-bars). |
 | Delivered · 0.110.0 | Recorded volume bars (MW-012, MW-019) | Verify exact volume boundaries, split capture sequences, prefix stability, CSV provenance and separate restored pane targets. [Recorded volume bars](docs/chart-workspace.md#recorded-volume-bars). |
+| Delivered · 0.111.0 | Wilder RSI (MW-014) | Verify prefix-stable smoothing, flat prices, exact linked chart values, research CSV and pane restore. [Wilder RSI](docs/chart-workspace.md#wilder-relative-strength-index). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -124,5 +125,5 @@
 
 ## Handoff for the next change
 
-Add Wilder's Relative Strength Index as a distinct built-in study with its own scale and per-pane periods. Verify its warm-up, smoothing, exact endpoints, flat-price behavior and settings restore.
+Add Wilder's Average True Range as a separate built-in study. Verify intrabar range, price gaps, smoothing, research CSV and independent settings.
 

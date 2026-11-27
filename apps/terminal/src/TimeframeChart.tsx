@@ -8,10 +8,11 @@ import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
 import type { TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'rsi' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
+  activeRsi?: number
   renkoTicks?: number
   kagiTicks?: number
   pointFigureTicks?: number
@@ -49,7 +50,7 @@ function PriceSize({ ticks, saving, apply, type }: {
   </form>
 }
 
-export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onTimestamp,
+export function TimeframeChart({ core, activeSma, activeEma, activeRsi, asset, periods, onTimestamp,
   renkoTicks = DEFAULT_RENKO_TICKS, kagiTicks = DEFAULT_KAGI_TICKS, pointFigureTicks = DEFAULT_POINT_FIGURE_TICKS,
   priceSizeSaving, onRenkoTicks, onKagiTicks, onPointFigureTicks, ...chart }: Props) {
   const initialSource = asset.source === 'sample' ? '86400' : ''
@@ -94,6 +95,10 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
     core.indicator('sma', periods.sma, display.bars) : [], [core, activeSma, periods?.sma, display.bars])
   const ema = useMemo(() => activeEma && periods ?
     core.indicator('ema', periods.ema, display.bars) : [], [core, activeEma, periods?.ema, display.bars])
+
+  const rsi = useMemo(() => activeRsi === undefined ? undefined :
+    { period: activeRsi, series: core.indicator('rsi', activeRsi, display.bars) },
+  [core, activeRsi, display.bars])
 
   async function apply() {
     if (busy) return
@@ -166,14 +171,17 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
             'No source close has moved beyond the first close to form a line.'}</p>}
         {chart.exportOptions && <ChartExport asset={display} visible={{ start: 0, end: display.bars.length }}
           metadata={chart.exportOptions.metadata} timeframe={timeframe}
-          overlays={periods ? [
-            { name: 'sma_' + periods.sma, series: sma },
-            { name: 'ema_' + periods.ema, series: ema },
-          ].filter(overlay => overlay.series.length > 0) : []} />}
+          overlays={[
+            ...(periods ? [
+              { name: 'sma_' + periods.sma, series: sma },
+              { name: 'ema_' + periods.ema, series: ema },
+            ].filter(overlay => overlay.series.length > 0) : []),
+            ...(rsi ? [{ name: 'rsi_' + rsi.period, series: rsi.series }] : []),
+          ]} />}
       </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceChartKey}`}
         asset={display} displayBars={displayBars} priceMovements={transformed?.priceMovements} kagiSegments={transformed?.kagiSegments}
         pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6}
-        sma={sma} ema={ema} periods={periods}
+        sma={sma} ema={ema} periods={periods} rsi={rsi}
         timeframe={timeframe} onTimestamp={onTimestamp} />}
     </>
   )

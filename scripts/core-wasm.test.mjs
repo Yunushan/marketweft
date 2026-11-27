@@ -1229,3 +1229,14 @@ test('recorded volume bars keep exact split contributions and cutoff evidence', 
   assert.equal(bars().reduce((sum, bar) => sum + bar.volumeTicks, 0n), 10_750_000n);
   assert.throws(() => core.recordedVolumeBars('LOCAL:VOLUME', csv, 1n), /100,000/);
 });
+
+test('Wilder RSI uses a full window of changes, exact scaled values and neutral flat prices', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-rsi.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const expected = [null, null, null, 77.777778, 66.666667, 66.666667, 88.617886, 66.666667, 26.814268];
+  assert.deepEqual(core.indicator('rsi', 3, bars), expected);
+  assert.deepEqual(core.indicator('rsi', 3, bars.slice(0, 6)), expected.slice(0, 6));
+  assert.deepEqual(core.indicator('rsi', 2, bars.map(bar => ({...bar, close: 0 }))).slice(0, 4),
+    [null, null, 50, 50]);
+  assert.throws(() => core.indicator('rsi', 1, bars), /2–100,000/);
+});

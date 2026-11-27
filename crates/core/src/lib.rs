@@ -33,6 +33,7 @@ mod range_bars;
 mod renko;
 mod replay;
 pub mod research;
+mod rsi;
 mod scenarios;
 mod screen;
 mod sector;
@@ -118,6 +119,7 @@ pub use range_bars::RangeBar;
 pub use renko::renko;
 pub type RenkoBrick = PriceMovement;
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
+pub use rsi::relative_strength_index;
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};
 pub use screen::{
     ListingRiskPoint, ListingRiskQuery, PortfolioScenarioConfig, PortfolioScenarioPath,

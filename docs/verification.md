@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.111.0 · Wilder RSI
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | An independent rational reference fixes the first RSI after three changes and each subsequent six-place value. The native checks include signed bounds, flat and one-sided prices and every known prefix. |
+| Browser chart and export | Offline Chromium verifies the plotted scale, both panes' exact linked values, and warm-up cells and RSI values in the research CSV. |
+| Workspace | Separate 3- and 2-change settings restore with the exact source CSV. The legacy backup still restores. |
+
+[Wilder RSI](chart-workspace.md#wilder-relative-strength-index) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.110.0 · Recorded volume bars
 
 | Check | Evidence |

@@ -862,7 +862,7 @@ export interface MarketCore {
   aggregateSessionTimeframe(calendar: string, bars: readonly Bar[], sourceSeconds: number,
     targetSeconds: number): SessionTimeframeBar[];
   measureDrawing(drawing: MeasuredDrawing): DrawingMeasurement;
-  indicator(kind: 'sma' | 'ema', period: number, bars: readonly Bar[]): (number | null)[];
+  indicator(kind: 'sma' | 'ema' | 'rsi', period: number, bars: readonly Bar[]): (number | null)[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
   splitBook(instrument: string, csv: string): Split[];
   adjustSplits(bars: readonly Bar[], splits: readonly Split[], asOf: number): Bar[];
@@ -1019,6 +1019,10 @@ export const MAX_INDICATOR_PERIOD = 100_000;
 export function validIndicatorPeriod(period: unknown): period is number {
   return typeof period === 'number' && Number.isInteger(period) &&
     period >= 1 && period <= MAX_INDICATOR_PERIOD;
+}
+
+export function validRsiPeriod(period: unknown): period is number {
+  return validIndicatorPeriod(period) && period >= 2;
 }
 
 function decodeDividendEvents(text: string, withPositions = false): DividendEvent[] {
@@ -1686,7 +1690,8 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       });
     },
     indicator(kind, period, bars) {
-      if (kind !== 'sma' && kind !== 'ema') throw new Error('Unknown indicator.');
+      if (kind !== 'sma' && kind !== 'ema' && kind !== 'rsi') throw new Error('Unknown indicator.');
+      if (kind === 'rsi' && !validRsiPeriod(period)) throw new Error('RSI periods must be 2–100,000.');
       if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD) {
         throw new Error('Series and indicator period must fit within 100,000 bars.');
       }
@@ -1699,7 +1704,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         }
         dest.setBigInt64(i * 8, BigInt(ticks), true);
       });
-      const out = output(api.mw_indicator(kind === 'sma' ? 0 : 1, period));
+      const out = output(api.mw_indicator({ sma: 0, ema: 1, rsi: 2 }[kind], period));
       return Array.from({ length: bars.length }, (_, i) => {
         const v = out.getBigInt64(i * 8, true);
         return v === MISSING ? null : Number(v) / SCALE;

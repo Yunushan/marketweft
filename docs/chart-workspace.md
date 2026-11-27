@@ -72,13 +72,21 @@ The readout shows the value at the hovered bar or the last visible bar when ther
 
 Period settings follow the pane across instrument changes and reloads. Closing the comparison pane preserves its periods for the next time you open it. A backup with custom periods uses version 4 and can also preserve drawings and comparison settings. [Backup format](workspace-backup.md)
 
+## Wilder Relative Strength Index
+
+Open **Indicators**, select **Show RSI** on the primary or comparison form and choose **Apply RSI**. The default period is 14. Each pane accepts a whole period from 2 through 100,000 changes. Its first value needs one more source close than the period. The RSI chart uses an independent 0 to 100 scale with guide lines at 30 and 70. The cursor identifies the source bar and its RSI when available.
+
+The first average gain and loss are arithmetic means over the full window of close-to-close changes. Each subsequent average weights the previous mean by the period minus one, adds the new movement and divides by the period. The output is 100 times average gain divided by the sum of average gain and average loss. A flat starting window returns 50. A positive gain with zero loss returns 100, and a positive loss with zero gain returns 0. The calculation keeps twelve extra decimal places in its fixed-point averages and rounds results to millionths of an RSI point. [Wilder smoothing reference](https://github.com/TA-Lib/ta-lib/blob/main/src/ta_func/ta_RSI.c).
+
+The study uses the selected timeframe's source closes. In Heikin-Ashi and other derived chart types, the RSI readout follows the source observation represented by the displayed bar or movement. Research CSV includes the study as a column such as `rsi_14`, with empty fields during warm-up. Workspace backup keeps the enabled state and period of each pane.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.
 
 **OHLCV bars for reimport** writes the six columns accepted by the terminal importer. Timestamps use UTC Unix seconds, and signed prices and volume retain their original values through six decimal places.
 
-**Bars, provenance and enabled indicators** includes instrument identity, source, interval, usage grant and adjustment policy. Each enabled moving average adds a column such as `sma_20` or `ema_9`. Calculations use the instrument's full history through each exported bar, so the visible-range export preserves values calculated before the visible boundary. Cells stay empty while the indicator has too few closes. A leading apostrophe escapes formula-like provenance text. The research format can be used in analysis tools.
+**Bars, provenance and enabled indicators** includes instrument identity, source, interval, usage grant and adjustment policy. Each enabled study adds a column such as `sma_20`, `ema_9`, or `rsi_14`. Calculations use the instrument's full history through each exported bar, so the visible-range export preserves values calculated before the visible boundary. Cells stay empty while the study has too few closes. A leading apostrophe escapes formula-like provenance text. The research format can be used in analysis tools.
 
 ## Recorded range bars
 

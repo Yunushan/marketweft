@@ -17,6 +17,7 @@ import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema
 
 type View = { end: number; count: number }
 type Series = (number | null)[]
+type Study = { period: number; series: Series }
 type ChartObservation = KagiSegment | PointFigureBox
 type Plot = { left: number; right: number; top: number; bottom: number; high: number; low: number }
 type DrawingTools = {
@@ -29,7 +30,8 @@ const UP = '#68d7b1',
   DOWN = '#ec817e',
   GOLD = '#e8ba70',
   LILAC = '#b59be6',
-  CLOSE_LINE = '#55b5ee'
+  CLOSE_LINE = '#55b5ee',
+  RSI_LINE = '#8eb3fa'
 const chartNames: Record<ChartType, string> = {
   candles: 'candlestick',
   line: 'close line',
@@ -85,6 +87,8 @@ function draw(
   kagi?: KagiLayout,
   pointFigure?: PointFigureLayout,
   activePrice?: number,
+  rsi?: Series,
+  activeRsi?: number | null,
 ): Plot | undefined {
   const ctx = canvas.getContext('2d')
   if (!ctx || width < 80 || height < 100) return
@@ -96,7 +100,7 @@ function draw(
   const closeBased = isPriceMovement || kagi !== undefined || pointFigure !== undefined
   const left = 10,
     top = 19,
-    bottom = height - 28,
+    bottom = height - (rsi ? 138 : 28),
     volTop = top + (bottom - top) * 0.8,
     priceBottom = closeBased ? bottom : volTop - 13
   const start = view.end - view.count
@@ -379,6 +383,54 @@ function draw(
     ctx.arc(axis, pos, 3, 0, Math.PI * 2)
     ctx.fill()
   }
+  if (rsi) {
+    const rsiTop = bottom + 30
+    const rsiBottom = height - 11
+    const rsiY = (value: number) => rsiBottom - value / 100 * (rsiBottom - rsiTop)
+    ctx.lineWidth = 1
+    for (const tick of [0, 30, 70, 100]) {
+      const level = rsiY(tick)
+      line(left, level, right, level, tick === 30 || tick === 70 ? '#3e4c6a' : '#293036')
+      ctx.fillStyle = '#93a19e'
+      ctx.fillText(String(tick), right + 7, level)
+    }
+    ctx.beginPath()
+    ctx.lineWidth = 1.5
+    ctx.strokeStyle = RSI_LINE
+    let points = 0
+    let first = start
+    for (let index = start; index < view.end; index++) {
+      const value = rsi[index]
+      if (value == null) continue
+      if (points === 0) {
+        first = index
+        ctx.moveTo(x(index), rsiY(value))
+      } else {
+        ctx.lineTo(x(index), rsiY(value))
+      }
+      points++
+    }
+    ctx.stroke()
+    if (points === 1) {
+      ctx.beginPath()
+      ctx.fillStyle = RSI_LINE
+      ctx.arc(x(first), rsiY(rsi[first]!), 2.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    if (active !== null && active >= start && active < view.end) {
+      const axis = x(active)
+      ctx.lineWidth = 1
+      ctx.setLineDash([3, 4])
+      line(axis, rsiTop, axis, rsiBottom, '#bdc9c7')
+      ctx.setLineDash([])
+      if (activeRsi != null) {
+        ctx.beginPath()
+        ctx.fillStyle = RSI_LINE
+        ctx.arc(axis, rsiY(activeRsi), 3, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+  }
   return { left, right, top, bottom: priceBottom, high, low }
 }
 
@@ -418,6 +470,7 @@ export function Chart({
   asset,
   sma,
   ema,
+  rsi,
   linkedTimestamp,
   onTimestamp,
   drawingTools,
@@ -438,6 +491,7 @@ export function Chart({
   asset: Asset
   sma: Series
   ema: Series
+  rsi?: Study
   linkedTimestamp?: number | null
   onTimestamp?: (timestamp: number | null) => void
   drawingTools?: DrawingTools
@@ -471,6 +525,8 @@ export function Chart({
     sourceIndices.map(index => sma[index]) : sma, [sourceIndices, sma])
   const plottedEma = useMemo(() => sourceIndices && ema.length ?
     sourceIndices.map(index => ema[index]) : ema, [sourceIndices, ema])
+  const plottedRsi = useMemo(() => sourceIndices && rsi ?
+    sourceIndices.map(index => rsi.series[index]) : rsi?.series, [sourceIndices, rsi])
   const n = bars.length
   const [view, setView] = useState<View>(() => defaultView(n)),
     [pointerIndex, setPointerIndex] = useState<number | null>(null)
@@ -506,6 +562,7 @@ export function Chart({
   const closeBased = Boolean(observationsByTime || priceMovements)
   const sourceIndex = selectedObservation?.sourceIndex ?? movement?.sourceIndex ?? readoutIndex
   const time = selectedObservation?.sourceTime ?? b.time
+  const rsiValue = rsi?.series[sourceIndex]
   const crosshairPrice = segment ? tickPrice(segment.toTicks) : box ? tickPrice(box.levelTicks) : undefined
   const firstObservation = kagi?.columns[start].segments[0] ?? pointFigure?.columns[start][0]
   const sourceStart = firstObservation?.sourceIndex ?? priceMovements?.[start].sourceIndex ?? start
@@ -584,8 +641,10 @@ export function Chart({
           kagi,
           pointFigure,
           crosshairPrice,
+          plottedRsi,
+          rsiValue,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, type, kagi, pointFigure, crosshairPrice])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, type, kagi, pointFigure, crosshairPrice, plottedRsi, rsiValue])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -624,8 +683,10 @@ export function Chart({
     }
     const rect = e.currentTarget.getBoundingClientRect()
     const index = barIndexAt(e.clientX - rect.left, bounds)
-    const ticks = priceTicksAt(e.clientY - rect.top, bounds)
-    hover(index, index === null || !observationsByTime ? undefined : observationAt(index, ticks))
+    const y = e.clientY - rect.top
+    const observation = index === null || !observationsByTime || (rsi && y > bounds.bottom) ?
+      undefined : observationAt(index, priceTicksAt(y, bounds))
+    hover(index, observation)
   }
   function observationAt(index: number, ticks: number) {
     if (kagi) return kagiSegmentAt(kagi.columns[index].segments, BigInt(ticks))
@@ -721,7 +782,10 @@ export function Chart({
           })}
         </div>
       )}
-      <div ref={zone} className={picking ? 'canvas-zone picking-endpoint' : 'canvas-zone'}>
+      {rsi && <div className="ohlc chart-overlay-values" role="group" aria-label="Relative Strength Index">
+        <span><small>RSI {rsi.period}</small> {rsiValue == null ? '—' : fixed(BigInt(Math.round(rsiValue * 1e6)), 6)}</span>
+      </div>}
+      <div ref={zone} className={'canvas-zone' + (picking ? ' picking-endpoint' : '') + (rsi ? ' with-rsi' : '')}>
         <canvas
           tabIndex={0}
           aria-label={asset.symbol + ' interactive ' + chartNames[type] + (closeBased ? ' chart' : ' and volume chart')}
@@ -850,10 +914,13 @@ export function Chart({
       {exportOptions && (
         <ChartExport asset={asset} visible={{ start: sourceStart, end: sourceEnd }} metadata={exportOptions.metadata}
           timeframe={timeframe}
-          overlays={periods ? ([
-            { name: 'sma_' + periods.sma, series: sma },
-            { name: 'ema_' + periods.ema, series: ema },
-          ]).filter(overlay => overlay.series.length > 0) : []} />
+          overlays={[
+            ...(periods ? [
+              { name: 'sma_' + periods.sma, series: sma },
+              { name: 'ema_' + periods.ema, series: ema },
+            ].filter(overlay => overlay.series.length > 0) : []),
+            ...(rsi ? [{ name: 'rsi_' + rsi.period, series: rsi.series }] : []),
+          ]} />
       )}
       <span className="sr-only">
         Data from {dateLabel(firstObservation?.sourceTime ?? bars[start].time)} through{' '}
