@@ -61,6 +61,8 @@ const UP = '#68d7b1',
 const chartNames: Record<ChartType, string> = {
   candles: 'candlestick',
   line: 'close line',
+  area: 'close area',
+  'step-line': 'step line',
   ohlc: 'OHLC bar',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
@@ -161,6 +163,7 @@ function draw(
   canvas.width = Math.round(width * dpr)
   canvas.height = Math.round(height * dpr)
   ctx.scale(dpr, dpr)
+  const closeTrace = type === 'line' || type === 'area' || type === 'step-line'
   const isPriceMovement = type === 'renko' || type === 'three-line-break'
   const closeBased = isPriceMovement || kagi !== undefined || pointFigure !== undefined
   const left = 10,
@@ -174,8 +177,8 @@ function draw(
     maxVol = 0
   for (let i = start; i < view.end; i++) {
     const b = bars[i]
-    low = Math.min(low, type === 'line' ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
-    high = Math.max(high, type === 'line' ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
+    low = Math.min(low, closeTrace ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
+    high = Math.max(high, closeTrace ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
     for (const { series } of priceLines) {
       const value = series[i]
       if (value != null) {
@@ -377,7 +380,7 @@ function draw(
       w = Math.max(1, dx * (b.last - b.first + 1) * 0.68)
     const col = b.close >= b.open ? UP : DOWN
     ctx.fillStyle = col
-    if (type !== 'line') {
+    if (!closeTrace) {
       line(axis, y(b.high), axis, y(b.low), col)
       const open = y(b.open), close = y(b.close)
       if (type === 'ohlc') {
@@ -393,22 +396,33 @@ function draw(
     ctx.fillRect(axis - w / 2, bottom - h, w, h)
     ctx.globalAlpha = 1
   }
-  if (type === 'line') {
+  if (closeTrace) {
     ctx.beginPath()
     ctx.strokeStyle = CLOSE_LINE
-    ctx.fillStyle = CLOSE_LINE
     ctx.lineWidth = 2
-    ctx.moveTo(x(start), y(bars[start].close))
+    let prior = y(bars[start].close)
+    ctx.moveTo(x(start), prior)
     for (const { first, last, lowestClose, highestClose } of groups) {
-      if (first === last) {
-        ctx.lineTo(x(first), y(bars[first].close))
-      } else {
-        const indices = [...new Set([first, lowestClose, highestClose, last])].sort((a, b) => a - b)
-        for (const index of indices) ctx.lineTo(x(index), y(bars[index].close))
+      const indices = first === last ? [first] :
+        [...new Set([first, lowestClose, highestClose, last])].sort((a, b) => a - b)
+      for (const index of indices) {
+        if (index === start) continue
+        const axis = x(index)
+        if (type === 'step-line') ctx.lineTo(axis, prior)
+        prior = y(bars[index].close)
+        ctx.lineTo(axis, prior)
       }
     }
     ctx.stroke()
+    if (type === 'area' && view.count > 1) {
+      ctx.lineTo(x(view.end - 1), priceBottom)
+      ctx.lineTo(x(start), priceBottom)
+      ctx.closePath()
+      ctx.fillStyle = 'rgba(85, 181, 238, 0.18)'
+      ctx.fill()
+    }
     if (view.count === 1) {
+      ctx.fillStyle = CLOSE_LINE
       ctx.beginPath()
       ctx.arc(x(start), y(bars[start].close), 3, 0, Math.PI * 2)
       ctx.fill()

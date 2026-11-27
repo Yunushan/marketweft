@@ -74,6 +74,8 @@ const ProviderRevisionResearch = lazy(async () => {
 const chartTypeLabels: Record<ChartType, string> = {
   candles: 'Candles',
   line: 'Close line',
+  area: 'Close area',
+  'step-line': 'Step line',
   ohlc: 'OHLC bars',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
