@@ -24,6 +24,11 @@ export interface BollingerBand {
   upper: bigint;
 }
 
+export interface BollingerMeasures {
+  percentB: bigint | null;
+  bandwidth: bigint | null;
+}
+
 export interface KagiSegment {
   sourceTime: number;
   sourceIndex: number;
@@ -870,6 +875,7 @@ export interface MarketCore {
   measureDrawing(drawing: MeasuredDrawing): DrawingMeasurement;
   indicator(kind: 'sma' | 'ema' | 'rsi' | 'atr', period: number, bars: readonly Bar[]): (number | null)[];
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
+  bollingerMeasures(period: number, bars: readonly Bar[]): BollingerMeasures[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
   splitBook(instrument: string, csv: string): Split[];
   adjustSplits(bars: readonly Bar[], splits: readonly Split[], asOf: number): Bar[];
@@ -960,6 +966,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_indicator(kind: number, period: number): number;
   mw_atr(period: number): number;
   mw_bollinger_bands(period: number): number;
+  mw_bollinger_measures(period: number): number;
   mw_formula_version(): number;
   mw_evaluate_formula(sourceBytes: number): number;
   mw_evaluate_formula_library(sourceBytes: number, libraryBytes: number): number;
@@ -1742,6 +1749,19 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           lower, middle: out.getBigInt64(offset + 8, true), upper: out.getBigInt64(offset + 16, true),
         };
       });
+    },
+    bollingerMeasures(period, bars) {
+      if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Series and indicator period must fit within 100,000 bars.');
+      putIndicatorCloses(bars);
+      const out = output(api.mw_bollinger_measures(period));
+      function value(offset: number) {
+        const ticks = (out.getBigInt64(offset + 8, true) << 64n) | out.getBigUint64(offset, true);
+        return ticks === -(1n << 127n) ? null : ticks;
+      }
+      return Array.from({ length: bars.length }, (_, index) => ({
+        percentB: value(index * 32), bandwidth: value(index * 32 + 16),
+      }));
     },
     replay(calendar, intervalSeconds, bars) {
       if (!Number.isInteger(intervalSeconds) || intervalSeconds < 1 || intervalSeconds > 86_400) {

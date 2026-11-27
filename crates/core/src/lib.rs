@@ -5,6 +5,7 @@ mod alerts;
 mod atr;
 mod backtest;
 mod bollinger;
+mod bollinger_measures;
 mod chart_movement;
 mod cross_section;
 mod cross_section_liquidity;
@@ -63,6 +64,7 @@ pub use backtest::{
     RecordedBacktestCutoffs,
 };
 pub use bollinger::{bollinger_bands, BollingerBand};
+pub use bollinger_measures::{bollinger_measures, BollingerMeasures};
 pub use chart_movement::PriceMovement;
 pub use cross_section::{
     CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,

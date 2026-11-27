@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.114.0 · Bollinger %B and BandWidth
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Fixtures check %B at both bands and outside them, flat and zero-middle windows, signed BandWidth and a value above the i64 limit. Earlier prefixes preserve exact values. |
+| Browser chart and export | Offline Chromium checks signed plot scales, path breaks at missing values and the complete decimal in a wider-than-i64 BandWidth export. |
+| Workspace | The two studies store separate periods, coexist with the price overlay and restore from a version 19 backup. Version 18 still restores. |
+
+[Bollinger measures](chart-workspace.md#bollinger-b-and-bandwidth) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.113.0 · Bollinger Bands
 
 | Check | Evidence |

@@ -94,6 +94,16 @@ Open **Indicators**, enable **Bollinger Bands** for either pane and apply a peri
 
 The three lines share the price scale, which includes the visible band values. They use the source closes for the selected timeframe. Each pane saves its own period and visibility setting. The research CSV adds `bb_lower_20`, `bb_middle_20` and `bb_upper_20` for a 20-bar setting, with blank cells while the window fills.
 
+### Bollinger %B and BandWidth
+
+Enable **Bollinger %B** or **BandWidth** in either pane’s indicator settings. Each has its own period and percentage scale. A study uses a 20-bar window by default and accepts 1 through 100,000 observed closes. Each measure uses the same six-decimal bands that the research CSV exports.
+
+%B is 100 times the close minus the lower band, divided by the upper band minus the lower band. It reads 0% at the lower band, 50% at the middle, and 100% at the upper band. A close beyond the band remains visible on the expanded scale. The result is empty when both outer bands coincide.
+
+BandWidth is 100 times the upper band minus the lower band, divided by the signed middle band. A zero middle band leaves the value empty. A nonzero middle with coincident outer bands gives 0%. The plot includes zero and its visible signed values. [John Bollinger’s %B notes](https://www.bollingerbands.com/_files/ugd/58be43_b120ddf0184540608baf19e2c0ae2019.pdf) · [BandWidth notes](https://www.bollingerbands.com/_files/ugd/58be43_d09c50b6e8ea4afd9af0523ef94de876.pdf).
+
+The research CSV uses columns such as `bb_percent_b_20` and `bb_bandwidth_20`. Values retain six-decimal percentage precision even when they are too large to round-trip through a browser number. An undefined value leaves an empty cell and a gap in its plot.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

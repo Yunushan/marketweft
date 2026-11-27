@@ -2872,6 +2872,19 @@ pub extern "C" fn mw_bollinger_bands(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_bollinger_measures(period: usize) -> u32 {
+    process(|input| {
+        let results = crate::bollinger_measures(period, &indicator_closes(input)?)?;
+        let mut bytes = Vec::with_capacity(32 * results.len());
+        for row in results {
+            bytes.extend_from_slice(&row.percent_b.unwrap_or(i128::MIN).to_le_bytes());
+            bytes.extend_from_slice(&row.bandwidth.unwrap_or(i128::MIN).to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_formula_version() -> u32 {
     crate::FORMULA_VERSION
 }

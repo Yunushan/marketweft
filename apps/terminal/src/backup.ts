@@ -24,10 +24,13 @@ const VOLUME_SIZE_BACKUP_VERSION = 15
 const RSI_BACKUP_VERSION = 16
 const STUDIES_BACKUP_VERSION = 17
 const BOLLINGER_BACKUP_VERSION = 18
+const BOLLINGER_MEASURES_BACKUP_VERSION = 19
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
-  if (Object.values(preferences.studies ?? {}).some(pane => pane?.bb)) return BOLLINGER_BACKUP_VERSION
+  const studies = Object.values(preferences.studies ?? {})
+  if (studies.some(pane => pane?.bb_percent_b || pane?.bb_bandwidth)) return BOLLINGER_MEASURES_BACKUP_VERSION
+  if (studies.some(pane => pane?.bb)) return BOLLINGER_BACKUP_VERSION
   if (preferences.studies) return STUDIES_BACKUP_VERSION
   if (preferences.rsi) return RSI_BACKUP_VERSION
   if (preferences.volumeTicks) return VOLUME_SIZE_BACKUP_VERSION
@@ -134,7 +137,7 @@ export async function verifyWorkspaceBackup(
     INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
     STRUCTURED_GRANT_BACKUP_VERSION,
     VERIFIED_PROVIDER_BACKUP_VERSION, HEIKIN_ASHI_BACKUP_VERSION, RENKO_BACKUP_VERSION, LINE_BREAK_BACKUP_VERSION, KAGI_BACKUP_VERSION,
-    POINT_FIGURE_BACKUP_VERSION, RANGE_SIZE_BACKUP_VERSION, VOLUME_SIZE_BACKUP_VERSION, RSI_BACKUP_VERSION, STUDIES_BACKUP_VERSION, BOLLINGER_BACKUP_VERSION,
+    POINT_FIGURE_BACKUP_VERSION, RANGE_SIZE_BACKUP_VERSION, VOLUME_SIZE_BACKUP_VERSION, RSI_BACKUP_VERSION, STUDIES_BACKUP_VERSION, BOLLINGER_BACKUP_VERSION, BOLLINGER_MEASURES_BACKUP_VERSION,
   ].includes(file.version))
     throw Error('This workspace backup version is unsupported.')
   const manifest = fields(file.manifest, [

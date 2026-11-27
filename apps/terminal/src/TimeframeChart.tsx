@@ -7,8 +7,8 @@ import { fixed, parsePriceSize } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
 import type { TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
-import { computeStudy, studyOverlays, STUDY_KINDS } from './studies'
-import type { StudySet, StudyValues } from './studies'
+import { computeStudies, studyOverlays } from './studies'
+import type { StudySet } from './studies'
 
 type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize'> & {
   core: MarketCore
@@ -98,10 +98,8 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
   const ema = useMemo(() => activeEma && periods ?
     core.indicator('ema', periods.ema, display.bars) : [], [core, activeEma, periods?.ema, display.bars])
 
-  const studies = useMemo<StudyValues[]>(() => STUDY_KINDS.flatMap(kind => {
-    const settings = studySettings?.[kind]
-    return settings?.enabled ? [computeStudy(core, kind, settings.period, display.bars)] : []
-  }), [core, studySettings, display.bars])
+  const studies = useMemo(() => computeStudies(core, studySettings, display.bars),
+    [core, studySettings, display.bars])
 
   async function apply() {
     if (busy) return

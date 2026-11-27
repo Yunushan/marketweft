@@ -1266,3 +1266,20 @@ test('Bollinger Bands preserve exact signed tick boundaries and missing warm-up'
     [null, band(-2n, -1n, 1n)]);
   assert.throws(() => core.bollingerBands(0, bars), /100,000/);
 });
+
+test('Bollinger measures expose signed, missing and wider-than-i64 percentages', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-bollinger.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const values = core.bollingerMeasures(3, bars);
+  assert.deepEqual(values, [
+    { percentB: null, bandwidth: null }, { percentB: null, bandwidth: null },
+    { percentB: 67_677_679n, bandwidth: -565_685_117n }, { percentB: null, bandwidth: null },
+    { percentB: 85_355_341n, bandwidth: 565_685_400n }, { percentB: 19_381_378n, bandwidth: null },
+  ]);
+  assert.deepEqual(core.bollingerMeasures(3, bars.slice(0, 5)), values.slice(0, 5));
+  const wide = core.bollingerMeasures(2, [
+    { ...bars[0], close: 2_000_000_000 },
+    { ...bars[1], close: -1_999_999_999.999998 },
+  ]);
+  assert.equal(wide[1].bandwidth, 799_999_999_999_999_600_000_000n);
+});
