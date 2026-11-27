@@ -53,24 +53,13 @@ test "$("${device[@]}" shell getprop ro.product.cpu.abi | tr -d '\r')" = x86_64
 
 "${device[@]}" shell input keyevent KEYCODE_WAKEUP
 "${device[@]}" shell wm dismiss-keyguard
-# Turn Wi-Fi off first so airplane mode cannot preserve an enabled Wi-Fi override.
+# Keep Wi-Fi in the airplane-mode radios and prevent the disposable emulator
+# from restoring or toggling it while airplane mode is active.
+"${device[@]}" shell settings put global airplane_mode_radios cell,bluetooth,wifi,nfc,wimax
+"${device[@]}" shell settings put global airplane_mode_toggleable_radios bluetooth
+"${device[@]}" shell settings --user 0 put secure wifi_apm_state 0
 "${device[@]}" shell svc wifi disable
 "${device[@]}" shell svc data disable
 "${device[@]}" shell cmd connectivity airplane-mode enable
-# Airplane mode can restore the emulator image's saved Wi-Fi override.
-offline_deadline=$((SECONDS + 15))
-while :; do
-    "${device[@]}" shell svc wifi disable
-    sleep 1
-    airplane=$("${device[@]}" shell settings get global airplane_mode_on | tr -d '\r')
-    wifi=$("${device[@]}" shell settings get global wifi_on | tr -d '\r')
-    if [[ "$airplane" == 1 && ( "$wifi" == 0 || "$wifi" == 3 ) ]]; then
-        break
-    fi
-    if (( SECONDS >= offline_deadline )); then
-        printf 'The emulator could not become offline. Observed airplane_mode_on=%s wifi_on=%s.\n' "$airplane" "$wifi" >&2
-        exit 1
-    fi
-done
 bash scripts/verify_android_on_device.sh "$serial" x86_64 "$apk" reports "$@"
 (cd reports && sha256sum "$name" >"$name.sha256")
