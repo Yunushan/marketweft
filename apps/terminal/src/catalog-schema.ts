@@ -28,11 +28,12 @@ export type Preferences = {
   volumeTicks?: Partial<Record<ChartPane, number>>
   baselineTicks?: Partial<Record<ChartPane, number>>
   closeChangeSeconds?: Partial<Record<ChartPane, number>>
+  highLowSeconds?: Partial<Record<ChartPane, number>>
 }
 
 export type ChartPane = 'primary' | 'comparison'
-export type ChartType = 'candles' | 'volume-candles' | 'line' | 'area' | 'step-line' | 'baseline' | 'close-change' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
-const MAX_CLOSE_CHANGE_SECONDS = 0xffff_ffff
+export type ChartType = 'candles' | 'volume-candles' | 'line' | 'area' | 'step-line' | 'baseline' | 'close-change' | 'high-low-band' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
+const MAX_CHART_INTERVAL_SECONDS = 0xffff_ffff
 export const DEFAULT_RENKO_TICKS = 1_000_000
 export const DEFAULT_KAGI_TICKS = 1_000_000
 export const DEFAULT_POINT_FIGURE_TICKS = 1_000_000
@@ -145,7 +146,10 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   if (value && typeof value === 'object' && Object.hasOwn(value, 'chartTypes')) keys.push('chartTypes')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'rsi')) keys.push('rsi')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'studies')) keys.push('studies')
-  if (value && typeof value === 'object' && Object.hasOwn(value, 'closeChangeSeconds')) keys.push('closeChangeSeconds')
+  const intervalSettings = ['closeChangeSeconds', 'highLowSeconds'] as const
+  for (const key of intervalSettings) {
+    if (value && typeof value === 'object' && Object.hasOwn(value, key)) keys.push(key)
+  }
   const tickSettings = ['renkoTicks', 'kagiTicks', 'pointFigureTicks', 'rangeTicks', 'volumeTicks', 'baselineTicks'] as const
   for (const key of tickSettings) {
     if (value && typeof value === 'object' && Object.hasOwn(value, key)) keys.push(key)
@@ -327,7 +331,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       throw Error('Invalid workspace chart types.')
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, type]) =>
-      (pane !== 'primary' && pane !== 'comparison') || (type !== 'volume-candles' && type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'baseline' && type !== 'close-change' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
+      (pane !== 'primary' && pane !== 'comparison') || (type !== 'volume-candles' && type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'baseline' && type !== 'close-change' && type !== 'high-low-band' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
         type !== 'three-line-break' && type !== 'kagi' && type !== 'point-and-figure'))) {
       throw Error('Unknown pane or chart type in the workspace.')
     }
@@ -347,22 +351,23 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
     }
     result[key] = Object.fromEntries(entries)
   }
-  if (keys.includes('closeChangeSeconds')) {
-    const settings = value.closeChangeSeconds
+  for (const key of intervalSettings) {
+    if (!keys.includes(key)) continue
+    const settings = value[key]
     if (!settings || typeof settings !== 'object' || Array.isArray(settings))
-      throw Error('Invalid close-change interval settings.')
+      throw Error('Invalid chart interval settings.')
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, seconds]) =>
-      (pane !== 'primary' && pane !== 'comparison') || !validCloseChangeSeconds(seconds))) {
+      (pane !== 'primary' && pane !== 'comparison') || !validChartIntervalSeconds(seconds))) {
       throw Error('Chart intervals must be positive whole seconds within the supported range.')
     }
-    result.closeChangeSeconds = Object.fromEntries(entries)
+    result[key] = Object.fromEntries(entries)
   }
   return result
 }
 
-export function validCloseChangeSeconds(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 && value <= MAX_CLOSE_CHANGE_SECONDS
+export function validChartIntervalSeconds(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 && value <= MAX_CHART_INTERVAL_SECONDS
 }
 
 function sourceRights(value: unknown): SourceRights {

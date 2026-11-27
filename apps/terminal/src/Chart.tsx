@@ -66,6 +66,7 @@ const chartNames: Record<ChartType, string> = {
   'step-line': 'step line',
   baseline: 'baseline',
   'close-change': 'close-change histogram',
+  'high-low-band': 'high-low band',
   ohlc: 'OHLC bar',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
@@ -155,6 +156,8 @@ function draw(
   type: ChartType,
   baselineTicks: number,
   closeChanges: CloseChangeSeries | undefined,
+  bandSeconds: number | undefined,
+  timeframe: TimeframeView | undefined,
   kagi: KagiLayout | undefined,
   pointFigure: PointFigureLayout | undefined,
   activePrice: number | undefined,
@@ -171,6 +174,14 @@ function draw(
   const baseline = type === 'baseline' ? baselineTicks / 1e6 : undefined
   const histogram = type === 'close-change'
   const volumeWeighted = type === 'volume-candles'
+  const rangeBand = type === 'high-low-band'
+  function consecutive(index: number) {
+    if (bandSeconds === undefined || bars[index].time - bars[index - 1].time !== bandSeconds) return false
+    if (!timeframe) return true
+    const previous = timeframe.buckets[index - 1]
+    const current = timeframe.buckets[index]
+    return previous.expectedBars === previous.observedBars && current.expectedBars === current.observedBars
+  }
   const closeTrace = type === 'line' || type === 'area' || type === 'step-line' || baseline !== undefined
   const isPriceMovement = type === 'renko' || type === 'three-line-break'
   const closeBased = isPriceMovement || kagi !== undefined || pointFigure !== undefined
@@ -369,8 +380,13 @@ function draw(
       ctx.fillRect(x(index) - width / 2, Math.min(open, close), width, Math.max(1, Math.abs(open - close)))
     }
   }
-  for (let first = start; !closeBased && first < view.end; first += stride) {
-    const last = Math.min(first + stride, view.end) - 1
+  for (let first = start; !closeBased && first < view.end;) {
+    const end = Math.min(first + stride, view.end)
+    let last = end - 1
+    if (rangeBand) {
+      last = first
+      while (last + 1 < end && consecutive(last + 1)) last++
+    }
     let hi = bars[first].high,
       lo = bars[first].low,
       vol = 0,
@@ -395,13 +411,14 @@ function draw(
       highestClose,
     })
     maxVol = Math.max(maxVol, vol)
+    first = last + 1
   }
   for (const b of groups) {
     const axis = (x(b.first) + x(b.last)) / 2,
       w = Math.max(1, dx * (b.last - b.first + 1) * 0.68)
     const col = b.close >= b.open ? UP : DOWN
     ctx.fillStyle = col
-    if (!closeTrace && !histogram) {
+    if (!closeTrace && !histogram && !rangeBand) {
       line(axis, y(b.high), axis, y(b.low), col)
       const open = y(b.open), close = y(b.close)
       if (type === 'ohlc') {
@@ -417,6 +434,55 @@ function draw(
     ctx.globalAlpha = 0.46
     ctx.fillRect(axis - w / 2, bottom - h, w, h)
     ctx.globalAlpha = 1
+  }
+  if (rangeBand) {
+    const center = (group: typeof groups[number]) => (x(group.first) + x(group.last)) / 2
+    for (let first = 0; first < groups.length;) {
+      let end = first + 1
+      while (end < groups.length && consecutive(groups[end].first)) end++
+      const initial = groups[first]
+      const leftmost = center(initial)
+      ctx.fillStyle = 'rgba(85, 181, 238, 0.2)'
+      if (end === first + 1) {
+        const width = Math.max(1, dx * (initial.last - initial.first + 1) * 0.5)
+        ctx.fillRect(leftmost - width / 2, y(initial.high), width,
+          Math.max(1, y(initial.low) - y(initial.high)))
+      } else {
+        ctx.beginPath()
+        ctx.moveTo(x(initial.first), y(initial.high))
+        for (let index = first; index < end; index++) {
+          const group = groups[index]
+          if (index !== first) ctx.lineTo(x(group.first), y(group.high))
+          if (group.first !== group.last) ctx.lineTo(x(group.last), y(group.high))
+        }
+        for (let index = end - 1; index >= first; index--) {
+          const group = groups[index]
+          ctx.lineTo(x(group.last), y(group.low))
+          if (group.first !== group.last) ctx.lineTo(x(group.first), y(group.low))
+        }
+        ctx.closePath()
+        ctx.fill()
+      }
+      if (initial.first === groups[end - 1].last) {
+        ctx.fillStyle = CLOSE_LINE
+        ctx.beginPath()
+        ctx.arc(leftmost, y(initial.close), 2, 0, Math.PI * 2)
+        ctx.fill()
+      } else {
+        // A dense group can hold multiple observed closes on the same display pixel.
+        ctx.beginPath()
+        ctx.strokeStyle = CLOSE_LINE
+        ctx.lineWidth = 2
+        ctx.moveTo(x(initial.first), y(bars[initial.first].close))
+        for (let index = first; index < end; index++) {
+          const group = groups[index]
+          const closes = [...new Set([group.first, group.lowestClose, group.highestClose, group.last])].sort((a, b) => a - b)
+          for (const position of closes) ctx.lineTo(x(position), y(bars[position].close))
+        }
+        ctx.stroke()
+      }
+      first = end
+    }
   }
   if (histogram) {
     const zero = y(0)
@@ -808,6 +874,7 @@ export function Chart({
   type = 'candles',
   baselineTicks = 0,
   closeChanges,
+  bandSeconds,
   timeframe,
   ticks,
   ranges,
@@ -831,6 +898,7 @@ export function Chart({
   type?: ChartType
   baselineTicks?: number
   closeChanges?: CloseChangeSeries
+  bandSeconds?: number
   timeframe?: TimeframeView
   ticks?: TickBar[]
   ranges?: RangeBar[]
@@ -1005,6 +1073,8 @@ export function Chart({
           type,
           baselineTicks,
           closeChanges,
+          bandSeconds,
+          timeframe,
           kagi,
           pointFigure,
           crosshairPrice,
@@ -1012,7 +1082,7 @@ export function Chart({
           plottedPriceLines,
           activeStudyPlotValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, baselineTicks, closeChanges, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, baselineTicks, closeChanges, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))

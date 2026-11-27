@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.142.0 adds volume-weighted candles that preserve the price and time coordinates of the observed OHLC bars. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.143.0 adds a high-low band that keeps visible gaps between nonconsecutive observations. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Delivered · 0.143.0 | High-low band (MW-012) | Verify observed extrema, close traces, gaps at different zoom levels, and version 42 restoration. [High-low band](docs/chart-workspace.md#high-low-band). |
 | Delivered · 0.142.0 | Volume-weighted candles (MW-012) | Verify proportional candle widths, zero-volume wicks, unchanged OHLC coordinates, and version 41 restoration. [Volume-weighted candles](docs/chart-workspace.md#volume-weighted-candles). |
 | Delivered · 0.141.0 | Close-change histogram (MW-012) | Verify signed bars, genuine zero, gaps in source intervals, CSV source closes, and version 40 restoration. [Close-change histogram](docs/chart-workspace.md#close-change-histogram). |
 | Delivered · 0.140.0 | Configurable baseline chart (MW-012) | Verify signed reference prices, above- and below-reference fills, independent panes, type changes, and version 39 restoration. [Baseline chart](docs/chart-workspace.md#baseline-chart). |
@@ -156,5 +157,5 @@
 
 ## Handoff for the next change
 
-Add a high-low band with an observed close line. Verify exact bounds, intraday gaps, dense views, and mixed-pane restoration.
+Add a point-in-time percent-change chart that rebases each pane from an observed close. Verify signed returns, zero base handling, linked comparison, and exact exports.
 

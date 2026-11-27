@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.143.0 · High-low band
+
+| Check | Evidence |
+| --- | --- |
+| Chromium chart | Tests compare the shaded boundaries with the observed high-low wick coordinates. The band and close line split at the gap, including when many observations share a pixel. |
+| Workspace backup | Chromium restores both a version 41 workspace and a version 42 workspace with independently saved chart selections and intervals. The source history is identical in both backups. |
+
+[High-low band](chart-workspace.md#high-low-band) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.142.0 · Volume-weighted candles
 
 | Check | Evidence |

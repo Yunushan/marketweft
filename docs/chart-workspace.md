@@ -42,6 +42,14 @@ Choose **Volume-weighted candles** to make each body width proportional to the d
 
 When several bars share a display column, the group uses the standard OHLC aggregation and the sum of the underlying volumes. Pan and zoom recalculate widths for the visible range. Crosshairs, annotations, overlays and CSV exports use the original price and time coordinates. Version 41 backups preserve the choice independently for both panes.
 
+### High-low band
+
+Choose **High-low band** to shade the range between observed highs and lows with a close line inside it. Set **High-low band interval (seconds)** to join consecutive observations. The line and band break where observations are missing. An isolated bar shows its range and close as a column and point.
+
+Built-in samples use 86,400 seconds. Imported metadata in the form `60 seconds` supplies a default interval. An active timeframe uses its target interval and isolates buckets with incomplete source coverage. In dense views, a display group keeps its observed high and low and retains the first, last and extreme closes. A group ends at each source gap.
+
+The crosshair shows observed OHLCV. Version 42 backups preserve each pane's choice and saved interval. Source CSV exports continue to use the observed bars.
+
 ### Heikin-Ashi
 
 Each pane can display Heikin-Ashi candles independently. The first derived open is the midpoint of the first observed open and close. Subsequent opens are the midpoint of the previous derived open and close. The derived close averages the current observed open, high, low and close. The derived high and low enclose both the observed extremes and the derived body. Prices use signed millionths and round halfway values away from zero at each step. [Dan Valcu’s original calculation](https://c.mql5.com/forextsd/forum/118/using_the_heikin_ashi_technique_d_valcu.pdf).

@@ -79,6 +79,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   'step-line': 'Step line',
   baseline: 'Baseline',
   'close-change': 'Close-change histogram',
+  'high-low-band': 'High-low band',
   ohlc: 'OHLC bars',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
@@ -654,8 +655,8 @@ export function App({
   function setChartPriceTicks(pane: ChartPane, setting: 'renkoTicks' | 'kagiTicks' | 'pointFigureTicks' | 'baselineTicks', ticks: number) {
     update({ ...ws, [setting]: { ...ws[setting], [pane]: ticks } })
   }
-  function setCloseChangeSeconds(pane: ChartPane, seconds: number) {
-    update({ ...ws, closeChangeSeconds: { ...ws.closeChangeSeconds, [pane]: seconds } })
+  function setChartInterval(pane: ChartPane, setting: 'closeChangeSeconds' | 'highLowSeconds', seconds: number) {
+    update({ ...ws, [setting]: { ...ws[setting], [pane]: seconds } })
   }
   function drawingTools(id: string) {
     return {
@@ -946,7 +947,9 @@ export function App({
                   pointFigureTicks={ws.pointFigureTicks?.primary} baselineTicks={ws.baselineTicks?.primary} priceSizeSaving={saving}
                   onBaselineTicks={ticks => setChartPriceTicks('primary', 'baselineTicks', ticks)}
                   closeChangeSeconds={ws.closeChangeSeconds?.primary}
-                  onCloseChangeSeconds={seconds => setCloseChangeSeconds('primary', seconds)}
+                  onCloseChangeSeconds={seconds => setChartInterval('primary', 'closeChangeSeconds', seconds)}
+                  highLowSeconds={ws.highLowSeconds?.primary}
+                  onHighLowSeconds={seconds => setChartInterval('primary', 'highLowSeconds', seconds)}
                   onRenkoTicks={ticks => setChartPriceTicks('primary', 'renkoTicks', ticks)}
                   onKagiTicks={ticks => setChartPriceTicks('primary', 'kagiTicks', ticks)}
                   onPointFigureTicks={ticks => setChartPriceTicks('primary', 'pointFigureTicks', ticks)}
@@ -968,7 +971,9 @@ export function App({
                     pointFigureTicks={ws.pointFigureTicks?.comparison} baselineTicks={ws.baselineTicks?.comparison} priceSizeSaving={saving}
                     onBaselineTicks={ticks => setChartPriceTicks('comparison', 'baselineTicks', ticks)}
                     closeChangeSeconds={ws.closeChangeSeconds?.comparison}
-                    onCloseChangeSeconds={seconds => setCloseChangeSeconds('comparison', seconds)}
+                    onCloseChangeSeconds={seconds => setChartInterval('comparison', 'closeChangeSeconds', seconds)}
+                    highLowSeconds={ws.highLowSeconds?.comparison}
+                    onHighLowSeconds={seconds => setChartInterval('comparison', 'highLowSeconds', seconds)}
                     onRenkoTicks={ticks => setChartPriceTicks('comparison', 'renkoTicks', ticks)}
                     onKagiTicks={ticks => setChartPriceTicks('comparison', 'kagiTicks', ticks)}
                     onPointFigureTicks={ticks => setChartPriceTicks('comparison', 'pointFigureTicks', ticks)}
