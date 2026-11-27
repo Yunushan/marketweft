@@ -2266,6 +2266,26 @@ pub extern "C" fn mw_heikin_ashi() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_renko(brick_ticks: i64) -> u32 {
+    process(|input| {
+        let bricks = crate::renko(&decode_bars(input)?, brick_ticks)?;
+        let mut bytes = Vec::with_capacity(40 * bricks.len());
+        for brick in bricks {
+            for value in [
+                brick.source_time,
+                i64::from(brick.source_index),
+                brick.open,
+                brick.close,
+                brick.source_close,
+            ] {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_tick_bars(target_trades: u32) -> u32 {
     process(|input| {
         let (identity, payload) = utf8(input)?

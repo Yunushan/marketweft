@@ -8,6 +8,14 @@ export interface Bar {
   volume: number;
 }
 
+export interface RenkoBrick {
+  sourceTime: number;
+  sourceIndex: number;
+  openTicks: bigint;
+  closeTicks: bigint;
+  sourceCloseTicks: bigint;
+}
+
 export interface FormulaResult {
   version: number;
   values: (bigint | null)[];
@@ -793,6 +801,7 @@ export interface MarketCore {
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
   heikinAshi(bars: readonly Bar[]): Bar[];
+  renko(bars: readonly Bar[], brickTicks: bigint): RenkoBrick[];
   recordedTickBars(instrument: string, csv: string, targetTrades: number, knownAt?: string): TickBar[];
   footprintWindow(instrument: string, csv: string): FootprintWindow;
   recordedFootprint(instrument: string, csv: string, query: FootprintQuery): FootprintBar[];
@@ -876,6 +885,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_instrument(): number;
   mw_parse(): number;
   mw_heikin_ashi(): number;
+  mw_renko(brickTicks: bigint): number;
   mw_tick_bars(targetTrades: number): number;
   mw_footprint_window(): number;
   mw_trade_footprint(bucketSeconds: number): number;
@@ -1494,6 +1504,23 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const dest = input(bars.length * 48);
       for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Heikin-Ashi');
       return decodeBars(output(api.mw_heikin_ashi()));
+    },
+    renko(bars, brickTicks) {
+      if (brickTicks < 1n || brickTicks > 2_000_000_000_000_000n || bars.length > 100_000)
+        throw new Error('Use a positive six-place brick size and at most 100,000 source bars.');
+      const dest = input(bars.length * 48);
+      for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Renko');
+      const rows = output(api.mw_renko(brickTicks));
+      return Array.from({ length: rows.byteLength / 40 }, (_, index) => {
+        const offset = index * 40;
+        return {
+          sourceTime: Number(rows.getBigInt64(offset, true)),
+          sourceIndex: Number(rows.getBigInt64(offset + 8, true)),
+          openTicks: rows.getBigInt64(offset + 16, true),
+          closeTicks: rows.getBigInt64(offset + 24, true),
+          sourceCloseTicks: rows.getBigInt64(offset + 32, true),
+        };
+      });
     },
     aggregateTimeframe(bars, sourceSeconds, targetSeconds) {
       putTimeframeInput(bars, sourceSeconds, targetSeconds);

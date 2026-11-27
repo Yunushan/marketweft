@@ -28,6 +28,21 @@ pub(crate) fn validate_ohlcv(bar: &Bar, index: usize) -> Result<(), String> {
     }
 }
 
+pub(crate) fn validate_bar_time(
+    time: i64,
+    previous: Option<i64>,
+    index: usize,
+) -> Result<(), String> {
+    if !valid_second(time) || previous.is_some_and(|previous| previous >= time) {
+        Err(format!(
+            "Source bar {} must have an in-range UTC time later than the previous bar.",
+            index + 1
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 pub(crate) fn decimal(text: &str) -> Option<i64> {
     let ticks = decimal_ticks(text)?;
     (ticks.abs() <= i128::from(MAX_TICKS)).then_some(ticks as i64)

@@ -1125,3 +1125,17 @@ test('Heikin-Ashi Wasm matches the fixed-point reference across gaps', async () 
   assert.deepEqual(core.heikinAshi(source.slice(0, 2)), derived.slice(0, 2));
   assert.throws(() => core.heikinAshi(source.toReversed()), /later than the previous bar/);
 });
+
+test('Renko Wasm keeps source identity and exact brick prices through gaps and reversals', async () => {
+  const bars = core.parseCsv(await readFile(new URL('../crates/core/tests/fixtures/synthetic-renko.csv', import.meta.url), 'utf8'));
+  const bricks = core.renko(bars, 2000000n);
+  assert.deepEqual(bricks.map(({ sourceIndex, openTicks, closeTicks }) =>
+    [sourceIndex, openTicks / 1000000n, closeTicks / 1000000n]), [
+    [2,100n,102n], [2,102n,104n], [2,104n,106n], [4,104n,102n],
+    [5,102n,100n], [5,100n,98n], [5,98n,96n], [7,98n,100n], [8,100n,102n], [8,102n,104n],
+  ]);
+  assert.equal(bricks[0].sourceTime, bars[2].time);
+  assert.equal(bricks[0].sourceCloseTicks, 106000000n);
+  assert.deepEqual(core.renko(bars.slice(0, 5), 2000000n), bricks.slice(0, 4));
+  assert.throws(() => core.renko(bars, 1n), /Increase the brick size/);
+});

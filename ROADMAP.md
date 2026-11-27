@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.104.0 adds a fixed-point Heikin-Ashi chart choice to each workspace pane. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.105.0 adds a fixed-size Renko chart from observed closes to each workspace pane. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -107,6 +107,7 @@
 | Delivered · 0.102.0 | gRPC option snapshots (MW-026, MW-028) | Verify Protobuf field presence, scope isolation, and complete page parity across REST, WebSocket and gRPC at independent cutoffs. [Option snapshots over gRPC](docs/local-rest-research.md#option-snapshots-over-grpc). |
 | Delivered · 0.103.0 | gRPC American valuations (MW-026, MW-028) | Verify supplied and implied volatility, dividend revision and cancellation provenance, absent model values, and REST parity. [American valuations over gRPC](docs/local-rest-research.md#american-valuations-over-grpc). |
 | Delivered · 0.104.0 | Heikin-Ashi chart (MW-012) | Verify native and Wasm fixed-point values, candle geometry, observed CSV export and mixed-pane workspace restore. [Heikin-Ashi charts](docs/chart-workspace.md#heikin-ashi). |
+| Delivered · 0.105.0 | Fixed-size Renko chart (MW-012) | Verify reversals at the exact two-brick threshold, repeated source timestamps, source CSV export and pane restore in native, Wasm and browser fixtures. [Renko charts](docs/chart-workspace.md#renko). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -118,5 +119,5 @@
 
 ## Handoff for the next change
 
-Add a distinct fixed-size Renko chart from observed closes. Verify deterministic reversals, multiple bricks from one close, source timestamps and workspace restore.
+Add a distinct Three Line Break chart from observed closes. Verify continuation, reversal thresholds, equal-price closes and independent pane restore.
 

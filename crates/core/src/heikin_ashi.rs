@@ -1,5 +1,5 @@
 use crate::{
-    history::{valid_second, validate_ohlcv},
+    history::{validate_bar_time, validate_ohlcv},
     screen::rounded_div,
     Bar, MAX_BARS,
 };
@@ -14,12 +14,7 @@ pub fn heikin_ashi(bars: &[Bar]) -> Result<Vec<Bar>, String> {
     for (index, &bar) in bars.iter().enumerate() {
         validate_ohlcv(&bar, index)?;
         let previous = result.last().copied();
-        if !valid_second(bar.time) || previous.is_some_and(|previous| previous.time >= bar.time) {
-            return Err(format!(
-                "Source bar {} must have an in-range UTC time later than the previous bar.",
-                index + 1
-            ));
-        }
+        validate_bar_time(bar.time, previous.map(|bar| bar.time), index)?;
         let seed = previous.unwrap_or(bar);
         let open = rounded_div(i128::from(seed.open) + i128::from(seed.close), 2) as i64;
         let close = rounded_div(

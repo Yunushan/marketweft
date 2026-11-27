@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.105.0 · Fixed-size Renko chart
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | The shared $2 brick fixture fixes ten bricks, including several at a single UTC source time and two near reversals that fall short by one tick. The native test reproduces all earlier bricks from each history prefix and checks the size, order and output limits. |
+| Browser chart | Offline Chromium checks rendered direction, hover at repeated timestamps, the empty view for a large brick size, and unchanged source OHLCV export. |
+| Workspace | The independent brick size and mixed Renko and line panes survive reload. The browser restores both a legacy Heikin-Ashi backup and the Renko backup with the original CSV. |
+
+[Renko charts](chart-workspace.md#renko) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.104.0 · Heikin-Ashi chart
 
 | Check | Evidence |

@@ -14,13 +14,19 @@ The comparison uses the original bars and timestamps from each saved series. Imp
 
 Choose **Candles** for a filled price body, **OHLC bars** for a high-to-low stem with a left open tick and right close tick, or **Close line** to trace observed closes. These three show observed volume and use the same source bars, overlays and cursor readout. **Heikin-Ashi** adds a derived candle view. When several bars share a display column, the candles and OHLC bars use the first open, highest high, lowest low and last close. The line keeps the first, last, highest and lowest closes in their original order. A single observed close is drawn as a point.
 
-The x-axis places consecutive observed bars at regular bar spacing. An unobserved timestamp has no chart point or linked crosshair. Choosing another chart type keeps the current visible range and the pane's indicator settings. Each pane saves its own chart type. [Backup format](workspace-backup.md)
+The x-axis places consecutive observed bars at regular bar spacing. An unobserved timestamp has no chart point or linked crosshair. Switching among time-based chart types keeps the visible range. Switching to or from Renko resets the visible range. The pane keeps its indicator settings. Each pane saves its own chart type. [Backup format](workspace-backup.md)
 
 ### Heikin-Ashi
 
 Each pane can display Heikin-Ashi candles independently. The first derived open is the midpoint of the first observed open and close. Subsequent opens are the midpoint of the previous derived open and close. The derived close averages the current observed open, high, low and close. The derived high and low enclose both the observed extremes and the derived body. Prices use signed millionths and round halfway values away from zero at each step. [Dan Valcu’s original calculation](https://c.mql5.com/forextsd/forum/118/using_the_heikin_ashi_technique_d_valcu.pdf).
 
 The calculation starts from the beginning of the pane's selected history or aggregated series, so panning and zooming do not change the values. Timestamps and volume remain aligned with the source, including gaps. The readout labels the derived prices and shows the observed close separately. Moving averages, measurements and exports continue to use the chart's observed or aggregated source bars. Workspace backup saves the pane selection and source CSV. [Backup format](workspace-backup.md)
+
+### Renko
+
+Choose **Renko** for fixed-size price bricks. Enter the size in price units, with up to six decimal places. Each pane saves its size independently. The first observed close anchors the price grid. A move of one brick size extends the current direction, and a move of two brick sizes reverses it. One source close can generate several bricks with the same UTC timestamp. The calculation uses closed source bars and the selected timeframe. [Renko calculation](https://www.tradingview.com/support/solutions/43000502284-understanding-renko-charts/) · [Reversal threshold](https://www.tradingview.com/support/solutions/43000481040-what-do-renko-wicks-mean/).
+
+Hover a brick to inspect its sequence number, open, close, and observed close. The x-axis steps by brick. An incoming UTC crosshair snaps to the last visible brick at that timestamp. Measurements can appear when both endpoint timestamps have bricks. Moving averages follow the closes of the source bars, and Renko omits a volume graph. The visible CSV includes source bars from the first visible brick's observation through the last. Choose **All bars** to include earlier and later observations. Workspace backup keeps the source CSV and pane settings. [Backup format](workspace-backup.md)
 
 ## Fixed-duration timeframes
 

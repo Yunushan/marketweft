@@ -1,13 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from './Icons'
+import { fixed } from './fixed-point'
 import { ChartExport } from './ChartExport'
 import type { TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar, MarketCore, MeasuredDrawing, TickBar } from './market-core'
+import type { Bar, MarketCore, MeasuredDrawing, RenkoBrick, TickBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 type View = { end: number; count: number }
@@ -29,6 +30,7 @@ const chartNames: Record<ChartType, string> = {
   line: 'close line',
   ohlc: 'OHLC bar',
   'heikin-ashi': 'Heikin-Ashi',
+  renko: 'Renko',
 }
 const defaultView = (n: number) => ({ end: n, count: Math.min(n, 60) })
 const clamp = (x: number, min: number, max: number) =>
@@ -43,15 +45,17 @@ function changeView(
   return { count, end: clamp(view.end + shift, count, total) }
 }
 
-function visibleBarAt(bars: Bar[], timestamp: number, start: number, end: number) {
+function visibleBarAt(bars: Bar[], timestamp: number, start: number, end: number, latest = false) {
   let low = start
   let high = end
   while (low < high) {
     const mid = (low + high) >>> 1
-    if (bars[mid].time < timestamp) low = mid + 1
+    const time = bars[mid].time
+    if (time < timestamp || (latest && time === timestamp)) low = mid + 1
     else high = mid
   }
-  return low < end && bars[low].time === timestamp ? low : null
+  const index = latest ? low - 1 : low
+  return index >= start && index < end && bars[index].time === timestamp ? index : null
 }
 
 function sameDrawing(first?: MeasuredDrawing, second?: MeasuredDrawing) {
@@ -81,7 +85,7 @@ function draw(
     top = 19,
     bottom = height - 28,
     volTop = top + (bottom - top) * 0.8,
-    priceBottom = volTop - 13
+    priceBottom = type === 'renko' ? bottom : volTop - 13
   const start = view.end - view.count
   let low = Infinity,
     high = -Infinity,
@@ -138,12 +142,16 @@ function draw(
     view.count,
     Math.max(2, Math.floor((right - left) / 113)),
   )
+  let lastTickTime: number | undefined
   for (let j = 0; j < ticks; j++) {
     const i =
         start + Math.floor(((view.count - 1) * j) / Math.max(1, ticks - 1)),
       at = x(i)
     line(at, top, at, bottom, '#232b2e')
-    const date = new Date(bars[i].time * 1000)
+    const tickTime = bars[i].time
+    if (tickTime === lastTickTime) continue
+    lastTickTime = tickTime
+    const date = new Date(tickTime * 1000)
     const intraday = bars[view.end - 1].time - bars[start].time < 86400
     const label = intraday
       ? date.toISOString().slice(11, 19)
@@ -169,7 +177,19 @@ function draw(
     lowestClose: number
     highestClose: number
   }[] = []
-  for (let first = start; first < view.end; first += stride) {
+  if (type === 'renko') {
+    // At dense zoom levels show the last complete brick in each plotted column.
+    for (let first = start; first < view.end; first += stride) {
+      const index = Math.min(first + stride, view.end) - 1
+      const brick = bars[index]
+      const open = y(brick.open)
+      const close = y(brick.close)
+      const width = Math.max(1, dx * 0.88)
+      ctx.fillStyle = brick.close > brick.open ? UP : DOWN
+      ctx.fillRect(x(index) - width / 2, Math.min(open, close), width, Math.max(1, Math.abs(open - close)))
+    }
+  }
+  for (let first = start; type !== 'renko' && first < view.end; first += stride) {
     const last = Math.min(first + stride, view.end) - 1
     let hi = bars[first].high,
       lo = bars[first].low,
@@ -268,8 +288,8 @@ function draw(
   ctx.fillStyle = '#0e1915'
   ctx.fillText(closeLabel, right + 6, at)
   if (drawing) {
-    const first = visibleBarAt(bars, drawing.start.time, 0, bars.length)
-    const last = visibleBarAt(bars, drawing.end.time, 0, bars.length)
+    const first = visibleBarAt(bars, drawing.start.time, 0, bars.length, type === 'renko')
+    const last = visibleBarAt(bars, drawing.end.time, 0, bars.length, type === 'renko')
     if (first !== null && last !== null) {
       const endpoints = [[x(first), y(drawing.start.ticks / 1e6)], [x(last), y(drawing.end.ticks / 1e6)]]
       ctx.save()
@@ -348,6 +368,7 @@ export function Chart({
   ticks,
   observedAt,
   displayBars,
+  renko,
 }: {
   asset: Asset
   sma: Series
@@ -362,9 +383,19 @@ export function Chart({
   ticks?: TickBar[]
   observedAt?: readonly number[]
   displayBars?: Bar[]
+  renko?: RenkoBrick[]
 }) {
-  const { bars } = asset,
-    n = bars.length
+  const bars = useMemo(() => renko?.map(brick => {
+    const open = Number(brick.openTicks) / 1e6
+    const close = Number(brick.closeTicks) / 1e6
+    return { time: brick.sourceTime, open, close, high: Math.max(open, close),
+      low: Math.min(open, close), volume: 0 }
+  }) ?? asset.bars, [asset.bars, renko])
+  const plottedSma = useMemo(() => renko?.length && sma.length ?
+    renko.map(brick => sma[brick.sourceIndex]) : sma, [renko, sma])
+  const plottedEma = useMemo(() => renko?.length && ema.length ?
+    renko.map(brick => ema[brick.sourceIndex]) : ema, [renko, ema])
+  const n = bars.length
   const [view, setView] = useState<View>(() => defaultView(n)),
     [pointerIndex, setPointerIndex] = useState<number | null>(null)
   const [size, setSize] = useState({ width: 800, height: 360 })
@@ -380,15 +411,17 @@ export function Chart({
   const drawingCore = drawingTools?.core
   const measurement = useMemo(() => drawing && drawingCore?.measureDrawing(drawing), [drawing, drawingCore])
   const start = view.end - view.count
-  const linkedIndex = linkedTimestamp == null ? null : visibleBarAt(bars, linkedTimestamp, start, view.end)
+  const linkedIndex = linkedTimestamp == null ? null : visibleBarAt(bars, linkedTimestamp, start, view.end, Boolean(renko))
   const active = pointerIndex ?? linkedIndex
   const readoutIndex = active ?? view.end - 1
   const plotted = displayBars ?? bars
   const b = plotted[readoutIndex]
-  const coverage = timeframe?.buckets[readoutIndex]
-  const session = timeframe?.mode === 'session' ? timeframe.buckets[readoutIndex] : undefined
-  const tick = ticks?.[readoutIndex]
-  const observation = observedAt?.[readoutIndex]
+  const brick = renko?.[readoutIndex]
+  const sourceIndex = brick?.sourceIndex ?? readoutIndex
+  const coverage = timeframe?.buckets[sourceIndex]
+  const session = timeframe?.mode === 'session' ? timeframe.buckets[sourceIndex] : undefined
+  const tick = ticks?.[sourceIndex]
+  const observation = observedAt?.[sourceIndex]
   const indicatorValues = sma.length > 0 || ema.length > 0
   function stopEditing() {
     setDrawingFields(null)
@@ -396,8 +429,10 @@ export function Chart({
     setDrawingError('')
   }
   function editDrawing() {
-    const before = bars[Math.max(start, view.end - 2)]
-    const after = bars[view.end - 1]
+    const lastIndex = renko?.[view.end - 1].sourceIndex ?? view.end - 1
+    const firstIndex = renko ? Math.max(0, lastIndex - 1) : Math.max(start, view.end - 2)
+    const before = asset.bars[firstIndex]
+    const after = asset.bars[lastIndex]
     drawingBeforeEdit.current = drawing
     setDrawingFields({
       start: endpointFields(drawing?.start ?? { time: before.time, ticks: Math.round(before.close * 1e6) }),
@@ -415,7 +450,7 @@ export function Chart({
         }
         next = { start: parseEndpoint(drawingFields.start), end: parseEndpoint(drawingFields.end) }
         drawingTools.core.measureDrawing(next)
-        if ([next.start, next.end].some(point => visibleBarAt(bars, point.time, 0, n) === null)) {
+        if ([next.start, next.end].some(point => visibleBarAt(asset.bars, point.time, 0, asset.bars.length) === null)) {
           throw Error('Each drawing endpoint needs the UTC time of an existing bar.')
         }
       }
@@ -446,13 +481,13 @@ export function Chart({
           size.height,
           plotted,
           view,
-          sma,
-          ema,
+          plottedSma,
+          plottedEma,
           active,
           drawing,
           type,
         )
-  }, [plotted, view, sma, ema, active, size, drawing, type])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, type])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -505,20 +540,27 @@ export function Chart({
     setDrawingError('')
   }
   return (
-    <section className="plot" aria-label="Price and volume chart"
+    <section className="plot" aria-label={renko ? 'Renko chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : bars[active].time}>
-      <div className="ohlc" role={displayBars ? 'group' : undefined}
-        aria-label={displayBars ? 'Heikin-Ashi prices' : undefined}>
+      <div className="ohlc" role={displayBars || brick ? 'group' : undefined}
+        aria-label={brick ? 'Renko brick' : displayBars ? 'Heikin-Ashi prices' : undefined}>
         <time>{timeLabel(b.time)} UTC</time>
-        {(['open', 'high', 'low', 'close'] as const).map((k) => (
-          <span key={k}>
-            <small>{k[0].toUpperCase()}</small> {price(b[k])}
+        {brick ? <>
+          <span><small>Brick</small> {readoutIndex + 1}</span>
+          <span><small>Open</small> {fixed(brick.openTicks, 6)}</span>
+          <span><small>Close</small> {fixed(brick.closeTicks, 6)}</span>
+          <span><small>Observed close</small> {fixed(brick.sourceCloseTicks, 6)}</span>
+        </> : <>
+          {(['open', 'high', 'low', 'close'] as const).map((k) => (
+            <span key={k}>
+              <small>{k[0].toUpperCase()}</small> {price(b[k])}
+            </span>
+          ))}
+          {displayBars && <span><small>Observed close</small> {price(bars[readoutIndex].close)}</span>}
+          <span className="ohlc-vol">
+            <small>Vol</small> {volume(b.volume)}
           </span>
-        ))}
-        {displayBars && <span><small>Observed close</small> {price(bars[readoutIndex].close)}</span>}
-        <span className="ohlc-vol">
-          <small>Vol</small> {volume(b.volume)}
-        </span>
+        </>}
         {observation !== undefined && <span className="timeframe-coverage">
           Observed at {timeLabel(observation)} UTC
         </span>}
@@ -539,7 +581,7 @@ export function Chart({
           aria-label={indicatorValues ? 'Moving average values' : undefined}>
           {([['sma', sma], ['ema', ema]] as const).map(([kind, series]) => {
             if (!series.length) return null
-            const value = series[readoutIndex]
+            const value = series[sourceIndex]
             return <span key={kind}>
               <small>{kind.toUpperCase()} {periods[kind]}</small> {value == null ? '—' : price(value)}
             </span>
@@ -549,7 +591,7 @@ export function Chart({
       <div ref={zone} className={picking ? 'canvas-zone picking-endpoint' : 'canvas-zone'}>
         <canvas
           tabIndex={0}
-          aria-label={asset.symbol + ' interactive ' + chartNames[type] + ' and volume chart'}
+          aria-label={asset.symbol + ' interactive ' + chartNames[type] + (renko ? ' chart' : ' and volume chart')}
           ref={ref}
           onPointerDown={(e) => {
             if (e.button !== 0) return
@@ -586,7 +628,7 @@ export function Chart({
       </div>
       <div className="chart-foot">
         <div className="range">
-          <span>Bars</span>
+          <span>{renko ? 'Bricks' : 'Bars'}</span>
           {([30, 60, 120, 'All'] as const).map((r) => (
             <button
               key={r}
@@ -673,7 +715,9 @@ export function Chart({
         </div>
       )}
       {exportOptions && (
-        <ChartExport asset={asset} visible={{ start, end: view.end }} metadata={exportOptions.metadata}
+        <ChartExport asset={asset} visible={renko ? {
+          start: renko[start].sourceIndex, end: renko[view.end - 1].sourceIndex + 1,
+        } : { start, end: view.end }} metadata={exportOptions.metadata}
           timeframe={timeframe}
           overlays={periods ? ([
             { name: 'sma_' + periods.sma, series: sma },

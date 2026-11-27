@@ -13,10 +13,13 @@ export type Preferences = {
   drawings?: Record<string, MeasuredDrawing>
   overlayPeriods?: Partial<Record<ChartPane, OverlayPeriods>>
   chartTypes?: Partial<Record<ChartPane, Exclude<ChartType, 'candles'>>>
+  renkoTicks?: Partial<Record<ChartPane, number>>
 }
 
 export type ChartPane = 'primary' | 'comparison'
-export type ChartType = 'candles' | 'line' | 'ohlc' | 'heikin-ashi'
+export type ChartType = 'candles' | 'line' | 'ohlc' | 'heikin-ashi' | 'renko'
+export const DEFAULT_RENKO_TICKS = 1_000_000
+export const MAX_RENKO_TICKS = 2_000_000_000_000_000
 export type OverlayPeriods = { sma: number; ema: number }
 
 export type ComparisonPreferences = {
@@ -115,6 +118,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   if (value && typeof value === 'object' && Object.hasOwn(value, 'drawings')) keys.push('drawings')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'overlayPeriods')) keys.push('overlayPeriods')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'chartTypes')) keys.push('chartTypes')
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'renkoTicks')) keys.push('renkoTicks')
   fields(value, keys, 'workspace preference')
   const { selected, watchlist, sma, ema } = value
   if (
@@ -178,10 +182,22 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       throw Error('Invalid workspace chart types.')
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, type]) =>
-      (pane !== 'primary' && pane !== 'comparison') || (type !== 'line' && type !== 'ohlc' && type !== 'heikin-ashi'))) {
+      (pane !== 'primary' && pane !== 'comparison') || (type !== 'line' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko'))) {
       throw Error('Unknown pane or chart type in the workspace.')
     }
     result.chartTypes = Object.fromEntries(entries)
+  }
+  if (keys.includes('renkoTicks')) {
+    const settings = value.renkoTicks
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings))
+      throw Error('Invalid workspace Renko brick sizes.')
+    const entries = Object.entries(settings)
+    if (!entries.length || entries.some(([pane, ticks]) =>
+      (pane !== 'primary' && pane !== 'comparison') || typeof ticks !== 'number' ||
+      !Number.isSafeInteger(ticks) || ticks <= 0 || ticks > MAX_RENKO_TICKS)) {
+      throw Error('Renko brick sizes must be positive whole price ticks within the supported range.')
+    }
+    result.renkoTicks = Object.fromEntries(entries)
   }
   return result
 }

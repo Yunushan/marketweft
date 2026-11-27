@@ -54,6 +54,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   line: 'Close line',
   ohlc: 'OHLC bars',
   'heikin-ashi': 'Heikin-Ashi',
+  renko: 'Renko',
 }
 
 function Dialog({
@@ -586,6 +587,9 @@ export function App({
     else chartTypes[pane] = type
     update(Object.keys(chartTypes).length ? { ...preferences, chartTypes } : preferences)
   }
+  function setRenkoTicks(pane: ChartPane, ticks: number) {
+    update({ ...ws, renkoTicks: { ...ws.renkoTicks, [pane]: ticks } })
+  }
   function drawingTools(id: string) {
     return {
       core,
@@ -761,7 +765,8 @@ export function App({
             <div className="legend" aria-label="Chart legend">
               <span>
                 <i className="candle-key" />
-                {ws.chartTypes?.primary === 'heikin-ashi' ? 'Heikin-Ashi · observed volume' : 'OHLCV'}
+                {ws.chartTypes?.primary === 'heikin-ashi' ? 'Heikin-Ashi · observed volume' :
+                  ws.chartTypes?.primary === 'renko' ? 'Renko · close-based' : 'OHLCV'}
               </span>
               {ws.sma && (
                 <span>
@@ -822,6 +827,8 @@ export function App({
                   linkedTimestamp={cursor} onTimestamp={comparison?.linked ? onCrosshair : undefined}
                   drawingTools={drawingTools(asset.id)} periods={primaryPeriods}
                   type={ws.chartTypes?.primary}
+                  renkoTicks={ws.renkoTicks?.primary} renkoSaving={saving}
+                  onRenkoTicks={ticks => setRenkoTicks('primary', ticks)}
                   exportOptions={{ metadata: descriptor }} />
               </section>
               {comparison && other && (
@@ -831,6 +838,8 @@ export function App({
                     linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined}
                     drawingTools={drawingTools(other.id)} periods={comparisonPeriods}
                     type={ws.chartTypes?.comparison}
+                    renkoTicks={ws.renkoTicks?.comparison} renkoSaving={saving}
+                    onRenkoTicks={ticks => setRenkoTicks('comparison', ticks)}
                     exportOptions={{ metadata: comparisonDescriptor }} />
                 </section>
               )}

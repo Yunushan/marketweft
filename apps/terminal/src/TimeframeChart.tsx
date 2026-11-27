@@ -1,17 +1,51 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
 import { Chart } from './Chart'
+import { ChartExport } from './ChartExport'
+import { DEFAULT_RENKO_TICKS, MAX_RENKO_TICKS } from './catalog-schema'
+import { fixed } from './fixed-point'
+import type { RenkoBrick } from './market-core'
 import type { TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'timeframe' | 'displayBars'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'timeframe' | 'displayBars' | 'renko'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
+  renkoTicks?: number
+  renkoSaving?: boolean
+  onRenkoTicks?: (ticks: number) => void
+}
+
+function RenkoSize({ ticks, saving, apply }: { ticks: number; saving?: boolean; apply: (ticks: number) => void }) {
+  const [error, setError] = useState('')
+  return <form className="chart-export renko-control" aria-label="Renko brick settings" onSubmit={event => {
+    event.preventDefault()
+    const value = String(new FormData(event.currentTarget).get('brickSize')).trim()
+    const parts = /^(\d+)(?:\.(\d{1,6}))?$/.exec(value)
+    if (!parts) {
+      setError('Enter a positive brick size with up to six decimal places.')
+      return
+    }
+    const ticks = BigInt(parts[1]) * 1_000_000n + BigInt((parts[2] ?? '').padEnd(6, '0'))
+    if (ticks <= 0n || ticks > MAX_RENKO_TICKS) {
+      setError('Brick size must be between 0.000001 and 2,000,000,000.')
+      return
+    }
+    setError('')
+    apply(Number(ticks))
+  }}>
+    <label>Brick size (price units)
+      <input name="brickSize" inputMode="decimal" maxLength={19} defaultValue={fixed(BigInt(ticks), 6)}
+        disabled={saving} onChange={() => setError('')} />
+    </label>
+    <button className="outline" type="submit" disabled={saving}>Apply brick size</button>
+    {error && <p role="alert">{error}</p>}
+  </form>
 }
 
 export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onTimestamp,
-  ...chart }: Props) {
+  renkoTicks = DEFAULT_RENKO_TICKS, renkoSaving, onRenkoTicks, ...chart }: Props) {
   const initialSource = asset.source === 'sample' ? '86400' : ''
   const [source, setSource] = useState(initialSource)
   const [target, setTarget] = useState('')
@@ -26,6 +60,14 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
     { ...asset, bars: timeframe.buckets.map(entry => entry.bar) } : asset, [asset, timeframe])
   const displayBars = useMemo(() => chart.type === 'heikin-ashi' ?
     core.heikinAshi(display.bars) : undefined, [core, chart.type, display.bars])
+  const renko = useMemo<{ bricks: RenkoBrick[]; error?: string } | undefined>(() => {
+    if (chart.type !== 'renko') return undefined
+    try {
+      return { bricks: core.renko(display.bars, BigInt(renkoTicks)) }
+    } catch (cause) {
+      return { bricks: [], error: cause instanceof Error ? cause.message : 'Could not construct Renko bricks.' }
+    }
+  }, [core, chart.type, display.bars, renkoTicks])
   const sma = useMemo(() => activeSma && periods ?
     core.indicator('sma', periods.sma, display.bars) : [], [core, activeSma, periods?.sma, display.bars])
   const ema = useMemo(() => activeEma && periods ?
@@ -89,9 +131,23 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
           {error && <p role="alert">{error}</p>}
         </form>
       </details>
-      <Chart {...chart} key={timeframe?.revision ?? 'source'}
-        asset={display} displayBars={displayBars} sma={sma} ema={ema} periods={periods}
-        timeframe={timeframe} onTimestamp={onTimestamp} />
+      {renko && onRenkoTicks && <RenkoSize key={renkoTicks} ticks={renkoTicks} saving={renkoSaving}
+        apply={ticks => {
+          onTimestamp?.(null)
+          onRenkoTicks(ticks)
+        }} />}
+      {renko && !renko.bricks.length ? <>
+        {renko.error ? <p role="alert">{renko.error}</p> :
+          <p role="status">No source close has moved far enough to form a brick at this size.</p>}
+        {chart.exportOptions && <ChartExport asset={display} visible={{ start: 0, end: display.bars.length }}
+          metadata={chart.exportOptions.metadata} timeframe={timeframe}
+          overlays={periods ? [
+            { name: 'sma_' + periods.sma, series: sma },
+            { name: 'ema_' + periods.ema, series: ema },
+          ].filter(overlay => overlay.series.length > 0) : []} />}
+      </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${renko ? renkoTicks + ':' + renko.bricks.length : 'bars'}`}
+        asset={display} displayBars={displayBars} renko={renko?.bricks} sma={sma} ema={ema} periods={periods}
+        timeframe={timeframe} onTimestamp={onTimestamp} />}
     </>
   )
 }
