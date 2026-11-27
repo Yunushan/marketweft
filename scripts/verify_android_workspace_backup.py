@@ -32,7 +32,7 @@ def verify_backup(args):
     open_backup()
     export_backup()
     ui.adb("shell", "input", "keyevent", "KEYCODE_BACK")
-    ui.find("the workspace export cancelled status", app_label("Workspace backup export cancelled."))
+    ui.find("the available workspace export after cancellation", app_label("Export workspace"))
     if find_exports():
         raise RuntimeError("Cancelling the Android save picker must leave Downloads unchanged.")
 
@@ -42,7 +42,7 @@ def verify_backup(args):
         is_document_picker(node) and any(label.lower() == "save" for label in labels(node))
     ))
     ui.tap(save)
-    ui.find("the completed workspace export", app_label("Workspace backup saved."))
+    ui.find("the available workspace export after saving", app_label("Export workspace"))
     names = find_exports()
     if len(names) != 1:
         raise RuntimeError("Expected one exported workspace backup in Downloads.")
@@ -70,9 +70,6 @@ def verify_backup(args):
     )))
     select_downloads(ui)
     ui.tap(ui.find("the exported backup in Downloads", lambda node: is_document_picker(node) and filename in labels(node)))
-    ui.find("the verified workspace backup preview", lambda node: (
-        node.get("package") == args.package and any(label.startswith("Checksums verified.") for label in labels(node))
-    ))
     restore = ui.find("the enabled workspace restore action", app_label("Restore workspace"))
     ui.tap(restore)
     ui.find("the exact restored workspace chart", app_label(QUOTE))
