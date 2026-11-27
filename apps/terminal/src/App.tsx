@@ -481,6 +481,7 @@ export function App({
   >(null)
   const [saveError, setSaveError] = useState(''),
     [offlineReady, setOfflineReady] = useState(false)
+  const [offlineUpdate, setOfflineUpdate] = useState(false)
   const [notice, setNotice] = useState('')
   const [crosshair, setCrosshair] = useState<{ identity: string; time: number | null } | null>(null)
   const asset =
@@ -557,15 +558,36 @@ export function App({
     )
       return
     let mounted = true
+    let stopWatching = () => {}
     navigator.serviceWorker
       .register('./sw.js')
-      .then(() => navigator.serviceWorker.ready)
+      .then((registration) => {
+        if (!mounted) return
+        let worker: ServiceWorker | null = null
+        const showUpdate = () => {
+          if (registration.waiting && navigator.serviceWorker.controller) setOfflineUpdate(true)
+        }
+        const watchInstall = () => {
+          worker?.removeEventListener('statechange', showUpdate)
+          worker = registration.installing
+          worker?.addEventListener('statechange', showUpdate)
+        }
+        registration.addEventListener('updatefound', watchInstall)
+        watchInstall()
+        showUpdate()
+        stopWatching = () => {
+          registration.removeEventListener('updatefound', watchInstall)
+          worker?.removeEventListener('statechange', showUpdate)
+        }
+        return navigator.serviceWorker.ready
+      })
       .then(() => {
         if (mounted) setOfflineReady(true)
       })
       .catch(() => {})
     return () => {
       mounted = false
+      stopWatching()
     }
   }, [])
   async function commit(operation: () => Promise<CatalogSnapshot>) {
@@ -1156,6 +1178,11 @@ export function App({
               </div>
             </>}
           </dl>
+        )}
+        {offlineUpdate && (
+          <p className="workspace-notice" role="status">
+            Update ready. Close all MarketWeft tabs and reopen this address.
+          </p>
         )}
         <footer>
           <span>

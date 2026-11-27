@@ -1,10 +1,10 @@
-# Platform support · MarketWeft 0.190.0
+# Platform support · MarketWeft 0.191.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
 | Target | Current route / available evidence | Required for official native or operational support |
 | --- | --- | --- |
-| Browser / installable PWA | Static React app with a Wasm core. Windows x64 Chromium-family automation, responsive viewport and offline reload. | Browser-engine and device matrix, install/update tests and storage lifecycle acceptance. |
+| Browser / installable PWA | Static React app with a Wasm core. Windows x64 Chromium-family automation, responsive viewport, offline reload and same-profile portable upgrades. | Browser-engine and device matrix, broader install/update tests and storage lifecycle acceptance. |
 | Windows x64 | Per-user installer, native WebView2 CSV import and same-profile installer upgrade on hosted Windows Server 2022. | Windows client coverage and Authenticode verification. |
 | Windows ARM64 | Per-user installer, installed release startup, same-profile upgrade with an instrumented build and Python research SDK on hosted Windows 11 ARM64. | Authenticode verification. |
 | macOS Apple Silicon / Intel | Per-architecture app archives and read-only disk images. Hosted tests import CSV through the production app's native file picker and verify in-place upgrades with a saved WKWebView workspace in packaged test builds. | Developer ID signing and notarization. |
@@ -15,6 +15,12 @@ A successful web test validates a specific browser, build and host. Producing a 
 | FreeBSD / OpenBSD / NetBSD / DragonFly BSD | The complete static browser build uses standard web APIs, with no wrapper or server OS dependency. A BSD user may serve the ZIP's dist/ from any static server or open it on an HTTPS host. | Each BSD/browser combination needs its own offline and import tests. No native BSD wrapper has a release claim. |
 | Headless servers | Serve the same dist/ using a static web server. The bundled Node launcher binds loopback. The Node observation package and local MCP formula server run without a GUI. The MCP stdio process and the scoped localhost REST, WebSocket and gRPC service were exercised on Linux x64. CI packages the research service with bundled SQLite for Ubuntu 24.04 x64 and exercises local audit recovery and explicitly configured TLS. [Local REST research](local-rest-research.md). | 0.59.0 exercises TLS and scoped credentials from an isolated second client. Enterprise deployment and credentials-provider integration. |
 | OCI / Kubernetes / enterprise | A non-root Linux x64 OCI image was verified with private Compose and Kubernetes deployments. A separate Compose project recovered an audit snapshot onto fresh storage and continued its receipt sequence. A portable audit command reports receipt counts and can require a trusted SHA-256 before restore. [Research OCI image](local-rest-research.md#research-oci-image) · [Kubernetes](local-rest-research.md#private-kubernetes-deployment) · [Fresh-volume recovery](local-rest-research.md#recover-audit-in-a-separate-compose-project). | Hosted recovery and enterprise authentication. |
+
+## Upgrade the portable browser terminal
+
+Run the updated archive at the same local address and open it in the same browser profile. When the terminal shows **Update ready**, close all MarketWeft tabs for that address and reopen it. The new service worker prepares its cache ahead of time. Open pages continue using their original cached build until they close, and the new worker clears the retired cache when it activates. If the first reopened tab still shows the previous build, reload it once.
+
+The Chromium test gives the two builds different entry and replay files. It opens the old replay offline while the update waits, then activates the update, opens the new replay offline, and verifies the same imported quote. [Service-worker lifecycle](https://developer.chrome.com/docs/workbox/service-worker-lifecycle).
 
 ## Android terminal
 

@@ -3,12 +3,8 @@ const prefix = 'marketweft/' + self.registration.scope + '/'
 const current = prefix + '__DIGEST__'
 const assets = __MARKETWEFT_BUILD_ASSETS__
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(current)
-      .then((cache) => cache.addAll(assets))
-      .then(() => self.skipWaiting()),
-  )
+  // Open pages keep their active worker and its assets until the last page closes.
+  event.waitUntil(caches.open(current).then((cache) => cache.addAll(assets)))
 })
 self.addEventListener('activate', (event) => {
   event.waitUntil(

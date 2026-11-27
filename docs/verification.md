@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.191.0 · Offline portable browser upgrades
+
+- Chromium verifies that an open page can still load its exact replay module offline while the replacement worker waits. It shows the pending update action after the replacement assets are cached.
+- Closing the last tab activates the replacement and removes the retired cache. Reopening the same address retains the imported 14.00 close and loads the replacement replay module offline.
+
+[Portable browser upgrades](platforms.md#upgrade-the-portable-browser-terminal).
+
 ## 0.190.0 · Point-in-time spin-off cost basis
 
 - The compiled Wasm fixture verifies exact USD and EUR allocations, timing revisions, half-millionth rounding, cancellation and rewind. Each allocation preserves every millionth of the reported total.
