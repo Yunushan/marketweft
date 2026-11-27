@@ -575,7 +575,10 @@ jobs:
 
   ios-simulator:
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
@@ -595,8 +598,18 @@ jobs:
           xcodegen --version
       - run: npm ci
       - run: npm run build
+      - name: Retrieve the verified iOS Simulator upgrade baseline
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -B scripts/download_desktop_baseline.py --platform ios-simulator --architecture arm64 \
+            --run 46020348246 --commit d6f88d4b91a972e4696373d8d8884a66d9ab092d --version 0.178.0 \
+            --output "$RUNNER_TEMP/marketweft-ios-baseline"
       - name: Build and verify the installed iPhone and iPad simulator terminal
-        run: bash scripts/verify_ios_simulator.sh
+        run: |
+          bash scripts/verify_ios_simulator.sh \
+            "$RUNNER_TEMP/marketweft-ios-baseline/MarketWeft-ios-simulator-0.178.0-arm64.zip" \
+            0.178.0 d6f88d4b91a972e4696373d8d8884a66d9ab092d
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-simulator-arm64-attempt-${{ github.run_attempt }}

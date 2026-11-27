@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.180.0 adds workspace backup export to Files on iOS and tests restoring the exported history into fresh simulator installations. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for the acceptance checks. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.181.0 adds in-place iPhone and iPad Simulator upgrade checks for the saved chart, indicator preference and document bytes. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for the acceptance checks. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Delivered · 0.181.0 | In-place iPhone and iPad Simulator upgrades (MW-007, MW-010, MW-011) | Import and reopen in the verified 0.178.0 build, upgrade the same installation, and verify the exact chart, saved EMA preference and document bytes on both profiles. [iOS and iPadOS Simulator](docs/platforms.md#ios-and-ipados-simulator). |
 | Delivered · 0.180.0 | iPhone and iPad workspace backup and restore (MW-007, MW-010) | Export the imported history, open the backup through Files, preserve its original bytes, and restore its exact OHLCV into a fresh install on both profiles. [iOS and iPadOS Simulator](docs/platforms.md#ios-and-ipados-simulator). |
 | Delivered · 0.179.0 | iPhone and iPad Files import and recovery (MW-007, MW-010) | Select the synthetic CSV through Files and verify the exact OHLCV before and after relaunch with a confirmed loopback service outage on both profiles. [iOS and iPadOS Simulator](docs/platforms.md#ios-and-ipados-simulator). |
 | Delivered · 0.178.0 | iPhone and iPad simulator startup (MW-010, MW-011) | Verify the installed ARM64 Simulator app opens its bundled terminal and exact sample quote on both device types. [iOS and iPadOS Simulator](docs/platforms.md#ios-and-ipados-simulator). |
@@ -194,5 +195,5 @@
 
 ## Handoff for the next change
 
-Verify an in-place iOS Simulator upgrade preserves the imported chart and workspace. Full network disconnection and physical-device checks remain open.
+Verify an in-place Android emulator upgrade preserves the imported chart and workspace. Full network disconnection and physical-device checks remain open.
 

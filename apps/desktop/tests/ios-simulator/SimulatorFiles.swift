@@ -2,6 +2,26 @@ import Foundation
 import XCTest
 
 @MainActor
+func importSimulatorCSV(in app: XCUIApplication, symbol: String) {
+    let web = app.webViews.firstMatch
+    let open = web.buttons["Import CSV"]
+    XCTAssertTrue(open.waitForExistence(timeout: 35), app.debugDescription)
+    open.tap()
+
+    let field = web.textFields.matching(NSPredicate(format: "label == %@ OR placeholderValue == %@", "Symbol", "e.g. ABC")).firstMatch
+    XCTAssertTrue(field.waitForExistence(timeout: 15), web.debugDescription)
+    field.tap()
+    field.typeText(symbol)
+
+    chooseSimulatorFile(in: app, input: "Historical CSV file", folders: ["MarketWeft Test Files"], filename: "native-verification.csv")
+
+    let submit = web.buttons["Import to watchlist"]
+    XCTAssertTrue(submit.waitForExistence(timeout: 15), app.debugDescription)
+    if !submit.isHittable { web.swipeUp() }
+    submit.tap()
+}
+
+@MainActor
 func chooseSimulatorFile(in app: XCUIApplication, input: String, folders: [String], filename: String) {
     let web = app.webViews.firstMatch
     let file = web.descendants(matching: .any)

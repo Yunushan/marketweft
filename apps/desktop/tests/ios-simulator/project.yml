@@ -27,6 +27,7 @@ targets:
       - SimulatorStartupTests.swift
       - SimulatorImportTests.swift
       - SimulatorWorkspaceBackupTests.swift
+      - SimulatorUpgradeTests.swift
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

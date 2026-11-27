@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+baseline_archive=$1
+baseline_version=$2
+baseline_revision=$3
+test -s "$baseline_archive"
+(
+    cd "$(dirname "$baseline_archive")"
+    shasum -a 256 -c "$(basename "$baseline_archive").sha256"
+)
+
 test "$(uname -m)" = arm64
 repository=$(git rev-parse --show-toplevel)
 version=$(node -p 'require("./package.json").version')
@@ -54,6 +63,18 @@ trap '
     done
     rm -rf -- "$work"
 ' EXIT
+ditto -x -k "$baseline_archive" "$work/baseline"
+baseline="$work/baseline/MarketWeft.app"
+baseline_info="$baseline/Info.plist"
+test "$(plutil -extract CFBundleIdentifier raw -o - "$baseline_info")" = "$identifier"
+test "$(plutil -extract CFBundleShortVersionString raw -o - "$baseline_info")" = "$baseline_version"
+test "$(plutil -extract CFBundleSupportedPlatforms.0 raw -o - "$baseline_info")" = iPhoneSimulator
+test "$(plutil -extract CFBundleExecutable raw -o - "$baseline_info")" = "$binary"
+test "$(cat "$baseline/MarketWeftNotices/source-revision.txt")" = "$baseline_revision"
+test "$(xcrun lipo -archs "$baseline/$binary")" = arm64
+xcrun vtool -show-build "$baseline/$binary" | grep -E '^[[:space:]]*platform IOSSIMULATOR$'
+test "$baseline_version" != "$version"
+
 mkdir -p reports
 types=$(xcrun simctl list devicetypes --json)
 phone_type=$(jq -er '.devicetypes[] | select(.name == "iPhone 16") | .identifier' <<<"$types")
@@ -88,17 +109,37 @@ for family in iphone ipad; do
     if [[ "$family" == iphone ]]; then device="$phone"; else device="$tablet"; fi
     xcrun simctl boot "$device"
     xcrun simctl bootstatus "$device" -b
-    xcrun simctl install "$device" "$app"
-    installed=$(xcrun simctl get_app_container "$device" "$identifier" app)
-    cmp "$app/$binary" "$installed/$binary"
-    cmp "$app/MarketWeftNotices/source-revision.txt" "$installed/MarketWeftNotices/source-revision.txt"
-
     result="$repository/reports/ios-simulator-$family"
-    run_test "$device" "$result-startup.xcresult" SimulatorStartupTests/testLoadsBundledTerminalAndExactQuote
     xcrun simctl install "$device" "$fixture"
     fixture_data=$(xcrun simctl get_app_container "$device" "$fixture_id" data)
     mkdir -p "$fixture_data/Documents"
     cp apps/desktop/tests/fixtures/native-verification.csv "$fixture_data/Documents/"
+
+    xcrun simctl install "$device" "$baseline"
+    installed=$(xcrun simctl get_app_container "$device" "$identifier" app)
+    cmp "$baseline/$binary" "$installed/$binary"
+    cmp "$baseline/MarketWeftNotices/source-revision.txt" "$installed/MarketWeftNotices/source-revision.txt"
+    run_test "$device" "$result-upgrade-seed.xcresult" SimulatorUpgradeTests/testSeedsUpgradeWorkspace
+    run_test "$device" "$result-baseline-reopen.xcresult" SimulatorUpgradeTests/testReopensUpgradeWorkspace
+    original_data=$(xcrun simctl get_app_container "$device" "$identifier" data)
+    printf '%s\n' 'MarketWeft simulator document before upgrade' >"$work/upgrade-document.txt"
+    cp "$work/upgrade-document.txt" "$original_data/Documents/upgrade-document.txt"
+
+    xcrun simctl install "$device" "$app"
+    installed=$(xcrun simctl get_app_container "$device" "$identifier" app)
+    cmp "$app/$binary" "$installed/$binary"
+    cmp "$app/MarketWeftNotices/source-revision.txt" "$installed/MarketWeftNotices/source-revision.txt"
+    upgraded_data=$(xcrun simctl get_app_container "$device" "$identifier" data)
+    cmp "$work/upgrade-document.txt" "$upgraded_data/Documents/upgrade-document.txt"
+    run_test "$device" "$result-upgrade-reopen.xcresult" SimulatorUpgradeTests/testReopensUpgradeWorkspace
+
+    xcrun simctl uninstall "$device" "$identifier"
+    xcrun simctl install "$device" "$app"
+    installed=$(xcrun simctl get_app_container "$device" "$identifier" app)
+    cmp "$app/$binary" "$installed/$binary"
+    clean_data=$(xcrun simctl get_app_container "$device" "$identifier" data)
+    test ! -e "$clean_data/Documents/upgrade-document.txt"
+    run_test "$device" "$result-startup.xcresult" SimulatorStartupTests/testLoadsBundledTerminalAndExactQuote
 
     python3 -m http.server 53179 --bind 127.0.0.1 --directory "$work/canary" >"$work/canary.log" 2>&1 &
     canary_pid=$!

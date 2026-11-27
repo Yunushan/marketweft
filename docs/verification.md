@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.181.0 · In-place iPhone and iPad Simulator upgrades
+
+- CI retrieves the 0.178.0 Simulator archive from the successful workflow for its exact source revision and checks the workflow and package digests.
+- XCTest imports a synthetic CSV and enables EMA on that earlier app, then proves the same app can reopen the saved workspace. CI places a document in the app’s data container and installs the candidate over the existing app.
+- On both devices, CI verifies the exact installed replacement and the preserved document bytes. XCTest checks the saved EMA setting and original OHLCV under the replacement app before the clean-install tests run.
+
+[iOS and iPadOS Simulator](platforms.md#ios-and-ipados-simulator) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.180.0 · iPhone and iPad workspace backup
 
 - The iOS WebView writes terminal-generated downloads to the app's Files folder. The workspace test exports the imported history and selects the resulting backup through Files to verify its checksums.

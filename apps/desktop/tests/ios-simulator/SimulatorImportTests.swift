@@ -40,22 +40,7 @@ final class SimulatorImportTests: XCTestCase {
         let app = XCUIApplication(bundleIdentifier: identifier)
         app.launch()
         defer { app.terminate() }
-        let web = app.webViews.firstMatch
-        let open = web.buttons["Import CSV"]
-        XCTAssertTrue(open.waitForExistence(timeout: 35), app.debugDescription)
-        open.tap()
-
-        let symbol = web.textFields.matching(NSPredicate(format: "label == %@ OR placeholderValue == %@", "Symbol", "e.g. ABC")).firstMatch
-        XCTAssertTrue(symbol.waitForExistence(timeout: 15), web.debugDescription)
-        symbol.tap()
-        symbol.typeText("IOSCSV")
-
-        chooseSimulatorFile(in: app, input: "Historical CSV file", folders: ["MarketWeft Test Files"], filename: "native-verification.csv")
-
-        let submit = web.buttons["Import to watchlist"]
-        XCTAssertTrue(submit.waitForExistence(timeout: 15), app.debugDescription)
-        if !submit.isHittable { web.swipeUp() }
-        submit.tap()
+        importSimulatorCSV(in: app, symbol: "IOSCSV")
         assertImportedQuote(in: app)
         print("Verified iOS Files CSV selection and exact imported OHLCV.")
     }

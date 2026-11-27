@@ -1,4 +1,4 @@
-"""Fetch a prior verified desktop installer for an in-place upgrade smoke test."""
+"""Fetch a prior verified native package for an in-place upgrade smoke test."""
 
 import argparse
 import hashlib
@@ -20,6 +20,7 @@ ARCHITECTURES = {
     "windows": {"x64": "x64", "arm64": "arm64"},
     "macos": {"x64": "x64", "arm64": "arm64"},
     "macos-disk-image": {"x64": "x64", "arm64": "arm64"},
+    "ios-simulator": {"arm64": "arm64"},
 }
 
 
@@ -78,7 +79,7 @@ def fetch(run_id, commit, version, architecture, output, token, platform="ubuntu
             or run["head_repository"]["full_name"].lower() != "yunushan/marketweft"):
         raise ValueError("The baseline run does not verify the requested project commit.")
     runner_arch = ARCHITECTURES[platform][architecture]
-    stem = platform if platform == "macos-disk-image" else f"{platform}-desktop"
+    stem = platform if platform in ("macos-disk-image", "ios-simulator") else f"{platform}-desktop"
     expected = f"{stem}-{runner_arch}-attempt-{run['run_attempt']}"
     with api(f"/actions/runs/{run_id}/artifacts?per_page=100") as response:
         found = [item for item in json.load(response)["artifacts"]
@@ -102,6 +103,8 @@ def fetch(run_id, commit, version, architecture, output, token, platform="ubuntu
         filename = f"marketweft-desktop_{version}_{architecture}.deb"
     elif platform == "windows":
         filename = f"MarketWeft-desktop-{version}-windows-{architecture}-setup.exe"
+    elif platform == "ios-simulator":
+        filename = f"MarketWeft-ios-simulator-{version}-{architecture}.zip"
     else:
         extension = "dmg" if platform == "macos-disk-image" else "zip"
         filename = f"MarketWeft-desktop-{version}-macos-{architecture}.{extension}"
