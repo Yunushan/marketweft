@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.168.0 · Windows ARM64 desktop installer
+
+| Check | Evidence |
+| --- | --- |
+| Reproducible packaging | Windows 11 ARM64 builds two installers from the native release executable, compares their SHA-256 sidecars and checks the installed executable and native dependency notices. |
+| Native WebView2 | The installed release opens an isolated WebView2 profile. A separate installer exercises the same CSV through an instrumented ARM64 build and verifies the exact chart values. Only the production installer is uploaded. |
+| Uninstallation | The release and test installers remove their files, shortcut and registration while preserving a user-created file. |
+
+[Windows installers](platforms.md#windows-installers) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.167.0 · Windows x64 desktop installer
 
 | Check | Evidence |
@@ -8,7 +18,7 @@
 | Clean installation | The fixture verifies the installed executable, source revision, notices, dependency records, uninstall entry and Start menu shortcut, then imports the shared CSV in native WebView2. |
 | Uninstallation | The fixture checks that the registered installer files and entries are removed and that a user-created file remains. |
 
-[Windows x64 installer](platforms.md#windows-x64-installer) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+[Windows installers](platforms.md#windows-installers) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ## 0.166.0 · Windows 11 ARM64 native build and runtime verification
 
