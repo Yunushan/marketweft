@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.139.0 · Close-area and step-line charts
+
+| Check | Evidence |
+| --- | --- |
+| Browser chart | Chromium traces the area fill and confirms each step moves vertically at the next observation column, including a gap in the source dates. |
+| Workspace backup | The test verifies independent chart selections, the unchanged source series, annotations in the same version 38 backup, and restoration of an earlier two-pane workspace. |
+
+[Close area and step line](chart-workspace.md#close-area-and-step-line) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.138.0 · Resumable webhook receipts
 
 | Check | Evidence |

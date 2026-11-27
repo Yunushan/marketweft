@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.138.0 resumes pending webhook deliveries using their original attempt budget. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.139.0 adds close-area and step-line charts with independent pane settings. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -141,6 +141,7 @@
 | Delivered · 0.136.0 | Signed HTTPS webhook delivery (MW-027) | Verify configured certificate trust, hostname and IP matching, exact signed request bytes, and receipts for rejected TLS connections. [Webhook delivery](docs/local-webhook-delivery.md). |
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
+| Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Expand the drawing inventory with verified, editable tools. Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -152,5 +153,5 @@
 
 ## Handoff for the next change
 
-Add close-area and step-line charts in the existing workspace. Verify close-only geometry, independent panes, and backup compatibility.
+Add a baseline chart with an independently configured reference price in each pane. Verify positive and negative fills, crossings, and saved settings.
 

@@ -14,6 +14,12 @@ The comparison uses the original bars and timestamps from each saved series. Imp
 
 Choose **Candles** for a filled price body, **OHLC bars** for a high-to-low stem with a left open tick and right close tick, or **Close line** to trace observed closes. These three show observed volume and use the same source bars, overlays and cursor readout. **Heikin-Ashi** adds a derived candle view. When several bars share a display column, the candles and OHLC bars use the first open, highest high, lowest low and last close. The line keeps the first, last, highest and lowest closes in their original order. A single observed close is drawn as a point.
 
+### Close area and step line
+
+**Close area** traces observed closes and shades the area between that line and the bottom of the price plot. **Step line** keeps each close level until the next displayed observation and changes the level at that observation's column. Both use the same source bars and volume as the close line. On dense views they retain the same first, last, highest and lowest closes within each display group.
+
+Choose the chart type independently in either pane. A workspace containing either type uses version 38, including any annotations already stored with the pane. The new chart types leave the source OHLCV and research exports intact.
+
 The x-axis places consecutive observed bars at regular bar spacing. An unobserved timestamp has no chart point or linked crosshair. Switching among time-based chart types keeps the visible range. Switching to or from Renko, Three Line Break, Kagi or Point and Figure resets the visible range. The pane keeps its indicator settings. Each pane saves its own chart type. [Backup format](workspace-backup.md)
 
 ### Heikin-Ashi
