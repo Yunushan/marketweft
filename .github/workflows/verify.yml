@@ -451,6 +451,19 @@ jobs:
           name: macos-desktop-${{ matrix.os == 'macos-15-intel' && 'x64' || 'arm64' }}-attempt-${{ github.run_attempt }}
           path: reports/MarketWeft-desktop-*-macos-*.zip*
           if-no-files-found: error
+      - name: Verify the mounted macOS disk image and copied application
+        if: runner.os == 'macOS'
+        timeout-minutes: 5
+        shell: bash
+        env:
+          ARCHITECTURE: ${{ matrix.os == 'macos-15-intel' && 'x64' || 'arm64' }}
+        run: bash scripts/verify_desktop_macos_disk_image.sh "$ARCHITECTURE"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: runner.os == 'macOS'
+        with:
+          name: macos-disk-image-${{ matrix.os == 'macos-15-intel' && 'x64' || 'arm64' }}-attempt-${{ github.run_attempt }}
+          path: reports/MarketWeft-desktop-*-macos-*.dmg*
+          if-no-files-found: error
       - name: Verify the native Linux ARM64 host and desktop executable
         if: matrix.os == 'ubuntu-24.04-arm'
         run: |
