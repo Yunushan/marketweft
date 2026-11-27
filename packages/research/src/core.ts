@@ -41,6 +41,12 @@ export interface CumulativeVolume {
   accumulationDistribution: bigint;
 }
 
+export interface DirectionalMovement {
+  plusDi: bigint | null;
+  minusDi: bigint | null;
+  adx: bigint | null;
+}
+
 export interface MacdValue {
   line: bigint | null;
   signal: bigint | null;
@@ -906,6 +912,7 @@ export interface MarketCore {
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
   cumulativeVolume(bars: readonly Bar[]): CumulativeVolume[];
+  directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
   moneyFlowIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   volumeWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   chaikinMoneyFlow(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1007,6 +1014,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_donchian_channels(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
   mw_cumulative_volume(): number;
+  mw_directional_movement(diPeriod: number, adxPeriod: number): number;
   mw_money_flow_index(period: number): number;
   mw_volume_weighted_average(period: number): number;
   mw_chaikin_money_flow(period: number): number;
@@ -1831,6 +1839,19 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const out = output(api.mw_cumulative_volume());
       return Array.from({ length: bars.length }, (_, index) => ({
         onBalance: signed128(out, index * 32), accumulationDistribution: signed128(out, index * 32 + 16),
+      }));
+    },
+    directionalMovement(diPeriod, adxPeriod, bars) {
+      if (![diPeriod, adxPeriod].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Series and indicator periods must fit within 100,000 bars.');
+      putIndicatorBars(bars, 'Directional Movement System');
+      const out = output(api.mw_directional_movement(diPeriod, adxPeriod));
+      function value(offset: number) {
+        const ticks = out.getBigInt64(offset, true);
+        return ticks === MISSING ? null : ticks;
+      }
+      return Array.from({ length: bars.length }, (_, index) => ({
+        plusDi: value(index * 24), minusDi: value(index * 24 + 8), adx: value(index * 24 + 16),
       }));
     },
     moneyFlowIndex(period, bars) {

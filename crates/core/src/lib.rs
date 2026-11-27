@@ -13,6 +13,7 @@ mod cross_section_liquidity;
 mod cumulative_volume;
 mod delisting;
 mod depth;
+mod directional;
 mod dividend;
 mod donchian;
 mod drawing;
@@ -89,6 +90,7 @@ pub use delisting::{
     DelistingTerms, DelistingValuation, ReferenceClose,
 };
 pub use depth::{DepthLevel, DepthStamp, DepthStatus, DepthTape, DepthView};
+pub use directional::{directional_movement, DirectionalMovement};
 pub use dividend::{
     parse_dividend_positions, parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind,
     DividendMovement, DividendPositions, PositionObservation,

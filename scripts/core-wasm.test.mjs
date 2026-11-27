@@ -1435,3 +1435,29 @@ test('Money Flow Index and VWMA distinguish signed flow, ties, zero volume and m
   assert.throws(() => core.moneyFlowIndex(0, bars), /100,000/);
   assert.throws(() => core.volumeWeightedAverage(2, [bars[0], bars[0]]), /later/);
 });
+
+test('Directional Movement keeps exact signed-gap inputs and independent DI and ADX warm-up', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-directional.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const point = (plusDi, minusDi, adx) => ({ plusDi, minusDi, adx });
+  const expected = [
+    point(null, null, null),
+    point(null, null, null),
+    point(50000000n, 21428571n, null),
+    point(14000000n, 74000000n, 54090909n),
+    point(8974359n, 67948718n, 65378788n),
+    point(8974359n, 67948718n, 71022727n),
+    point(8974378n, 67948704n, 73844673n),
+    point(4929587n, 37323931n, 75255646n),
+    point(4929587n, 37323931n, 75961133n),
+    point(89567231n, 4095827n, 83607629n),
+  ];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.directionalMovement(2, 2, bars.slice(0, end)), expected.slice(0, end));
+  }
+  assert.deepEqual(core.directionalMovement(1, 3, bars).at(-1), point(100_000_000n, 0n, 56_378_601n));
+  const flat = bars.map(bar => ({ ...bar, open: 0, high: 0, low: 0, close: 0 }));
+  assert.deepEqual(core.directionalMovement(2, 3, flat)[4], point(0n, 0n, 0n));
+  assert.throws(() => core.directionalMovement(2, 0, bars), /100,000/);
+  assert.throws(() => core.directionalMovement(2, 2, [bars[0], bars[0]]), /later/);
+});

@@ -23,6 +23,17 @@ const NO_STUDIES: StudyValues[] = []
 type PlottedStudy = Omit<PanelStudy, 'lines'> & {
   lines: (Omit<PanelLine, 'series'> & { series: Series })[]
 }
+type FixedStudyScale = { ticks: number[]; guides: number[]; format: (value: number) => string }
+const asPercent = (value: number) => value + '%'
+const STOCHASTIC_SCALE = { ticks: [0, 20, 80, 100], guides: [20, 80], format: asPercent }
+const FIXED_STUDY_SCALES: Partial<Record<PanelStudy['kind'], FixedStudyScale>> = {
+  rsi: { ticks: [0, 30, 70, 100], guides: [30, 70], format: String },
+  stochastic: STOCHASTIC_SCALE,
+  mfi: STOCHASTIC_SCALE,
+  dmi: { ticks: [0, 25, 50, 75, 100], guides: [25], format: asPercent },
+  williams_r: { ticks: [-100, -80, -20, 0], guides: [-80, -20], format: asPercent },
+}
+
 function plotValue(value: StudyValue): number | null {
   return typeof value === 'bigint' ? tickPrice(value) : value
 }
@@ -179,12 +190,8 @@ function draw(
     tickFormat.format(high - ((high - low) * t) / 5),
   )
   const studyPanels = studies.map(study => {
-    if (study.kind === 'rsi')
-      return { ...study, low: 0, high: 100, ticks: [0, 30, 70, 100], format: String }
-    if (study.kind === 'stochastic' || study.kind === 'mfi')
-      return { ...study, low: 0, high: 100, ticks: [0, 20, 80, 100], format: (tick: number) => tick + '%' }
-    if (study.kind === 'williams_r')
-      return { ...study, low: -100, high: 0, ticks: [-100, -80, -20, 0], format: (tick: number) => tick + '%' }
+    const fixedScale = FIXED_STUDY_SCALES[study.kind]
+    if (fixedScale) return { ...study, ...fixedScale, low: fixedScale.ticks[0], high: fixedScale.ticks.at(-1)! }
     let low = 0
     let high = study.kind === 'bb_percent_b' ? 100 : 0
     for (const { series } of study.lines) {
@@ -202,7 +209,8 @@ function draw(
     const ticks = study.kind === 'bb_percent_b' ? [low, 0, 100, high] :
       study.zeroLine ? [low, 0, high] : [low, (low + high) / 2, 0, high]
     const format = study.unit === 'volume' ? volume : study.unit === 'price' ? price : (value: number) => price(value) + '%'
-    return { ...study, low, high, ticks: [...new Set(ticks)].sort((a, b) => a - b), format }
+    const guides = study.kind === 'bb_percent_b' ? [0, 100] : study.zeroLine ? [0] : []
+    return { ...study, low, high, ticks: [...new Set(ticks)].sort((a, b) => a - b), format, guides }
   })
   const studyLabels = studyPanels.flatMap(panel => panel.ticks.map(panel.format))
   const closeLabel = price(bars[view.end - 1].close)
@@ -471,12 +479,7 @@ function draw(
     ctx.lineWidth = 1
     for (const tick of panel.ticks) {
       const level = studyY(tick)
-      const reference = (panel.kind === 'rsi' && (tick === 30 || tick === 70)) ||
-        ((panel.kind === 'stochastic' || panel.kind === 'mfi') && (tick === 20 || tick === 80)) ||
-        (panel.kind === 'williams_r' && (tick === -20 || tick === -80)) ||
-        (panel.zeroLine && tick === 0) ||
-        (panel.kind === 'bb_percent_b' && (tick === 0 || tick === 100))
-      line(left, level, right, level, reference ? '#3e4c6a' : '#293036')
+      line(left, level, right, level, panel.guides.includes(tick) ? '#3e4c6a' : '#293036')
       ctx.fillStyle = '#93a19e'
       ctx.fillText(panel.format(tick), right + 7, level)
     }

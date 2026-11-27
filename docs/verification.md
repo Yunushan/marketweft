@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.123.0 · Directional Movement System
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Fixtures cover every observed prefix, each warm-up, gap-aware true range, exact ties, flat bars and the native source limits. |
+| Browser chart and export | Offline Chromium checks the three lines against the common scale, verifies where ADX first appears, and compares every research CSV cell. |
+| Workspace | Version 28 restores DI and ADX settings separately in both panes. Version 27 retains its original VWMA settings. |
+
+[Directional Movement System](chart-workspace.md#directional-movement-system) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.122.0 · Money Flow Index and Volume-Weighted Moving Average
 
 | Check | Evidence |

@@ -20,6 +20,7 @@ export const STUDIES = {
     periodLabel: 'Chaikin fast', color: '#d39ce1' },
   mfi: { name: 'MFI', label: 'Money Flow Index', minPeriod: 1, defaultPeriod: 14, color: '#a9cc89' },
   vwma: { name: 'VWMA', label: 'Volume-Weighted Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#f1c177' },
+  dmi: { name: 'DMI', label: 'Directional Movement System', minPeriod: 1, defaultPeriod: 14, periodLabel: 'DI', color: '#aaa3f0' },
 } as const
 export type StudyKind = keyof typeof STUDIES
 export const STUDY_KINDS = Object.keys(STUDIES) as StudyKind[]
@@ -30,6 +31,7 @@ export const EXTRA_STUDY_PERIODS = {
   slowPeriod: { label: 'MACD slow', defaultPeriod: 26 },
   macdSignalPeriod: { label: 'MACD signal', defaultPeriod: 9 },
   chaikinSlowPeriod: { label: 'Chaikin slow', defaultPeriod: 10 },
+  adxPeriod: { label: 'ADX smoothing', defaultPeriod: 14 },
 } as const
 type ExtraStudyPeriod = keyof typeof EXTRA_STUDY_PERIODS
 const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPeriod[]>> = {
@@ -37,6 +39,7 @@ const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPerio
   stochastic: ['smoothPeriod', 'signalPeriod'],
   macd: ['slowPeriod', 'macdSignalPeriod'],
   chaikin_oscillator: ['chaikinSlowPeriod'],
+  dmi: ['adxPeriod'],
 }
 export function extraStudyPeriods(kind: StudyKind): readonly ExtraStudyPeriod[] {
   return EXTRA_PERIODS_BY_STUDY[kind] ?? []
@@ -125,6 +128,15 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       return [{ kind, periods: [period], heading: STUDIES.vwma.name, priceOverlay: true,
         lines: [{ color: STUDIES.vwma.color, series: core.volumeWeightedAverage(period, bars) }],
       }]
+    }
+    if (kind === 'dmi') {
+      const adx = study.adxPeriod ?? EXTRA_STUDY_PERIODS.adxPeriod.defaultPeriod
+      const rows = core.directionalMovement(period, adx, bars)
+      return [{ kind, periods: [period, adx], lines: [
+        { key: 'plus_di', label: '+DI', color: '#6ecb99', series: rows.map(row => row.plusDi) },
+        { key: 'minus_di', label: '−DI', color: '#e68a88', series: rows.map(row => row.minusDi) },
+        { key: 'adx', label: 'ADX', color: STUDIES.dmi.color, series: rows.map(row => row.adx) },
+      ] }]
     }
     if (kind === 'stochastic') {
       const smooth = study.smoothPeriod ?? EXTRA_STUDY_PERIODS.smoothPeriod.defaultPeriod

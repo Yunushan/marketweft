@@ -183,6 +183,19 @@ impl ScreenRow<'_> {
     }
 }
 
+/// Rounds a nonnegative ratio to decimal units one digit at a time.
+/// Callers bound the denominator so a remainder multiplied by ten fits in i128.
+pub(crate) fn decimal_ratio(numerator: i128, denominator: i128, places: u32) -> i128 {
+    let mut quotient = numerator / denominator;
+    let mut remainder = numerator % denominator;
+    for _ in 0..places {
+        remainder *= 10;
+        quotient = quotient * 10 + remainder / denominator;
+        remainder %= denominator;
+    }
+    quotient + i128::from(2 * remainder >= denominator)
+}
+
 pub(crate) fn rounded_div(numerator: i128, denominator: i128) -> i128 {
     (numerator.abs() + denominator / 2) / denominator * numerator.signum()
 }

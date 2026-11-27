@@ -174,6 +174,16 @@ VWMA defaults to 20 bars. It divides the sum of each close times its reported vo
 
 The default research CSV columns are `mfi_14` and `vwma_20`. The chart leaves gaps for absent values. Missing timestamps contribute zero observations.
 
+### Directional Movement System
+
+Enable **DMI** in either pane’s indicator settings. +DI, −DI and ADX share a fixed 0% to 100% scale with a reference at 25%. The DI period and ADX smoothing period each default to 14 and accept 1 through 100,000 observed bars. [StockCharts’ Wilder Directional Movement System](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/average-directional-index-adx).
+
+A rise in the high must be positive and exceed the fall in the low to count as positive movement. A fall in the low must be positive and exceed the rise in the high to count as negative movement. Equal moves contribute zero to both. True range includes the gap from the previous observed close, and missing timestamps contribute zero observations.
+
++DI and −DI divide smoothed movement by smoothed true range, using Wilder’s averages and an initial full window of changes. ADX smooths the absolute difference between positive and negative movement divided by their sum. The first ADX requires a full window of directional values. A true range of zero gives zero for both DI lines, and a combined movement of zero contributes zero to ADX.
+
+The default research CSV columns are `dmi_plus_di_14_14`, `dmi_minus_di_14_14` and `dmi_adx_14_14`. The CSV preserves six-place percentage points and leaves warm-up values empty.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

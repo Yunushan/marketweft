@@ -2890,6 +2890,20 @@ pub extern "C" fn mw_cumulative_volume() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_directional_movement(di_period: usize, adx_period: usize) -> u32 {
+    process(|input| {
+        let rows = crate::directional_movement(di_period, adx_period, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 24);
+        for row in rows {
+            for value in [row.plus_di, row.minus_di, row.adx] {
+                bytes.extend_from_slice(&value.unwrap_or(i64::MIN).to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_money_flow_index(period: usize) -> u32 {
     process(|input| {
         crate::money_flow_index(period, &decode_bars(input)?).map(encode_indicator_values)

@@ -1,6 +1,6 @@
 use crate::{
     history::{validate_bar_time, validate_ohlcv},
-    screen::rounded_div,
+    screen::{decimal_ratio, rounded_div},
     Bar, MAX_BARS,
 };
 
@@ -46,20 +46,6 @@ fn typical_sum(bar: &Bar) -> i128 {
     i128::from(bar.high) + i128::from(bar.low) + i128::from(bar.close)
 }
 
-fn index_ticks(positive: i128, total: i128) -> i64 {
-    let mut quotient = positive / total;
-    let mut remainder = positive % total;
-    // Read eight decimal digits to obtain six-place percentage points without
-    // multiplying the whole money flow by 100 million. The bounds on price,
-    // volume and history length leave room for one decimal digit at a time.
-    for _ in 0..8 {
-        remainder *= 10;
-        quotient = quotient * 10 + remainder / total;
-        remainder %= total;
-    }
-    (quotient + i128::from(2 * remainder >= total)) as i64
-}
-
 /// Returns the Money Flow Index in six-place percentage points. Direction is
 /// the change in typical price. The absolute typical price determines the
 /// flow magnitude, including for instruments that can have negative prices.
@@ -90,7 +76,7 @@ pub fn money_flow_index(period: usize, bars: &[Bar]) -> Result<Vec<Option<i64>>,
         }
         let total = positive + negative;
         values.push(if index >= period && total != 0 {
-            Some(index_ticks(positive, total))
+            Some(decimal_ratio(positive, total, 8) as i64)
         } else {
             None
         });
