@@ -1,11 +1,11 @@
-# Platform support · MarketWeft 0.164.0
+# Platform support · MarketWeft 0.165.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
 | Target | Current route / available evidence | Required for official native or operational support |
 | --- | --- | --- |
 | Browser / installable PWA | Static React app with a Wasm core. Windows x64 Chromium-family automation, responsive viewport and offline reload. | Browser-engine and device matrix, install/update tests and storage lifecycle acceptance. |
-| Windows x64 | Tested web path. Windows Server 2022 hosted Tauri build passed. Local native build was blocked by Windows Application Control while running dependency build scripts. | Native window, installer and upgrade acceptance on a supported client OS. |
+| Windows x64 | Browser route and a WebView2 CSV import check in the Tauri executable on hosted Windows Server 2022. | Installer and upgrade acceptance on a supported client OS. |
 | Windows ARM64 | Browser route. Experimental native target. | ARM64 WebView2 runtime, native runner and package tests. |
 | macOS Apple Silicon / Intel | Browser route and macOS 15 hosted Tauri builds with native Mach-O, Python research SDK and WKWebView CSV import checks for both architectures. | Native file-picker interaction, sandbox, signing and notarization on actual hosts. |
 | Linux x64 | Ubuntu 24.04 x64 package installation and native CSV import. Debian 12 native window and chart rendering observed through AT-SPI. See [verification](verification.md) and the [advisory review](native-advisories.md). | Broader upgrade coverage, continued backport maintenance and validation on other supported distributions. |
@@ -15,6 +15,16 @@ A successful web test validates a specific browser, build and host. Producing a 
 | FreeBSD / OpenBSD / NetBSD / DragonFly BSD | The complete static browser build uses standard web APIs, with no wrapper or server OS dependency. A BSD user may serve the ZIP's dist/ from any static server or open it on an HTTPS host. | Each BSD/browser combination needs its own offline and import tests. No native BSD wrapper has a release claim. |
 | Headless servers | Serve the same dist/ using a static web server. The bundled Node launcher binds loopback. The Node observation package and local MCP formula server run without a GUI. The MCP stdio process and the scoped localhost REST, WebSocket and gRPC service were exercised on Linux x64. CI packages the research service with bundled SQLite for Ubuntu 24.04 x64 and exercises local audit recovery and explicitly configured TLS. [Local REST research](local-rest-research.md). | 0.59.0 exercises TLS and scoped credentials from an isolated second client. Enterprise deployment and credentials-provider integration. |
 | OCI / Kubernetes / enterprise | A non-root Linux x64 OCI image was verified with private Compose and Kubernetes deployments. A separate Compose project recovered an audit snapshot onto fresh storage and continued its receipt sequence. A portable audit command reports receipt counts and can require a trusted SHA-256 before restore. [Research OCI image](local-rest-research.md#research-oci-image) · [Kubernetes](local-rest-research.md#private-kubernetes-deployment) · [Fresh-volume recovery](local-rest-research.md#recover-audit-in-a-separate-compose-project). | Hosted recovery and enterprise authentication. |
+
+## Windows native verification
+
+The Windows Server 2022 x64 job uses Microsoft Edge WebDriver to launch the built MarketWeft executable with a temporary WebView2 data folder. It checks the app's Tauri origin, records the native WebView2 version, imports the shared CSV through the file input and checks the exact candlestick quote. [Microsoft WebView2 WebDriver guide](https://learn.microsoft.com/en-us/microsoft-edge/webview2/how-to/webdriver) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
+With a matching Edge WebDriver and WebView2 runtime, run the same fixture from the repository root after building the desktop executable.
+
+```powershell
+python -B apps/desktop/tests/import_webview.py apps/desktop/target/debug/marketweft-desktop.exe --driver 'C:\tools\msedgedriver.exe'
+```
 
 ## macOS native builds
 

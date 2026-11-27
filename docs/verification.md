@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.165.0 · Windows x64 WebView2 CSV import
+
+| Check | Evidence |
+| --- | --- |
+| Native app | On Windows Server 2022 x64, the loopback Edge WebDriver opens the built MarketWeft executable with a temporary WebView2 data folder. The fixture checks the embedded Tauri origin and records the runtime version. |
+| Exact chart result | The fixture selects the synthetic CSV through the file input and verifies the candlestick chart with open 27, high 30, low 26, close 29 and volume 800. The Ubuntu fixture now also checks the same exact candlestick quote during a fresh import. |
+
+[Windows native verification](platforms.md#windows-native-verification) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.164.0 · macOS WKWebView CSV import
 
 | Check | Evidence |
