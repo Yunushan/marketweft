@@ -329,7 +329,7 @@ jobs:
           python -B scripts/verify_windows_arch.py $env:MACHINE target/release/marketweft-research.exe apps/desktop/target/debug/marketweft-desktop.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify CSV import in the native Windows desktop executable
-        if: runner.os == 'Windows'
+        if: matrix.os == 'windows-2022'
         timeout-minutes: 5
         env:
           MACHINE: ${{ matrix.os == 'windows-11-arm' && 'arm64' || 'x64' }}
@@ -341,6 +341,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -B apps/desktop/tests/import_webview.py apps/desktop/target/debug/marketweft-desktop.exe --driver $driver
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify CSV import through the native ARM64 WebView2 session
+        if: matrix.os == 'windows-11-arm'
+        timeout-minutes: 5
+        run: node apps/desktop/tests/import_webview2_arm64.mjs apps/desktop/target/debug/marketweft-desktop.exe
       - name: Verify the native macOS host and Mach-O binaries
         if: runner.os == 'macOS'
         shell: bash

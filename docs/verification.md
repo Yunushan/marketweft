@@ -6,7 +6,7 @@
 | --- | --- |
 | Architecture | The Windows 11 job verifies its ARM64 host and native Node.js and Rust. The Windows jobs read the PE machine field in the research engine and desktop executable and compare it to the expected host architecture. |
 | Native research SDK | The Windows ARM64 job exercises the built research executable through the shared Python SDK fixture. |
-| WebView2 CSV import | The job checks the Microsoft-signed WebDriver's PE architecture, loads the built desktop executable and verifies the shared CSV's exact candlestick quote. |
+| WebView2 CSV import | Playwright attaches to the built ARM64 desktop executable's ephemeral loopback WebView2 session and verifies the shared CSV's exact candlestick quote. |
 
 [Windows native verification](platforms.md#windows-native-verification) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
