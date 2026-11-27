@@ -64,14 +64,14 @@ class AndroidUI:
             pass
         raise AndroidElementMissing(f"Could not find {description}. Last hierarchy: {self.evidence}")
 
-    def tap(self, element, below_center=False):
+    def tap(self, element, vertical=0.5):
         bounds = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", element.get("bounds", ""))
         if not bounds:
             raise ValueError("The selected Android control has no screen bounds.")
         left, top, right, bottom = map(int, bounds.groups())
         if right <= left or bottom <= top:
             raise ValueError("The selected Android control is outside the screen.")
-        y = top + (bottom - top) * 3 // 4 if below_center else (top + bottom) // 2
+        y = top + int((bottom - top) * vertical)
         self.adb("shell", "input", "tap", (left + right) // 2, y)
 
 
@@ -103,11 +103,11 @@ def verify_import(ui, package, activity, fixture):
         )
 
     # The top edge of the WebView can sit behind the Android status bar.
-    ui.tap(ui.find("the terminal CSV action", app_label("Import CSV")), below_center=True)
+    ui.tap(ui.find("the terminal CSV action", app_label("Import CSV")), vertical=0.75)
     try:
         symbol_group = ui.find("the listing symbol field group", symbol_group_matches, wait=8)
     except AndroidElementMissing:
-        ui.tap(ui.find("the still-visible terminal CSV action", app_label("Import CSV")), below_center=True)
+        ui.tap(ui.find("the still-visible terminal CSV action", app_label("Import CSV")), vertical=0.95)
         symbol_group = ui.find("the listing symbol field group after reopening import", symbol_group_matches)
     symbol = next(child for child in symbol_group if child.get("class") == "android.widget.EditText")
     ui.tap(symbol)
