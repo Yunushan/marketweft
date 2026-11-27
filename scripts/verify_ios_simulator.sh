@@ -109,6 +109,7 @@ for family in iphone ipad; do
         grep -Fx 'MarketWeft simulator network canary'
     run_test "$device" "$result-import.xcresult" SimulatorImportTests/testImportsCSVFromFiles
     stop_canary
+    xcrun simctl launch --terminate-running-process "$device" "$identifier" | tee "$result-relaunch.txt"
     run_test "$device" "$result-recovery.xcresult" SimulatorImportTests/testRecoversCSVAfterLoopbackLoss
     xcrun simctl shutdown "$device"
     printf 'Verified the exact MarketWeft bundle on the %s simulator.\n' "$family"

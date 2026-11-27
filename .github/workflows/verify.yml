@@ -606,7 +606,9 @@ jobs:
         if: success() || failure()
         with:
           name: ios-simulator-evidence-attempt-${{ github.run_attempt }}
-          path: reports/ios-simulator-*.xcresult/
+          path: |
+            reports/ios-simulator-*.xcresult/
+            reports/ios-simulator-*-relaunch.txt
           if-no-files-found: ignore
 
   native-advisories:

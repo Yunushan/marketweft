@@ -21,6 +21,10 @@ def is_document_picker(node):
     return node.get("package", "").endswith(".documentsui")
 
 
+class AndroidElementMissing(RuntimeError):
+    pass
+
+
 class AndroidUI:
     def __init__(self, serial, evidence):
         self.serial = serial
@@ -31,8 +35,8 @@ class AndroidUI:
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
         return result.stdout
 
-    def find(self, description, matches):
-        deadline = monotonic() + 40
+    def find(self, description, matches, wait=40):
+        deadline = monotonic() + wait
         while monotonic() < deadline:
             try:
                 self.adb("shell", "uiautomator", "dump", REMOTE_HIERARCHY)
@@ -46,7 +50,7 @@ class AndroidUI:
                 if node.get("enabled") == "true" and matches(node):
                     return node
             sleep(1)
-        raise RuntimeError(f"Could not find {description}. Last hierarchy: {self.evidence}")
+        raise AndroidElementMissing(f"Could not find {description}. Last hierarchy: {self.evidence}")
 
     def tap(self, element, below_center=False):
         bounds = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", element.get("bounds", ""))
@@ -68,12 +72,19 @@ def verify_import(ui, package, activity, fixture):
     ui.adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
            "-d", f"file://{REMOTE_FIXTURE}")
 
+    def symbol_group_matches(node):
+        return (
+            node.get("package") == package and any("Symbol" in labels(child) for child in node)
+            and any(child.get("class") == "android.widget.EditText" for child in node)
+        )
+
     # The top edge of the WebView can sit behind the Android status bar.
     ui.tap(ui.find("the terminal CSV action", app_label("Import CSV")), below_center=True)
-    symbol_group = ui.find("the listing symbol field group", lambda node: (
-        node.get("package") == package and any("Symbol" in labels(child) for child in node)
-        and any(child.get("class") == "android.widget.EditText" for child in node)
-    ))
+    try:
+        symbol_group = ui.find("the listing symbol field group", symbol_group_matches, wait=8)
+    except AndroidElementMissing:
+        ui.tap(ui.find("the still-visible terminal CSV action", app_label("Import CSV")), below_center=True)
+        symbol_group = ui.find("the listing symbol field group after reopening import", symbol_group_matches)
     symbol = next(child for child in symbol_group if child.get("class") == "android.widget.EditText")
     ui.tap(symbol)
     ui.adb("shell", "input", "text", SYMBOL)

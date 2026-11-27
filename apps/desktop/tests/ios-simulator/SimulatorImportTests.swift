@@ -91,7 +91,12 @@ final class SimulatorImportTests: XCTestCase {
         continueAfterFailure = false
         XCTAssertEqual(try canaryConnectionError(), ECONNREFUSED, "The previously reachable loopback route must refuse connections.")
         let app = XCUIApplication(bundleIdentifier: identifier)
-        app.launch()
+        let state = app.state
+        XCTAssertTrue(
+            [.runningForeground, .runningBackground, .runningBackgroundSuspended].contains(state),
+            "The simulator must already have relaunched MarketWeft. Application state: \(state.rawValue)."
+        )
+        if state != .runningForeground { app.activate() }
         defer { app.terminate() }
         assertImportedQuote(in: app)
         print("Verified exact persisted iOS OHLCV after losing the loopback route.")
