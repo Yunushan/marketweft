@@ -203,6 +203,16 @@ jobs:
     needs: [verify, desktop-build, native-advisories]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu
+            arches: X64|ARM64
+            extension: deb
+          - platform: windows
+            arches: x64|arm64
+            extension: exe
     permissions:
       contents: read
       actions: read
@@ -210,20 +220,23 @@ jobs:
       attestations: write
       artifact-metadata: write
     steps:
-      - name: Find the verified Ubuntu artifacts for this run
+      - name: Find the verified desktop artifacts for this run
         id: packages
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          PLATFORM: ${{ matrix.platform }}
+          ARCHES: ${{ matrix.arches }}
         run: |
+          pattern="^${PLATFORM}-desktop-(?<arch>${ARCHES})-attempt-(?<attempt>[1-9][0-9]*)$"
           ids=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" |
-            jq -ser --argjson attempt "$GITHUB_RUN_ATTEMPT" '
+            jq -ser --arg pattern "$pattern" --argjson attempt "$GITHUB_RUN_ATTEMPT" '
               [.[].artifacts[] | select(.expired | not) |
-                (.name | capture("^ubuntu-desktop-(?<arch>X64|ARM64)-attempt-(?<attempt>[1-9][0-9]*)$")) as $name |
+                (.name | capture($pattern)) as $name |
                 {id, arch: $name.arch, attempt: ($name.attempt | tonumber)} |
                 select(.attempt <= $attempt)] |
               group_by(.arch) | map(max_by(.attempt).id) |
-              if length == 2 then join(",") else error("Expected both Ubuntu architectures") end')
+              if length == 2 then join(",") else error("Expected both desktop architectures") end')
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -231,7 +244,8 @@ jobs:
           github-token: ${{ github.token }}
           merge-multiple: true
           path: distribution
-      - name: Verify the package subjects and source commit
+      - name: Verify the Ubuntu package subjects and source commit
+        if: matrix.platform == 'ubuntu'
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
@@ -251,26 +265,43 @@ jobs:
               tar -xOf - ./usr/share/doc/marketweft-desktop/source-revision)
             test "$revision" = "$GITHUB_SHA"
           done
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: matrix.platform == 'windows'
+        with:
+          path: source
+          persist-credentials: false
+      - name: Verify the Windows installer subjects and source commit
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          if ! command -v 7z >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends p7zip-full
+          fi
+          cd source
+          bash scripts/verify_windows_installer_subjects.sh "${GITHUB_REF_NAME#v}" "$GITHUB_SHA" ../distribution
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         id: sign
         with:
-          subject-path: distribution/marketweft-desktop_*.deb
+          subject-path: distribution/*.${{ matrix.extension }}
       - name: Verify both signed packages against this tag and commit
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           ATTESTATION: ${{ steps.sign.outputs.bundle-path }}
+          PLATFORM: ${{ matrix.platform }}
+          EXTENSION: ${{ matrix.extension }}
         run: |
-          for package in distribution/*.deb; do
+          for package in distribution/*."$EXTENSION"; do
             gh attestation verify "$package" --repo "$GITHUB_REPOSITORY" \
               --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/verify.yml" \
               --deny-self-hosted-runners --source-digest "$GITHUB_SHA" --source-ref "$GITHUB_REF" \
               --bundle "$ATTESTATION"
           done
-          cp "$ATTESTATION" distribution/marketweft-ubuntu-desktop.intoto.jsonl
+          cp "$ATTESTATION" "distribution/marketweft-$PLATFORM-desktop.intoto.jsonl"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ubuntu-desktop-signed-attempt-${{ github.run_attempt }}
+          name: ${{ matrix.platform }}-desktop-signed-attempt-${{ github.run_attempt }}
           path: distribution/*
           if-no-files-found: error
 
