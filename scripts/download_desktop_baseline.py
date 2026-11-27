@@ -15,7 +15,12 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from zipfile import ZipFile
 
 API = "https://api.github.com/repos/Yunushan/marketweft"
-ARCHITECTURES = {"ubuntu": {"amd64": "X64", "arm64": "ARM64"}, "windows": {"x64": "x64", "arm64": "arm64"}}
+ARCHITECTURES = {
+    "ubuntu": {"amd64": "X64", "arm64": "ARM64"},
+    "windows": {"x64": "x64", "arm64": "arm64"},
+    "macos": {"x64": "x64", "arm64": "arm64"},
+    "macos-disk-image": {"x64": "x64", "arm64": "arm64"},
+}
 
 
 class BaselineArchiveMissing(RuntimeError):
@@ -73,7 +78,8 @@ def fetch(run_id, commit, version, architecture, output, token, platform="ubuntu
             or run["head_repository"]["full_name"].lower() != "yunushan/marketweft"):
         raise ValueError("The baseline run does not verify the requested project commit.")
     runner_arch = ARCHITECTURES[platform][architecture]
-    expected = f"{platform}-desktop-{runner_arch}-attempt-{run['run_attempt']}"
+    stem = platform if platform == "macos-disk-image" else f"{platform}-desktop"
+    expected = f"{stem}-{runner_arch}-attempt-{run['run_attempt']}"
     with api(f"/actions/runs/{run_id}/artifacts?per_page=100") as response:
         found = [item for item in json.load(response)["artifacts"]
                  if item["name"] == expected and not item["expired"]]
@@ -94,8 +100,11 @@ def fetch(run_id, commit, version, architecture, output, token, platform="ubuntu
 
     if platform == "ubuntu":
         filename = f"marketweft-desktop_{version}_{architecture}.deb"
-    else:
+    elif platform == "windows":
         filename = f"MarketWeft-desktop-{version}-windows-{architecture}-setup.exe"
+    else:
+        extension = "dmg" if platform == "macos-disk-image" else "zip"
+        filename = f"MarketWeft-desktop-{version}-macos-{architecture}.{extension}"
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="marketweft-baseline-", dir=output) as directory:
         temporary = Path(directory)

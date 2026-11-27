@@ -458,6 +458,16 @@ jobs:
         env:
           ARCHITECTURE: ${{ matrix.os == 'macos-15-intel' && 'x64' || 'arm64' }}
         run: bash scripts/verify_desktop_macos_disk_image.sh "$ARCHITECTURE"
+      - name: Upgrade the copied macOS app and reopen its saved workspace
+        if: runner.os == 'macOS'
+        timeout-minutes: 25
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ARCHITECTURE: ${{ matrix.os == 'macos-15-intel' && 'x64' || 'arm64' }}
+        run: |
+          bash scripts/verify_macos_desktop_upgrade.sh "$ARCHITECTURE" \
+            46007400230 ac42f212704e788e1a085443f82fbdcf581e16f9 0.172.0
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: runner.os == 'macOS'
         with:

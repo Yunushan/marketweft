@@ -1,6 +1,7 @@
+#[cfg(windows)]
+use std::path::PathBuf;
 use std::{
     env,
-    path::PathBuf,
     sync::mpsc,
     thread,
     time::{Duration, Instant},
@@ -9,6 +10,21 @@ use tauri::{Builder, Context, WebviewWindow, WebviewWindowBuilder, Wry};
 
 const CSV: &str = include_str!("../tests/fixtures/native-verification.csv");
 const PROBE: &str = include_str!("../tests/import_native_fixture.js");
+
+#[cfg(target_os = "macos")]
+fn macos_profile() -> Result<[u8; 16], Box<dyn std::error::Error>> {
+    let key = env::var("MARKETWEFT_NATIVE_SMOKE_PROFILE")?;
+    if key.len() != 32 || !key.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(
+            "The persistent WKWebView fixture requires a 32-digit hexadecimal profile.".into(),
+        );
+    }
+    let mut identifier = [0; 16];
+    for (index, byte) in identifier.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&key[index * 2..index * 2 + 2], 16)?;
+    }
+    Ok(identifier)
+}
 
 fn verify(window: &WebviewWindow, phase: &str) -> Result<(), String> {
     let script = format!("({PROBE})({CSV:?}, {phase:?})");
@@ -50,7 +66,8 @@ pub fn configure(builder: Builder<Wry>, mut context: Context<Wry>) -> (Builder<W
         let phase = env::var("MARKETWEFT_NATIVE_SMOKE_PHASE").unwrap_or_else(|_| "import".into());
         match phase.as_str() {
             "import" => {}
-            "seed" | "reopen" if cfg!(windows) => {
+            #[cfg(windows)]
+            "seed" | "reopen" => {
                 let directory = env::var_os("WEBVIEW2_USER_DATA_FOLDER").map(PathBuf::from);
                 if !directory.is_some_and(|path| path.is_absolute() && path.is_dir()) {
                     return Err(
@@ -59,11 +76,18 @@ pub fn configure(builder: Builder<Wry>, mut context: Context<Wry>) -> (Builder<W
                     );
                 }
             }
+            #[cfg(target_os = "macos")]
+            "seed" | "reopen" => {}
             _ => return Err(format!("Unsupported native fixture phase: {phase}").into()),
         }
-        let window = WebviewWindowBuilder::from_config(app, &config)?
-            .incognito(phase == "import")
-            .build()?;
+        let window = WebviewWindowBuilder::from_config(app, &config)?.incognito(phase == "import");
+        #[cfg(target_os = "macos")]
+        let window = if phase == "import" {
+            window
+        } else {
+            window.data_store_identifier(macos_profile()?)
+        };
+        let window = window.build()?;
         let app = app.handle().clone();
         thread::spawn(move || match verify(&window, &phase) {
             Ok(()) => {
