@@ -47,3 +47,13 @@ marketweft-desktop
 Build a package on its target Ubuntu architecture with `python3 -B scripts/package_desktop_deb.py apps/desktop/target/release/marketweft-desktop` after compiling the frontend and the native release executable. The packager derives runtime dependencies from the linked libraries and records the source revision and locked Rust crate sources. Packaging twice from the same executable and commit produces the same archive.
 
 GitHub Actions verifies a fresh package installation and the native WebView import fixture on Ubuntu 24.04 x64 and ARM64. Signing, in-place upgrades and other distributions remain separate release checks.
+
+### Verify an Ubuntu package upgrade
+
+The upgrade fixture requires two checksum-verified desktop packages for the same CPU architecture. Run it on a disposable Ubuntu host with the build and WebKit test dependencies from the desktop workflow.
+
+```sh
+sh scripts/verify_desktop_upgrade.sh PREVIOUS.deb CANDIDATE.deb
+```
+
+The previous installation imports a synthetic CSV and saves the close-line chart preference. After the previous version reopens the profile successfully, APT upgrades the same installation. The candidate launches against the same profile and checks the saved chart preference and the exact OHLCV readout. The fixture removes its temporary profile after the test.

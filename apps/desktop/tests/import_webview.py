@@ -1,10 +1,10 @@
 """Exercise CSV import in the shipped binary using the loopback WebKit WebDriver."""
+import argparse
 import json
 import os
 from pathlib import Path
 import socket
 import subprocess
-import sys
 import tempfile
 import time
 from urllib.error import HTTPError, URLError
@@ -56,7 +56,38 @@ def wait_for(check, description):
     raise RuntimeError("Timed out waiting for " + description)
 
 
-def verify(browser, binary, fixture):
+def import_fixture(browser, fixture):
+    browser.execute('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Import CSV").click()')
+    wait_for(lambda: browser.execute("return Boolean(document.querySelector('dialog[open] input[type=file]'))"),
+             "the local CSV dialog")
+    browser.send(browser.element('dialog[open] input[placeholder="e.g. ABC"]'), "NATIVESMOKE")
+    browser.send(browser.element('dialog[open] input[type=file]'), str(fixture))
+    assert browser.execute("return document.querySelector('dialog[open] input[type=file]').files[0].name") == fixture.name
+    browser.click(browser.element("dialog[open] button[type=submit], dialog[open] .dialog-actions button.primary"))
+    chart = wait_for(lambda: browser.execute(
+        "return [...document.querySelectorAll('canvas')].map(c => c.getAttribute('aria-label') || '')"
+        ".find(label => label.startsWith('NATIVESMOKE interactive') && label.includes('candlestick'));"
+    ), "the imported native chart")
+    print("Imported chart:", chart)
+
+
+def verify_saved_workspace(browser):
+    workspace = wait_for(lambda: browser.execute("""
+        const chart = document.querySelector('canvas[aria-label^="NATIVESMOKE interactive close line"]');
+        const selector = document.querySelector('select[aria-label="Primary chart type"]');
+        if (!chart || selector?.value !== 'line' || selector.disabled) return null;
+        const quote = [...chart.closest('section.plot').querySelectorAll('.ohlc > span')]
+            .filter(cell => ['O', 'H', 'L', 'C', 'Vol'].includes(cell.querySelector('small')?.textContent));
+        return Object.fromEntries(quote.map(cell => {
+            const label = cell.querySelector('small')?.textContent;
+            return [label, Number(cell.textContent.slice(label?.length).trim().replaceAll(',', ''))];
+        }));
+    """), "the saved close-line chart and its original quote")
+    assert workspace == {"O": 27, "H": 30, "L": 26, "C": 29, "Vol": 800}, workspace
+    print("Verified saved close-line preference and exact imported OHLCV:", workspace)
+
+
+def verify(browser, binary, fixture, phase):
     wait_for(lambda: browser.call("GET", "/status").get("ready"), "the native WebDriver")
     response = browser.call("POST", "/session", {"capabilities": {"alwaysMatch": {
         "webkitgtk:browserOptions": {"binary": str(binary), "args": []},
@@ -65,26 +96,25 @@ def verify(browser, binary, fixture):
     try:
         wait_for(lambda: browser.execute("return Boolean(document.querySelector('canvas'))"),
                  "the native starting chart")
-        browser.execute('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Import CSV").click()')
-        wait_for(lambda: browser.execute("return Boolean(document.querySelector('dialog[open] input[type=file]'))"),
-                 "the local CSV dialog")
-        browser.send(browser.element('dialog[open] input[placeholder="e.g. ABC"]'), "NATIVESMOKE")
-        browser.send(browser.element('dialog[open] input[type=file]'), str(fixture))
-        assert browser.execute("return document.querySelector('dialog[open] input[type=file]').files[0].name") == fixture.name
-        browser.click(browser.element("dialog[open] button[type=submit], dialog[open] .dialog-actions button.primary"))
-        chart = wait_for(lambda: browser.execute(
-            "return [...document.querySelectorAll('canvas')].map(c => c.getAttribute('aria-label') || '')"
-            ".find(label => label.startsWith('NATIVESMOKE interactive') && label.includes('candlestick'));"
-        ), "the imported native chart")
-        print("Imported chart:", chart)
+        if phase != "reopen":
+            import_fixture(browser, fixture)
+        if phase == "seed":
+            browser.execute("""
+                const kind = document.querySelector('select[aria-label="Primary chart type"]');
+                kind.value = 'line';
+                kind.dispatchEvent(new Event('change', {bubbles: true}));
+            """)
+        if phase != "import":
+            verify_saved_workspace(browser)
     finally:
         browser.call("DELETE", browser.session)
 
 
-def run(binary):
+def run(binary, workspace=None, phase='import'):
     binary = binary.resolve(strict=True)
     with tempfile.TemporaryDirectory(prefix="marketweft-webview-") as directory:
         root = Path(directory)
+        profile = root if workspace is None else workspace.resolve(strict=True)
         runtime = root / "runtime"
         runtime.mkdir(mode=0o700)
         fixture = root / "native-verification.csv"
@@ -97,8 +127,8 @@ def run(binary):
         env = dict(
             os.environ, GDK_BACKEND="x11", TAURI_WEBVIEW_AUTOMATION="true",
             WEBKIT_DISABLE_DMABUF_RENDERER="1", XDG_RUNTIME_DIR=str(runtime),
-            XDG_CONFIG_HOME=str(root / "config"), XDG_DATA_HOME=str(root / "data"),
-            XDG_CACHE_HOME=str(root / "cache"),
+            XDG_CONFIG_HOME=str(profile / "config"), XDG_DATA_HOME=str(profile / "data"),
+            XDG_CACHE_HOME=str(profile / "cache"),
         )
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
@@ -106,7 +136,7 @@ def run(binary):
         with subprocess.Popen(["WebKitWebDriver", "--host=127.0.0.1", f"--port={port}"],
                               env=env) as driver:
             try:
-                verify(WebView(port), binary, fixture)
+                verify(WebView(port), binary, fixture, phase)
             finally:
                 driver.terminate()
                 try:
@@ -117,4 +147,11 @@ def run(binary):
 
 
 if __name__ == "__main__":
-    run(Path(sys.argv[1]))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("binary", type=Path)
+    parser.add_argument("--workspace", type=Path)
+    parser.add_argument("--phase", choices=("import", "seed", "reopen"), default="import")
+    args = parser.parse_args()
+    if args.phase != "import" and args.workspace is None:
+        parser.error("--workspace is required to seed or reopen a persistent profile")
+    run(args.binary, args.workspace, args.phase)
