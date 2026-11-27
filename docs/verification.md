@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.195.0 · Paper successor delivery journal
+
+- Rust verifies that the 4/3-share delivery cites the accepted fill that left four shares before the delisting. A fill observed at the effective delisting is excluded. Rust also verifies the exact net revision for an immediate delivery and an exact reversal when the delivery is rescheduled.
+- Wasm and offline Chromium preserve the signed change, delivered balance, source names and receipt ID through the copy of the replay exported at each cutoff. Rewinding reproduces the earlier CSV byte for byte.
+- An offline upgrade from the hosted 0.194.0 package to the locally built 0.195.0 package retained the saved 14.00 quote. It posted and reversed 4/3 simulated successor shares against the same accepted fill receipt.
+
+[Paper successor delivery journal](paper-corporate-cash.md#paper-successor-delivery-journal)
+
 ## 0.194.0 · Successor delivery ledger
 
 - Rust verifies separate economic and knowledge bounds, delayed terms, a late holding correction, an exact net quantity revision, reversal before a successor switch, and cancellation. Reports beyond the knowledge cutoff preserve the earlier replay.

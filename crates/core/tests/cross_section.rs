@@ -311,6 +311,88 @@ fn walk_forward_includes_only_successors_visible_in_its_own_test_account() {
 }
 
 #[test]
+fn paper_successor_deliveries_reference_accepted_observed_fills_and_reverse_exactly() {
+    let universe = parse_universe(ACTION_MEMBERSHIP).unwrap();
+    let book = PriceBook::parse(&universe, PRICES).unwrap();
+    let liquidity = LiquidityTape::parse(&universe, LIQUIDITY).unwrap();
+    let start = universe.checkpoints()[0];
+    let sources = CrossSectionActionSources {
+        dividends: DIVIDENDS,
+        delistings: DELISTING,
+        account_currency: "USD",
+    };
+    let query = |known| CrossSectionConfig {
+        known_at: start + known,
+        ..settings(start, 6)
+    };
+    let journal = |known, tape: &LiquidityTape, terms| {
+        book.cross_section_successor_delivery_journal(tape, query(known), sources, terms)
+            .unwrap()
+    };
+    assert!(journal(330, &liquidity, SUCCESSORS).is_empty());
+    let first = journal(360, &liquidity, SUCCESSORS);
+    assert_eq!(first.len(), 1);
+    let row = &first[0];
+    assert_eq!(row.delivery.entitled_shares, 4);
+    assert_eq!(row.delivery.position_observed_at, start + 180);
+    assert_eq!(row.delivery.position_effective_at, start + 180);
+    assert_eq!(row.delivery.posted_at, start + 360);
+    assert_eq!(
+        (row.delivery.delta.numerator, row.delivery.delta.denominator),
+        (4, 3)
+    );
+    let replay = book
+        .cross_section_with_successor_shares(&liquidity, query(360), sources, SUCCESSORS)
+        .unwrap();
+    let cause = replay
+        .events
+        .iter()
+        .find(|item| item.event.id == row.position_receipt_id)
+        .unwrap();
+    assert!(
+        matches!(&cause.event.action, PaperAction::Fill { source_id, .. } if source_id == "Q-9007199254740996")
+    );
+    assert_eq!(cause.receipt.rejection, None);
+    assert_eq!(row.delivery.balance, replay.successor_claims[0].shares);
+
+    let final_rows = journal(480, &liquidity, SUCCESSORS);
+    assert_eq!(final_rows.len(), 2);
+    assert_eq!(final_rows[0], *row);
+    assert_eq!(final_rows[1].position_receipt_id, row.position_receipt_id);
+    assert_eq!(final_rows[1].delivery.posted_at, start + 420);
+    assert_eq!(
+        (
+            final_rows[1].delivery.delta.numerator,
+            final_rows[1].delivery.delta.denominator
+        ),
+        (-4, 3)
+    );
+    assert_eq!(final_rows[1].delivery.balance.numerator, 0);
+    assert_eq!(first, journal(360, &liquidity, SUCCESSORS));
+
+    let immediate = SUCCESSORS.replace("14:09:00Z", "14:06:00Z");
+    let correction = journal(420, &liquidity, &immediate);
+    assert_eq!(
+        (
+            correction[1].delivery.delta.numerator,
+            correction[1].delivery.delta.denominator
+        ),
+        (2, 3)
+    );
+    assert_eq!(correction[1].delivery.balance.numerator, 2);
+
+    let late = LIQUIDITY.replace(
+        "14:03:00Z,2025-06-02T14:03:00Z",
+        "14:03:30Z,2025-06-02T14:04:00Z",
+    );
+    let late_tape = LiquidityTape::parse(&universe, &late).unwrap();
+    let boundary = journal(360, &late_tape, SUCCESSORS);
+    assert_eq!(boundary[0].delivery.entitled_shares, 2);
+    assert_eq!(boundary[0].delivery.position_observed_at, start + 120);
+    assert_ne!(boundary[0].position_receipt_id, row.position_receipt_id);
+}
+
+#[test]
 fn pays_dividends_only_on_pre_ex_shares_and_tracks_late_currency_corrections() {
     let universe = parse_universe(MEMBERSHIP).unwrap();
     let book = PriceBook::parse(&universe, PRICES).unwrap();

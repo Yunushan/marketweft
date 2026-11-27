@@ -47,3 +47,13 @@ To verify the packaged example, load **Use sample corporate reports** and **Use 
 | 14:06 | 14:08 | The delisting is canceled and the original four shares return. | 1,069 |
 
 **Download paper successor shares** exports the exact fraction, both cutoffs, terms, entitlement time, close observation and value. Rewind to the first receivable to reproduce the earlier CSV. [Synthetic terms](../crates/core/tests/fixtures/synthetic-paper-successor-shares.csv)
+
+## Paper successor delivery journal
+
+Expand **Paper successor delivery journal** after running a ranking replay with successor terms. Each row shows the exact change and balance for the delisting and successor listing. It also identifies the accepted paper receipt that established the entire observed holding immediately before the delisting. Find that ID in **Cross-sectional paper receipts** or in **Download paper replay**. A fill observed at the effective delisting time falls outside the share entitlement.
+
+The effective cutoff caps the delisting and delivery schedule, and the knowledge cutoff limits when the journal can post. Later terms can revise or reverse a previous delivery. The share claims table shows current entitlement and marked equity, and the journal traces the delivered balance history. [Portfolio delivery ledger](portfolio-replay.md#successor-delivery-ledger)
+
+With the sample effective cutoff at 14:06 UTC, set knowledge to 14:05:30 UTC to see an empty journal. At known 14:06, the journal posts 4/3 shares of B and identifies the accepted fill that left four shares of A at 14:03. At known 14:07, a rescheduled delivery reverses 4/3 shares and leaves a zero delivered balance. The reversal references the same holding receipt. The 14:08 delisting cancellation restores the original paper position through the cash workflow.
+
+**Download paper successor delivery journal** exports the source names, both cutoffs, evidence timestamps, receipt IDs, and exact numerators and denominators. Rewind knowledge to 14:06 to reproduce the first export.

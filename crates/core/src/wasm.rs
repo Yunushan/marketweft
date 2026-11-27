@@ -503,7 +503,6 @@ pub extern "C" fn mw_portfolio_successor_delivery_ledger(
     membership_bytes: usize,
     holding_bytes: usize,
 ) -> u32 {
-    use std::fmt::Write;
     process(|input| {
         let SuccessorInput {
             effective,
@@ -517,29 +516,35 @@ pub extern "C" fn mw_portfolio_successor_delivery_ledger(
         )?;
         let mut text = String::new();
         for row in rows {
-            writeln!(
-                text,
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                row.posted_at,
-                row.listing_id,
-                row.change_id,
-                row.successor_listing,
-                row.delisted_at,
-                row.delisting_observed_at,
-                row.position_effective_at,
-                row.position_observed_at,
-                row.entitled_shares,
-                row.terms_observed_at,
-                row.scheduled_delivery_at,
-                row.delta.numerator,
-                row.delta.denominator,
-                row.balance.numerator,
-                row.balance.denominator
-            )
-            .unwrap();
+            write_successor_delivery(&mut text, &row);
+            text.push('\n');
         }
         Ok(text.into_bytes())
     })
+}
+
+fn write_successor_delivery(text: &mut String, row: &crate::SuccessorDeliveryPosting) {
+    use std::fmt::Write;
+    write!(
+        text,
+        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        row.posted_at,
+        row.listing_id,
+        row.change_id,
+        row.successor_listing,
+        row.delisted_at,
+        row.delisting_observed_at,
+        row.position_effective_at,
+        row.position_observed_at,
+        row.entitled_shares,
+        row.terms_observed_at,
+        row.scheduled_delivery_at,
+        row.delta.numerator,
+        row.delta.denominator,
+        row.balance.numerator,
+        row.balance.denominator,
+    )
+    .unwrap();
 }
 
 #[no_mangle]
@@ -1086,7 +1091,15 @@ pub extern "C" fn mw_portfolio_scenarios(membership_bytes: usize) -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_cross_section_replay(membership_bytes: usize, price_bytes: usize) -> u32 {
-    process(|input| cross_section_input(input, membership_bytes, price_bytes, None, false))
+    process(|input| {
+        cross_section_input(
+            input,
+            membership_bytes,
+            price_bytes,
+            None,
+            CrossSectionOutput::Replay,
+        )
+    })
 }
 
 #[no_mangle]
@@ -1102,7 +1115,7 @@ pub extern "C" fn mw_cross_section_actions(
             membership_bytes,
             price_bytes,
             Some((liquidity_bytes, dividend_bytes, None)),
-            false,
+            CrossSectionOutput::Replay,
         )
     })
 }
@@ -1120,7 +1133,7 @@ pub extern "C" fn mw_cross_section_walk(
             membership_bytes,
             price_bytes,
             Some((liquidity_bytes, dividend_bytes, None)),
-            true,
+            CrossSectionOutput::Walk,
         )
     })
 }
@@ -1140,9 +1153,38 @@ pub extern "C" fn mw_cross_section_with_successors(
             membership_bytes,
             price_bytes,
             Some((liquidity_bytes, dividend_bytes, Some(delisting_bytes))),
-            walk != 0,
+            if walk == 0 {
+                CrossSectionOutput::Replay
+            } else {
+                CrossSectionOutput::Walk
+            },
         )
     })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_cross_section_successor_delivery_journal(
+    membership_bytes: usize,
+    price_bytes: usize,
+    liquidity_bytes: usize,
+    dividend_bytes: usize,
+    delisting_bytes: usize,
+) -> u32 {
+    process(|input| {
+        cross_section_input(
+            input,
+            membership_bytes,
+            price_bytes,
+            Some((liquidity_bytes, dividend_bytes, Some(delisting_bytes))),
+            CrossSectionOutput::SuccessorJournal,
+        )
+    })
+}
+
+enum CrossSectionOutput {
+    Replay,
+    Walk,
+    SuccessorJournal,
 }
 
 fn cross_section_input(
@@ -1150,7 +1192,7 @@ fn cross_section_input(
     membership_bytes: usize,
     price_bytes: usize,
     reports: Option<(usize, usize, Option<usize>)>,
-    walk: bool,
+    mode: CrossSectionOutput,
 ) -> Result<Vec<u8>, String> {
     let ([from_at, through_at, known_at], rest) = screen_inputs(input)?;
     let mut fields = rest.splitn(3, '\n');
@@ -1165,7 +1207,7 @@ fn cross_section_input(
     } else {
         ("", csvs)
     };
-    let (fold_settings, csvs) = if walk {
+    let (fold_settings, csvs) = if matches!(mode, CrossSectionOutput::Walk) {
         let (settings, csvs) = csvs
             .split_once('\n')
             .ok_or("Supply walk-forward settings.")?;
@@ -1251,6 +1293,17 @@ fn cross_section_input(
                 successors,
             )?;
             return Ok(encode_cross_section_walk(&folds).into_bytes());
+        }
+        if matches!(mode, CrossSectionOutput::SuccessorJournal) {
+            use std::fmt::Write;
+            let rows =
+                book.cross_section_successor_delivery_journal(&tape, query, corporate, successors)?;
+            let mut text = String::new();
+            for row in rows {
+                write_successor_delivery(&mut text, &row.delivery);
+                writeln!(text, "\t{}", row.position_receipt_id).unwrap();
+            }
+            return Ok(text.into_bytes());
         }
         book.cross_section_with_successor_shares(&tape, query, corporate, successors)?
     } else {

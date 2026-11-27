@@ -178,7 +178,7 @@ impl PriceBook<'_> {
             }
             let score = |candidate: CrossSectionCandidate, window| {
                 self.run_cross_section(liquidity, candidate.configure(window), corporate.as_ref())
-                    .map(|report| CrossSectionScore::from_report(candidate, report))
+                    .map(|run| CrossSectionScore::from_report(candidate, run.report))
             };
             let mut scores = candidates
                 .iter()

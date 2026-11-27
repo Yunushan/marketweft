@@ -614,6 +614,34 @@ test('paper successor shares survive the replay and walk-forward Wasm boundaries
   assert.equal(observed.testScore.cash, baseline.testScore.cash);
 });
 
+test('paper successor delivery journal transports holding receipts and signed changes through Wasm', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, prices, liquidity, dividends, delistings, successorShares] = await Promise.all([
+    fixture('synthetic-cross-section-membership'), fixture('synthetic-listing-risk-prices'),
+    fixture('synthetic-cross-section-liquidity'), fixture('synthetic-cross-section-dividends'),
+    fixture('synthetic-cross-section-delisting'), fixture('synthetic-paper-successor-shares'),
+  ]);
+  const cfg = { paper: { startingCash: '1000', positionLimit: '10', exposureLimit: '1000', feePerShare: '0.1', feePerOrder: '0.5' },
+    decisionSeconds: '60', lookbackSeconds: '60', topListings: '1', targetShares: '4', limitBuffer: '1000', participation: '10000' };
+  const from = '2025-06-02T14:01:00Z';
+  const through = '2025-06-02T14:06:00Z';
+  const actions = { accountCurrency: 'USD', dividends, delistings, successorShares };
+  const journal = (known, reports = actions) =>
+    core.crossSectionSuccessorDeliveryJournal(membership, prices, liquidity, from, through, known, cfg, reports);
+  assert.throws(() => journal(through, { ...actions, successorShares: '' }), /Supply successor share terms/);
+  assert.deepEqual(journal('2025-06-02T14:05:30Z'), []);
+  const first = journal(through);
+  assert.equal(first[0].positionObservedAt, Date.parse('2025-06-02T14:03:00Z') / 1000);
+  const report = core.crossSectionReplay(membership, prices, liquidity, from, through, through, cfg, actions);
+  const receipt = report.receipts.find(row => row.id === first[0].positionReceiptId);
+  assert.equal(receipt.sourceId, 'Q-9007199254740996');
+  const rows = journal('2025-06-02T14:08:00Z');
+  assert.deepEqual(rows.map(row => [row.delta.numerator, row.delta.denominator, row.balance.numerator, row.positionReceiptId]), [
+    [4n, 3, 4n, receipt.id], [-4n, 3, 0n, receipt.id],
+  ]);
+  assert.deepEqual(journal(through), first);
+});
+
 function marksWithoutA(prices) {
   return prices.split('\n').filter(line => !line.startsWith('RISK,A,2025-06-02T14:06:00Z')).join('\n');
 }

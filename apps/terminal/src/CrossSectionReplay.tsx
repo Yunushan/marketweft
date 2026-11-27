@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { CrossSectionConfig, CrossSectionReport, CrossSectionWalkConfig, MarketCore, PaperConfig, PaperReceipt } from './market-core'
 import { CrossSectionWalk } from './CrossSectionWalk'
+import { SuccessorDeliveryLedger } from './SuccessorDeliveryLedger'
 import { quoteText } from './chart-export'
 import { downloadFile } from './download'
 import { fixed } from './fixed-point'
@@ -232,6 +233,12 @@ export function CrossSectionReplay(props: ReplayProps) {
     return core.crossSectionWalk(membership, prices, run.liquidity.csv, run.from, effective, known,
       run.config, settings, calculationInputs(run.corporate))
   }, [core, membership, prices, run, effective, known])
+  const calculateSuccessorJournal = useCallback(() => {
+    const actions = run && calculationInputs(run.corporate)
+    if (!run || !actions?.successorShares) return []
+    return core.crossSectionSuccessorDeliveryJournal(membership, prices, run.liquidity.csv,
+      run.from, effective, known, run.config, actions)
+  }, [core, membership, prices, run, effective, known])
   const state = useMemo(() => {
     if (!run) return null
     try {
@@ -390,6 +397,14 @@ export function CrossSectionReplay(props: ReplayProps) {
         {run.corporate && <CorporateCash report={report} run={run.corporate} props={props} />}
         {run.corporate?.successorShares && <SuccessorClaims report={report} source={run.corporate.successorShares}
           currency={run.corporate.accountCurrency} props={props} />}
+        {run.corporate?.successorShares && <SuccessorDeliveryLedger title="Paper successor delivery journal"
+          filename="paper-successor-delivery-journal.csv" calculate={calculateSuccessorJournal}
+          effective={effective} known={known} showPositionReceipt sourceFields={[
+            ['membership_source', props.membershipSource], ['price_source', props.priceSource],
+            ['liquidity_source', run.liquidity.name], ['successor_source', run.corporate.successorShares.name],
+            ['dividend_source', run.corporate.dividends?.name ?? ''], ['delisting_source', run.corporate.delistings?.name ?? ''],
+            ['account_currency', run.corporate.accountCurrency], ['from_utc', run.from],
+          ]} />}
         <button type="button" className="outline" onClick={() => downloadReplay(report, run, props)}>Download paper replay</button>
       </>}
       {run && <CrossSectionWalk calculate={calculateWalk} metadata={[

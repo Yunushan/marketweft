@@ -23,7 +23,10 @@ pub use spinoff::{
     SpinOffBasisAllocation, SpinOffBasisRow, SpinOffBasisState, SpinOffBasisTerms, SpinOffCashRow,
     SpinOffCashState, SpinOffCashTerms,
 };
-pub(crate) use successor::{parse_successor_terms, value_successor_shares, SuccessorReports};
+pub(crate) use successor::{
+    parse_successor_terms, successor_delivery_postings_from_observed_positions,
+    value_successor_shares, SuccessorReports,
+};
 
 pub use successor::{
     portfolio_successor_delivery_ledger, portfolio_successor_shares_as_of,

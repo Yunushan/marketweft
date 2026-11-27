@@ -1,5 +1,5 @@
 use super::super::PositionSeries;
-use super::{parse_holdings, parse_successor_terms, value_successor_shares};
+use super::{parse_holdings, parse_successor_terms, value_successor_shares, SuccessorReports};
 use crate::{
     history::valid_second, ChildShares, SuccessorShareState, SuccessorShareTerms, UniverseAction,
     UniverseBook, UniverseChange,
@@ -106,6 +106,37 @@ pub fn portfolio_successor_delivery_ledger(
     }
     let holdings = parse_holdings(universe, holdings)?;
     let reports = parse_successor_terms(universe, terms)?;
+    delivery_postings(universe, &holdings, &reports, effective_at, known_at)
+}
+
+pub(crate) fn successor_delivery_postings_from_observed_positions<'a>(
+    universe: &UniverseBook,
+    reports: &SuccessorReports,
+    effective_at: i64,
+    known_at: i64,
+    positions: impl Iterator<Item = (&'a str, i64, u32)>,
+) -> Result<Vec<SuccessorDeliveryPosting>, String> {
+    let mut holdings = BTreeMap::<String, PositionSeries>::new();
+    for (listing, at, shares) in positions {
+        holdings
+            .entry(listing.to_owned())
+            .or_insert_with(|| PositionSeries {
+                currency: String::new(),
+                quantities: BTreeMap::new(),
+            })
+            .quantities
+            .insert(at, BTreeMap::from([(at, shares)]));
+    }
+    delivery_postings(universe, &holdings, reports, effective_at, known_at)
+}
+
+fn delivery_postings(
+    universe: &UniverseBook,
+    holdings: &BTreeMap<String, PositionSeries>,
+    reports: &SuccessorReports,
+    effective_at: i64,
+    known_at: i64,
+) -> Result<Vec<SuccessorDeliveryPosting>, String> {
     let mut listings: BTreeMap<_, Vec<_>> = BTreeMap::new();
     for (listing, change_id) in universe.delisting_ids() {
         if let Some(revisions) = reports

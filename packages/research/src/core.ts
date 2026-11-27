@@ -993,6 +993,10 @@ export interface PortfolioSuccessorDeliveryPosting {
   balance: { numerator: bigint; denominator: number };
 }
 
+export interface PaperSuccessorDeliveryPosting extends PortfolioSuccessorDeliveryPosting {
+  positionReceiptId: string;
+}
+
 export interface PortfolioSpinOffBasis {
   id: string;
   parent: string;
@@ -1091,6 +1095,8 @@ export interface MarketCore {
   listingRisk(membership: string, prices: string, leftId: string, rightId: string, query: ListingRiskQuery): ListingRiskPoint[];
   crossSectionReplay(membership: string, prices: string, liquidity: string, from: string,
     through: string, known: string, config: CrossSectionConfig, actions?: CrossSectionActions): CrossSectionReport;
+  crossSectionSuccessorDeliveryJournal(membership: string, prices: string, liquidity: string, from: string,
+    through: string, known: string, config: CrossSectionConfig, actions: CrossSectionActions): PaperSuccessorDeliveryPosting[];
   crossSectionWalk(membership: string, prices: string, liquidity: string, from: string,
     through: string, known: string, config: CrossSectionConfig, walk: CrossSectionWalkConfig,
     actions?: CrossSectionActions): CrossSectionFold[];
@@ -1237,6 +1243,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_cross_section_walk(membershipBytes: number, priceBytes: number, liquidityBytes: number, dividendBytes: number): number;
   mw_cross_section_with_successors(membershipBytes: number, priceBytes: number, liquidityBytes: number,
     dividendBytes: number, delistingBytes: number, walk: number): number;
+  mw_cross_section_successor_delivery_journal(membershipBytes: number, priceBytes: number, liquidityBytes: number,
+    dividendBytes: number, delistingBytes: number): number;
   mw_backtest_index(calendarBytes: number, interval: number): number;
   mw_backtest(calendarBytes: number, interval: number): number;
   mw_recorded_backtest(calendarBytes: number, barBytes: number, interval: number): number;
@@ -1386,6 +1394,19 @@ function decodePaperReceipt(fields: string[]): PaperReceipt {
     priceAt: effective === '' ? null : Number(effective), shares: shares === '' ? null : BigInt(shares),
     price: price === '' ? null : BigInt(price), status, cashDelta: BigInt(cashDelta),
     fee: BigInt(fee), realizedDelta: BigInt(realizedDelta) };
+}
+
+function decodeSuccessorDelivery(fields: string[]): PortfolioSuccessorDeliveryPosting {
+  const [posted, listing, delisting, successor, delisted, delistingObserved, positionEffective,
+    positionObserved, entitled, termsObserved, scheduled, delta, denom, balance, balanceDenom] = fields;
+  return {
+    postedAt: Number(posted), listing, delisting, successor, delistedAt: Number(delisted),
+    delistingObservedAt: Number(delistingObserved), positionEffectiveAt: Number(positionEffective),
+    positionObservedAt: Number(positionObserved), entitledShares: Number(entitled),
+    termsObservedAt: Number(termsObserved), scheduledDeliveryAt: Number(scheduled),
+    delta: { numerator: BigInt(delta), denominator: Number(denom) },
+    balance: { numerator: BigInt(balance), denominator: Number(balanceDenom) },
+  };
 }
 
 function crossSectionSettings(config: CrossSectionConfig): string {
@@ -2421,18 +2442,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         encoder.encode(membership).length, encoder.encode(holdings).length,
       )));
       if (!text) return [];
-      return text.slice(0, -1).split('\n').map(line => {
-        const [posted, listing, delisting, successor, delisted, delistingObserved, positionEffective,
-          positionObserved, entitled, termsObserved, scheduled, delta, denom, balance, balanceDenom] = line.split('\t');
-        return {
-          postedAt: Number(posted), listing, delisting, successor, delistedAt: Number(delisted),
-          delistingObservedAt: Number(delistingObserved), positionEffectiveAt: Number(positionEffective),
-          positionObservedAt: Number(positionObserved), entitledShares: Number(entitled),
-          termsObservedAt: Number(termsObserved), scheduledDeliveryAt: Number(scheduled),
-          delta: { numerator: BigInt(delta), denominator: Number(denom) },
-          balance: { numerator: BigInt(balance), denominator: Number(balanceDenom) },
-        };
-      });
+      return text.slice(0, -1).split('\n').map(line => decodeSuccessorDelivery(line.split('\t')));
     },
     portfolioSpinOffsAsOf(membership, holdings, reports, effectiveAt, knownAt) {
       portfolioInput(effectiveAt, knownAt, membership, holdings, reports);
@@ -2618,6 +2628,21 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         else throw new Error('Invalid cross-sectional replay row.');
       }
       return report;
+    },
+    crossSectionSuccessorDeliveryJournal(membership, prices, liquidity, from, through, known, config, actions) {
+      const { accountCurrency, dividends, delistings, successorShares = '' } = actions;
+      if (!/^[A-Z]{3}$/.test(accountCurrency)) throw new Error('Use a three-letter uppercase paper account currency.');
+      screenInput([from, through, known], crossSectionSettings(config), accountCurrency, '\n',
+        membership, prices, liquidity, dividends, delistings, successorShares);
+      const text = decoder.decode(output(api.mw_cross_section_successor_delivery_journal(
+        encoder.encode(membership).length, encoder.encode(prices).length, encoder.encode(liquidity).length,
+        encoder.encode(dividends).length, encoder.encode(delistings).length,
+      )));
+      if (!text) return [];
+      return text.slice(0, -1).split('\n').map(line => {
+        const fields = line.split('\t');
+        return { ...decodeSuccessorDelivery(fields), positionReceiptId: fields[15] };
+      });
     },
     crossSectionWalk(membership, prices, liquidity, from, through, known, config, walk, actions) {
       const training = walk.trainingDecisions.trim();

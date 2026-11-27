@@ -4,12 +4,14 @@ use crate::{
     paper::MAX_SHARES,
     parse_delistings,
     portfolio::{
-        parse_successor_terms, value_successor_shares, PortfolioIncomeReports, SuccessorReports,
+        parse_successor_terms, successor_delivery_postings_from_observed_positions,
+        value_successor_shares, PortfolioIncomeReports, SuccessorReports,
     },
     screen::rounded_div,
     ChildShares, DelistingBook, DelistingState, LiquidityTape, PaperAccount, PaperAction,
     PaperConfig, PaperEvent, PaperOrderStatus, PaperReceipt, PaperSide, PriceBook,
-    PriceObservation, SuccessorShareState, SuccessorShareTerms, UniverseAction, MAX_TICKS,
+    PriceObservation, SuccessorDeliveryPosting, SuccessorShareState, SuccessorShareTerms,
+    UniverseAction, MAX_TICKS,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -158,6 +160,12 @@ pub struct CrossSectionSuccessorClaim {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CrossSectionSuccessorPosting {
+    pub delivery: SuccessorDeliveryPosting,
+    pub position_receipt_id: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CrossSectionReport {
     pub config: CrossSectionConfig,
     pub decisions: Vec<RankingDecision>,
@@ -174,7 +182,17 @@ pub struct CrossSectionReport {
     pub successor_claims: Vec<CrossSectionSuccessorClaim>,
 }
 
-type PaperHoldings = BTreeMap<String, BTreeMap<i64, u64>>;
+struct PaperPositionObservation {
+    shares: u32,
+    event_index: usize,
+}
+
+type PaperHoldings = BTreeMap<String, BTreeMap<i64, PaperPositionObservation>>;
+
+struct ReplayOutcome {
+    report: CrossSectionReport,
+    holdings: Option<PaperHoldings>,
+}
 
 struct Replay<'a> {
     prices: &'a PriceBook<'a>,
@@ -225,11 +243,14 @@ impl Replay<'_> {
                 .ledger
                 .positions()
                 .get(&self.aliases[listing_id].to_string())
-                .map_or(0, |position| position.shares);
-            holdings
-                .entry(listing_id.to_owned())
-                .or_default()
-                .insert(at, shares);
+                .map_or(0, |position| position.shares as u32);
+            holdings.entry(listing_id.to_owned()).or_default().insert(
+                at,
+                PaperPositionObservation {
+                    shares,
+                    event_index: self.events.len(),
+                },
+            );
         }
         self.events.push(CrossSectionEvent {
             listing_id: listing_id.to_owned(),
@@ -431,6 +452,7 @@ impl PriceBook<'_> {
         config: CrossSectionConfig,
     ) -> Result<CrossSectionReport, String> {
         self.run_cross_section(liquidity, config, None)
+            .map(|run| run.report)
     }
 
     pub fn cross_section_with_dividends(
@@ -472,6 +494,47 @@ impl PriceBook<'_> {
     ) -> Result<CrossSectionReport, String> {
         let reports = CorporateReports::parse(self, corporate, successor_terms)?;
         self.run_cross_section(liquidity, config, Some(&reports))
+            .map(|run| run.report)
+    }
+
+    pub fn cross_section_successor_delivery_journal(
+        &self,
+        liquidity: &LiquidityTape,
+        config: CrossSectionConfig,
+        corporate: CrossSectionActionSources<'_>,
+        successor_terms: &str,
+    ) -> Result<Vec<CrossSectionSuccessorPosting>, String> {
+        let reports = CorporateReports::parse(self, corporate, successor_terms)?;
+        let successors = reports
+            .successors
+            .as_ref()
+            .ok_or("Supply successor share terms for the paper delivery journal.")?;
+        let ReplayOutcome { report, holdings } =
+            self.run_cross_section(liquidity, config, Some(&reports))?;
+        let holdings = holdings.expect("successor replay records observed holdings");
+        let positions = holdings.iter().flat_map(|(listing, history)| {
+            history
+                .iter()
+                .map(|(&at, position)| (listing.as_str(), at, position.shares))
+        });
+        let postings = successor_delivery_postings_from_observed_positions(
+            self.universe,
+            successors,
+            config.through_at,
+            config.known_at,
+            positions,
+        )?;
+        Ok(postings
+            .into_iter()
+            .map(|delivery| {
+                let observation = &holdings[&delivery.listing_id][&delivery.position_observed_at];
+                let position_receipt_id = report.events[observation.event_index].event.id.clone();
+                CrossSectionSuccessorPosting {
+                    delivery,
+                    position_receipt_id,
+                }
+            })
+            .collect())
     }
 
     fn run_cross_section(
@@ -479,7 +542,7 @@ impl PriceBook<'_> {
         liquidity: &LiquidityTape,
         config: CrossSectionConfig,
         corporate: Option<&CorporateReports<'_>>,
-    ) -> Result<CrossSectionReport, String> {
+    ) -> Result<ReplayOutcome, String> {
         if liquidity.universe_name() != self.universe.name() {
             return Err("Liquidity and price inputs must use the same universe.".into());
         }
@@ -637,10 +700,10 @@ impl PriceBook<'_> {
                 .iter()
                 .filter(|(_, row)| row.action == UniverseAction::Delist)
             {
-                let Some((&position_at, &entitled_shares)) = holdings
+                let Some((&position_at, observation)) = holdings
                     .get(listing)
                     .and_then(|history| history.range(..change.effective_at).next_back())
-                    .filter(|(_, shares)| **shares > 0)
+                    .filter(|(_, observation)| observation.shares > 0)
                 else {
                     continue;
                 };
@@ -648,7 +711,7 @@ impl PriceBook<'_> {
                     continue;
                 };
                 let (shares, state) = value_successor_shares(
-                    Some(entitled_shares as u32),
+                    Some(observation.shares),
                     Some(terms),
                     config.through_at,
                 );
@@ -673,7 +736,7 @@ impl PriceBook<'_> {
                     observed_at: change.observed_at,
                     terms: terms.clone(),
                     position_at,
-                    entitled_shares,
+                    entitled_shares: u64::from(observation.shares),
                     shares,
                     state,
                     mark,
@@ -697,7 +760,7 @@ impl PriceBook<'_> {
                 _ => None,
             })
             .sum();
-        Ok(CrossSectionReport {
+        let report = CrossSectionReport {
             config,
             decisions,
             events: replay.events,
@@ -711,6 +774,10 @@ impl PriceBook<'_> {
             delisting_claims,
             delisting_postings: delistings.map_or_else(Vec::new, |book| book.postings),
             successor_claims,
+        };
+        Ok(ReplayOutcome {
+            report,
+            holdings: replay.holdings,
         })
     }
 }

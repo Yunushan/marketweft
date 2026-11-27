@@ -4,6 +4,7 @@ use std::{collections::BTreeMap, ops::Bound::Excluded};
 
 #[path = "portfolio_successor_ledger.rs"]
 mod ledger;
+pub(crate) use ledger::successor_delivery_postings_from_observed_positions;
 pub use ledger::{
     portfolio_successor_delivery_ledger, SuccessorDeliveryPosting, SuccessorShareDelta,
 };

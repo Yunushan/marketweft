@@ -58,7 +58,7 @@ impl<'a> DividendReplay<'a> {
         let entitled_shares = holdings
             .get(listing)
             .and_then(|history| history.range(..report.ex_at).next_back())
-            .map_or(0, |(_, shares)| *shares);
+            .map_or(0, |(_, observation)| u64::from(observation.shares));
         let amount = if report.pay_at <= effective.min(event.at) {
             i128::from(entitled_shares) * i128::from(report.amount_per_share)
         } else {

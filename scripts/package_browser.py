@@ -107,6 +107,8 @@ support the same workflow through file uploads.
 Add the sample successor share terms or upload paper-successor-shares.csv.
 With effective time at 14:06, compare knowledge at 14:06 and 14:07 UTC to
 see a delivered 4/3 shares become a receivable of two shares after revision.
+Expand Paper successor delivery journal to see the 4/3-share delivery,
+the matching reversal and the original simulated position receipt.
 
 Select the NVDA chart and open Recorded market depth. Choose Load depth demo
 or open depth.csv. Inspect the sequence gap at 14:00:05 UTC and the recovered
