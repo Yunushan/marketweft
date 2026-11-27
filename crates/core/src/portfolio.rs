@@ -13,6 +13,8 @@ mod income;
 mod rights;
 #[path = "portfolio_rights_exercise.rs"]
 mod rights_exercise;
+#[path = "portfolio_rights_journal.rs"]
+mod rights_journal;
 #[path = "portfolio_spinoff.rs"]
 mod spinoff;
 #[path = "portfolio_successor.rs"]
@@ -28,6 +30,9 @@ pub use rights::{
 pub use rights_exercise::{
     portfolio_rights_exercises_as_of, RightsExerciseAllocation, RightsExerciseRow,
     RightsExerciseSettlement, RightsExerciseStage, RightsRequestAssessment,
+};
+pub use rights_journal::{
+    portfolio_rights_settlement_journal, RightsSettlementAsset, RightsSettlementPosting,
 };
 pub use spinoff::{
     portfolio_spin_off_basis_as_of, portfolio_spin_off_cash_as_of, portfolio_spin_offs_as_of,

@@ -68,6 +68,30 @@ test('subscription exercise reports preserve dated allocations, cash revisions a
   assert.deepEqual(run('14:54:00', '14:57:00'), first);
 });
 
+
+test('subscription settlement journal keeps exact signed changes and balances by asset in Wasm', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
+  const [membership, rights, exercises] = await Promise.all([
+    fixture('synthetic-universe.csv'), fixture('synthetic-subscription-rights.csv'), fixture('synthetic-rights-journal.csv'),
+  ]);
+  const time = label => '2025-06-02T' + label + 'Z';
+  const run = (effective, known) => core.portfolioRightsSettlementJournal(membership, rights, exercises, time(effective), time(known));
+  assert.deepEqual(run('14:54:00', '14:56:59'), []);
+  const original = run('14:54:00', '14:57:00');
+  const all = run('15:00:00', '15:02:00');
+  assert.deepEqual(all.map(row => [row.asset.currency ?? 'shares', row.delta, row.balance]), [
+    ['shares', 2n, 2n], ['USD', -38500000n, -38500000n], ['USD', -500001n, -39000001n],
+    ['shares', -1n, 1n], ['USD', 39000001n, 0n], ['EUR', -20125001n, -20125001n],
+    ['shares', -1n, 0n], ['EUR', 20125001n, 0n],
+  ]);
+  assert.equal(all[5].exerciseId, 'EX-A');
+  assert.equal(all[5].stage, 'settled');
+  assert.equal(all[7].stage, 'cancelled');
+  assert.deepEqual(run('14:59:59', '15:02:00'), all.slice(0, 6));
+  assert.deepEqual(run('15:00:00', '15:01:59'), all.slice(0, 6));
+  assert.deepEqual(run('14:54:00', '14:57:00'), original);
+});
+
 test('successor share bridge keeps exact quantities and absence at both cutoffs', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, terms] = await Promise.all([

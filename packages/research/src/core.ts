@@ -993,6 +993,17 @@ export interface PortfolioSuccessorDeliveryPosting {
   balance: { numerator: bigint; denominator: number };
 }
 
+export interface RightsSettlementPosting {
+  offeringId: string;
+  exerciseId: string;
+  effectiveAt: number;
+  observedAt: number;
+  stage: PortfolioRightsExercise['stage'];
+  asset: { kind: 'shares' } | { kind: 'cash'; currency: string };
+  delta: bigint;
+  balance: bigint;
+}
+
 export interface PortfolioRightsExercise {
   offeringId: string;
   exerciseId: string;
@@ -1110,6 +1121,7 @@ export interface MarketCore {
   portfolioSuccessorSharesAsOf(membership: string, holdings: string, terms: string, effectiveAt: string, knownAt: string): PortfolioSuccessorShare[];
   portfolioRightsAsOf(membership: string, holdings: string, reports: string, effectiveAt: string, knownAt: string): PortfolioRightsOffering[];
   portfolioRightsExercisesAsOf(membership: string, holdings: string, rights: string, exercises: string, effectiveAt: string, knownAt: string): PortfolioRightsExercise[];
+  portfolioRightsSettlementJournal(membership: string, rights: string, exercises: string, effectiveAt: string, knownAt: string): RightsSettlementPosting[];
   portfolioSuccessorDeliveryLedger(membership: string, holdings: string, terms: string,
     effectiveAt: string, knownAt: string): PortfolioSuccessorDeliveryPosting[];
   portfolioSpinOffsAsOf(membership: string, holdings: string, reports: string,
@@ -1244,6 +1256,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_successor_shares_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_rights_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_rights_exercises_as_of(membershipBytes: number, holdingsBytes: number, rightsBytes: number): number;
+  mw_portfolio_rights_settlement_journal(membershipBytes: number, rightsBytes: number): number;
   mw_portfolio_successor_delivery_ledger(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_offs_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_off_cash_as_of(membershipBytes: number, holdingsBytes: number, actionBytes: number): number;
@@ -2509,6 +2522,21 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           basicCapacity: capacity === '' ? null : BigInt(capacity),
           allocation: currency ? { shares: BigInt(allocated), currency, unitPrice: BigInt(unitPrice) } : null,
           settlement: settled === undefined ? null : { shares: BigInt(settled), cashPaid: BigInt(paid), cashVariance: BigInt(variance) },
+        };
+      });
+    },
+    portfolioRightsSettlementJournal(membership, rights, exercises, effectiveAt, knownAt) {
+      portfolioInput(effectiveAt, knownAt, membership, rights, exercises);
+      const text = decoder.decode(output(api.mw_portfolio_rights_settlement_journal(
+        encoder.encode(membership).length, encoder.encode(rights).length,
+      )));
+      if (!text) return [];
+      return text.slice(0, -1).split('\n').map(line => {
+        const [offeringId, exerciseId, effective, observed, stage, currency, delta, balance] = line.split('\t');
+        return {
+          offeringId, exerciseId, effectiveAt: Number(effective), observedAt: Number(observed),
+          stage: stage as RightsSettlementPosting['stage'], delta: BigInt(delta), balance: BigInt(balance),
+          asset: currency ? { kind: 'cash', currency } : { kind: 'shares' },
         };
       });
     },

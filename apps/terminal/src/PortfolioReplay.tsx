@@ -4,6 +4,7 @@ import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffB
 import { SuccessorDeliveryLedger, shareText } from './SuccessorDeliveryLedger'
 import { PortfolioRights } from './PortfolioRights'
 import { PortfolioRightsExercises } from './PortfolioRightsExercises'
+import { PortfolioRightsSettlementJournal } from './PortfolioRightsSettlementJournal'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoHoldings from '../../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv?raw'
@@ -18,6 +19,7 @@ import demoSuccessors from '../../../crates/core/tests/fixtures/synthetic-succes
 import demoRightsHoldings from '../../../crates/core/tests/fixtures/synthetic-rights-holdings.csv?raw'
 import demoRights from '../../../crates/core/tests/fixtures/synthetic-subscription-rights.csv?raw'
 import demoExercises from '../../../crates/core/tests/fixtures/synthetic-rights-exercises.csv?raw'
+import demoRightsJournal from '../../../crates/core/tests/fixtures/synthetic-rights-journal.csv?raw'
 
 type Source = {
   holdings: string; prices: string; terms: string; dividends: string; spinOffs: string
@@ -116,6 +118,9 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   const calculateDeliveries = useCallback(() => source?.successors
     ? core.portfolioSuccessorDeliveryLedger(membership, source.holdings, source.successors, effective, known)
     : [], [core, membership, source, effective, known])
+  const calculateRightsJournal = useCallback(() => source?.rights?.exercises
+    ? core.portfolioRightsSettlementJournal(membership, source.rights.csv, source.rights.exercises.csv, effective, known)
+    : [], [core, membership, source, effective, known])
 
   function open(source: Source) {
     if (source.prices) core.portfolioAsOf(membership, source.holdings, source.prices, source.terms, effective, known, source.dividends)
@@ -130,16 +135,18 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
     setError('')
   }
 
-  function startDemo(mode?: 'income' | 'spin-offs' | 'successors' | 'rights' | 'exercises') {
+  function startDemo(mode?: 'income' | 'spin-offs' | 'successors' | 'rights' | 'exercises' | 'rights-journal') {
     try {
-      const rightsDemo = mode === 'rights' || mode === 'exercises'
+      const rightsDemo = mode === 'rights' || mode === 'exercises' || mode === 'rights-journal'
+      const exercises = mode === 'rights-journal' ? { csv: demoRightsJournal, name: 'synthetic-rights-journal.csv' }
+        : mode === 'exercises' ? { csv: demoExercises, name: 'synthetic-rights-exercises.csv' } : undefined
       open({ holdings: rightsDemo ? demoRightsHoldings : demoHoldings, prices: demoPrices, terms: demoTerms,
         dividends: mode === 'income' ? demoDividends : '', spinOffs: mode === 'spin-offs' ? demoSpinOffs : '',
         cashTerms: mode === 'spin-offs' ? demoCashTerms : '', basisTerms: mode === 'spin-offs' ? demoBasisTerms : '',
         successors: mode === 'successors' ? demoSuccessors : '',
         rights: rightsDemo ? {
           csv: demoRights, reportsName: 'synthetic-subscription-rights.csv', holdingsName: 'synthetic-rights-holdings.csv',
-          exercises: mode === 'exercises' ? { csv: demoExercises, name: 'synthetic-rights-exercises.csv' } : undefined,
+          exercises,
         } : undefined })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio demo.')
@@ -197,6 +204,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <button className="outline" onClick={() => startDemo('successors')} disabled={busy}>Load successor shares demo</button>
           <button className="outline" onClick={() => startDemo('rights')} disabled={busy}>Load subscription rights demo</button>
           <button className="outline" onClick={() => startDemo('exercises')} disabled={busy}>Load subscription exercise demo</button>
+          <button className="outline" onClick={() => startDemo('rights-journal')} disabled={busy}>Load settlement journal demo</button>
         </div>}
       </div>
       <form className="universe-query" onSubmit={load}>
@@ -249,6 +257,8 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
       {exerciseReports && source?.rights?.exercises && <PortfolioRightsExercises rows={exerciseReports}
         effective={effective} known={known} exerciseSource={source.rights.exercises.name}
         rightsSource={source.rights.reportsName} holdingsSource={source.rights.holdingsName} />}
+      {source?.rights?.exercises && <PortfolioRightsSettlementJournal calculate={calculateRightsJournal}
+        effective={effective} known={known} exerciseSource={source.rights.exercises.name} rightsSource={source.rights.reportsName} />}
       {successorClaims && <SuccessorShareClaims rows={successorClaims} />}
       {source?.successors && <SuccessorDeliveryLedger title="Successor delivery ledger" filename="successor-delivery-ledger.csv"
         calculate={calculateDeliveries} effective={effective} known={known} />}

@@ -149,14 +149,15 @@ pub use paper::{
 pub use paper_replay::{parse_paper_config, PaperReplay};
 pub use point_figure::{point_and_figure, PointFigureBox, PointFigureMark};
 pub use portfolio::{
-    portfolio_rights_as_of, portfolio_rights_exercises_as_of, portfolio_spin_off_basis_as_of,
-    portfolio_spin_off_cash_as_of, portfolio_spin_offs_as_of, portfolio_successor_delivery_ledger,
-    portfolio_successor_shares_as_of, ChildShares, PortfolioBook, PortfolioCurrency,
-    PortfolioDividendRow, PortfolioDividendState, PortfolioIncomeCurrency, PortfolioIncomeSnapshot,
-    PortfolioRow, PortfolioSnapshot, PortfolioSpinOffReport, PortfolioSpinOffRow,
-    PortfolioSpinOffState, PortfolioState, RightsEntitlement, RightsExerciseAllocation,
-    RightsExerciseRow, RightsExerciseSettlement, RightsExerciseStage, RightsFractionPolicy,
-    RightsOfferingPhase, RightsOfferingRow, RightsOfferingTerms, RightsRequestAssessment,
+    portfolio_rights_as_of, portfolio_rights_exercises_as_of, portfolio_rights_settlement_journal,
+    portfolio_spin_off_basis_as_of, portfolio_spin_off_cash_as_of, portfolio_spin_offs_as_of,
+    portfolio_successor_delivery_ledger, portfolio_successor_shares_as_of, ChildShares,
+    PortfolioBook, PortfolioCurrency, PortfolioDividendRow, PortfolioDividendState,
+    PortfolioIncomeCurrency, PortfolioIncomeSnapshot, PortfolioRow, PortfolioSnapshot,
+    PortfolioSpinOffReport, PortfolioSpinOffRow, PortfolioSpinOffState, PortfolioState,
+    RightsEntitlement, RightsExerciseAllocation, RightsExerciseRow, RightsExerciseSettlement,
+    RightsExerciseStage, RightsFractionPolicy, RightsOfferingPhase, RightsOfferingRow,
+    RightsOfferingTerms, RightsRequestAssessment, RightsSettlementAsset, RightsSettlementPosting,
     SpinOffBasisAllocation, SpinOffBasisRow, SpinOffBasisState, SpinOffBasisTerms, SpinOffCashRow,
     SpinOffCashState, SpinOffCashTerms, SuccessorDeliveryPosting, SuccessorShareDelta,
     SuccessorShareRow, SuccessorShareState, SuccessorShareTerms,

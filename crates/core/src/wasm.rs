@@ -592,13 +592,23 @@ pub extern "C" fn mw_portfolio_rights_as_of(membership_bytes: usize, holding_byt
     })
 }
 
+fn rights_exercise_stage(stage: crate::RightsExerciseStage) -> &'static str {
+    use crate::RightsExerciseStage;
+    match stage {
+        RightsExerciseStage::Requested => "requested",
+        RightsExerciseStage::Allocated => "allocated",
+        RightsExerciseStage::Settled => "settled",
+        RightsExerciseStage::Cancelled => "cancelled",
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn mw_portfolio_rights_exercises_as_of(
     membership_bytes: usize,
     holding_bytes: usize,
     rights_bytes: usize,
 ) -> u32 {
-    use crate::{RightsExerciseStage, RightsRequestAssessment};
+    use crate::RightsRequestAssessment;
     use std::fmt::Write;
     process(|input| {
         let PortfolioActionInput {
@@ -616,12 +626,7 @@ pub extern "C" fn mw_portfolio_rights_exercises_as_of(
         )?;
         let mut text = String::new();
         for row in rows {
-            let stage = match row.stage {
-                RightsExerciseStage::Requested => "requested",
-                RightsExerciseStage::Allocated => "allocated",
-                RightsExerciseStage::Settled => "settled",
-                RightsExerciseStage::Cancelled => "cancelled",
-            };
+            let stage = rights_exercise_stage(row.stage);
             let assessment = match row.assessment {
                 RightsRequestAssessment::Unavailable => "unavailable",
                 RightsRequestAssessment::OutsideWindow => "outside-window",
@@ -659,6 +664,50 @@ pub extern "C" fn mw_portfolio_rights_exercises_as_of(
                 .unwrap();
             }
             text.push('\n');
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_portfolio_rights_settlement_journal(
+    membership_bytes: usize,
+    rights_bytes: usize,
+) -> u32 {
+    use crate::RightsSettlementAsset;
+    use std::fmt::Write;
+    process(|input| {
+        let PortfolioActionInput {
+            effective,
+            known,
+            universe,
+            terms,
+            ..
+        } = portfolio_action_input(input, membership_bytes, 0)?;
+        let (rights, exercises) = terms
+            .split_at_checked(rights_bytes)
+            .ok_or("Supply subscription rights and exercise reports.")?;
+        let rows = crate::portfolio_rights_settlement_journal(
+            &universe, rights, exercises, effective, known,
+        )?;
+        let mut text = String::new();
+        for row in rows {
+            let currency = match &row.asset {
+                RightsSettlementAsset::Shares => "",
+                RightsSettlementAsset::Cash(currency) => currency.as_str(),
+            };
+            writeln!(
+                text,
+                "{}\t{}\t{}\t{}\t{}\t{currency}\t{}\t{}",
+                row.offering_id,
+                row.exercise_id,
+                row.effective_at,
+                row.observed_at,
+                rights_exercise_stage(row.stage),
+                row.delta,
+                row.balance,
+            )
+            .unwrap();
         }
         Ok(text.into_bytes())
     })

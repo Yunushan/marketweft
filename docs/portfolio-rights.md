@@ -58,3 +58,20 @@ Issuers can distinguish requested and allocated shares, with separate handling o
 | 14:54 | 14:57 | Rewind to reproduce the original settlement CSV. |
 
 **Download subscription exercises** exports the three source filenames, both cutoffs, the reported stage and quantities, request assessment, and settlement amounts. [Synthetic exercise reports](../crates/core/tests/fixtures/synthetic-rights-exercises.csv)
+
+## Subscription settlement journal
+
+In **Portfolio replay**, expand **Subscription settlement journal** after loading exercise reports, or select **Load settlement journal demo** to use the sample below. The journal uses the exercise CSV format above. It reconstructs changes to reported settlement balances by exercise, in observation order. At each observation it uses the latest effective report allowed by the effective cutoff. An older effective report arriving late does not replace that state.
+
+The first settlement posts the shares delivered and debits cash actually paid. A revision posts the difference for each affected asset. If a correction changes currency, the journal clears the prior currency balance and posts the revised amount in its own currency. A cancellation or replacement by a later unsettled report reverses the previously reported balance. These signed changes describe report revisions and carry each triggering report's stage and timestamps.
+
+| Effective UTC | Known UTC | Exact changes at this sample cutoff |
+| --- | --- | --- |
+| 14:54 | 14:56:59 | Allocation is known. There are no settlement postings. |
+| 14:54 | 14:57 | Two shares are delivered and 38.50 USD is debited. |
+| 15:00 | 14:59 | An additional 0.500001 USD is debited, bringing the USD balance to −39.000001. |
+| 15:00 | 15:01 | One share is reversed. The changes credit 39.000001 USD and debit 20.125001 EUR. |
+| 15:00 | 15:01:30 | A newly observed revision to the older allocation leaves the journal unchanged. |
+| 15:00 | 15:02 | The cancellation reverses the remaining share and credits 20.125001 EUR. Each asset balance is zero. |
+
+All sample times are on June 2, 2025. **Download settlement journal** exports the exact changes and balances, both cutoffs, source filenames, and the triggering report's stage and timestamps. [Synthetic journal reports](../crates/core/tests/fixtures/synthetic-rights-journal.csv)

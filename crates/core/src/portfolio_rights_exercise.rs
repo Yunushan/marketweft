@@ -1,4 +1,8 @@
-use super::{parse_holdings, rights::parse_rights, RightsOfferingPhase};
+use super::{
+    parse_holdings,
+    rights::{parse_rights, RightsHistory},
+    RightsOfferingPhase,
+};
 use crate::{
     delisting::valid_currency,
     history::{decimal, decimal_ticks, exact_utc, valid_second},
@@ -54,9 +58,9 @@ pub struct RightsExerciseRow {
     pub settlement: Option<RightsExerciseSettlement>,
 }
 
-struct ExerciseHistory {
+pub(super) struct ExerciseHistory {
     offering_id: String,
-    reports: BTreeMap<(i64, i64), RightsExerciseRow>,
+    pub(super) reports: BTreeMap<(i64, i64), RightsExerciseRow>,
 }
 
 fn parse_report(
@@ -166,23 +170,14 @@ fn parse_report(
     })
 }
 
-/// Reconstruct the latest effective exercise report visible at the knowledge cutoff.
-pub fn portfolio_rights_exercises_as_of(
+pub(super) fn parse_exercise_histories(
     universe: &UniverseBook,
-    holdings: &str,
-    rights: &str,
+    rights: &BTreeMap<String, RightsHistory>,
     exercises: &str,
-    effective_at: i64,
-    known_at: i64,
-) -> Result<Vec<RightsExerciseRow>, String> {
-    if !valid_second(effective_at) || !valid_second(known_at) {
-        return Err("Supply valid UTC effective and knowledge cutoffs.".into());
-    }
+) -> Result<BTreeMap<String, ExerciseHistory>, String> {
     if exercises.len() > 1024 * 1024 {
         return Err("Subscription exercises CSV exceeds 1 MiB.".into());
     }
-    let holdings = parse_holdings(universe, holdings)?;
-    let rights = parse_rights(universe, rights)?;
     let mut lines = exercises
         .trim_start_matches('\u{feff}')
         .lines()
@@ -226,6 +221,24 @@ pub fn portfolio_rights_exercises_as_of(
     if histories.is_empty() {
         return Err("Subscription exercises CSV contains no reports.".into());
     }
+    Ok(histories)
+}
+
+/// Reconstruct the latest effective exercise report visible at the knowledge cutoff.
+pub fn portfolio_rights_exercises_as_of(
+    universe: &UniverseBook,
+    holdings: &str,
+    rights: &str,
+    exercises: &str,
+    effective_at: i64,
+    known_at: i64,
+) -> Result<Vec<RightsExerciseRow>, String> {
+    if !valid_second(effective_at) || !valid_second(known_at) {
+        return Err("Supply valid UTC effective and knowledge cutoffs.".into());
+    }
+    let holdings = parse_holdings(universe, holdings)?;
+    let rights = parse_rights(universe, rights)?;
+    let histories = parse_exercise_histories(universe, &rights, exercises)?;
     let mut rows = Vec::new();
     for history in histories.into_values() {
         let Some((_, report)) = history

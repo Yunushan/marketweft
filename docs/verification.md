@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.198.0 · Subscription settlement journal
+
+- The Rust fixtures verify selection between simultaneous reports, independence from source row order, and omission of a late revision to an older effective allocation.
+- Wasm and offline Chromium post the initial two shares and USD cash debit, reconcile the cash correction to −39.000001 USD, and clear USD before charging 20.125001 EUR. Cancellation reverses the remaining share and EUR balance. Chromium reproduces the first settlement journal byte for byte on rewind.
+- A same-profile upgrade between the local 0.197.0 and 0.198.0 archives preserved the saved quote and replayed the complete settlement journal offline.
+
+[Subscription settlement journal](portfolio-rights.md#subscription-settlement-journal)
+
 ## 0.197.0 · Reported subscription exercises
 
 - The Rust fixture covers independently observed requests, allocations, settlement revisions and cancellation. It checks invalid quantities, duplicate revisions, missing holdings, above-capacity requests and complete settlement reports supplied without earlier stages.

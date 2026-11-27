@@ -404,6 +404,66 @@ test('offline subscription exercises replay reported settlement and preserve req
   await expect.poll(() => catalogContents(page)).toEqual(saved)
 })
 
+
+test('offline subscription settlement journal reconciles signed corrections and separate currencies', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  const saved = await catalogContents(page)
+  await context.setOffline(true)
+  await open(page)
+  await page.getByRole('button', { name: 'Start universe demo' }).click()
+  const panel = page.getByRole('region', { name: 'Portfolio replay' })
+  await panel.getByRole('button', { name: 'Load settlement journal demo' }).click()
+  await panel.getByText('Subscription settlement journal', { exact: true }).click()
+  const table = panel.getByRole('table', { name: 'Subscription settlement journal', exact: true })
+  const rows = table.locator('tbody tr')
+  const query = async (effective, known) => {
+    await page.getByLabel('Effective time (UTC)').fill(utc(effective))
+    await page.getByLabel('Known time (UTC)').fill(utc(known))
+    await page.getByRole('button', { name: 'Run as-of query' }).click()
+  }
+  const amount = async (index, asset, change, balance) => {
+    const cells = rows.nth(index).getByRole('cell')
+    await expect(cells.nth(4)).toHaveText(asset)
+    await expect(cells.nth(5)).toHaveText(change)
+    await expect(cells.nth(6)).toHaveText(balance)
+  }
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await panel.getByRole('button', { name: 'Download settlement journal' }).click()
+    const file = await pending
+    expect(file.suggestedFilename()).toBe('subscription-settlement-journal.csv')
+    return readFile(await file.path(), 'utf8')
+  }
+  await query('14:54:00', '14:56:59')
+  await expect(panel.getByText('No settlement changes at these cutoffs.')).toBeVisible()
+  await query('14:54:00', '14:57:00')
+  await expect(rows).toHaveCount(2)
+  await amount(0, 'Shares', '2', '2')
+  await amount(1, 'USD', '-38.5', '-38.5')
+  const original = await download()
+  expect(original).toContain('"synthetic-rights-journal.csv","synthetic-subscription-rights.csv"')
+  expect(original).toMatch(/,settled,cash,USD,-38\.5,-38\.5\r\n$/)
+
+  await query('15:00:00', '14:59:00')
+  await expect(rows).toHaveCount(3)
+  await amount(2, 'USD', '-0.500001', '-39.000001')
+  await query('14:59:59', '15:02:00')
+  await expect(rows).toHaveCount(6)
+  await amount(3, 'Shares', '-1', '1')
+  await amount(4, 'USD', '39.000001', '0')
+  await amount(5, 'EUR', '-20.125001', '-20.125001')
+  await query('15:00:00', '15:02:00')
+  await expect(rows).toHaveCount(8)
+  await expect(rows.last().getByRole('cell', { name: 'Cancelled', exact: true })).toBeVisible()
+  await amount(6, 'Shares', '-1', '0')
+  await amount(7, 'EUR', '20.125001', '0')
+  await query('14:54:00', '14:57:00')
+  expect(await download()).toBe(original)
+  await expect.poll(() => catalogContents(page)).toEqual(saved)
+})
+
 test('offline portfolio spin-offs preserve exact fractions through revisions and ticker reuse', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
