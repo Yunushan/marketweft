@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formulas, point-in-time universe screening, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
+MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
 
 ```json
 {
@@ -23,6 +23,8 @@ The read-only `evaluate_historical_formula` tool accepts CSV contents as `histor
 Results include formula language version, total observed rows and a page of timestamped exact values. Each `value_ticks` is a decimal string denoting integer millionths, or `null` when unavailable. Reuse the same formula, inputs and cutoff with the returned `next_offset` to request another page. The default page contains at most 200 rows, with a maximum of 1,000. Requests are capped at 16 MiB per message. The formula and CSV keep their existing 2,048-byte and 8 MiB limits. The CLI accepts `--timeout` to set the native calculation deadline in seconds.
 
 The read-only `screen_universe_as_of` tool accepts membership and price CSV contents and separate baseline, effective and known cutoffs. It returns the ordered members, selected close provenance and missing endpoints. [Universe screening through the research interfaces](research-universe-screen.md).
+
+Call `compare_universe_ranks_as_of` to compare two snapshots using a shared baseline and independent effective and known cutoffs. Each page retains membership and close evidence for both snapshots and gives rank movement when both ranks are available. [Rank comparison arguments and pagination](research-universe-screen.md#compare-rank-snapshots).
 
 The server negotiates protocol revision 2025-11-25 during initialization. A malformed RPC request returns a protocol error. A rejected tool query leaves the connection ready for another request. [MCP lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle).
 

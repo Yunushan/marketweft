@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.152.0 · Rank comparison SDKs and MCP
+
+| Check | Evidence |
+| --- | --- |
+| TypeScript SDK | Public SDK tests check both rank snapshots, close observation revisions and exact tick values through the bundled Wasm. |
+| Native wire | Protocol fixtures check both cutoffs, stable listing IDs, membership and close evidence, empty fields and invalid input. |
+| Python and MCP | Tests check exact integer decoding, rejected pages, missing closes and stable pagination. The installed-consumer test exercises the actual native executable and checks the complete listing order across pages. |
+
+[Rank comparison APIs](research-universe-screen.md#compare-rank-snapshots) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.151.0 · Point-in-time rank comparison
 
 | Check | Evidence |

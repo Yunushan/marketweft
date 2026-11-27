@@ -2,10 +2,10 @@
 
 The TypeScript SDK evaluates versioned time-series formulas against user-supplied OHLCV. It uses the same checked-in Rust WebAssembly module as the terminal.
 
-Download `marketweft-research-0.5.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+Download `marketweft-research-0.6.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-npm install --offline ./marketweft-research-0.5.0.tgz
+npm install --offline ./marketweft-research-0.6.0.tgz
 ```
 
 ```js
@@ -23,6 +23,8 @@ The CSV header is `time,open,high,low,close,volume`. Bars use UTC seconds and ex
 Browser hosts can supply the same engine bytes in an `ArrayBuffer` from their own asset loader.
 
 For point-in-time universe screening, call `universeScreen` with the membership CSV, prices CSV and exact baseline, effective and known UTC times. The ordered rows contain their selected close observations and exact `bigint` return units. [Universe screening](../../docs/research-universe-screen.md).
+
+Use `compareUniverseRanks` with a shared baseline and separate effective and known cutoffs to compare ranks. The result carries both snapshots’ membership and close evidence, exact `bigint` values and rank movement. [Rank comparison example](../../docs/research-universe-screen.md#compare-rank-snapshots).
 
 For financial filings, call `financialIndex(filings, caps)` to list issuers and suggested valuation times. Call `financialSnapshot(filings, caps, issuer, valuationAt, knownAt)` with the original CSV strings and exact UTC cutoff strings. The result includes the annual valuation, the selected quarterly vintages and the trailing flow values in `bigint` millionths or `null`. [Financial filings](../../docs/financial-statements.md#quarterly-filings-and-trailing-twelve-months).
 
