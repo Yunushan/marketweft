@@ -18,7 +18,7 @@ A successful web test validates a specific browser, build and host. Producing a 
 
 ## Upgrade the portable browser terminal
 
-Run the updated archive at the same local address and open it in the same browser profile. When the terminal shows **Update ready**, close all MarketWeft tabs for that address and reopen it. The new service worker prepares its cache ahead of time. Open pages continue using their original cached build until they close, and the new worker clears the retired cache when it activates. If the first reopened tab still shows the previous build, reload it once.
+Run the updated archive at the same local address and open it in the same browser profile. When the terminal shows **Update ready**, close all MarketWeft tabs for that address and reopen it. The new service worker prepares its cache ahead of time. Open pages continue using their original cached build until they close, and the new worker clears the retired cache when it activates.
 
 The Chromium test gives the two builds different entry and replay files. It opens the old replay offline while the update waits, then activates the update, opens the new replay offline, and verifies the same imported quote. [Service-worker lifecycle](https://developer.chrome.com/docs/workbox/service-worker-lifecycle).
 

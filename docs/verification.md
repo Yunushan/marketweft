@@ -4,6 +4,7 @@
 
 - Chromium verifies that an open page can still load its exact replay module offline while the replacement worker waits. It shows the pending update action after the replacement assets are cached.
 - Closing the last tab activates the replacement and removes the retired cache. Reopening the same address retains the imported 14.00 close and loads the replacement replay module offline.
+- An upgrade from the hosted 0.189.0 archive to the locally built 0.191.0 archive kept the original replay available while the update waited. The reopened profile retained the same quote and displayed the revised 900.000001 EUR parent basis and 300.000001 EUR child basis offline.
 
 [Portable browser upgrades](platforms.md#upgrade-the-portable-browser-terminal).
 

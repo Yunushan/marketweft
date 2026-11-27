@@ -80,7 +80,8 @@ test('portable browser upgrade keeps each offline page on its own cached build',
     await closeServer(server)
     server = await startTerminal(candidate, port)
     await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update() })
-    await page.waitForFunction(async () => (await navigator.serviceWorker.getRegistration())?.waiting?.state === 'installed')
+    await expect.poll(() => page.evaluate(async () =>
+      (await navigator.serviceWorker.getRegistration())?.waiting?.state)).toBe('installed')
     expect(await page.evaluate(() => caches.keys())).toEqual([cacheName(firstHash), cacheName(nextHash)])
     await expect(page.getByText('Update ready. Close all MarketWeft tabs and reopen this address.', { exact: true })).toBeVisible()
 
@@ -91,10 +92,10 @@ test('portable browser upgrade keeps each offline page on its own cached build',
 
     const reopened = await context.newPage()
     await reopened.goto(url)
-    await reopened.waitForFunction(async name => {
+    await expect.poll(() => reopened.evaluate(async () => {
       const keys = await caches.keys()
-      return keys.length === 1 && keys[0] === name && !!navigator.serviceWorker.controller
-    }, cacheName(nextHash))
+      return { keys, controlled: navigator.serviceWorker.controller !== null }
+    })).toEqual({ keys: [cacheName(nextHash)], controlled: true })
     await expect(reopened.locator('script[type=module]')).toHaveAttribute('src', './assets/' + nextEntry)
     await expect(reopened.getByRole('heading', { name: 'UPGRADECACHE', exact: true })).toBeVisible()
     await expect(reopened.locator('.quote strong')).toHaveText('14.00')
