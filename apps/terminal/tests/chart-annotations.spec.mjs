@@ -32,14 +32,14 @@ async function restore(page, backup) {
 async function traceDrawings(page) {
   await page.addInitScript(() => {
     const proto = CanvasRenderingContext2D.prototype
-    const { scale, beginPath, moveTo, lineTo, stroke, strokeRect, fillText, ellipse } = proto
+    const { scale, beginPath, moveTo, lineTo, stroke, strokeRect, fillText, fillRect, ellipse } = proto
     const paths = new WeakMap()
     const primary = ctx => ctx.canvas.getAttribute('aria-label')?.startsWith('ANNOTATIONS interactive') &&
       ctx.canvas.closest('[aria-label="Primary chart pane"]')
     proto.scale = function (...args) {
       if (primary(this)) window.chartMarks = {
         prices: [], times: [], rays: [], trends: [], rectangles: [], channels: [],
-        polylines: [], retracements: [], ellipses: [], triangles: [], noteLabels: [], arrows: [], labels: [], grid: [],
+        polylines: [], retracements: [], ellipses: [], triangles: [], noteLabels: [], arrows: [], priceRanges: [], timeRanges: [], labels: [], grid: [],
       }
       return scale.apply(this, args)
     }
@@ -60,6 +60,11 @@ async function traceDrawings(page) {
     proto.ellipse = function (...args) {
       if (primary(this) && this.strokeStyle === '#77c0a2') window.chartMarks.ellipses.push(args)
       return ellipse.apply(this, args)
+    }
+    proto.fillRect = function (...box) {
+      if (primary(this) && this.fillStyle === 'rgba(224, 177, 102, 0.15)') window.chartMarks.priceRanges.push(box)
+      if (primary(this) && this.fillStyle === 'rgba(150, 161, 230, 0.15)') window.chartMarks.timeRanges.push(box)
+      return fillRect.apply(this, box)
     }
     proto.fillText = function (value, ...coords) {
       if (primary(this) && this.fillStyle === '#cbbce8') window.chartMarks.labels.push(value)
@@ -616,4 +621,85 @@ test('chart notes preserve text and arrow heads point to the chosen final anchor
   await page.reload()
   await expect(tools(left).getByText(noteText, { exact: true })).toBeVisible()
   await expect(tools(left).getByText(arrowText, { exact: true })).toBeVisible()
+})
+
+test('price and time ranges clip independently and preserve exact sorted bounds', async ({ page }) => {
+  await traceDrawings(page)
+  const trace = () => page.evaluate(() => window.chartMarks)
+  const csv = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-directional.csv', import.meta.url), 'utf8')
+  await page.goto('/')
+  await openImport(page, 'ANNOTATIONS', csv)
+  await submitImport(page, 'ANNOTATIONS')
+  const left = pane(page)
+  const first = '2026-01-01T09:02:00Z'
+  const middle = '2026-01-01T09:04:00Z'
+  const last = '2026-01-01T09:06:00Z'
+  for (const time of [first, middle, last]) await add(left, 'Time marker', time)
+  for (const price of ['-4.000001', '5']) await add(left, 'Price line', price)
+  const legacy = await downloadWorkspace(page)
+  expect(legacy.version).toBe(31)
+
+  const input = (form, group) => form.getByRole('group', { name: group, exact: true }).getByRole('textbox')
+  const savePrice = () => editor(left, 'Price range').getByRole('button', { name: 'Save price range' }).click()
+  await tools(left).getByRole('button', { name: 'New price range' }).click()
+  const band = editor(left, 'Price range')
+  await input(band, 'Start').fill('5')
+  await input(band, 'End').fill('5')
+  await savePrice()
+  await expect(band.getByRole('alert')).toContainText('two different prices')
+  await input(band, 'End').fill('-4.000001')
+  await savePrice()
+  const priceText = 'Price range -4.000001 to 5'
+  await expect(tools(left).getByText(priceText, { exact: true })).toBeVisible()
+  const geometry = await trace()
+  const [lower, upper] = geometry.prices.map(path => path[0][1])
+  const [minX, maxX] = geometry.prices[0].map(point => point[0])
+  expect(geometry.priceRanges).toEqual([[minX, upper, maxX - minX, lower - upper]])
+
+  const timeGeometry = geometry.times
+  const [firstX, middleX, lastX] = timeGeometry.map(path => path[0][0])
+  const [[, top], [, bottom]] = timeGeometry[0]
+  await tools(left).getByRole('button', { name: 'New time range' }).click()
+  const timeBand = editor(left, 'Time range')
+  await timeBand.getByRole('button', { name: 'Pick start on chart' }).click()
+  await left.getByLabel(/^ANNOTATIONS interactive/).click({ position: { x: lastX, y: 80 } })
+  await expect(input(timeBand, 'Start')).toHaveValue(last)
+  await input(timeBand, 'End').fill(middle)
+  const saveTime = () => timeBand.getByRole('button', { name: 'Save time range' }).click()
+  await saveTime()
+  const timeText = 'Time range ' + middle + ' to ' + last
+  await expect(tools(left).getByText(timeText, { exact: true })).toBeVisible()
+  expect((await trace()).timeRanges).toEqual([[middleX, top, lastX - middleX, bottom - top]])
+  expect(middleX).toBeCloseTo((firstX + lastX) / 2)
+
+  const backup = await downloadWorkspace(page)
+  expect(backup.version).toBe(37)
+  const exact = backup.manifest.preferences.annotations['LOCAL:ANNOTATIONS'].slice(-2)
+  expect(exact.map(({ id, ...entry }) => entry)).toEqual([
+    { kind: 'price-range', lower: -4000001, upper: 5000000 },
+    { kind: 'time-range', lower: Date.parse(middle) / 1000, upper: Date.parse(last) / 1000 },
+  ])
+
+  await tools(left).getByRole('button', { name: 'Edit ' + timeText, exact: true }).click()
+  const prior = '2026-01-01T08:30:00Z'
+  await input(timeBand, 'Start').fill(prior)
+  await saveTime()
+  await expect(tools(left).getByText('Time range ' + prior + ' to ' + last, { exact: true })).toBeVisible()
+  expect((await trace()).timeRanges).toEqual([[minX, top, lastX - minX, bottom - top]])
+
+  const invalid = structuredClone(backup)
+  const price = invalid.manifest.preferences.annotations['LOCAL:ANNOTATIONS'].at(-2)
+  price.upper = price.lower
+  invalid.sha256 = createHash('sha256').update(canonical(invalid.manifest)).digest('hex')
+  await page.getByRole('button', { name: 'Workspace backup', exact: true }).click()
+  await selectBackup(page, invalid)
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('two different prices')
+  await page.keyboard.press('Escape')
+
+  await restore(page, legacy)
+  await expect(tools(left).getByRole('listitem')).toHaveCount(5)
+  await restore(page, backup)
+  await page.reload()
+  await expect(tools(left).getByText(priceText, { exact: true })).toBeVisible()
+  await expect(tools(left).getByText(timeText, { exact: true })).toBeVisible()
 })

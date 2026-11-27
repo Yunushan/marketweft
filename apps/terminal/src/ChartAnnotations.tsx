@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, validateAnnotationGeometry, validateNoteText, validatePolyline, validateTriangle,
+  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateTriangle,
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint } from './market-core'
@@ -37,6 +37,11 @@ function draftAnnotation(draft: Draft, id: string): ChartAnnotation {
     validatePolyline(anchors)
     return { id, kind, points: anchors }
   }
+  if (kind === 'price-range' || kind === 'time-range') {
+    const coordinate = rangeCoordinate(kind)
+    const [first, last] = points.map(point => parseAnnotationAnchor(coordinate, point[coordinate]))
+    return { id, kind, ...rangeBounds(kind, Math.min(first, last), Math.max(first, last)) }
+  }
   const start = pointValue(points[0])
   if (kind === 'ray') return { id, kind, start }
   if (kind === 'note') {
@@ -61,6 +66,11 @@ function describeAnnotation(entry: ChartAnnotation): string {
   switch (entry.kind) {
     case 'price': return name + formatAnnotationAnchor('price', entry.ticks)
     case 'time': return name + formatAnnotationAnchor('time', entry.time)
+    case 'price-range':
+    case 'time-range': {
+      const coordinate = rangeCoordinate(entry.kind)
+      return name + formatAnnotationAnchor(coordinate, entry.lower) + ' to ' + formatAnnotationAnchor(coordinate, entry.upper)
+    }
     case 'ray': return name + describePoint(entry.start)
     case 'note': return name + entry.text + ', ' + describePoint(entry.start)
     case 'polyline':
@@ -98,9 +108,15 @@ export function ChartAnnotations({
     setError('')
     const points = kind === 'polyline' || kind === 'triangle' ?
       (original && 'points' in original ? original.points : [defaults.prior, defaults.start, defaults.end]).map(pointFields) :
-      hasTwoPoints(kind) ? [pointFields(defaults.start), pointFields(defaults.end)] : [pointFields(defaults.end)]
+      hasTwoPoints(kind) || kind === 'price-range' || kind === 'time-range' ?
+        [pointFields(defaults.start), pointFields(defaults.end)] : [pointFields(defaults.end)]
     if (original?.kind === 'price') points[0].price = formatAnnotationAnchor('price', original.ticks)
     if (original?.kind === 'time') points[0].time = formatAnnotationAnchor('time', original.time)
+    if (original?.kind === 'price-range' || original?.kind === 'time-range') {
+      const coordinate = rangeCoordinate(original.kind)
+      points[0][coordinate] = formatAnnotationAnchor(coordinate, original.lower)
+      points[1][coordinate] = formatAnnotationAnchor(coordinate, original.upper)
+    }
     if (original && 'start' in original) points[0] = pointFields(original.start)
     if (original && 'end' in original) points[1] = pointFields(original.end)
     const offset = formatAnnotationAnchor('price', original?.kind === 'channel' ? original.offsetTicks : 1_000_000)
@@ -143,12 +159,15 @@ export function ChartAnnotations({
   }
 
   function pointEditor(point: number, current: Draft) {
-    const vertex = current.kind === 'polyline' || current.kind === 'triangle'
+    const { kind } = current
+    const vertex = kind === 'polyline' || kind === 'triangle'
+    const range = kind === 'price-range' || kind === 'time-range'
+    const twoPoints = range || hasTwoPoints(kind)
     const label = vertex ? 'Point ' + (point + 1) :
-      hasTwoPoints(current.kind) ? point === 0 ? 'Start' : 'End' : ANNOTATION_NAMES[current.kind]
-    const pickLabel = vertex || hasTwoPoints(current.kind) ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
-    const coordinates: readonly AnnotationCoordinate[] = current.kind === 'price' || current.kind === 'time' ?
-      [current.kind] : ['time', 'price']
+      twoPoints ? point === 0 ? 'Start' : 'End' : ANNOTATION_NAMES[kind]
+    const pickLabel = vertex || twoPoints ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
+    const coordinates: readonly AnnotationCoordinate[] = kind === 'price' || kind === 'time' ?
+      [kind] : range ? [rangeCoordinate(kind)] : ['time', 'price']
     return <fieldset key={point}>
       <legend>{label}</legend>
       {coordinates.map(coordinate => <label key={coordinate}>{coordinate === 'price' ? 'Price' : 'Time (UTC)'}

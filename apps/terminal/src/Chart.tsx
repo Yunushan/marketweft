@@ -463,6 +463,31 @@ function draw(
         if (column === null || column < start - 0.5 || column > view.end - 0.5) continue
         const axis = x(column)
         line(axis, top, axis, priceBottom, '#ad9df5')
+      } else if (annotation.kind === 'price-range') {
+        const upper = y(annotation.upper / 1e6)
+        const lower = y(annotation.lower / 1e6)
+        const first = Math.max(upper, top)
+        const last = Math.min(lower, priceBottom)
+        if (first >= last) continue
+        ctx.fillStyle = 'rgba(224, 177, 102, 0.15)'
+        ctx.fillRect(left, first, right - left, last - first)
+        if (upper >= top) line(left, upper, right, upper, '#e0b166')
+        if (lower <= priceBottom) line(left, lower, right, lower, '#e0b166')
+      } else if (annotation.kind === 'time-range') {
+        const first = markerTimeline[0]
+        const last = markerTimeline.at(-1)
+        if (!first || !last || annotation.upper < first.time || annotation.lower > last.time) continue
+        const from = markerColumn(markerTimeline, annotation.lower)
+        const to = markerColumn(markerTimeline, annotation.upper)
+        const lower = from === null ? left : x(from)
+        const upper = to === null ? right : x(to)
+        const begin = Math.max(lower, left)
+        const end = Math.min(upper, right)
+        if (begin >= end) continue
+        ctx.fillStyle = 'rgba(150, 161, 230, 0.15)'
+        ctx.fillRect(begin, top, end - begin, priceBottom - top)
+        if (from !== null && lower >= left) line(lower, top, lower, priceBottom, '#96a1e6')
+        if (to !== null && upper <= right) line(upper, top, upper, priceBottom, '#96a1e6')
       } else if (annotation.kind === 'polyline') {
         ctx.strokeStyle = '#9aaef0'
         ctx.beginPath()
@@ -783,7 +808,7 @@ export function Chart({
   const start = view.end - view.count
   const observationsByTime = kagi?.byTime ?? pointFigure?.byTime
   const annotations = drawingTools?.annotations ?? EMPTY_ANNOTATIONS
-  const needsTimeline = annotations.some(annotation => annotation.kind !== 'price')
+  const needsTimeline = annotations.some(annotation => annotation.kind !== 'price' && annotation.kind !== 'price-range')
   const markerTimeline = useMemo(() => {
     if (!needsTimeline) return []
     const columns = new Map<number, number>()

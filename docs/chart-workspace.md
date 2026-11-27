@@ -108,6 +108,12 @@ Choose **New chart note**, enter or pick the UTC time and signed price, and ente
 
 Choose **New directional arrow** and enter or pick two distinct points. The arrowhead points to **End**, including when the end time is earlier than the start. Both drawings stay within the price plot and preserve exact text, order and coordinates in version 36 backups. [Backup format](workspace-backup.md)
 
+## Price and time range highlights
+
+Choose **New price range** and enter or pick two signed prices. The band highlights those prices across the visible time axis. Choose **New time range** and enter or pick two UTC times. The band highlights that interval across the visible price axis. Enter either boundary first. The saved range stores both coordinates in ascending order.
+
+The chart clips both bands to the visible price plot. When a time boundary falls between observations, the chart interpolates its position. The two ranges can overlap and can be edited independently. Version 37 backups preserve their exact coordinates. [Backup format](workspace-backup.md)
+
 ## Moving-average periods
 
 Open **Indicators** to configure the primary chart. When the comparison pane is open, the same dialog provides a separate pair of period fields for it. Each field accepts a whole period from 1 to 100,000 bars. The default periods are 20 bars for SMA and 9 bars for EMA. Each overlay can be enabled independently.

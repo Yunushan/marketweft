@@ -15,7 +15,9 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'ellipse'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'triangle'; points: TrianglePoints } |
   { kind: 'note'; start: DrawingEndpoint; text: string } |
-  { kind: 'arrow'; start: DrawingEndpoint; end: DrawingEndpoint }
+  { kind: 'arrow'; start: DrawingEndpoint; end: DrawingEndpoint } |
+  { kind: 'price-range'; lower: number; upper: number } |
+  { kind: 'time-range'; lower: number; upper: number }
 )
 type TwoPointAnnotation = Extract<ChartAnnotation, { end: DrawingEndpoint }>
 export type AnnotationKind = ChartAnnotation['kind']
@@ -36,6 +38,8 @@ export const ANNOTATION_NAMES = {
   triangle: 'Triangle',
   note: 'Chart note',
   arrow: 'Directional arrow',
+  'price-range': 'Price range',
+  'time-range': 'Time range',
 } as const
 
 export function sameEndpoint(first: DrawingEndpoint, second: DrawingEndpoint): boolean {
@@ -47,6 +51,9 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'price': return second.kind === 'price' && first.ticks === second.ticks
     case 'time': return second.kind === 'time' && first.time === second.time
     case 'ray': return second.kind === 'ray' && sameEndpoint(first.start, second.start)
+    case 'price-range':
+    case 'time-range':
+      return second.kind === first.kind && first.lower === second.lower && first.upper === second.upper
     case 'trend':
     case 'rectangle':
     case 'ellipse':
@@ -88,6 +95,17 @@ export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void
     if (!validAnnotationAnchor('price', start.ticks + offset) || !validAnnotationAnchor('price', end.ticks + offset))
       throw Error('Both shifted channel prices must stay within the chart price bounds.')
   }
+}
+
+export function rangeCoordinate(kind: 'price-range' | 'time-range'): AnnotationCoordinate {
+  return kind === 'price-range' ? 'price' : 'time'
+}
+
+export function rangeBounds(kind: 'price-range' | 'time-range', lower: unknown, upper: unknown) {
+  const coordinate = rangeCoordinate(kind)
+  if (!validAnnotationAnchor(coordinate, lower) || !validAnnotationAnchor(coordinate, upper) || lower >= upper)
+    throw Error('A ' + ANNOTATION_NAMES[kind].toLowerCase() + ' needs two different ' + (coordinate === 'price' ? 'prices.' : 'UTC times.'))
+  return { lower, upper }
 }
 
 export function validateNoteText(text: unknown): asserts text is string {

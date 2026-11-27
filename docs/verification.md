@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.132.0 · Price and time range highlights
+
+| Check | Evidence |
+| --- | --- |
+| Browser chart | Chromium verifies reversed input order, signed price bounds, chart picking, time interpolation, full-axis band geometry, and clipping at the history boundary. |
+| Workspace backup | Chromium checks exact version 37 bounds, rejection of a rehashed zero-width range, version 31 restoration, and reload. |
+
+[Price and time ranges](chart-workspace.md#price-and-time-range-highlights) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.131.0 · Chart notes and directional arrows
 
 | Check | Evidence |
