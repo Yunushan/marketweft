@@ -121,27 +121,29 @@ fn destination(config: ConfigFile, config_path: &Path) -> io::Result<Destination
     if authority.as_str().contains('@') || !identifier(&config.key_id, 40) {
         return Err(invalid());
     }
-    let host = authority
-        .host()
-        .trim_start_matches('[')
-        .trim_end_matches(']');
+    let host = authority.host();
+    let port = if authority.as_str() == host {
+        None
+    } else {
+        Some(
+            authority
+                .port_u16()
+                .filter(|&port| port != 0)
+                .ok_or_else(invalid)?,
+        )
+    };
+    let host = host.trim_start_matches('[').trim_end_matches(']');
     let transport = match uri.scheme_str() {
         Some("http") => {
             let ip: IpAddr = host.parse().map_err(|_| invalid())?;
-            let port = authority
-                .port_u16()
-                .filter(|&port| port != 0)
-                .ok_or_else(invalid)?;
+            let port = port.ok_or_else(invalid)?;
             if !ip.is_loopback() || config.ca_certificate.is_some() {
                 return Err(invalid());
             }
             Transport::Loopback(SocketAddr::new(ip, port))
         }
         Some("https") => {
-            let port = authority.port_u16().unwrap_or(443);
-            if port == 0 {
-                return Err(invalid());
-            }
+            let port = port.unwrap_or(443);
             let name = ServerName::try_from(host.to_owned()).map_err(|_| invalid())?;
             let certificate = config.ca_certificate.ok_or_else(invalid)?;
             let root_path = config_path

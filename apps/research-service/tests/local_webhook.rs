@@ -133,6 +133,21 @@ async fn an_unconfigured_non_loopback_receiver_is_rejected_before_any_delivery()
 }
 
 #[tokio::test]
+async fn invalid_https_ports_are_rejected_before_opening_the_trust_bundle() {
+    let dir = tempdir().unwrap();
+    let config = dir.path().join("config.json");
+    let receipt = dir.path().join("receipt.json");
+    fs::write(
+        &config,
+        r#"{"endpoint":"https://127.0.0.1:65536/alerts","key_id":"test","ca_certificate":"missing.pem"}"#,
+    ).unwrap();
+    let missing = dir.path().join("empty.json");
+    let result = deliver_webhook(&config, &missing, &missing, &receipt).await;
+    assert!(result.err().unwrap().to_string().contains("HTTPS receiver"));
+    assert!(!receipt.exists());
+}
+
+#[tokio::test]
 async fn https_webhook_checks_the_configured_trust_anchor_and_destination_name() {
     use axum_server::tls_rustls::RustlsConfig;
     use rcgen::{generate_simple_self_signed, CertifiedKey};
