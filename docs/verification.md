@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.138.0 · Resumable webhook receipts
+
+| Check | Evidence |
+| --- | --- |
+| Interruption and locking | A native receiver holds a request open while another attempt to resume is rejected. After cancellation, the next command records the interrupted slot and delivers with the original event ID, signature and JSON bytes. |
+| Identity and attempt budget | The same test rejects a changed event, refuses a terminal receipt, and records the final interrupted slot without sending a fourth request. |
+
+[Resume a pending delivery](local-webhook-delivery.md#resume-a-pending-delivery) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.137.0 · Rights-aware webhook event export
 
 | Check | Evidence |

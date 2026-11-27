@@ -743,7 +743,7 @@ version = "0.78.0"
 
 [[package]]
 name = "marketweft-research-service"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "axum",
  "axum-server",
