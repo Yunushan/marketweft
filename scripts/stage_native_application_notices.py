@@ -24,6 +24,6 @@ def stage_notices(assets, target):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
-    parser.add_argument("target", choices=("x86_64-linux-android", "aarch64-apple-ios-sim"))
+    parser.add_argument("target", choices=("x86_64-linux-android", "aarch64-linux-android", "aarch64-apple-ios-sim"))
     args = parser.parse_args()
     stage_notices(args.directory, args.target)
