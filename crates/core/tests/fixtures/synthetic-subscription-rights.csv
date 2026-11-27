@@ -1,0 +1,4 @@
+universe,offering_id,listing_id,observed_at,status,subscription_listing,announced_at,entitlement_at,opens_at,expires_at,numerator,denominator,currency,subscription_price,fraction_policy
+DEMO-BASKET,ALFA-RIGHTS,ALFA-001,2025-06-02T14:15:00Z,offer,ALFA-001,2025-06-02T14:12:00Z,2025-06-02T14:30:00Z,2025-06-02T14:40:00Z,2025-06-02T14:55:00Z,1,3,USD,19.25,down
+DEMO-BASKET,ALFA-RIGHTS,ALFA-001,2025-06-02T14:57:00Z,offer,ALFA-001,2025-06-02T14:12:00Z,2025-06-02T14:30:00Z,2025-06-02T14:40:00Z,2025-06-02T15:05:00Z,1,2,EUR,20.125001,down
+DEMO-BASKET,ALFA-RIGHTS,ALFA-001,2025-06-02T15:03:00Z,cancel,,,,,,,,,,

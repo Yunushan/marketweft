@@ -993,6 +993,22 @@ export interface PortfolioSuccessorDeliveryPosting {
   balance: { numerator: bigint; denominator: number };
 }
 
+export interface PortfolioRightsOffering {
+  offeringId: string;
+  listingId: string;
+  observedAt: number;
+  phase: 'announced' | 'awaiting-open' | 'open' | 'expired' | 'cancelled';
+  terms: {
+    subscriptionListing: string; announcedAt: number; entitlementAt: number; opensAt: number; expiresAt: number;
+    numerator: number; denominator: number; currency: string; subscriptionPrice: bigint;
+    fractionPolicy: 'down' | 'nearest' | 'up';
+  } | null;
+  entitlement: {
+    holdingEffectiveAt: number; holdingObservedAt: number; heldShares: number;
+    exactShares: { numerator: bigint; denominator: number }; subscribableShares: bigint; fullSubscriptionCost: bigint;
+  } | null;
+}
+
 export interface PaperSuccessorDeliveryPosting extends PortfolioSuccessorDeliveryPosting {
   positionReceiptId: string;
 }
@@ -1078,6 +1094,7 @@ export interface MarketCore {
   portfolioAsOf(membership: string, holdings: string, prices: string, terms: string,
     effectiveAt: string, knownAt: string, dividends?: string): PortfolioSnapshot;
   portfolioSuccessorSharesAsOf(membership: string, holdings: string, terms: string, effectiveAt: string, knownAt: string): PortfolioSuccessorShare[];
+  portfolioRightsAsOf(membership: string, holdings: string, reports: string, effectiveAt: string, knownAt: string): PortfolioRightsOffering[];
   portfolioSuccessorDeliveryLedger(membership: string, holdings: string, terms: string,
     effectiveAt: string, knownAt: string): PortfolioSuccessorDeliveryPosting[];
   portfolioSpinOffsAsOf(membership: string, holdings: string, reports: string,
@@ -1210,6 +1227,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number): number;
   mw_portfolio_income_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number, termsBytes: number): number;
   mw_portfolio_successor_shares_as_of(membershipBytes: number, holdingsBytes: number): number;
+  mw_portfolio_rights_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_successor_delivery_ledger(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_offs_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_off_cash_as_of(membershipBytes: number, holdingsBytes: number, actionBytes: number): number;
@@ -2433,6 +2451,29 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
             rate: { numerator: Number(rateNumerator), denominator: Number(rateDenominator) },
           } : null,
           successorShares: shares ? { numerator: BigInt(numerator), denominator: Number(denominator) } : null,
+        };
+      });
+    },
+    portfolioRightsAsOf(membership, holdings, reports, effectiveAt, knownAt) {
+      portfolioInput(effectiveAt, knownAt, membership, holdings, reports);
+      const text = decoder.decode(output(api.mw_portfolio_rights_as_of(
+        encoder.encode(membership).length, encoder.encode(holdings).length,
+      )));
+      if (!text) return [];
+      return text.slice(0, -1).split('\n').map(line => {
+        const [offeringId, listingId, observed, phase, subscriptionListing, announced, entitled, opens, expires,
+          numerator, denominator, currency, price, policy, holdingEffective, holdingObserved, held,
+          exactNumerator, exactDenominator, whole, cost] = line.split('\t');
+        return {
+          offeringId, listingId, observedAt: Number(observed), phase: phase as PortfolioRightsOffering['phase'],
+          terms: subscriptionListing ? { subscriptionListing, announcedAt: Number(announced), entitlementAt: Number(entitled),
+            opensAt: Number(opens), expiresAt: Number(expires), numerator: Number(numerator), denominator: Number(denominator),
+            currency, subscriptionPrice: BigInt(price), fractionPolicy: policy as NonNullable<PortfolioRightsOffering['terms']>['fractionPolicy'],
+          } : null,
+          entitlement: holdingEffective ? { holdingEffectiveAt: Number(holdingEffective), holdingObservedAt: Number(holdingObserved),
+            heldShares: Number(held), exactShares: { numerator: BigInt(exactNumerator), denominator: Number(exactDenominator) },
+            subscribableShares: BigInt(whole), fullSubscriptionCost: BigInt(cost),
+          } : null,
         };
       });
     },

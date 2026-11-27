@@ -131,6 +131,9 @@ Load the successor shares demo or upload successor-shares.csv with the
 portfolio reports. Expand Successor delivery ledger. With effective time
 at 15:00 UTC, step knowledge from 14:49 to 15:02 to inspect the signed stock
 postings and export the exact quantities.
+Load the subscription rights demo or upload subscription-rights.csv and
+rights-holdings.csv. Compare effective 14:40 and known 14:49 with effective
+15:00 and known 14:58 to see the revised currency, holding and cash requirement.
 Below the rankings, choose Load demo sectors or upload universe-sectors.csv
 with the matching membership and price reports. The Sector heatmap shows
 each listing's sector, weight, price return and observed contribution.
@@ -219,6 +222,8 @@ def main():
     files["delisting-terms.csv"] = (fixture / "synthetic-delisting-terms.csv").read_bytes()
     files["portfolio-holdings.csv"] = (fixture / "synthetic-portfolio-holdings.csv").read_bytes()
     files["successor-shares.csv"] = (fixture / "synthetic-successor-shares.csv").read_bytes()
+    files["subscription-rights.csv"] = (fixture / "synthetic-subscription-rights.csv").read_bytes()
+    files["rights-holdings.csv"] = (fixture / "synthetic-rights-holdings.csv").read_bytes()
     files["portfolio-dividends.csv"] = (fixture / "synthetic-portfolio-dividends.csv").read_bytes()
     files["split-revisions.csv"] = (fixture / "synthetic-split-revisions.csv").read_bytes()
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()

@@ -10,6 +10,32 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('subscription rights keep the fractional entitlement, whole exercise and exact cash requirement in Wasm', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
+  const [membership, holdings, reports] = await Promise.all([
+    fixture('synthetic-universe.csv'), fixture('synthetic-rights-holdings.csv'), fixture('synthetic-subscription-rights.csv'),
+  ]);
+  const time = label => '2025-06-02T' + label + 'Z';
+  const run = (effective, known, held = holdings) => core.portfolioRightsAsOf(membership, held, reports, time(effective), time(known));
+  assert.deepEqual(run('14:40:00', '14:14:59'), []);
+  const initial = run('14:40:00', '14:49:00');
+  assert.equal(initial[0].phase, 'open');
+  assert.equal(initial[0].terms.subscriptionPrice, 19250000n);
+  assert.deepEqual(initial[0].entitlement.exactShares, { numerator: 10n, denominator: 3 });
+  assert.equal(initial[0].entitlement.fullSubscriptionCost, 57750000n);
+  assert.equal(run('14:55:00', '14:56:59')[0].phase, 'expired');
+  const revised = run('15:00:00', '14:58:00')[0];
+  assert.equal(revised.terms.currency, 'EUR');
+  assert.equal(revised.entitlement.subscribableShares, 4n);
+  assert.equal(revised.entitlement.fullSubscriptionCost, 80500004n);
+  const cancelled = run('15:00:00', '15:03:00')[0];
+  assert.equal(cancelled.phase, 'cancelled');
+  assert.equal(cancelled.terms, null);
+  assert.equal(cancelled.entitlement, null);
+  assert.equal(run('14:40:00', '14:49:00', holdings.split(/\r?\n/)[0])[0].entitlement, null);
+  assert.deepEqual(run('14:40:00', '14:49:00'), initial);
+});
+
 test('successor share bridge keeps exact quantities and absence at both cutoffs', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, terms] = await Promise.all([

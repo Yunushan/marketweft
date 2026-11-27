@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.196.0 · Point-in-time subscription rights
+
+- Rust verifies separate announcement, observation, entitlement, opening and expiry cutoffs, a late holdings correction, and an observed cancellation. It checks all three whole-share policies and distinguishes unavailable holdings from explicit zero.
+- Wasm and offline Chromium reproduce the original 10/3-share entitlement and 57.75 USD quote, then the revised four-share entitlement and 80.500004 EUR quote. Chromium exercises a rights-only CSV upload and reproduces the original export byte for byte after rewind.
+- A same-profile upgrade from the hosted 0.195.0 archive to the locally built 0.196.0 archive preserved the saved chart and replayed both subscription quotes offline.
+
+[Subscription rights](portfolio-rights.md)
+
 ## 0.195.0 · Paper successor delivery journal
 
 - Rust verifies that the 4/3-share delivery cites the accepted fill that left four shares before the delisting. A fill observed at the effective delisting is excluded. Rust also verifies the exact net revision for an immediate delivery and an exact reversal when the delivery is rescheduled.

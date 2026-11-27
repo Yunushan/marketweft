@@ -417,7 +417,7 @@ fn portfolio_input(input: &[u8]) -> Result<(i64, i64, &str), String> {
     Ok((effective, known, body))
 }
 
-struct SuccessorInput<'a> {
+struct PortfolioActionInput<'a> {
     effective: i64,
     known: i64,
     universe: crate::UniverseBook,
@@ -425,19 +425,19 @@ struct SuccessorInput<'a> {
     terms: &'a str,
 }
 
-fn successor_input(
+fn portfolio_action_input(
     input: &[u8],
     membership_bytes: usize,
     holding_bytes: usize,
-) -> Result<SuccessorInput<'_>, String> {
+) -> Result<PortfolioActionInput<'_>, String> {
     let (effective, known, input) = portfolio_input(input)?;
     let (membership, input) = input
         .split_at_checked(membership_bytes)
         .ok_or("Supply a universe membership report.")?;
     let (holdings, terms) = input
         .split_at_checked(holding_bytes)
-        .ok_or("Supply portfolio holdings and successor share terms.")?;
-    Ok(SuccessorInput {
+        .ok_or("Supply portfolio holdings and action reports.")?;
+    Ok(PortfolioActionInput {
         effective,
         known,
         universe: parse_universe(membership)?,
@@ -453,13 +453,13 @@ pub extern "C" fn mw_portfolio_successor_shares_as_of(
 ) -> u32 {
     use std::fmt::Write;
     process(|input| {
-        let SuccessorInput {
+        let PortfolioActionInput {
             effective,
             known,
             universe,
             holdings,
             terms,
-        } = successor_input(input, membership_bytes, holding_bytes)?;
+        } = portfolio_action_input(input, membership_bytes, holding_bytes)?;
         let rows =
             crate::portfolio_successor_shares_as_of(&universe, holdings, terms, effective, known)?;
         let mut text = String::new();
@@ -504,19 +504,88 @@ pub extern "C" fn mw_portfolio_successor_delivery_ledger(
     holding_bytes: usize,
 ) -> u32 {
     process(|input| {
-        let SuccessorInput {
+        let PortfolioActionInput {
             effective,
             known,
             universe,
             holdings,
             terms,
-        } = successor_input(input, membership_bytes, holding_bytes)?;
+        } = portfolio_action_input(input, membership_bytes, holding_bytes)?;
         let rows = crate::portfolio_successor_delivery_ledger(
             &universe, holdings, terms, effective, known,
         )?;
         let mut text = String::new();
         for row in rows {
             write_successor_delivery(&mut text, &row);
+            text.push('\n');
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_portfolio_rights_as_of(membership_bytes: usize, holding_bytes: usize) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let PortfolioActionInput {
+            effective,
+            known,
+            universe,
+            holdings,
+            terms,
+        } = portfolio_action_input(input, membership_bytes, holding_bytes)?;
+        let rows = crate::portfolio_rights_as_of(&universe, holdings, terms, effective, known)?;
+        let mut text = String::new();
+        for row in rows {
+            use crate::{RightsFractionPolicy, RightsOfferingPhase};
+            let phase = match row.phase {
+                RightsOfferingPhase::Announced => "announced",
+                RightsOfferingPhase::AwaitingOpen => "awaiting-open",
+                RightsOfferingPhase::Open => "open",
+                RightsOfferingPhase::Expired => "expired",
+                RightsOfferingPhase::Cancelled => "cancelled",
+            };
+            write!(
+                text,
+                "{}\t{}\t{}\t{phase}",
+                row.offering_id, row.listing_id, row.observed_at
+            )
+            .unwrap();
+            if let Some(terms) = row.terms {
+                let fraction_policy = match terms.fraction_policy {
+                    RightsFractionPolicy::Down => "down",
+                    RightsFractionPolicy::Nearest => "nearest",
+                    RightsFractionPolicy::Up => "up",
+                };
+                write!(
+                    text,
+                    "\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{fraction_policy}",
+                    terms.subscription_listing,
+                    terms.announced_at,
+                    terms.entitlement_at,
+                    terms.opens_at,
+                    terms.expires_at,
+                    terms.numerator,
+                    terms.denominator,
+                    terms.currency,
+                    terms.subscription_price
+                )
+                .unwrap();
+            }
+            if let Some(entitlement) = row.entitlement {
+                write!(
+                    text,
+                    "\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    entitlement.holding_effective_at,
+                    entitlement.holding_observed_at,
+                    entitlement.held_shares,
+                    entitlement.exact_shares.numerator,
+                    entitlement.exact_shares.denominator,
+                    entitlement.subscribable_shares,
+                    entitlement.full_subscription_cost
+                )
+                .unwrap();
+            }
             text.push('\n');
         }
         Ok(text.into_bytes())

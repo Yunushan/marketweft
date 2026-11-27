@@ -9,6 +9,8 @@ use std::{
 
 #[path = "portfolio_income.rs"]
 mod income;
+#[path = "portfolio_rights.rs"]
+mod rights;
 #[path = "portfolio_spinoff.rs"]
 mod spinoff;
 #[path = "portfolio_successor.rs"]
@@ -16,6 +18,10 @@ mod successor;
 pub(crate) use income::PortfolioIncomeReports;
 pub use income::{
     PortfolioDividendRow, PortfolioDividendState, PortfolioIncomeCurrency, PortfolioIncomeSnapshot,
+};
+pub use rights::{
+    portfolio_rights_as_of, RightsEntitlement, RightsFractionPolicy, RightsOfferingPhase,
+    RightsOfferingRow, RightsOfferingTerms,
 };
 pub use spinoff::{
     portfolio_spin_off_basis_as_of, portfolio_spin_off_cash_as_of, portfolio_spin_offs_as_of,

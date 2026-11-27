@@ -1,6 +1,6 @@
 # Point-in-time portfolio replay
 
-Open **Historical replay → Open universe replay** and load membership. In **Portfolio replay**, load a demo or provide holdings and close-price CSVs. Delisting cash terms, successor share terms, dividends, spin-offs, spin-off cash terms and spin-off basis terms are optional. Use the universe effective and knowledge times for the portfolio query.
+Open **Historical replay → Open universe replay** and load membership. In **Portfolio replay**, load a demo or provide holdings and close-price CSVs. Optional reports include delisting cash, successor shares, dividends, spin-offs and subscription rights. Use the universe effective and knowledge times for the portfolio query. A subscription rights report can be replayed with holdings alone. [Subscription rights](portfolio-rights.md)
 
 | Input | Contract |
 | --- | --- |
@@ -13,6 +13,7 @@ Open **Historical replay → Open universe replay** and load membership. In **Po
 | Spin-offs | Dated terms connecting a parent and child listing ID, with separate entitlement and distribution times and an exact share ratio. |
 | Spin-off cash terms | A cash rate per child share, currency, payment date and observation time for the spin-off action ID. |
 | Spin-off basis terms | Original total parent basis, currency, child allocation fraction and observation time for the spin-off action ID. |
+| Subscription rights | Reported exercise windows, eligible and subscription listing IDs, exact ratios, fraction policy and quoted cash requirements. |
 
 Holdings revisions share a listing and effective timestamp and have distinct observation times. A later observation may restate the quantity at that earlier effective time. The replay chooses the latest effective quantity visible at the query cutoffs. An explicit zero removes an ordinary holding from the view. A universe removal leaves an ordinary holding invested. At a known effective delisting, the ledger values the quantity held strictly before the delisting timestamp and preserves its listing ID. A new listing with the same ticker keeps a separate quantity and cash history.
 

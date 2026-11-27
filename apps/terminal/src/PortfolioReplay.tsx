@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash, PortfolioSuccessorShare } from './market-core'
 import { SuccessorDeliveryLedger, shareText } from './SuccessorDeliveryLedger'
+import { PortfolioRights } from './PortfolioRights'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoHoldings from '../../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv?raw'
@@ -13,8 +14,14 @@ import demoCashTerms from '../../../crates/core/tests/fixtures/synthetic-spin-of
 import demoBasisTerms from '../../../crates/core/tests/fixtures/synthetic-spin-off-basis-terms.csv?raw'
 
 import demoSuccessors from '../../../crates/core/tests/fixtures/synthetic-successor-shares.csv?raw'
+import demoRightsHoldings from '../../../crates/core/tests/fixtures/synthetic-rights-holdings.csv?raw'
+import demoRights from '../../../crates/core/tests/fixtures/synthetic-subscription-rights.csv?raw'
 
-type Source = { holdings: string; prices: string; terms: string; dividends: string; spinOffs: string; cashTerms: string; basisTerms: string; successors: string }
+type Source = {
+  holdings: string; prices: string; terms: string; dividends: string; spinOffs: string
+  cashTerms: string; basisTerms: string; successors: string
+  rights?: { csv: string; reportsName: string; holdingsName: string }
+}
 const states = {
   unobserved: 'Listing unobserved',
   'missing-close': 'Close unavailable',
@@ -75,9 +82,11 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   const [cashTerms, setCashTerms] = useState<File | null>(null)
   const [basisTerms, setBasisTerms] = useState<File | null>(null)
   const [successors, setSuccessors] = useState<File | null>(null)
+  const [rights, setRights] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const snapshot = useMemo(() => source
+  const needsPrices = !rights || !!(terms || dividends || spinOffs || cashTerms || basisTerms || successors)
+  const snapshot = useMemo(() => source?.prices
     ? core.portfolioAsOf(membership, source.holdings, source.prices, source.terms, effective, known, source.dividends)
     : null, [core, membership, source, effective, known])
   const distributions = useMemo(() => source?.spinOffs
@@ -94,27 +103,32 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   const successorClaims = useMemo(() => source?.successors
     ? core.portfolioSuccessorSharesAsOf(membership, source.holdings, source.successors, effective, known)
     : null, [core, membership, source, effective, known])
+  const rightOfferings = useMemo(() => source?.rights
+    ? core.portfolioRightsAsOf(membership, source.holdings, source.rights.csv, effective, known)
+    : null, [core, membership, source, effective, known])
 
   const calculateDeliveries = useCallback(() => source?.successors
     ? core.portfolioSuccessorDeliveryLedger(membership, source.holdings, source.successors, effective, known)
     : [], [core, membership, source, effective, known])
 
   function open(source: Source) {
-    core.portfolioAsOf(membership, source.holdings, source.prices, source.terms, effective, known, source.dividends)
+    if (source.prices) core.portfolioAsOf(membership, source.holdings, source.prices, source.terms, effective, known, source.dividends)
     if (source.spinOffs) core.portfolioSpinOffsAsOf(membership, source.holdings, source.spinOffs, effective, known)
     if (source.cashTerms) core.portfolioSpinOffCashAsOf(membership, source.holdings, source.spinOffs, source.cashTerms, effective, known)
     if (source.basisTerms) core.portfolioSpinOffBasisAsOf(membership, source.holdings, source.spinOffs, source.basisTerms, effective, known)
     if (source.successors) core.portfolioSuccessorSharesAsOf(membership, source.holdings, source.successors, effective, known)
+    if (source.rights) core.portfolioRightsAsOf(membership, source.holdings, source.rights.csv, effective, known)
     setSource(source)
     setError('')
   }
 
-  function startDemo(mode?: 'income' | 'spin-offs' | 'successors') {
+  function startDemo(mode?: 'income' | 'spin-offs' | 'successors' | 'rights') {
     try {
-      open({ holdings: demoHoldings, prices: demoPrices, terms: demoTerms,
+      open({ holdings: mode === 'rights' ? demoRightsHoldings : demoHoldings, prices: demoPrices, terms: demoTerms,
         dividends: mode === 'income' ? demoDividends : '', spinOffs: mode === 'spin-offs' ? demoSpinOffs : '',
         cashTerms: mode === 'spin-offs' ? demoCashTerms : '', basisTerms: mode === 'spin-offs' ? demoBasisTerms : '',
-        successors: mode === 'successors' ? demoSuccessors : '' })
+        successors: mode === 'successors' ? demoSuccessors : '',
+        rights: mode === 'rights' ? { csv: demoRights, reportsName: 'synthetic-subscription-rights.csv', holdingsName: 'synthetic-rights-holdings.csv' } : undefined })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio demo.')
     }
@@ -122,15 +136,17 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
 
   async function load(event: FormEvent) {
     event.preventDefault()
-    if (!holdings || !prices) return
+    if (!holdings || (needsPrices && !prices)) return
     setBusy(true)
     try {
-      const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv, cashTermsCsv, basisTermsCsv, successorCsv] = await Promise.all([
-        readReport(holdings, 2), readReport(prices, 2), terms ? readReport(terms, 1) : '',
+      const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv, cashTermsCsv, basisTermsCsv, successorCsv, rightsCsv] = await Promise.all([
+        readReport(holdings, 2), prices ? readReport(prices, 2) : '', terms ? readReport(terms, 1) : '',
         dividends ? readReport(dividends, 1) : '', spinOffs ? readReport(spinOffs, 1) : '',
         cashTerms ? readReport(cashTerms, 1) : '', basisTerms ? readReport(basisTerms, 1) : '',
         successors ? readReport(successors, 1) : '',
+        rights ? readReport(rights, 1) : '',
       ])
+      if (prices && !priceCsv.trim()) throw new Error('Portfolio closes CSV contains no reports.')
       if (dividends && !dividendCsv.trim()) throw new Error('Portfolio dividends CSV contains no reports.')
       if (spinOffs && !spinOffCsv.trim()) throw new Error('Portfolio spin-off CSV contains no reports.')
       if (cashTerms && !cashTermsCsv.trim()) throw new Error('Spin-off cash terms CSV contains no reports.')
@@ -138,8 +154,10 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
       if (basisTerms && !basisTermsCsv.trim()) throw new Error('Spin-off basis terms CSV contains no reports.')
       if (basisTerms && !spinOffCsv) throw new Error('Supply spin-off reports with the basis terms.')
       if (successors && !successorCsv.trim()) throw new Error('Successor share terms CSV contains no reports.')
+      if (rights && !rightsCsv.trim()) throw new Error('Subscription rights CSV contains no reports.')
       open({ holdings: holdingCsv, prices: priceCsv, terms: termCsv, dividends: dividendCsv,
-        spinOffs: spinOffCsv, cashTerms: cashTermsCsv, basisTerms: basisTermsCsv, successors: successorCsv })
+        spinOffs: spinOffCsv, cashTerms: cashTermsCsv, basisTerms: basisTermsCsv, successors: successorCsv,
+        rights: rights ? { csv: rightsCsv, reportsName: rights.name, holdingsName: holdings.name } : undefined })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio reports.')
     } finally {
@@ -159,6 +177,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <button className="outline" onClick={() => startDemo('income')} disabled={busy}>Load dividend income demo</button>
           <button className="outline" onClick={() => startDemo('spin-offs')} disabled={busy}>Load spin-off demo</button>
           <button className="outline" onClick={() => startDemo('successors')} disabled={busy}>Load successor shares demo</button>
+          <button className="outline" onClick={() => startDemo('rights')} disabled={busy}>Load subscription rights demo</button>
         </div>}
       </div>
       <form className="universe-query" onSubmit={load}>
@@ -167,7 +186,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
             onChange={event => setHoldings(event.target.files?.[0] ?? null)} />
         </label>
         <label>Portfolio closes CSV
-          <input required type="file" accept=".csv,text/csv"
+          <input required={needsPrices} type="file" accept=".csv,text/csv"
             onChange={event => setPrices(event.target.files?.[0] ?? null)} />
         </label>
         <label>Portfolio delisting terms CSV (optional)
@@ -194,10 +213,16 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <input type="file" accept=".csv,text/csv"
             onChange={event => setSuccessors(event.target.files?.[0] ?? null)} />
         </label>
-        <button className="outline" disabled={busy || !holdings || !prices}>Load portfolio reports</button>
+        <label>Subscription rights CSV (optional)
+          <input type="file" accept=".csv,text/csv"
+            onChange={event => setRights(event.target.files?.[0] ?? null)} />
+        </label>
+        <button className="outline" disabled={busy || !holdings || (needsPrices && !prices)}>Load portfolio reports</button>
       </form>
       {error && <p role="alert" className="warning replay-error">{error}</p>}
       {snapshot && <PortfolioResult snapshot={snapshot} />}
+      {rightOfferings && source?.rights && <PortfolioRights rows={rightOfferings} effective={effective} known={known}
+        reportsSource={source.rights.reportsName} holdingsSource={source.rights.holdingsName} />}
       {successorClaims && <SuccessorShareClaims rows={successorClaims} />}
       {source?.successors && <SuccessorDeliveryLedger title="Successor delivery ledger" filename="successor-delivery-ledger.csv"
         calculate={calculateDeliveries} effective={effective} known={known} />}
