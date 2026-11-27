@@ -4,7 +4,7 @@ use crate::{
     proto::{
         research_server::{Research, ResearchServer},
         AmericanOptionQuery, AmericanOptionResponse, FormulaPage, FormulaQuery, OptionPage,
-        OptionQuery, ScreenPage, ScreenQuery,
+        OptionQuery, RankComparisonPage, RankComparisonQuery, ScreenPage, ScreenQuery,
     },
     shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
@@ -40,6 +40,10 @@ pub(crate) fn routes(state: Arc<Server>) -> Router {
             Router::new()
                 .route_service(
                     "/marketweft.research.v1.Research/ScreenUniverse",
+                    service.clone(),
+                )
+                .route_service(
+                    "/marketweft.research.v1.Research/CompareUniverseRanks",
                     service.clone(),
                 )
                 .route_layer(from_fn_with_state(
@@ -144,6 +148,13 @@ impl Research for LocalResearch {
         request: GrpcRequest<ScreenQuery>,
     ) -> Result<GrpcResponse<ScreenPage>, Status> {
         unary(request, analytics::evaluate_screen).await
+    }
+
+    async fn compare_universe_ranks(
+        &self,
+        request: GrpcRequest<RankComparisonQuery>,
+    ) -> Result<GrpcResponse<RankComparisonPage>, Status> {
+        unary(request, analytics::evaluate_rank_comparison).await
     }
 
     async fn snapshot_options(

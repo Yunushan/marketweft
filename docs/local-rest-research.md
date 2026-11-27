@@ -58,10 +58,17 @@ Use a Protobuf client over HTTP/2 at the printed service address. The default lo
 | --- | --- |
 | `EvaluateFormula` | `MARKETWEFT_FORMULA_TOKEN` |
 | `ScreenUniverse` | `MARKETWEFT_SCREEN_TOKEN` |
+| `CompareUniverseRanks` | `MARKETWEFT_SCREEN_TOKEN` |
 | `SnapshotOptions` | `MARKETWEFT_OPTIONS_TOKEN` |
 | `ValueAmericanOption` | `MARKETWEFT_OPTIONS_TOKEN` |
 
 Send the bearer token as `authorization` metadata. Reuse the same query and its data and cutoffs with `offset` set to the previous page’s `next_offset`. An absent `next_offset` marks the last page. The schema uses optional fields for unavailable formula values, ranks and close observations, and strings for exact ticks and returns. The server caps each Protobuf message at 16 MiB and applies a 15-second deadline to each call.
+
+### Rank comparisons over gRPC
+
+Call `CompareUniverseRanks` with a `RankComparisonQuery` using the same screen credential and cutoff fields as REST. The service returns a `RankComparisonPage` and projects the same independently ranked snapshots to each page. Both leg messages are present on each row. An unavailable membership field, rank, price or rank movement is absent. Prices and returns keep exact decimal text, including returns beyond the signed 64-bit range.
+
+Use the returned `next_offset` to request another page with the same data and cutoffs. The max page size is 1,000 and the max offset is 5,000. Use HTTP/2 over TLS with the configured certificate trust and a managed screen credential on private deployments. [Protobuf schema](../apps/research-service/proto/research.proto) · [REST rank comparison](#compare-universe-ranks).
 
 ## SQLite audit receipts
 

@@ -8,7 +8,7 @@ use futures_util::{SinkExt, StreamExt};
 use marketweft_research_service::{
     proto::{
         research_client::ResearchClient, AmericanOptionQuery, FormulaQuery, OptionQuery,
-        ScreenQuery,
+        RankComparisonQuery, ScreenQuery,
     },
     research_router, Tokens,
 };
@@ -180,6 +180,133 @@ async fn reproduces_addition_missing_prices_and_removal_at_independent_cutoffs()
             .collect();
         assert_eq!(ranks, expected);
     }
+}
+
+#[tokio::test]
+async fn compares_ranks_with_protobuf_presence_and_rest_parity() {
+    let server = ResearchProcess::start(Settings::default());
+    let mut client = connect(&server).await;
+    let path = "/v1/universe/rank-comparison";
+    let router = research_router(
+        "127.0.0.1:4174".parse().unwrap(),
+        Tokens::new(None, Some(SCREEN_TOKEN)).unwrap(),
+    )
+    .unwrap();
+    let rest = |body: &Value| {
+        let router = router.clone();
+        let request = HttpRequest::post(path)
+            .header("host", "127.0.0.1:4174")
+            .header("authorization", format!("Bearer {SCREEN_TOKEN}"))
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap();
+        async move {
+            let response = router.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), 200);
+            let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        }
+    };
+    let mut body = json!({
+        "membership_csv": MEMBERSHIP, "prices_csv": PRICES,
+        "baseline_at": "2025-06-02T14:00:00Z",
+        "before_effective_at": "2025-06-02T14:10:00Z", "before_known_at": "2025-06-02T14:10:00Z",
+        "after_effective_at": "2025-06-02T14:45:00Z", "after_known_at": "2025-06-02T14:45:00Z",
+        "limit": 1,
+    });
+    let query = serde_json::from_value::<RankComparisonQuery>(body.clone()).unwrap();
+    assert_eq!(
+        client
+            .compare_universe_ranks(query.clone())
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unauthenticated
+    );
+    assert_eq!(
+        client
+            .compare_universe_ranks(authorized(query.clone(), FORMULA_TOKEN))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+    assert_eq!(
+        client
+            .compare_universe_ranks(authorized(
+                RankComparisonQuery {
+                    offset: Some(5001),
+                    ..query
+                },
+                SCREEN_TOKEN
+            ))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::InvalidArgument
+    );
+
+    for (index, listing) in ["ALFA-001", "BETA-001", "BETA-002"].into_iter().enumerate() {
+        let query = serde_json::from_value::<RankComparisonQuery>(body.clone()).unwrap();
+        let page = client
+            .compare_universe_ranks(authorized(query, SCREEN_TOKEN))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(serde_json::to_value(&page).unwrap(), rest(&body).await);
+        assert_eq!(page.offset, index as u32);
+        assert_eq!(page.total_rows, 3);
+        assert_eq!(page.rows[0].listing_id, listing);
+        let before = page.rows[0].before.as_ref().unwrap();
+        let after = page.rows[0].after.as_ref().unwrap();
+        assert_eq!(page.rows[0].rank_move, None);
+        match listing {
+            "ALFA-001" => {
+                assert_eq!(before.rank, Some(1));
+                assert_eq!(after.status.as_deref(), Some("removed"));
+            }
+            "BETA-001" => {
+                assert!(before.current.is_none());
+                assert_eq!(after.status.as_deref(), Some("delisted"));
+            }
+            _ => {
+                assert_eq!(before.status, None);
+                assert_eq!(after.current.as_ref().unwrap().ticks, "75000000");
+                assert!(after.baseline.is_none());
+            }
+        }
+        if index == 2 {
+            assert!(page.next_offset.is_none());
+        } else {
+            body["offset"] = json!(page.next_offset.unwrap());
+        }
+    }
+
+    let large = RankComparisonQuery {
+        membership_csv: MEMBERSHIP.into(),
+        prices_csv: concat!(
+            "universe,listing_id,price_at,observed_at,close\n",
+            "DEMO-BASKET,ALFA-001,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,0.000001\n",
+            "DEMO-BASKET,ALFA-001,2025-06-02T14:10:00Z,2025-06-02T14:10:00Z,2000000000\n",
+        )
+        .into(),
+        baseline_at: "2025-06-02T14:00:00Z".into(),
+        before_effective_at: "2025-06-02T14:10:00Z".into(),
+        before_known_at: "2025-06-02T14:10:00Z".into(),
+        after_effective_at: "2025-06-02T14:10:00Z".into(),
+        after_known_at: "2025-06-02T14:12:00Z".into(),
+        ..RankComparisonQuery::default()
+    };
+    let page = client
+        .compare_universe_ranks(authorized(large, SCREEN_TOKEN))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(page.rows[0].rank_move, Some(0));
+    assert_eq!(
+        page.rows[0].after.as_ref().unwrap().return_units.as_deref(),
+        Some("1999999999999999000000")
+    );
 }
 
 #[tokio::test]

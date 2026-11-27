@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.155.0 · gRPC rank comparison
+
+| Check | Evidence |
+| --- | --- |
+| Protobuf and REST | Integration tests compare typed pages with REST and check optional membership, rank and close fields, exact returns above int64, pagination and credential scope. |
+| TLS and managed credentials | The generated gRPC client uses a managed screen credential and compares its page with the matching authenticated WebSocket response. |
+
+[gRPC rank comparison](local-rest-research.md#rank-comparisons-over-grpc) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.154.0 · Resumable rank comparison stream
 
 | Check | Evidence |

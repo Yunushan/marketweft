@@ -3,7 +3,7 @@ mod support;
 use futures_util::{SinkExt, StreamExt};
 use marketweft_research_service::{
     issue_research_credential,
-    proto::{research_client::ResearchClient, FormulaQuery},
+    proto::{research_client::ResearchClient, FormulaQuery, RankComparisonQuery},
 };
 use rcgen::{generate_simple_self_signed, CertifiedKey};
 use rustls::{pki_types::ServerName, ClientConfig, RootCertStore};
@@ -173,23 +173,37 @@ async fn validates_the_peer_and_uses_managed_credentials_for_tls_research() {
     .await;
     assert_eq!(formula["page"]["rows"][0]["value_ticks"], "10000001");
 
+    let query = json!({
+        "membership_csv": include_str!("../../../crates/core/tests/fixtures/synthetic-universe.csv"),
+        "prices_csv": include_str!("../../../crates/core/tests/fixtures/synthetic-universe-prices.csv"),
+        "baseline_at": "2025-06-02T14:00:00Z",
+        "before_effective_at": "2025-06-02T14:10:00Z", "before_known_at": "2025-06-02T14:12:00Z",
+        "after_effective_at": "2025-06-02T14:10:00Z", "after_known_at": "2025-06-02T14:16:00Z",
+        "offset": 1, "limit": 1,
+    });
     let comparison = websocket(
         "/v1/universe/rank-comparison/stream",
         &screen.token,
-        json!({
-            "membership_csv": include_str!("../../../crates/core/tests/fixtures/synthetic-universe.csv"),
-            "prices_csv": include_str!("../../../crates/core/tests/fixtures/synthetic-universe-prices.csv"),
-            "baseline_at": "2025-06-02T14:00:00Z",
-            "before_effective_at": "2025-06-02T14:10:00Z", "before_known_at": "2025-06-02T14:12:00Z",
-            "after_effective_at": "2025-06-02T14:10:00Z", "after_known_at": "2025-06-02T14:16:00Z",
-            "offset": 1, "limit": 1,
-        }),
-    ).await;
+        query.clone(),
+    )
+    .await;
     assert_eq!(comparison["type"], "page");
     let beta = &comparison["page"]["rows"][0];
     assert_eq!(beta["listing_id"], "BETA-001");
     assert_eq!(beta["before"]["current"]["ticks"], "56000000");
     assert_eq!(beta["after"]["current"]["ticks"], "50500000");
+
+    let mut request = Request::new(serde_json::from_value::<RankComparisonQuery>(query).unwrap());
+    request.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {}", screen.token).parse().unwrap(),
+    );
+    let grpc = client
+        .compare_universe_ranks(request)
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(serde_json::to_value(grpc).unwrap(), comparison["page"]);
 }
 
 #[test]

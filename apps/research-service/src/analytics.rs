@@ -2,7 +2,8 @@ use crate::{
     proto::{
         AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close, FormulaPage,
         FormulaQuery, FormulaRow, OptionModel, OptionPage, OptionQuery, OptionRow,
-        OptionUnderlying, ScreenPage, ScreenQuery, ScreenRow,
+        OptionUnderlying, RankComparisonLeg, RankComparisonPage, RankComparisonQuery,
+        RankComparisonRow, ScreenPage, ScreenQuery, ScreenRow,
     },
     ApiError,
 };
@@ -170,65 +171,17 @@ pub(crate) fn evaluate_formula(
     Ok(())
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RankComparisonQuery {
-    membership_csv: String,
-    prices_csv: String,
-    baseline_at: String,
-    before_effective_at: String,
-    before_known_at: String,
-    after_effective_at: String,
-    after_known_at: String,
-    #[serde(default, deserialize_with = "present")]
-    offset: Option<u64>,
-    #[serde(default, deserialize_with = "present")]
-    limit: Option<u64>,
-}
-
-#[derive(Serialize)]
-pub(crate) struct RankComparisonPage {
-    universe: String,
-    baseline_at: String,
-    before_effective_at: String,
-    before_known_at: String,
-    after_effective_at: String,
-    after_known_at: String,
-    total_rows: u32,
-    offset: u32,
-    next_offset: Option<u32>,
-    rows: Vec<RankComparisonRow>,
-}
-
-#[derive(Serialize)]
-struct RankComparisonRow {
-    listing_id: String,
-    instrument: String,
-    before: RankComparisonLeg,
-    after: RankComparisonLeg,
-    rank_move: Option<i64>,
-}
-
-#[derive(Serialize)]
-struct RankComparisonLeg {
-    status: Option<&'static str>,
-    change_id: Option<String>,
-    effective_at: Option<i64>,
-    observed_at: Option<i64>,
-    rank: Option<u32>,
-    return_units: Option<String>,
-    baseline: Option<Close>,
-    current: Option<Close>,
-}
-
 impl From<&ScreenComparisonLeg<'_>> for RankComparisonLeg {
     fn from(leg: &ScreenComparisonLeg<'_>) -> Self {
         Self {
-            status: leg.membership.map(|change| match change.action {
-                UniverseAction::Add => "member",
-                UniverseAction::Remove => "removed",
-                UniverseAction::Delist => "delisted",
-                UniverseAction::Cancel => "cancelled",
+            status: leg.membership.map(|change| {
+                match change.action {
+                    UniverseAction::Add => "member",
+                    UniverseAction::Remove => "removed",
+                    UniverseAction::Delist => "delisted",
+                    UniverseAction::Cancel => "cancelled",
+                }
+                .to_owned()
             }),
             change_id: leg.membership.map(|change| change.change_id.clone()),
             effective_at: leg.membership.map(|change| change.effective_at),
@@ -245,7 +198,15 @@ pub(crate) fn rank_comparison(
     bytes: &[u8],
     emit: &mut dyn FnMut(ResearchPage) -> bool,
 ) -> Result<(), ApiError> {
-    let params: RankComparisonQuery = request(bytes)?;
+    evaluate_rank_comparison(request(bytes)?, &mut |page| {
+        emit(ResearchPage::RankComparison(page))
+    })
+}
+
+pub(crate) fn evaluate_rank_comparison(
+    params: RankComparisonQuery,
+    emit: &mut dyn FnMut(RankComparisonPage) -> bool,
+) -> Result<(), ApiError> {
     let (offset, limit) = pagination(params.offset, params.limit, 5000)?;
     let time = |input: &str| {
         parse_exact_utc(input).ok_or_else(|| {
@@ -274,28 +235,26 @@ pub(crate) fn rank_comparison(
         limit,
         rows.len(),
         emit,
-        |offset, range, next_offset| {
-            ResearchPage::RankComparison(RankComparisonPage {
-                universe: universe.name().to_owned(),
-                baseline_at: params.baseline_at.clone(),
-                before_effective_at: params.before_effective_at.clone(),
-                before_known_at: params.before_known_at.clone(),
-                after_effective_at: params.after_effective_at.clone(),
-                after_known_at: params.after_known_at.clone(),
-                total_rows: rows.len() as u32,
-                offset,
-                next_offset,
-                rows: rows[range]
-                    .iter()
-                    .map(|row| RankComparisonRow {
-                        listing_id: row.listing.listing_id.clone(),
-                        instrument: row.listing.instrument.to_string(),
-                        before: RankComparisonLeg::from(&row.before),
-                        after: RankComparisonLeg::from(&row.after),
-                        rank_move: row.rank_move,
-                    })
-                    .collect(),
-            })
+        |offset, range, next_offset| RankComparisonPage {
+            universe: universe.name().to_owned(),
+            baseline_at: params.baseline_at.clone(),
+            before_effective_at: params.before_effective_at.clone(),
+            before_known_at: params.before_known_at.clone(),
+            after_effective_at: params.after_effective_at.clone(),
+            after_known_at: params.after_known_at.clone(),
+            total_rows: rows.len() as u32,
+            offset,
+            next_offset,
+            rows: rows[range]
+                .iter()
+                .map(|row| RankComparisonRow {
+                    listing_id: row.listing.listing_id.clone(),
+                    instrument: row.listing.instrument.to_string(),
+                    before: Some(RankComparisonLeg::from(&row.before)),
+                    after: Some(RankComparisonLeg::from(&row.after)),
+                    rank_move: row.rank_move,
+                })
+                .collect(),
         },
     );
     Ok(())
