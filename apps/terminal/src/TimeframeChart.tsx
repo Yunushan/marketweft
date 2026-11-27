@@ -3,15 +3,15 @@ import type { ComponentProps } from 'react'
 import { parseAnnotationAnchor } from './chart-annotations'
 import { Chart } from './Chart'
 import { ChartExport } from './ChartExport'
-import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, MAX_CHART_PRICE_TICKS } from './catalog-schema'
+import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, MAX_CHART_PRICE_TICKS, validCloseChangeSeconds } from './catalog-schema'
 import { fixed, parsePriceSize } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
-import type { TimeframeView } from './chart-export'
+import type { CloseChangeSeries, TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
 import { computeStudies, studyOverlays } from './studies'
 import type { StudySet } from './studies'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -21,6 +21,8 @@ type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'tim
   pointFigureTicks?: number
   priceSizeSaving?: boolean
   onBaselineTicks?: (ticks: number) => void
+  closeChangeSeconds?: number
+  onCloseChangeSeconds?: (seconds: number) => void
   onRenkoTicks?: (ticks: number) => void
   onKagiTicks?: (ticks: number) => void
   onPointFigureTicks?: (ticks: number) => void
@@ -77,9 +79,33 @@ function BaselinePrice({ ticks, saving, apply }: {
   </form>
 }
 
+function CloseChangeInterval({ seconds, saving, apply }: {
+  seconds?: number; saving?: boolean; apply: (seconds: number) => void
+}) {
+  const [error, setError] = useState('')
+  return <form className="chart-export price-size-control" aria-label="Close-change settings" onSubmit={event => {
+    event.preventDefault()
+    const value = String(new FormData(event.currentTarget).get('interval')).trim()
+    if (!/^\d+$/.test(value) || !validCloseChangeSeconds(Number(value))) {
+      setError('Enter a positive whole-second close-change interval within the supported range.')
+      return
+    }
+    setError('')
+    apply(Number(value))
+  }}>
+    <label>Close-change interval (seconds)
+      <input name="interval" inputMode="numeric" maxLength={10} defaultValue={seconds}
+        disabled={saving} onChange={() => setError('')} />
+    </label>
+    <button className="outline" type="submit" disabled={saving}>Apply interval</button>
+    {error && <p role="alert">{error}</p>}
+  </form>
+}
+
 export function TimeframeChart({ core, activeSma, activeEma, studySettings, asset, periods, onTimestamp,
   renkoTicks = DEFAULT_RENKO_TICKS, kagiTicks = DEFAULT_KAGI_TICKS, pointFigureTicks = DEFAULT_POINT_FIGURE_TICKS,
-  baselineTicks = 0, priceSizeSaving, onBaselineTicks, onRenkoTicks, onKagiTicks, onPointFigureTicks, ...chart }: Props) {
+  baselineTicks = 0, priceSizeSaving, onBaselineTicks, onRenkoTicks, onKagiTicks, onPointFigureTicks,
+  closeChangeSeconds, onCloseChangeSeconds, ...chart }: Props) {
   const initialSource = asset.source === 'sample' ? '86400' : ''
   const [source, setSource] = useState(initialSource)
   const [target, setTarget] = useState('')
@@ -95,6 +121,26 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
   const displayBars = useMemo(() => chart.type === 'heikin-ashi' ?
     core.heikinAshi(display.bars) : undefined, [core, chart.type, display.bars])
   const type = chart.type
+  const declaredInterval = /^(\d+) seconds?$/i.exec(chart.exportOptions?.metadata?.barInterval ?? '')?.[1]
+  const sourceInterval = closeChangeSeconds ?? (validCloseChangeSeconds(Number(declaredInterval)) ?
+    Number(declaredInterval) : asset.source === 'sample' ? 86_400 : undefined)
+  const changeInterval = timeframe?.targetSeconds ?? sourceInterval
+  const changes = useMemo<{ series?: CloseChangeSeries; error?: string }>(() => {
+    if (type !== 'close-change' || changeInterval === undefined) return {}
+    try {
+      const values = core.closeChanges(changeInterval, display.bars)
+      if (timeframe) {
+        timeframe.buckets.forEach((bucket, index) => {
+          if (bucket.observedBars < bucket.expectedBars ||
+            (index > 0 && timeframe.buckets[index - 1].observedBars < timeframe.buckets[index - 1].expectedBars))
+            values[index] = null
+        })
+      }
+      return { series: { intervalSeconds: changeInterval, values } }
+    } catch (cause) {
+      return { error: cause instanceof Error ? cause.message : 'Could not calculate close changes.' }
+    }
+  }, [core, type, changeInterval, display.bars, timeframe])
   const sizeTicks = type === 'renko' ? renkoTicks : type === 'kagi' ? kagiTicks : pointFigureTicks
   const applySize = type === 'renko' ? onRenkoTicks : type === 'kagi' ? onKagiTicks : onPointFigureTicks
   const isSized = type === 'renko' || type === 'kagi' || type === 'point-and-figure'
@@ -191,6 +237,12 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         }} />}
       {type === 'baseline' && onBaselineTicks &&
         <BaselinePrice key={baselineTicks} ticks={baselineTicks} saving={priceSizeSaving} apply={onBaselineTicks} />}
+      {type === 'close-change' && !timeframe && onCloseChangeSeconds &&
+        <CloseChangeInterval key={sourceInterval} seconds={sourceInterval}
+          saving={priceSizeSaving} apply={onCloseChangeSeconds} />}
+      {type === 'close-change' && changeInterval === undefined &&
+        <p role="status">Set an interval to calculate changes between consecutive closes.</p>}
+      {changes.error && <p role="alert">{changes.error}</p>}
       {transformed && !count ? <>
         {transformed.error ? <p role="alert">{transformed.error}</p> :
           <p role="status">{type === 'renko' ? 'No source close has moved far enough to form a brick at this size.' :
@@ -209,6 +261,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceChartKey}`}
         asset={display} displayBars={displayBars} priceMovements={transformed?.priceMovements} kagiSegments={transformed?.kagiSegments}
         pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6} baselineTicks={baselineTicks}
+        closeChanges={changes.series} drawingTools={type === 'close-change' ? undefined : chart.drawingTools}
         sma={sma} ema={ema} periods={periods} studies={studies}
         timeframe={timeframe} onTimestamp={onTimestamp} />}
     </>

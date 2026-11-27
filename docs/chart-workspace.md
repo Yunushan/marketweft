@@ -28,6 +28,14 @@ The price axis includes the reference, observed closes and enabled price overlay
 
 The x-axis places consecutive observed bars at regular bar spacing. An unobserved timestamp has no chart point or linked crosshair. Switching among time-based chart types keeps the visible range. Switching to or from Renko, Three Line Break, Kagi or Point and Figure resets the visible range. The pane keeps its indicator settings. Each pane saves its own chart type. [Backup format](workspace-backup.md)
 
+### Close-change histogram
+
+Choose **Close-change histogram** to plot the difference between consecutive observed closes. Bars rise above zero for a gain and fall below zero for a loss. A small neutral mark denotes an exact zero. The first observation and the first after a missing interval have no bars. The crosshair shows both source closes and the previous bar's UTC time when a change is available.
+
+Set **Close-change interval (seconds)** separately in each pane. Built-in samples use 86,400 seconds. Imported metadata in the form `60 seconds` supplies a default interval, and you can enter a value for any import. A fixed-duration or session timeframe uses its target interval and requires both buckets to have complete source coverage. The histogram has its own vertical scale and retains the volume track. Price overlays and drawings are available on price charts.
+
+Version 40 backups preserve the chart selection and any explicitly saved interval. Choose **Bars, provenance and enabled indicators** in **Export CSV** for the interval, previous close time, previous close and signed change. The CSV leaves the three change fields empty for missing values. The OHLCV reimport CSV continues to contain observed bars.
+
 ### Heikin-Ashi
 
 Each pane can display Heikin-Ashi candles independently. The first derived open is the midpoint of the first observed open and close. Subsequent opens are the midpoint of the previous derived open and close. The derived close averages the current observed open, high, low and close. The derived high and low enclose both the observed extremes and the derived body. Prices use signed millionths and round halfway values away from zero at each step. [Dan Valcu’s original calculation](https://c.mql5.com/forextsd/forum/118/using_the_heikin_ashi_technique_d_valcu.pdf).

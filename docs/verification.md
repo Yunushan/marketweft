@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.141.0 · Close-change histogram
+
+| Check | Evidence |
+| --- | --- |
+| Rust and WebAssembly | Fixtures cover exact millionths, signed and zero changes, duplicate timestamps, gaps and identical historical prefixes. |
+| Chromium | Tests inspect bar geometry and readouts for gains, losses, zero and missing observations. The CSV identifies both closes for valid changes and leaves changes with incomplete bucket coverage blank. |
+| Workspace backup | Chromium restores earlier version 39 data and independently saved version 40 pane intervals without editing the source histories. |
+
+[Close-change histogram](chart-workspace.md#close-change-histogram) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.140.0 · Configurable baseline chart
 
 | Check | Evidence |

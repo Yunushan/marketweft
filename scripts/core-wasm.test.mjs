@@ -10,6 +10,19 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('close changes preserve signed ticks and observed prefixes across the Wasm boundary', () => {
+  const observations = [[0, '-2000000000'], [1, '2000000000'], [2, '2000000000'],
+    [4, '-1'], [5, '-0.999999'], [6, '-1']];
+  const bars = core.parseCsv(['time,open,high,low,close,volume',
+    ...observations.map(([offset, price]) => [1735689600 + 60 * offset, price, price, price, price, 1].join(',')),
+  ].join('\n'));
+  const expected = [null, 4000000000000000n, 0n, null, 1n, -1n];
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.closeChanges(60, bars.slice(0, end)), expected.slice(0, end));
+  assert.throws(() => core.closeChanges(0, bars), /positive whole-second/);
+  assert.throws(() => core.closeChanges(60, [bars[0], bars[0]]), /later than the previous bar/);
+});
+
 test('paper replay and each walk-forward candidate compile in their own formula function scope', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-backtest-' + name + '.csv', import.meta.url), 'utf8');
   const [calendar, bars, trades] = await Promise.all([fixture('sessions'), fixture('bars'), fixture('trades')]);

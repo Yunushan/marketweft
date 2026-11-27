@@ -2912,6 +2912,13 @@ pub extern "C" fn mw_commodity_channel_index(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_close_changes(interval_seconds: u32) -> u32 {
+    process(|input| {
+        crate::close_changes(interval_seconds, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_rate_of_change(period: usize) -> u32 {
     process(|input| {
         let values = crate::rate_of_change(period, &indicator_closes(input)?)?;

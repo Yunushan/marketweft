@@ -930,6 +930,7 @@ export interface MarketCore {
   cumulativeVolume(bars: readonly Bar[]): CumulativeVolume[];
   aroon(period: number, bars: readonly Bar[]): (AroonValue | null)[];
   commodityChannelIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
+  closeChanges(intervalSeconds: number, bars: readonly Bar[]): (bigint | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
   moneyFlowIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1036,6 +1037,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_cumulative_volume(): number;
   mw_aroon(period: number): number;
   mw_commodity_channel_index(period: number): number;
+  mw_close_changes(intervalSeconds: number): number;
   mw_rate_of_change(period: number): number;
   mw_directional_movement(diPeriod: number, adxPeriod: number): number;
   mw_money_flow_index(period: number): number;
@@ -1891,6 +1893,17 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     },
     commodityChannelIndex(period, bars) {
       return observedIndicator(api.mw_commodity_channel_index, period, bars, 'Commodity Channel Index');
+    },
+    closeChanges(intervalSeconds, bars) {
+      if (!Number.isSafeInteger(intervalSeconds) || intervalSeconds < 1 || intervalSeconds > 0xffff_ffff)
+        throw new Error('Use a positive whole-second close-change interval.');
+      if (bars.length > 100_000) throw new Error('Close-change charts support up to 100,000 bars.');
+      putIndicatorBars(bars, 'Close-change chart');
+      const out = output(api.mw_close_changes(intervalSeconds));
+      return Array.from({ length: bars.length }, (_, index) => {
+        const delta = out.getBigInt64(index * 8, true);
+        return delta === MISSING ? null : delta;
+      });
     },
     rateOfChange(period, bars) {
       validateIndicatorHistory(period, bars.length);

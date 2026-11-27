@@ -6,6 +6,7 @@ import type { Asset } from './workspace'
 
 export type BarRange = { start: number; end: number }
 export type ExportOverlay = { name: string; series: readonly (number | bigint | null)[] }
+export type CloseChangeSeries = { intervalSeconds: number; values: readonly (bigint | null)[] }
 export type TimeframeView = { sourceSeconds: number; targetSeconds: number } & (
   { mode: 'utc'; buckets: TimeframeBar[] } |
   { mode: 'session'; buckets: SessionTimeframeBar[]; calendarName: string }
@@ -24,7 +25,7 @@ export function chartCsv(
   asset: Asset,
   range: BarRange,
   metadata: SeriesMetadata | undefined,
-  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView } | undefined,
+  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries } | undefined,
 ) {
   const restriction = sourcePermissionRestriction(metadata?.sourceRights, 'redistribution')
   if (restriction === 'permission')
@@ -41,6 +42,8 @@ export function chartCsv(
     if (analysis.timeframe?.mode === 'session') {
       fields.push('bucket_close_utc', 'session_open_utc', 'session_kind', 'session_calendar')
     }
+    if (analysis.closeChanges)
+      fields.push('close_change_interval_seconds', 'previous_close_time', 'previous_close', 'close_change')
     fields.push(...analysis.overlays.map(item => item.name))
     provenance = ',' + [
       asset.venue,
@@ -66,6 +69,16 @@ export function chartCsv(
           const { closeTime, sessionOpen, earlyClose } = analysis.timeframe.buckets[index]
           row += ',' + [closeTime, sessionOpen, earlyClose ? 'early' : 'regular',
             quoteText(analysis.timeframe.calendarName)].join(',')
+        }
+      }
+      if (analysis.closeChanges) {
+        const value = analysis.closeChanges.values[index]
+        row += ',' + analysis.closeChanges.intervalSeconds + ','
+        if (value == null) {
+          row += ',,'
+        } else {
+          const prior = asset.bars[index - 1]
+          row += [prior.time, decimal(prior.close), fixed(value, 6)].join(',')
         }
       }
       for (const { series } of analysis.overlays) {

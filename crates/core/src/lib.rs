@@ -10,6 +10,7 @@ mod bollinger_measures;
 mod candle_patterns;
 mod chaikin;
 mod chart_movement;
+mod close_change;
 mod cross_section;
 mod cross_section_liquidity;
 mod cumulative_volume;
@@ -82,6 +83,7 @@ pub use bollinger_measures::{bollinger_measures, BollingerMeasures};
 pub use candle_patterns::{replay_candle_patterns, CandlePattern, CandlePatternHit};
 pub use chaikin::{chaikin_money_flow, chaikin_oscillator};
 pub use chart_movement::PriceMovement;
+pub use close_change::close_changes;
 pub use cross_section::{
     CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,
     CrossSectionDelistingClaim, CrossSectionDelistingPosting, CrossSectionDividendPosting,

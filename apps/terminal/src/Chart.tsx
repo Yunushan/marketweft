@@ -13,7 +13,7 @@ import type { KagiLayout } from './kagi-chart'
 import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
 import type { PointFigureLayout } from './point-figure-chart'
 import { ChartExport } from './ChartExport'
-import type { TimeframeView } from './chart-export'
+import type { CloseChangeSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
@@ -64,6 +64,7 @@ const chartNames: Record<ChartType, string> = {
   area: 'close area',
   'step-line': 'step line',
   baseline: 'baseline',
+  'close-change': 'close-change histogram',
   ohlc: 'OHLC bar',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
@@ -152,6 +153,7 @@ function draw(
   markerTimeline: readonly TimeColumn[],
   type: ChartType,
   baselineTicks: number,
+  closeChanges: CloseChangeSeries | undefined,
   kagi: KagiLayout | undefined,
   pointFigure: PointFigureLayout | undefined,
   activePrice: number | undefined,
@@ -166,6 +168,7 @@ function draw(
   canvas.height = Math.round(height * dpr)
   ctx.scale(dpr, dpr)
   const baseline = type === 'baseline' ? baselineTicks / 1e6 : undefined
+  const histogram = type === 'close-change'
   const closeTrace = type === 'line' || type === 'area' || type === 'step-line' || baseline !== undefined
   const isPriceMovement = type === 'renko' || type === 'three-line-break'
   const closeBased = isPriceMovement || kagi !== undefined || pointFigure !== undefined
@@ -175,10 +178,19 @@ function draw(
     volTop = top + (bottom - top) * 0.8,
     priceBottom = closeBased ? bottom : volTop - 13
   const start = view.end - view.count
-  let low = Infinity,
-    high = -Infinity,
+  let low = histogram ? 0 : Infinity,
+    high = histogram ? 0 : -Infinity,
     maxVol = 0
   for (let i = start; i < view.end; i++) {
+    if (histogram) {
+      const ticks = closeChanges?.values[i]
+      if (ticks != null) {
+        const change = tickPrice(ticks)
+        low = Math.min(low, change)
+        high = Math.max(high, change)
+      }
+      continue
+    }
     const b = bars[i]
     low = Math.min(low, closeTrace ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
     high = Math.max(high, closeTrace ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
@@ -232,7 +244,7 @@ function draw(
     return { ...study, low, high, ticks: [...new Set(ticks)].sort((a, b) => a - b), format, guides }
   })
   const studyLabels = studyPanels.flatMap(panel => panel.ticks.map(panel.format))
-  const closeLabel = price(bars[view.end - 1].close)
+  const closeLabel = histogram ? '0' : price(bars[view.end - 1].close)
   const axisWidth = Math.max(
     64,
     ...[closeLabel, ...ticksY, ...studyLabels].map(
@@ -387,7 +399,7 @@ function draw(
       w = Math.max(1, dx * (b.last - b.first + 1) * 0.68)
     const col = b.close >= b.open ? UP : DOWN
     ctx.fillStyle = col
-    if (!closeTrace) {
+    if (!closeTrace && !histogram) {
       line(axis, y(b.high), axis, y(b.low), col)
       const open = y(b.open), close = y(b.close)
       if (type === 'ohlc') {
@@ -402,6 +414,21 @@ function draw(
     ctx.globalAlpha = 0.46
     ctx.fillRect(axis - w / 2, bottom - h, w, h)
     ctx.globalAlpha = 1
+  }
+  if (histogram) {
+    const zero = y(0)
+    line(left, zero, right, zero, '#899eb0')
+    ctx.fillStyle = '#a2b4af'
+    ctx.fillText('0', right + 7, zero)
+    const barWidth = Math.max(1, dx * 0.68)
+    for (let index = start; index < view.end; index++) {
+      const ticks = closeChanges?.values[index]
+      if (ticks == null) continue
+      const level = y(tickPrice(ticks))
+      ctx.fillStyle = ticks > 0n ? UP : ticks < 0n ? DOWN : '#a2b4af'
+      ctx.fillRect(x(index) - barWidth / 2, ticks === 0n ? zero - 0.5 : Math.min(level, zero),
+        barWidth, Math.max(1, Math.abs(level - zero)))
+    }
   }
   if (closeTrace) {
     ctx.beginPath()
@@ -461,10 +488,7 @@ function draw(
       ctx.fill()
     }
   }
-  for (const [values, color] of [
-    [sma, GOLD],
-    [ema, LILAC],
-  ] as const) {
+  for (const [values, color] of histogram ? [] : [[sma, GOLD], [ema, LILAC]] as const) {
     ctx.beginPath()
     ctx.strokeStyle = color
     ctx.lineWidth = 1.5
@@ -479,20 +503,22 @@ function draw(
     }
     ctx.stroke()
   }
-  for (const { color, series } of priceLines) {
+  for (const { color, series } of histogram ? [] : priceLines) {
     drawStudyLine(ctx, series, start, view.end, x, y, color, 2)
   }
-  const close = bars[view.end - 1].close,
-    at = y(close)
-  const tag = bars[view.end - 1].close >= bars[view.end - 1].open ? UP : DOWN
-  ctx.setLineDash([3, 4])
-  ctx.lineWidth = 0.8
-  line(left, at, right, at, tag)
-  ctx.setLineDash([])
-  ctx.fillStyle = tag
-  ctx.fillRect(right, at - 9, width - right, 18)
-  ctx.fillStyle = '#0e1915'
-  ctx.fillText(closeLabel, right + 6, at)
+  if (!histogram) {
+    const last = bars[view.end - 1]
+    const at = y(last.close)
+    const tag = last.close >= last.open ? UP : DOWN
+    ctx.setLineDash([3, 4])
+    ctx.lineWidth = 0.8
+    line(left, at, right, at, tag)
+    ctx.setLineDash([])
+    ctx.fillStyle = tag
+    ctx.fillRect(right, at - 9, width - right, 18)
+    ctx.fillStyle = '#0e1915'
+    ctx.fillText(closeLabel, right + 6, at)
+  }
   if (annotations.length) {
     ctx.save()
     ctx.beginPath()
@@ -674,16 +700,19 @@ function draw(
     }
   }
   if (active !== null && active >= start && active < view.end) {
-    const axis = x(active),
-      pos = y(activePrice ?? bars[active].close)
+    const axis = x(active)
+    const ticks = closeChanges?.values[active]
+    const value = histogram ? (ticks == null ? null : tickPrice(ticks)) : activePrice ?? bars[active].close
     ctx.setLineDash([3, 4])
     line(axis, top, axis, bottom, '#bdc9c7')
-    line(left, pos, right, pos, '#a2b4af')
+    if (value !== null) line(left, y(value), right, y(value), '#a2b4af')
     ctx.setLineDash([])
-    ctx.fillStyle = '#e3ece8'
-    ctx.beginPath()
-    ctx.arc(axis, pos, 3, 0, Math.PI * 2)
-    ctx.fill()
+    if (value !== null) {
+      ctx.fillStyle = '#e3ece8'
+      ctx.beginPath()
+      ctx.arc(axis, y(value), 3, 0, Math.PI * 2)
+      ctx.fill()
+    }
   }
   for (const [panelIndex, panel] of studyPanels.entries()) {
     const panelTop = bottom + 30 + 110 * panelIndex
@@ -775,6 +804,7 @@ export function Chart({
   exportOptions,
   type = 'candles',
   baselineTicks = 0,
+  closeChanges,
   timeframe,
   ticks,
   ranges,
@@ -797,6 +827,7 @@ export function Chart({
   exportOptions?: { metadata?: SeriesMetadata }
   type?: ChartType
   baselineTicks?: number
+  closeChanges?: CloseChangeSeries
   timeframe?: TimeframeView
   ticks?: TickBar[]
   ranges?: RangeBar[]
@@ -900,6 +931,8 @@ export function Chart({
   const range = ranges?.[sourceIndex]
   const volumeBar = volumes?.[sourceIndex]
   const observation = observedAt?.[sourceIndex]
+  const change = closeChanges?.values[sourceIndex]
+  const histogram = type === 'close-change'
   const indicatorValues = sma.length > 0 || ema.length > 0
   function stopEditing() {
     setDrawingFields(null)
@@ -968,6 +1001,7 @@ export function Chart({
           markerTimeline,
           type,
           baselineTicks,
+          closeChanges,
           kagi,
           pointFigure,
           crosshairPrice,
@@ -975,7 +1009,7 @@ export function Chart({
           plottedPriceLines,
           activeStudyPlotValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, baselineTicks, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, baselineTicks, closeChanges, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -1054,13 +1088,19 @@ export function Chart({
     setAnnotationPicker(null)
   }
   return (
-    <section className="plot" aria-label={closeBased ? chartNames[type] + ' chart' : 'Price and volume chart'}
+    <section className="plot" aria-label={closeBased || histogram ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : time}>
       <div className="ohlc" role={displayBars || movement || selectedObservation ? 'group' : undefined}
         aria-label={box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
           displayBars ? 'Heikin-Ashi prices' : undefined}>
         <time>{timeLabel(time)} UTC</time>
-        {box ? <>
+        {histogram ? <>
+          <span><small>Close change</small> {change == null ? 'Missing' : fixed(change, 6)}</span>
+          <span><small>Observed close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>
+          {change != null && <span><small>Previous close</small> {fixed(BigInt(Math.round(prior.close * 1e6)), 6)}
+            {' · '}{timeLabel(prior.time)} UTC</span>}
+          <span className="ohlc-vol"><small>Vol</small> {volume(b.volume)}</span>
+        </> : box ? <>
           <span><small>Column</small> {readoutIndex + 1}</span>
           <span><small>Box</small> {box.mark}</span>
           <span><small>Level</small> {fixed(box.levelTicks, 6)}</span>
@@ -1296,7 +1336,7 @@ export function Chart({
       )}
       {exportOptions && (
         <ChartExport asset={asset} visible={{ start: sourceStart, end: sourceEnd }} metadata={exportOptions.metadata}
-          timeframe={timeframe}
+          timeframe={timeframe} closeChanges={closeChanges}
           overlays={[
             ...(periods ? [
               { name: 'sma_' + periods.sma, series: sma },
