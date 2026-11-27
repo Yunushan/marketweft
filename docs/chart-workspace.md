@@ -102,6 +102,12 @@ Choose **New ellipse** and enter or pick two opposite corners of its bounding bo
 
 Choose **New triangle** and enter or pick three corners in UTC and signed prices. The points must enclose an area in time and price coordinates. The chart joins the vertices and fills the enclosed area. Both shapes follow the visible plot and chart type, and they retain exact coordinates in version 35 backups. [Backup format](workspace-backup.md)
 
+## Chart notes and directional arrows
+
+Choose **New chart note**, enter or pick the UTC time and signed price, and enter one line of text. The chart shows the note near its point. The list keeps the full text available for editing.
+
+Choose **New directional arrow** and enter or pick two distinct points. The arrowhead points to **End**, including when the end time is earlier than the start. Both drawings stay within the price plot and preserve exact text, order and coordinates in version 36 backups. [Backup format](workspace-backup.md)
+
 ## Moving-average periods
 
 Open **Indicators** to configure the primary chart. When the comparison pane is open, the same dialog provides a separate pair of period fields for it. Each field accepts a whole period from 1 to 100,000 bars. The default periods are 20 bars for SMA and 9 bars for EMA. Each overlay can be enabled independently.

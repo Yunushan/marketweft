@@ -13,7 +13,9 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'polyline'; points: DrawingEndpoint[] } |
   { kind: 'fibonacci'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'ellipse'; start: DrawingEndpoint; end: DrawingEndpoint } |
-  { kind: 'triangle'; points: TrianglePoints }
+  { kind: 'triangle'; points: TrianglePoints } |
+  { kind: 'note'; start: DrawingEndpoint; text: string } |
+  { kind: 'arrow'; start: DrawingEndpoint; end: DrawingEndpoint }
 )
 type TwoPointAnnotation = Extract<ChartAnnotation, { end: DrawingEndpoint }>
 export type AnnotationKind = ChartAnnotation['kind']
@@ -32,6 +34,8 @@ export const ANNOTATION_NAMES = {
   fibonacci: 'Fibonacci retracement',
   ellipse: 'Ellipse',
   triangle: 'Triangle',
+  note: 'Chart note',
+  arrow: 'Directional arrow',
 } as const
 
 export function sameEndpoint(first: DrawingEndpoint, second: DrawingEndpoint): boolean {
@@ -47,7 +51,10 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'rectangle':
     case 'ellipse':
     case 'fibonacci':
+    case 'arrow':
       return second.kind === first.kind && sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
+    case 'note':
+      return second.kind === 'note' && first.text === second.text && sameEndpoint(first.start, second.start)
     case 'polyline':
     case 'triangle':
       return second.kind === first.kind && first.points.length === second.points.length &&
@@ -59,13 +66,15 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
 }
 
 export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
-  return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci' || kind === 'ellipse'
+  return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci' || kind === 'ellipse' || kind === 'arrow'
 }
 
 export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void {
   const { kind, start, end } = annotation
   if (kind === 'trend' && sameEndpoint(start, end))
     throw Error('A trend line must have two different points.')
+  if (kind === 'arrow' && sameEndpoint(start, end))
+    throw Error('A directional arrow needs two different points.')
   if (kind === 'rectangle' && (start.time === end.time || start.ticks === end.ticks))
     throw Error('A rectangle needs two different times and two different prices.')
   if (kind === 'ellipse' && (start.time === end.time || start.ticks === end.ticks))
@@ -79,6 +88,11 @@ export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void
     if (!validAnnotationAnchor('price', start.ticks + offset) || !validAnnotationAnchor('price', end.ticks + offset))
       throw Error('Both shifted channel prices must stay within the chart price bounds.')
   }
+}
+
+export function validateNoteText(text: unknown): asserts text is string {
+  if (typeof text !== 'string' || !text.trim() || /[\r\n\u2028\u2029]/.test(text))
+    throw Error('Enter a note on one line.')
 }
 
 export function validatePolyline(points: readonly DrawingEndpoint[]): void {

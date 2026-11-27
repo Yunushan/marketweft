@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, validateAnnotationGeometry, validatePolyline, validateTriangle,
+  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, validateAnnotationGeometry, validateNoteText, validatePolyline, validateTriangle,
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint } from './market-core'
@@ -10,6 +10,7 @@ type Draft = {
   kind: AnnotationKind
   points: PointFields[]
   offset: string
+  text: string
   original?: ChartAnnotation
 }
 
@@ -38,6 +39,10 @@ function draftAnnotation(draft: Draft, id: string): ChartAnnotation {
   }
   const start = pointValue(points[0])
   if (kind === 'ray') return { id, kind, start }
+  if (kind === 'note') {
+    validateNoteText(draft.text)
+    return { id, kind, start, text: draft.text }
+  }
   const end = pointValue(points[1])
   const annotation = kind === 'channel' ?
     { id, kind, start, end, offsetTicks: parseAnnotationAnchor('price', draft.offset) } :
@@ -57,6 +62,7 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'price': return name + formatAnnotationAnchor('price', entry.ticks)
     case 'time': return name + formatAnnotationAnchor('time', entry.time)
     case 'ray': return name + describePoint(entry.start)
+    case 'note': return name + entry.text + ', ' + describePoint(entry.start)
     case 'polyline':
       return name + entry.points.length + ' points, ' +
         describePoint(entry.points[0]) + ' to ' + describePoint(entry.points[entry.points.length - 1])
@@ -66,6 +72,7 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'rectangle':
     case 'ellipse':
     case 'fibonacci':
+    case 'arrow':
       return name + describePoint(entry.start) + ' to ' + describePoint(entry.end)
     case 'channel':
       return name + describePoint(entry.start) + ' to ' + describePoint(entry.end) +
@@ -97,7 +104,8 @@ export function ChartAnnotations({
     if (original && 'start' in original) points[0] = pointFields(original.start)
     if (original && 'end' in original) points[1] = pointFields(original.end)
     const offset = formatAnnotationAnchor('price', original?.kind === 'channel' ? original.offsetTicks : 1_000_000)
-    setDraft({ kind, original, points, offset })
+    const text = original?.kind === 'note' ? original.text : ''
+    setDraft({ kind, original, points, offset, text })
   }
 
   function cancel() {
@@ -169,6 +177,13 @@ export function ChartAnnotations({
         {draft.points.map((_, index) => pointEditor(index, draft))}
         {draft.kind === 'polyline' && <button type="button" disabled={busy}
           onClick={() => changePoints([...draft.points, pointFields(defaults.end)])}>Add point</button>}
+        {draft.kind === 'note' && <fieldset>
+          <legend>Label</legend>
+          <label>Note text
+            <input type="text" value={draft.text} disabled={busy}
+              onChange={event => { setDraft({ ...draft, text: event.target.value }); setError('') }} />
+          </label>
+        </fieldset>}
         {draft.kind === 'channel' && <fieldset>
           <legend>Parallel edge</legend>
           <label>Price offset

@@ -1,5 +1,5 @@
 import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core'
-import { validAnnotationAnchor, validateAnnotationGeometry, validatePolyline, validateTriangle } from './chart-annotations'
+import { validAnnotationAnchor, validateAnnotationGeometry, validateNoteText, validatePolyline, validateTriangle } from './chart-annotations'
 import type { ChartAnnotation } from './chart-annotations'
 import { MAX_CHART_PRICE_TICKS } from './fixed-point'
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
@@ -199,7 +199,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
         const coordinateFields = {
           price: ['ticks'], time: ['time'], ray: ['start'], trend: ['start', 'end'],
           rectangle: ['start', 'end'], channel: ['start', 'end', 'offsetTicks'],
-          polyline: ['points'], fibonacci: ['start', 'end'], ellipse: ['start', 'end'], triangle: ['points'],
+          polyline: ['points'], fibonacci: ['start', 'end'], ellipse: ['start', 'end'], triangle: ['points'], note: ['start', 'text'], arrow: ['start', 'end'],
         }
         if (typeof kind !== 'string' || !Object.hasOwn(coordinateFields, kind))
           throw Error('Invalid chart annotation type.')
@@ -230,6 +230,10 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
         }
         const start = annotationEndpoint(entry.start)
         if (type === 'ray') return { id, kind: type, start }
+        if (type === 'note') {
+          validateNoteText(entry.text)
+          return { id, kind: type, start, text: entry.text }
+        }
         const end = annotationEndpoint(entry.end)
         if (type === 'channel') {
           if (!validAnnotationAnchor('price', entry.offsetTicks)) throw Error('Invalid channel offset.')

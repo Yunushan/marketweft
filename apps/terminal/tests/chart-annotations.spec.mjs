@@ -39,7 +39,7 @@ async function traceDrawings(page) {
     proto.scale = function (...args) {
       if (primary(this)) window.chartMarks = {
         prices: [], times: [], rays: [], trends: [], rectangles: [], channels: [],
-        polylines: [], retracements: [], ellipses: [], triangles: [], labels: [], grid: [],
+        polylines: [], retracements: [], ellipses: [], triangles: [], noteLabels: [], arrows: [], labels: [], grid: [],
       }
       return scale.apply(this, args)
     }
@@ -63,6 +63,7 @@ async function traceDrawings(page) {
     }
     proto.fillText = function (value, ...coords) {
       if (primary(this) && this.fillStyle === '#cbbce8') window.chartMarks.labels.push(value)
+      if (primary(this) && this.fillStyle === '#f2dcad') window.chartMarks.noteLabels.push([value, ...coords])
       return fillText.call(this, value, ...coords)
     }
     proto.stroke = function () {
@@ -75,6 +76,7 @@ async function traceDrawings(page) {
         if (this.strokeStyle === '#c3a662') window.chartMarks.channels.push(path)
         if (this.strokeStyle === '#9aaef0') window.chartMarks.polylines.push(path)
         if (this.strokeStyle === '#b99969') window.chartMarks.triangles.push(path)
+        if (this.strokeStyle === '#f2aa82') window.chartMarks.arrows.push(path)
         if (this.strokeStyle === '#cbbce8') window.chartMarks.retracements.push(path)
         if (this.strokeStyle === '#293036' && path.length === 2) window.chartMarks.grid.push(path)
       }
@@ -548,4 +550,70 @@ test('ellipse bounds and noncollinear triangle vertices project and restore exac
   await page.reload()
   await expect(tools(left).getByText(ellipseText, { exact: true })).toBeVisible()
   await expect(tools(left).getByText(triangleText, { exact: true })).toBeVisible()
+})
+
+test('chart notes preserve text and arrow heads point to the chosen final anchor', async ({ page }) => {
+  await traceDrawings(page)
+  const trace = () => page.evaluate(() => window.chartMarks)
+  const csv = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-directional.csv', import.meta.url), 'utf8')
+  await page.goto('/')
+  await openImport(page, 'ANNOTATIONS', csv)
+  await submitImport(page, 'ANNOTATIONS')
+  const left = pane(page)
+  const first = '2026-01-01T09:02:00Z'
+  const middle = '2026-01-01T09:04:00Z'
+  const last = '2026-01-01T09:06:00Z'
+  for (const time of [first, middle, last]) await add(left, 'Time marker', time)
+  const legacy = await downloadWorkspace(page)
+  expect(legacy.version).toBe(31)
+
+  await tools(left).getByRole('button', { name: 'New chart note' }).click()
+  const note = editor(left, 'Chart note')
+  await note.getByRole('textbox', { name: 'Time (UTC)' }).fill(middle)
+  await note.getByRole('textbox', { name: 'Price' }).fill('-4.000001')
+  await note.getByRole('button', { name: 'Save chart note' }).click()
+  await expect(note.getByRole('alert')).toContainText('note on one line')
+  const text = 'Earnings \u0394 2.5%'
+  await note.getByRole('textbox', { name: 'Note text' }).fill(text)
+  await note.getByRole('button', { name: 'Save chart note' }).click()
+  const noteText = 'Chart note ' + text + ', -4.000001 at ' + middle
+  await expect(tools(left).getByText(noteText, { exact: true })).toBeVisible()
+  let marks = await trace()
+  const [firstX, midX, lastX] = marks.times.map(path => path[0][0])
+  expect(marks.noteLabels[0].slice(0, 2)).toEqual([text, midX + 8])
+
+  await tools(left).getByRole('button', { name: 'New directional arrow' }).click()
+  const arrow = editor(left, 'Directional arrow')
+  for (const [group, time, price] of [['Start', last, '-1'], ['End', first, '4']]) {
+    const point = arrow.getByRole('group', { name: group, exact: true })
+    await point.getByRole('textbox', { name: 'Time (UTC)' }).fill(time)
+    await point.getByRole('textbox', { name: 'Price' }).fill(price)
+  }
+  await arrow.getByRole('button', { name: 'Save directional arrow' }).click()
+  const arrowText = 'Directional arrow -1 at ' + last + ' to 4 at ' + first
+  await expect(tools(left).getByText(arrowText, { exact: true })).toBeVisible()
+  marks = await trace()
+  const [start, tip, upperWing, headTip, lowerWing] = marks.arrows[0]
+  expect([start[0], tip[0]]).toEqual([lastX, firstX])
+  expect(headTip).toEqual(tip)
+  for (const wing of [upperWing, lowerWing]) {
+    expect((tip[0] - start[0]) * (tip[0] - wing[0]) + (tip[1] - start[1]) * (tip[1] - wing[1]))
+      .toBeGreaterThan(0)
+  }
+
+  const backup = await downloadWorkspace(page)
+  expect(backup.version).toBe(36)
+  const entries = backup.manifest.preferences.annotations['LOCAL:ANNOTATIONS']
+  const seconds = value => Date.parse(value) / 1000
+  expect(entries.slice(-2).map(({ id, ...entry }) => entry)).toEqual([
+    { kind: 'note', text, start: { time: seconds(middle), ticks: -4000001 } },
+    { kind: 'arrow', start: { time: seconds(last), ticks: -1000000 }, end: { time: seconds(first), ticks: 4000000 } },
+  ])
+
+  await restore(page, legacy)
+  await expect(tools(left).getByRole('listitem')).toHaveCount(3)
+  await restore(page, backup)
+  await page.reload()
+  await expect(tools(left).getByText(noteText, { exact: true })).toBeVisible()
+  await expect(tools(left).getByText(arrowText, { exact: true })).toBeVisible()
 })

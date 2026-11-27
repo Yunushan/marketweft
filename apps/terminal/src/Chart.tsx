@@ -499,6 +499,20 @@ function draw(
           const beforeHistory = markerTimeline.length > 0 && annotation.start.time < markerTimeline[0].time
           const begin = beforeHistory ? left : from === null ? right : Math.max(left, x(from))
           if (begin < right) line(begin, level, right, level, '#83d1ef')
+        } else if (annotation.kind === 'note') {
+          if (from === null || level < top || level > priceBottom) continue
+          const anchor = x(from)
+          if (anchor < left || anchor > right) continue
+          const labelWidth = Math.min(right - left - 12, Math.ceil(ctx.measureText(annotation.text).width))
+          const labelStart = Math.min(anchor + 8, right - labelWidth - 6)
+          const labelY = clamp(level, top + 9, priceBottom - 9)
+          ctx.fillStyle = '#1e2834'
+          ctx.fillRect(labelStart - 5, labelY - 8, labelWidth + 10, 16)
+          ctx.fillStyle = '#f2dcad'
+          ctx.beginPath()
+          ctx.arc(anchor, level, 2, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.fillText(annotation.text, labelStart, labelY, labelWidth)
         } else {
           const to = markerColumn(markerTimeline, annotation.end.time)
           if (from === null || to === null) continue
@@ -518,6 +532,19 @@ function draw(
             ctx.ellipse((x1 + x2) / 2, (level + y2) / 2, Math.abs(x1 - x2) / 2, Math.abs(level - y2) / 2,
               0, 0, 2 * Math.PI)
             ctx.fill()
+            ctx.stroke()
+          } else if (annotation.kind === 'arrow') {
+            const length = Math.hypot(x2 - x1, y2 - level)
+            if (length === 0) continue
+            const angle = Math.atan2(y2 - level, x2 - x1)
+            const head = Math.min(10, length * 0.5)
+            ctx.strokeStyle = '#f2aa82'
+            ctx.beginPath()
+            ctx.moveTo(x1, level)
+            ctx.lineTo(x2, y2)
+            ctx.moveTo(x2 - head * Math.cos(angle - Math.PI / 6), y2 - head * Math.sin(angle - Math.PI / 6))
+            ctx.lineTo(x2, y2)
+            ctx.lineTo(x2 - head * Math.cos(angle + Math.PI / 6), y2 - head * Math.sin(angle + Math.PI / 6))
             ctx.stroke()
           } else if (annotation.kind === 'fibonacci') {
             const first = Math.min(x1, x2)

@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.131.0 · Chart notes and directional arrows
+
+| Check | Evidence |
+| --- | --- |
+| Browser chart | Chromium checks blank note validation, exact Unicode labels at interpolated UTC coordinates, and arrowhead direction when the end precedes the start. |
+| Workspace backup | Chromium checks version 36 note text and signed endpoints, version 31 restore and reload. |
+
+[Chart notes and directional arrows](chart-workspace.md#chart-notes-and-directional-arrows) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.130.0 · Ellipses and triangles
 
 | Check | Evidence |
