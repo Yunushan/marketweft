@@ -181,7 +181,7 @@ fn destination(config: ConfigFile, config_path: &Path) -> io::Result<Destination
                 .join(certificate);
             let mut roots = RootCertStore::empty();
             let pem = bounded(&root_path, 1024 * 1024)?;
-            trust_digest = Some(format!("{:x}", Sha256::digest(&pem)));
+            trust_digest = Some(crate::hex(&Sha256::digest(&pem)));
             for certificate in CertificateDer::pem_slice_iter(&pem) {
                 let certificate = certificate.map_err(io::Error::other)?;
                 roots.add(certificate).map_err(io::Error::other)?;
@@ -425,11 +425,7 @@ async fn run_webhook(
         })
         .map_err(io::Error::other)?,
     );
-    let mut signature = String::from("v1=");
-    for byte in hmac::sign(&key, &body).as_ref() {
-        use std::fmt::Write as _;
-        write!(signature, "{byte:02x}").expect("writing to a string succeeds");
-    }
+    let signature = "v1=".to_owned() + &crate::hex(hmac::sign(&key, &body).as_ref());
     let fingerprint = serde_json::to_vec(&(
         destination.uri.to_string(),
         &destination.key_id,
@@ -447,7 +443,7 @@ async fn run_webhook(
             destination.uri.path()
         ),
         key_id: destination.key_id.clone(),
-        delivery_digest: Some(format!("{:x}", Sha256::digest(&fingerprint))),
+        delivery_digest: Some(crate::hex(&Sha256::digest(&fingerprint))),
         outcome: Outcome::Pending,
         attempts: Vec::with_capacity(ATTEMPTS),
     };
