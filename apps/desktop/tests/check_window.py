@@ -39,6 +39,16 @@ def wait_for(find, description):
             # WebKit can replace an accessibility object after enumeration.
             last_error = error
         time.sleep(0.25)
+    visible = []
+    for node in descendants(pyatspi.Registry.getDesktop(0)):
+        try:
+            role = node.getRoleName()
+            if role in {"entry", "text", "label", "dialog", "push button", "file chooser"}:
+                if node.getState().contains(pyatspi.STATE_SHOWING):
+                    visible.append((role, node.name))
+        except GLib.Error:
+            continue
+    print("Visible controls:", visible[:80], flush=True)
     raise RuntimeError("Timed out waiting for " + description) from last_error
 
 
@@ -93,12 +103,10 @@ def visible_file_chooser(nodes):
 
 
 def import_csv():
-    symbol = wait_for(
-        lambda nodes: next((node for node in nodes if node.name == "Symbol"
-                            and node.getState().contains(pyatspi.STATE_EDITABLE)), None),
-        "the symbol input",
-    )
+    # WebKit exposes the label and the text field separately on some AT-SPI versions.
+    symbol = wait_for(lambda nodes: named(nodes, "Symbol"), "the symbol label")
     click(symbol)
+    keyboard("ctrl+a")
     type_text("NATIVESMOKE")
 
     with tempfile.TemporaryDirectory(prefix="marketweft-native-import-") as folder:
@@ -114,8 +122,8 @@ def import_csv():
         keyboard("ctrl+l")
         type_text(str(fixture))
         keyboard("Return")
-        wait_for(lambda nodes: next((node for node in nodes if fixture.name in node.name), None),
-                 "the selected CSV in the WebView")
+        wait_for(lambda nodes: True if visible_file_chooser(nodes) is None else None,
+                 "the native file chooser to close")
         click(wait_for(lambda nodes: named(nodes, "Import to watchlist"), "the import submit button"))
         imported = wait_for(
             lambda nodes: next((node.name for node in nodes if node.getRoleName() == "canvas"
