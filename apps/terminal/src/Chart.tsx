@@ -159,9 +159,13 @@ function draw(
         high = Math.max(high, value)
       }
     }
-    if (low === high) high = 1
-    const ticks = study.kind === 'bb_percent_b' ? [low, 0, 100, high] : [low, (low + high) / 2, 0, high]
-    const format = study.kind === 'atr' ? price : (value: number) => price(value) + '%'
+    if (low === high) {
+      high = 1
+      if (study.kind === 'macd') low = -1
+    }
+    const ticks = study.kind === 'bb_percent_b' ? [low, 0, 100, high] :
+      study.kind === 'macd' ? [low, 0, high] : [low, (low + high) / 2, 0, high]
+    const format = study.kind === 'atr' || study.kind === 'macd' ? price : (value: number) => price(value) + '%'
     return { ...study, low, high, ticks: [...new Set(ticks)].sort((a, b) => a - b), format }
   })
   const studyLabels = studyPanels.flatMap(panel => panel.ticks.map(panel.format))
@@ -461,12 +465,26 @@ function draw(
       const reference = (panel.kind === 'rsi' && (tick === 30 || tick === 70)) ||
         (panel.kind === 'stochastic' && (tick === 20 || tick === 80)) ||
         (panel.kind === 'williams_r' && (tick === -20 || tick === -80)) ||
+        (panel.kind === 'macd' && tick === 0) ||
         (panel.kind === 'bb_percent_b' && (tick === 0 || tick === 100))
       line(left, level, right, level, reference ? '#3e4c6a' : '#293036')
       ctx.fillStyle = '#93a19e'
       ctx.fillText(panel.format(tick), right + 7, level)
     }
-    for (const { color, series } of panel.lines) {
+    for (const { color, series, histogram } of panel.lines) {
+      if (!histogram) continue
+      const baseline = studyY(0)
+      const width = Math.max(1, Math.min(10, dx * 0.64))
+      for (let index = start; index < view.end; index++) {
+        const value = series[index]
+        if (value == null || value === 0) continue
+        const level = studyY(value)
+        ctx.fillStyle = value < 0 ? histogram.negativeColor : color
+        ctx.fillRect(x(index) - width / 2, Math.min(level, baseline), width, Math.abs(level - baseline))
+      }
+    }
+    for (const { color, series, histogram } of panel.lines) {
+      if (histogram) continue
       ctx.beginPath()
       ctx.lineWidth = 1.5
       ctx.strokeStyle = color
@@ -500,11 +518,11 @@ function draw(
       ctx.setLineDash([3, 4])
       line(axis, panelTop, axis, panelBottom, '#bdc9c7')
       ctx.setLineDash([])
-      for (const [lineIndex, { color }] of panel.lines.entries()) {
+      for (const [lineIndex, { color, histogram }] of panel.lines.entries()) {
         const selected = activeStudyValues[panelIndex][lineIndex]
         if (selected == null) continue
         ctx.beginPath()
-        ctx.fillStyle = color
+        ctx.fillStyle = selected < 0 && histogram ? histogram.negativeColor : color
         ctx.arc(axis, studyY(selected), 3, 0, Math.PI * 2)
         ctx.fill()
       }
@@ -884,7 +902,7 @@ export function Chart({
             const value = studyValues[index][lineIndex]
             return <span key={line.key ?? kind}><small>{line.label ?? heading}</small> {
               value == null ? '—' : typeof value === 'bigint' ?
-                fixed(value, 6) + '%' : fixed(BigInt(Math.round(value * 1e6)), 6)
+                fixed(value, 6) + (kind === 'macd' ? '' : '%') : fixed(BigInt(Math.round(value * 1e6)), 6)
             }</span>
           })}
         </div>

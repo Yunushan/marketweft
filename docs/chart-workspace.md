@@ -136,6 +136,14 @@ Subtract the highest observed high from the close, divide by the observed high-l
 
 The line is absent during warm-up and when the observed range is zero. Missing timestamps contribute zero observations. The chart leaves gaps for absent values. The research CSV exports exact signed percentage points under a column such as `williams_r_14` and leaves absent values empty.
 
+### MACD
+
+Enable **MACD** in either pane’s indicator settings. The MACD line subtracts the slow close EMA from the fast close EMA. The signal is an EMA of the MACD line. The histogram subtracts the signal from the MACD line and plots signed price differences around zero. [StockCharts’ MACD and histogram calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/macd-histogram).
+
+Each pane saves separate fast, slow and signal periods. The defaults are 12, 26 and 9 observed bars. Each period can be from 1 through 100,000, and the fast period must be shorter than the slow period. Each EMA begins with a complete-window average and rounds to six decimal places. The line appears when the slow EMA is available. The signal and histogram appear after the signal EMA has a full window of MACD values.
+
+The three series share a price-difference scale. With the default periods, the research CSV uses `macd_line_12_26_9`, `macd_signal_12_26_9` and `macd_histogram_12_26_9`. Warm-up cells stay empty.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

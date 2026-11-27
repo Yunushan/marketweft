@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { OverlayPeriods } from './catalog-schema'
 import { MAX_INDICATOR_PERIOD, validIndicatorPeriod } from './market-core'
-import { extraStudyPeriods, EXTRA_STUDY_PERIODS, STUDIES, validStudyPeriod } from './studies'
+import { extraStudyPeriods, EXTRA_STUDY_PERIODS, STUDIES, validStudyPeriod, validStudyPeriodOrder } from './studies'
 import type { StudyKind, StudySettings } from './studies'
 
 export function IndicatorPeriods({ label, periods, saving, onApply }: {
@@ -49,20 +49,21 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
   saving: boolean
   onApply: (settings: StudySettings) => void
 }) {
-  const { name, minPeriod } = STUDIES[kind]
+  const study = STUDIES[kind]
+  const { name, minPeriod } = study
   const [enabled, setEnabled] = useState(settings.enabled)
   const [period, setPeriod] = useState(String(settings.period))
   const extraPeriods = extraStudyPeriods(kind)
   const [extraValues, setExtraValues] = useState(() => Object.fromEntries(extraPeriods.map(key =>
     [key, String(settings[key] ?? EXTRA_STUDY_PERIODS[key].defaultPeriod)],
   )))
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<'period' | 'order' | null>(null)
   return (
     <form className="indicator-periods" aria-label={label} onSubmit={event => {
       event.preventDefault()
       const bars = Number(period)
       if (!/^\d+$/.test(period.trim()) || !validStudyPeriod(kind, bars)) {
-        setError(true)
+        setError('period')
         return
       }
       const next: StudySettings = { enabled, period: bars }
@@ -70,10 +71,14 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
         const value = extraValues[key]
         const parsed = Number(value)
         if (!/^\d+$/.test(value.trim()) || !validIndicatorPeriod(parsed)) {
-          setError(true)
+          setError('period')
           return
         }
         next[key] = parsed
+      }
+      if (!validStudyPeriodOrder(kind, next)) {
+        setError('order')
+        return
       }
       onApply(next)
     }}>
@@ -83,16 +88,18 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
           <input type="checkbox" checked={enabled} disabled={saving}
             onChange={event => setEnabled(event.target.checked)} />
         </label>
-        <label>{kind === 'keltner' ? 'Keltner EMA' : kind === 'stochastic' ? 'Stochastic lookback' : name} period (bars)
+        <label>{'periodLabel' in study ? study.periodLabel : name} period (bars)
           <input type="text" inputMode="numeric" value={period} disabled={saving}
-            onChange={event => { setPeriod(event.target.value); setError(false) }} />
+            onChange={event => { setPeriod(event.target.value); setError(null) }} />
         </label>
         {extraPeriods.map(key => <label key={key}>{EXTRA_STUDY_PERIODS[key].label} period (bars)
           <input type="text" inputMode="numeric" value={extraValues[key]} disabled={saving}
-            onChange={event => { setExtraValues({ ...extraValues, [key]: event.target.value }); setError(false) }} />
+            onChange={event => { setExtraValues({ ...extraValues, [key]: event.target.value }); setError(null) }} />
         </label>)}
         <button type="submit" disabled={saving}>Apply {name}</button>
-        {error && <p role="alert">{kind === 'keltner' ?
+        {error && <p role="alert">{error === 'order' ?
+          'The MACD fast period must be shorter than the slow period.' : kind === 'macd' ?
+          'Enter whole MACD periods from 1 through 100,000 bars.' : kind === 'keltner' ?
           'Enter whole EMA and ATR periods from 1 through 100,000 bars.' : kind === 'stochastic' ?
           'Enter whole Stochastic periods from 1 through 100,000 bars.' :
           `Enter a whole ${name} period from ${minPeriod} through 100,000 bars.`}</p>}

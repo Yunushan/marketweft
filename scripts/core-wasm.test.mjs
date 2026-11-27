@@ -1352,3 +1352,21 @@ test('Williams %R uses the signed distance from the observed high and rounds neg
   assert.throws(() => core.williamsPercentR(0, bars), /100,000/);
   assert.throws(() => core.williamsPercentR(3, [bars[0], bars[0]]), /later/);
 });
+
+test('MACD exposes exact signed price distances through each close and signal warm-up', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-atr.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const point = (line, signal, histogram) => ({ line, signal, histogram });
+  const expected = [
+    point(null, null, null), point(4_000_000n, null, null), point(0n, 2_000_000n, -2_000_000n),
+    point(-5_333_333n, -2_888_889n, -2_444_444n), point(-3_444_444n, -3_259_259n, -185_185n),
+    point(-1_148_148n, -1_851_852n, 703_704n), point(-382_716n, -872_428n, 489_712n),
+  ];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.macd(1, 2, 2, bars.slice(0, end)), expected.slice(0, end));
+  }
+  const extreme = bars.slice(0, 3).map((bar, index) => ({ ...bar, close: index === 2 ? -2e9 : 2e9 }));
+  assert.deepEqual(core.macd(1, 3, 1, extreme)[2], point(-2_666_666_666_666_667n, -2_666_666_666_666_667n, 0n));
+  assert.throws(() => core.macd(2, 2, 1, bars), /shorter/);
+  assert.throws(() => core.macd(1, 2, 0, bars), /100,000/);
+});

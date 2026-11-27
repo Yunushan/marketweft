@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.118.0 adds Williams %R with exact signed values and flat-range gaps. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.119.0 adds MACD with a signal line and signed histogram. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -121,6 +121,7 @@
 | Delivered · 0.116.0 | Keltner Channels (MW-014) | Verify independent EMA and ATR periods, the effect of observed price gaps, signed band values on the shared price axis, warm-up, and exact research CSV. [Keltner Channels](docs/chart-workspace.md#keltner-channels). |
 | Delivered · 0.117.0 | Stochastic Oscillator (MW-014) | Verify three periods, exact close position and smoothing, flat-range gaps, a common 0–100 scale, and exact research CSV. [Stochastic Oscillator](docs/chart-workspace.md#stochastic-oscillator). |
 | Delivered · 0.118.0 | Williams %R (MW-014) | Verify signed rolling positions, negative half-tick ties, warm-up and flat ranges, the fixed scale, and exact research CSV. [Williams %R](docs/chart-workspace.md#williams-r). |
+| Delivered · 0.119.0 | MACD (MW-014) | Verify the fast and slow close EMAs, two warm-up stages, a signed price histogram, exact CSV, and independent settings. [MACD](docs/chart-workspace.md#macd). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -132,5 +133,5 @@
 
 ## Handoff for the next change
 
-Add MACD as a built-in study. Verify both close EMAs, signal warm-up, the signed histogram, exact research CSV, and independent settings.
+Add On-Balance Volume and the Accumulation/Distribution Line. Verify signed cumulative volume, unchanged closes, flat ranges, observation gaps, wide totals, and exact research CSV.
 

@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.119.0 · MACD
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Exact vectors compare EMA seeds, signal warm-up, earlier prefixes, both signs of the histogram and differences beyond the source-price magnitude. |
+| Browser chart and export | Offline Chromium verifies line and signal warm-up, histogram bars above and below zero, and every research CSV value. |
+| Workspace | Version 24 stores three periods separately in both panes and validates the fast and slow ordering. Version 23 still restores its Williams %R study. |
+
+[MACD](chart-workspace.md#macd) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.118.0 · Williams %R
 
 | Check | Evidence |

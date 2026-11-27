@@ -2877,6 +2877,20 @@ pub extern "C" fn mw_keltner_channels(ema_period: usize, atr_period: usize) -> u
 }
 
 #[no_mangle]
+pub extern "C" fn mw_macd(fast: usize, slow: usize, signal: usize) -> u32 {
+    process(|input| {
+        let values = crate::macd(fast, slow, signal, &indicator_closes(input)?)?;
+        let mut bytes = Vec::with_capacity(values.len() * 24);
+        for value in values {
+            for ticks in [value.line, value.signal, value.histogram] {
+                bytes.extend_from_slice(&ticks.unwrap_or(i64::MIN).to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_williams_percent_r(period: usize) -> u32 {
     process(|input| {
         crate::williams_percent_r(period, &decode_bars(input)?).map(encode_indicator_values)

@@ -36,6 +36,12 @@ function readPriceBands(out: DataView): (PriceBand | null)[] {
   });
 }
 
+export interface MacdValue {
+  line: bigint | null;
+  signal: bigint | null;
+  histogram: bigint | null;
+}
+
 export interface StochasticValue {
   percentK: bigint | null;
   percentD: bigint | null;
@@ -894,6 +900,7 @@ export interface MarketCore {
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
+  macd(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
   williamsPercentR(period: number, bars: readonly Bar[]): (bigint | null)[];
   stochasticOscillator(lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
   bollingerMeasures(period: number, bars: readonly Bar[]): BollingerMeasures[];
@@ -989,6 +996,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_bollinger_bands(period: number): number;
   mw_donchian_channels(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
+  mw_macd(fast: number, slow: number, signal: number): number;
   mw_williams_percent_r(period: number): number;
   mw_stochastic_oscillator(lookback: number, smoothing: number, signal: number): number;
   mw_bollinger_measures(period: number): number;
@@ -1783,6 +1791,19 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         throw new Error('Series and indicator periods must fit within 100,000 bars.');
       putIndicatorBars(bars, 'Keltner Channels');
       return readPriceBands(output(api.mw_keltner_channels(emaPeriod, atrPeriod)));
+    },
+    macd(fast, slow, signal, bars) {
+      if (![fast, slow, signal].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Series and indicator periods must fit within 100,000 bars.');
+      putIndicatorCloses(bars);
+      const out = output(api.mw_macd(fast, slow, signal));
+      function value(offset: number) {
+        const ticks = out.getBigInt64(offset, true);
+        return ticks === MISSING ? null : ticks;
+      }
+      return Array.from({ length: bars.length }, (_, index) => ({
+        line: value(index * 24), signal: value(index * 24 + 8), histogram: value(index * 24 + 16),
+      }));
     },
     williamsPercentR(period, bars) {
       if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)

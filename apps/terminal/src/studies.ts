@@ -9,9 +9,10 @@ export const STUDIES = {
   bb_percent_b: { name: 'Bollinger %B', label: 'Bollinger %B', minPeriod: 1, defaultPeriod: 20, color: '#e797c7' },
   bb_bandwidth: { name: 'BandWidth', label: 'Bollinger BandWidth', minPeriod: 1, defaultPeriod: 20, color: '#6acec6' },
   donchian: { name: 'Donchian Channels', label: 'Donchian Channels', minPeriod: 1, defaultPeriod: 20 },
-  keltner: { name: 'Keltner Channels', label: 'Keltner Channels', minPeriod: 1, defaultPeriod: 20 },
-  stochastic: { name: 'Stochastic Oscillator', label: 'Stochastic Oscillator', minPeriod: 1, defaultPeriod: 14, color: '#a6c9f8' },
+  keltner: { name: 'Keltner Channels', label: 'Keltner Channels', minPeriod: 1, defaultPeriod: 20, periodLabel: 'Keltner EMA' },
+  stochastic: { name: 'Stochastic Oscillator', label: 'Stochastic Oscillator', minPeriod: 1, defaultPeriod: 14, periodLabel: 'Stochastic lookback', color: '#a6c9f8' },
   williams_r: { name: 'Williams %R', label: 'Williams %R', minPeriod: 1, defaultPeriod: 14, color: '#ceaeec' },
+  macd: { name: 'MACD', label: 'Moving Average Convergence Divergence', minPeriod: 1, defaultPeriod: 12, periodLabel: 'MACD fast', color: '#9abdfd' },
 } as const
 export type StudyKind = keyof typeof STUDIES
 export const STUDY_KINDS = Object.keys(STUDIES) as StudyKind[]
@@ -19,11 +20,14 @@ export const EXTRA_STUDY_PERIODS = {
   atrPeriod: { label: 'Keltner ATR', defaultPeriod: 10 },
   smoothPeriod: { label: 'Stochastic %K smoothing', defaultPeriod: 3 },
   signalPeriod: { label: 'Stochastic %D', defaultPeriod: 3 },
+  slowPeriod: { label: 'MACD slow', defaultPeriod: 26 },
+  macdSignalPeriod: { label: 'MACD signal', defaultPeriod: 9 },
 } as const
 type ExtraStudyPeriod = keyof typeof EXTRA_STUDY_PERIODS
 const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPeriod[]>> = {
   keltner: ['atrPeriod'],
   stochastic: ['smoothPeriod', 'signalPeriod'],
+  macd: ['slowPeriod', 'macdSignalPeriod'],
 }
 export function extraStudyPeriods(kind: StudyKind): readonly ExtraStudyPeriod[] {
   return EXTRA_PERIODS_BY_STUDY[kind] ?? []
@@ -37,7 +41,13 @@ export function defaultStudySettings(kind: StudyKind): StudySettings {
 export type StudySet = Partial<Record<StudyKind, StudySettings>>
 export type StudyValue = number | bigint | null
 type BandKind = 'bb' | 'donchian' | 'keltner'
-export type PanelLine = { label?: string; key?: string; color: string; series: StudyValue[] }
+export type PanelLine = {
+  label?: string
+  key?: string
+  color: string
+  series: StudyValue[]
+  histogram?: { negativeColor: string }
+}
 export type PanelStudy = { kind: Exclude<StudyKind, BandKind>; periods: number[]; lines: PanelLine[] }
 export type BandStudy = {
   period: number
@@ -80,6 +90,17 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
         { key: 'd', label: '%D', color: '#f1a98a', series: rows.map(row => row.percentD) },
       ] }]
     }
+    if (kind === 'macd') {
+      const slow = study.slowPeriod ?? EXTRA_STUDY_PERIODS.slowPeriod.defaultPeriod
+      const signal = study.macdSignalPeriod ?? EXTRA_STUDY_PERIODS.macdSignalPeriod.defaultPeriod
+      const rows = core.macd(period, slow, signal, bars)
+      return [{ kind, periods: [period, slow, signal], lines: [
+        { key: 'line', label: 'Line', color: STUDIES.macd.color, series: rows.map(row => row.line) },
+        { key: 'signal', label: 'Signal', color: '#f4c384', series: rows.map(row => row.signal) },
+        { key: 'histogram', label: 'Histogram', color: '#458b77', series: rows.map(row => row.histogram),
+          histogram: { negativeColor: '#a3687f' } },
+      ] }]
+    }
     let series: StudyValue[]
     if (kind === 'bb_percent_b' || kind === 'bb_bandwidth') {
       let measures = measuresByPeriod.get(period)
@@ -113,6 +134,10 @@ export function studyOverlays(studies: StudyValues[]): ExportOverlay[] {
 export function isStudyKind(key: string): key is StudyKind {
   return Object.hasOwn(STUDIES, key)
 }
+export function validStudyPeriodOrder(kind: StudyKind, settings: StudySettings): boolean {
+  return kind !== 'macd' || (settings.slowPeriod !== undefined && settings.period < settings.slowPeriod)
+}
+
 export function validStudyPeriod(kind: StudyKind, period: unknown): period is number {
   return validIndicatorPeriod(period) && period >= STUDIES[kind].minPeriod
 }

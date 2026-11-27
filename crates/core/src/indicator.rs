@@ -22,9 +22,13 @@ pub fn indicator(kind: Average, period: usize, closes: &[i64]) -> Result<Vec<Opt
     if closes.iter().any(|c| !(-MAX_TICKS..=MAX_TICKS).contains(c)) {
         return Err("A close is outside the supported fixed-point range.".into());
     }
+    Ok(average_values(kind, period, closes))
+}
+
+pub(crate) fn average_values(kind: Average, period: usize, closes: &[i64]) -> Vec<Option<i64>> {
     let mut out = vec![None; closes.len()];
     if period > closes.len() {
-        return Ok(out);
+        return out;
     }
     let mut sum: i128 = closes[..period].iter().map(|&x| i128::from(x)).sum();
     let weight = period as i128;
@@ -43,5 +47,5 @@ pub fn indicator(kind: Average, period: usize, closes: &[i64]) -> Result<Vec<Opt
         };
         out[i] = Some(last);
     }
-    Ok(out)
+    out
 }

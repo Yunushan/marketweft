@@ -24,6 +24,7 @@ mod indicator;
 mod kagi;
 mod keltner;
 mod line_break;
+mod macd;
 mod macro_calendar;
 mod option_cash;
 mod option_chain;
@@ -104,6 +105,7 @@ pub use indicator::{indicator, Average};
 pub use kagi::{kagi, KagiSegment, KagiWeight};
 pub use keltner::keltner_channels;
 pub use line_break::three_line_break;
+pub use macd::{macd, MacdValue};
 pub use macro_calendar::{MacroCalendar, ReleaseRecord, ReleaseSnapshot, ReportKind};
 pub use option_cash::CashOptionDividend;
 pub use option_chain::{
