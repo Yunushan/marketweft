@@ -6,6 +6,7 @@ package marketweft.research.v1;
 service Research {
   rpc EvaluateFormula(FormulaQuery) returns (FormulaPage);
   rpc ScreenUniverse(ScreenQuery) returns (ScreenPage);
+  rpc SnapshotOptions(OptionQuery) returns (OptionPage);
 }
 
 message FormulaFunction {
@@ -71,4 +72,62 @@ message ScreenPage {
   uint32 offset = 3;
   optional uint32 next_offset = 4;
   repeated ScreenRow rows = 5;
+}
+
+
+message OptionQuery {
+  string underlying_csv = 1;
+  string quotes_csv = 2;
+  string effective_at = 3;
+  string known_at = 4;
+  // Omit for the default of 300 seconds. Explicit zero requires a current quote.
+  optional uint32 max_age = 5;
+  optional uint64 offset = 6;
+  optional uint64 limit = 7;
+}
+
+message OptionUnderlying {
+  int64 quote_at = 1;
+  int64 observed_at = 2;
+  // Exact six-place ticks and units, represented as strings.
+  string spot_ticks = 3;
+  string rate_units = 4;
+  string dividend_yield_units = 5;
+}
+
+message OptionModel {
+  double volatility = 1;
+  double price = 2;
+  double delta = 3;
+  double gamma = 4;
+  double vega = 5;
+  double theta = 6;
+  double rho = 7;
+}
+
+message OptionRow {
+  string contract_id = 1;
+  int64 expiration = 2;
+  string strike_ticks = 3;
+  string side = 4;
+  string exercise_style = 5;
+  int64 quote_at = 6;
+  int64 observed_at = 7;
+  // Absence distinguishes a missing quote from a valid zero.
+  optional string bid_ticks = 8;
+  optional string ask_ticks = 9;
+  string status = 10;
+  OptionModel analytics = 11;
+}
+
+message OptionPage {
+  string instrument = 1;
+  string currency = 2;
+  string effective_at = 3;
+  string known_at = 4;
+  OptionUnderlying underlying = 5;
+  uint32 total_rows = 6;
+  uint32 offset = 7;
+  optional uint32 next_offset = 8;
+  repeated OptionRow rows = 9;
 }

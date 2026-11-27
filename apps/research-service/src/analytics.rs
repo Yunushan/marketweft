@@ -1,5 +1,8 @@
 use crate::{
-    proto::{Close, FormulaPage, FormulaQuery, FormulaRow, ScreenPage, ScreenQuery, ScreenRow},
+    proto::{
+        Close, FormulaPage, FormulaQuery, FormulaRow, OptionModel, OptionPage, OptionQuery,
+        OptionRow, OptionUnderlying, ScreenPage, ScreenQuery, ScreenRow,
+    },
     ApiError,
 };
 use axum::http::StatusCode;
@@ -24,8 +27,10 @@ pub(crate) enum ResearchPage {
     AmericanOption(AmericanOptionResponse),
 }
 
-pub(crate) fn present_u64<'de, D: Deserializer<'de>>(input: D) -> Result<Option<u64>, D::Error> {
-    u64::deserialize(input).map(Some)
+pub(crate) fn present<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
+    input: D,
+) -> Result<Option<T>, D::Error> {
+    T::deserialize(input).map(Some)
 }
 
 pub(crate) fn first_page<T>(
@@ -228,71 +233,8 @@ pub(crate) fn evaluate_screen(
     Ok(())
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct OptionQuery {
-    underlying_csv: String,
-    quotes_csv: String,
-    effective_at: String,
-    known_at: String,
-    #[serde(default = "default_quote_age")]
-    max_age: u32,
-    #[serde(default, deserialize_with = "present_u64")]
-    offset: Option<u64>,
-    #[serde(default, deserialize_with = "present_u64")]
-    limit: Option<u64>,
-}
-
 const fn default_quote_age() -> u32 {
     300
-}
-
-#[derive(Serialize)]
-pub(crate) struct OptionPage {
-    instrument: String,
-    currency: String,
-    effective_at: String,
-    known_at: String,
-    underlying: Option<OptionUnderlying>,
-    total_rows: u32,
-    offset: u32,
-    next_offset: Option<u32>,
-    rows: Vec<OptionRow>,
-}
-
-#[derive(Serialize)]
-struct OptionUnderlying {
-    quote_at: i64,
-    observed_at: i64,
-    spot_ticks: String,
-    rate_units: String,
-    dividend_yield_units: String,
-}
-
-#[derive(Serialize)]
-struct OptionRow {
-    contract_id: String,
-    expiration: i64,
-    strike_ticks: String,
-    side: &'static str,
-    exercise_style: &'static str,
-    quote_at: i64,
-    observed_at: i64,
-    bid_ticks: Option<String>,
-    ask_ticks: Option<String>,
-    status: &'static str,
-    analytics: Option<OptionModel>,
-}
-
-#[derive(Serialize)]
-struct OptionModel {
-    volatility: f64,
-    price: f64,
-    delta: f64,
-    gamma: f64,
-    vega: f64,
-    theta: f64,
-    rho: f64,
 }
 
 impl From<OptionAnalytics> for OptionModel {
@@ -313,13 +255,25 @@ pub(crate) fn option_snapshot(
     bytes: &[u8],
     emit: &mut dyn FnMut(ResearchPage) -> bool,
 ) -> Result<(), ApiError> {
-    let params: OptionQuery = request(bytes)?;
+    evaluate_options(request(bytes)?, &mut |page| {
+        emit(ResearchPage::Options(page))
+    })
+}
+
+pub(crate) fn evaluate_options(
+    params: OptionQuery,
+    emit: &mut dyn FnMut(OptionPage) -> bool,
+) -> Result<(), ApiError> {
     let (offset, limit) = pagination(params.offset, params.limit, 20_000)?;
     let (effective, known) = option_cutoffs(&params.effective_at, &params.known_at)?;
     let book = OptionBook::parse(&params.underlying_csv, &params.quotes_csv)
         .map_err(|error| analytical_error(error.to_string()))?;
     let source = book.underlying();
-    let snapshot = book.snapshot(effective, known, params.max_age);
+    let snapshot = book.snapshot(
+        effective,
+        known,
+        params.max_age.unwrap_or_else(default_quote_age),
+    );
     pages(
         offset,
         limit,
@@ -335,11 +289,13 @@ pub(crate) fn option_snapshot(
                     side: match row.contract.side {
                         OptionSide::Call => "call",
                         OptionSide::Put => "put",
-                    },
+                    }
+                    .into(),
                     exercise_style: match row.contract.exercise_style {
                         ExerciseStyle::European => "european",
                         ExerciseStyle::American => "american",
-                    },
+                    }
+                    .into(),
                     quote_at: row.quote.at,
                     observed_at: row.quote.observed_at,
                     bid_ticks: row.quote.bid.map(|ticks| ticks.to_string()),
@@ -347,11 +303,12 @@ pub(crate) fn option_snapshot(
                     status: row
                         .analytics
                         .as_ref()
-                        .map_or_else(|error| error.code(), |_| "ok"),
+                        .map_or_else(|error| error.code(), |_| "ok")
+                        .into(),
                     analytics: row.analytics.ok().map(OptionModel::from),
                 })
                 .collect();
-            ResearchPage::Options(OptionPage {
+            OptionPage {
                 instrument: source.instrument.to_string(),
                 currency: source.currency.clone(),
                 effective_at: params.effective_at.clone(),
@@ -367,7 +324,7 @@ pub(crate) fn option_snapshot(
                 offset,
                 next_offset,
                 rows,
-            })
+            }
         },
     );
     Ok(())

@@ -1,11 +1,24 @@
 mod support;
 
-use marketweft_research_service::proto::{
-    research_client::ResearchClient, FormulaQuery, ScreenQuery,
+use axum::{
+    body::{to_bytes, Body},
+    http::Request as HttpRequest,
 };
-use support::{ResearchProcess, Settings, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
+use futures_util::{SinkExt, StreamExt};
+use marketweft_research_service::{
+    proto::{research_client::ResearchClient, FormulaQuery, OptionQuery, ScreenQuery},
+    research_router, Tokens,
+};
+use serde_json::{json, Value};
+use support::{ResearchProcess, Settings, FORMULA_TOKEN, IO_DEADLINE, OPTIONS_TOKEN, SCREEN_TOKEN};
+use tokio::time::timeout;
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{client::IntoClientRequest, Message},
+};
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request};
+use tower::ServiceExt;
 
 const HISTORY: &str =
     include_str!("../../../crates/core/tests/fixtures/synthetic-formula-bars.csv");
@@ -191,4 +204,206 @@ async fn preserves_exact_returns_above_int64() {
         "2000000000000000"
     );
     assert_eq!(page.rows[1].current, None);
+}
+
+fn options(effective: &str, known: &str) -> OptionQuery {
+    OptionQuery {
+        underlying_csv: include_str!(
+            "../../../crates/core/tests/fixtures/synthetic-option-underlying.csv"
+        )
+        .into(),
+        quotes_csv: include_str!(
+            "../../../crates/core/tests/fixtures/synthetic-option-exercise-quotes.csv"
+        )
+        .into(),
+        effective_at: format!("2025-04-03T{effective}:00Z"),
+        known_at: format!("2025-04-03T{known}:00Z"),
+        ..OptionQuery::default()
+    }
+}
+
+#[tokio::test]
+async fn option_pages_match_rest_and_websocket_across_effective_and_known_cutoffs() {
+    let server = ResearchProcess::start(Settings::default());
+    let mut client = connect(&server).await;
+    let router = research_router(
+        "127.0.0.1:4174".parse().unwrap(),
+        Tokens::with_options(None, None, Some(OPTIONS_TOKEN)).unwrap(),
+    )
+    .unwrap();
+    let token = format!("Bearer {OPTIONS_TOKEN}");
+    for (effective, known, spot, american) in [
+        ("14:00", "14:00", "100000000", false),
+        ("14:00", "14:04", "100500000", true),
+        ("14:01", "14:05", "101000000", true),
+    ] {
+        let mut query = options(effective, known);
+        query.limit = Some(3);
+        let mut socket_request = format!(
+            "{}/v1/options/snapshot/stream",
+            server.origin.replacen("http://", "ws://", 1)
+        )
+        .into_client_request()
+        .unwrap();
+        socket_request
+            .headers_mut()
+            .insert("authorization", token.parse().unwrap());
+        let (mut socket, _) = timeout(IO_DEADLINE, connect_async(socket_request))
+            .await
+            .unwrap()
+            .unwrap();
+        socket
+            .send(Message::Text(
+                json!({
+                    "underlying_csv": query.underlying_csv,
+                    "quotes_csv": query.quotes_csv,
+                    "effective_at": query.effective_at,
+                    "known_at": query.known_at,
+                    "limit": query.limit.unwrap(),
+                })
+                .to_string()
+                .into(),
+            ))
+            .await
+            .unwrap();
+        let mut contracts = Vec::new();
+
+        loop {
+            let page = client
+                .snapshot_options(authorized(query.clone(), OPTIONS_TOKEN))
+                .await
+                .unwrap()
+                .into_inner();
+            assert_eq!(page.underlying.as_ref().unwrap().spot_ticks, spot);
+            assert_eq!(page.offset, query.offset.unwrap_or(0) as u32);
+            assert_eq!(page.effective_at, query.effective_at);
+            assert_eq!(page.known_at, query.known_at);
+            let mut body = json!({
+                "underlying_csv": query.underlying_csv,
+                "quotes_csv": query.quotes_csv,
+                "effective_at": query.effective_at,
+                "known_at": query.known_at,
+                "limit": query.limit.unwrap(),
+            });
+            if let Some(offset) = query.offset {
+                body["offset"] = json!(offset);
+            }
+            let response = router
+                .clone()
+                .oneshot(
+                    HttpRequest::post("/v1/options/snapshot")
+                        .header("host", "127.0.0.1:4174")
+                        .header("authorization", &token)
+                        .header("content-type", "application/json")
+                        .body(Body::from(body.to_string()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), 200);
+            let rest_json: Value =
+                serde_json::from_slice(&to_bytes(response.into_body(), 1024 * 1024).await.unwrap())
+                    .unwrap();
+            let frame = timeout(IO_DEADLINE, socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            let ws_json: Value = serde_json::from_str(frame.to_text().unwrap()).unwrap();
+            assert_eq!(ws_json["type"], "page");
+            assert_eq!(ws_json["page"], rest_json);
+            let grpc_json: Value =
+                serde_json::from_slice(&serde_json::to_vec(&page).unwrap()).unwrap();
+            assert_eq!(grpc_json, rest_json);
+            contracts.extend(page.rows);
+            let Some(next) = page.next_offset else { break };
+            query.offset = Some(next.into());
+        }
+        let message = timeout(IO_DEADLINE, socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert!(matches!(message, Message::Close(_)));
+        assert_eq!(
+            contracts.iter().any(|row| row.contract_id == "APR-AM-C90"),
+            american
+        );
+        let missing = contracts
+            .iter()
+            .find(|row| row.contract_id == "APR-C105")
+            .unwrap();
+        assert_eq!(missing.bid_ticks, None);
+        assert_eq!(missing.ask_ticks.as_deref(), Some("6500000"));
+        let current = contracts
+            .iter()
+            .find(|row| row.contract_id == "APR-C100")
+            .unwrap();
+        assert_eq!(current.strike_ticks, "100000000");
+        assert!(current.analytics.is_some());
+    }
+}
+
+#[tokio::test]
+async fn option_query_preserves_zero_age_and_enforces_scope_and_limits() {
+    let server = ResearchProcess::start(Settings::default());
+    let mut client = connect(&server).await;
+    let query = options("14:00", "14:00");
+    assert_eq!(
+        client
+            .snapshot_options(query.clone())
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unauthenticated
+    );
+    assert_eq!(
+        client
+            .snapshot_options(authorized(query.clone(), SCREEN_TOKEN))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+    assert_eq!(
+        client
+            .snapshot_options(authorized(query.clone(), FORMULA_TOKEN))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+    let mut invalid = query.clone();
+    invalid.limit = Some(0);
+    assert_eq!(
+        client
+            .snapshot_options(authorized(invalid, OPTIONS_TOKEN))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::InvalidArgument
+    );
+
+    let mut zero = query.clone();
+    zero.max_age = Some(0);
+    let default_page = client
+        .snapshot_options(authorized(query, OPTIONS_TOKEN))
+        .await
+        .unwrap()
+        .into_inner();
+    let zero_page = client
+        .snapshot_options(authorized(zero, OPTIONS_TOKEN))
+        .await
+        .unwrap()
+        .into_inner();
+    let quote = |page: &marketweft_research_service::proto::OptionPage| {
+        page.rows
+            .iter()
+            .find(|row| row.contract_id == "APR-C100")
+            .unwrap()
+            .status
+            .clone()
+    };
+    assert_eq!(quote(&default_page), "ok");
+    assert_eq!(quote(&zero_page), "stale-underlying");
 }

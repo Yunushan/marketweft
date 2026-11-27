@@ -45,6 +45,7 @@ Use a Protobuf client over HTTP/2 at the printed service address. The default lo
 | --- | --- |
 | `EvaluateFormula` | `MARKETWEFT_FORMULA_TOKEN` |
 | `ScreenUniverse` | `MARKETWEFT_SCREEN_TOKEN` |
+| `SnapshotOptions` | `MARKETWEFT_OPTIONS_TOKEN` |
 
 Send the bearer token as `authorization` metadata. Reuse the same query and its data and cutoffs with `offset` set to the previous page’s `next_offset`. An absent `next_offset` marks the last page. The schema uses optional fields for unavailable formula values, ranks and close observations, and strings for exact ticks and returns. The server caps each Protobuf message at 16 MiB and applies a 15-second deadline to each call.
 
@@ -287,3 +288,10 @@ With the sample April American 90-strike call, the 14:06 UTC revision carries US
 Connect to `ws://127.0.0.1:4174/v1/options/snapshot/stream` with an `options` bearer token and send one text message containing the same JSON as the REST snapshot request. On a configured private TLS listener, use its advertised `wss://` URL and an issued options credential.
 
 Each text response has a `type` of `page` and a `page` object with the same shape as REST. The connection closes after the last page. If it closes before you have received every page, reconnect and repeat the same CSVs, cutoffs, quote age and page size. Send the last received `next_offset` as `offset` to resume. When `next_offset` is null, the snapshot is complete. [REST snapshot schema and inputs](#option-chain-snapshots).
+
+
+## Option snapshots over gRPC
+
+Call the unary `SnapshotOptions` method with the `options` scope. Supply the underlying and quote CSV contents and independent effective and known UTC cutoffs. The response preserves quote and observation times, option analytics and precise decimal tick strings. Optional bids and asks distinguish an absent quote from zero. An unavailable model has an absent `analytics` message and a status code.
+
+Omit `max_age` to accept quotes up to 300 seconds old. Send an explicit zero to require current quotes. Use each returned `next_offset` with the same data, cutoffs, maximum age and limit to retrieve the next page. An absent cursor marks the last page. [REST inputs and page fields](#option-chain-snapshots) · [Protobuf contract](../apps/research-service/proto/research.proto).

@@ -15,7 +15,7 @@ The fixture uses April 3, 2025 UTC and one synthetic USD underlying.
 
 The fixture also includes a one-sided quote, a stale quote and a midpoint above the European price bound. Each remains visible with a reason in its analytics cells.
 
-The native research executable and Python SDK replay the same option snapshot from local CSVs. [Native option snapshots](../packages/python-research/README.md#option-chain-snapshots) · [TypeScript option research](../packages/research/README.md#option-snapshots-and-american-valuations) · [MCP option snapshots](local-mcp-research.md#option-chain-snapshots) · [REST option snapshots](local-rest-research.md#option-chain-snapshots) · [Option snapshots over WebSocket](local-rest-research.md#option-snapshots-over-websocket).
+The native research executable and Python SDK replay the same option snapshot from local CSVs. [Native option snapshots](../packages/python-research/README.md#option-chain-snapshots) · [TypeScript option research](../packages/research/README.md#option-snapshots-and-american-valuations) · [MCP option snapshots](local-mcp-research.md#option-chain-snapshots) · [REST option snapshots](local-rest-research.md#option-chain-snapshots) · [Option snapshots over WebSocket](local-rest-research.md#option-snapshots-over-websocket) · [Option snapshots over gRPC](local-rest-research.md#option-snapshots-over-grpc).
 
 ## Input
 

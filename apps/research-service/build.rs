@@ -2,7 +2,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=proto/research.proto");
     let descriptors = protox::compile(["proto/research.proto"], ["proto"])?;
     let mut builder = tonic_prost_build::configure();
-    for message in ["FormulaQuery", "FormulaFunction", "ScreenQuery"] {
+    for message in [
+        "FormulaQuery",
+        "FormulaFunction",
+        "ScreenQuery",
+        "OptionQuery",
+    ] {
         builder = builder
             .type_attribute(message, "#[derive(serde::Deserialize)]")
             .type_attribute(message, "#[serde(deny_unknown_fields)]");
@@ -13,6 +18,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Close",
         "ScreenRow",
         "ScreenPage",
+        "OptionPage",
+        "OptionUnderlying",
+        "OptionRow",
+        "OptionModel",
     ] {
         builder = builder.type_attribute(message, "#[derive(serde::Serialize)]");
     }
@@ -21,10 +30,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "FormulaQuery.limit",
         "ScreenQuery.offset",
         "ScreenQuery.limit",
+        "OptionQuery.max_age",
+        "OptionQuery.offset",
+        "OptionQuery.limit",
     ] {
         builder = builder.field_attribute(
             field,
-            "#[serde(default, deserialize_with = \"crate::analytics::present_u64\")]",
+            "#[serde(default, deserialize_with = \"crate::analytics::present\")]",
         );
     }
     builder

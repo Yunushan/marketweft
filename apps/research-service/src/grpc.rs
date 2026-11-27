@@ -3,7 +3,7 @@ use crate::{
     audit::{Outcome, Transport},
     proto::{
         research_server::{Research, ResearchServer},
-        FormulaPage, FormulaQuery, ScreenPage, ScreenQuery,
+        FormulaPage, FormulaQuery, OptionPage, OptionQuery, ScreenPage, ScreenQuery,
     },
     shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
@@ -37,8 +37,19 @@ pub(crate) fn routes(state: Arc<Server>) -> Router {
         ))
         .merge(
             Router::new()
-                .route_service("/marketweft.research.v1.Research/ScreenUniverse", service)
-                .route_layer(from_fn_with_state((state, Scope::Screen), guard)),
+                .route_service(
+                    "/marketweft.research.v1.Research/ScreenUniverse",
+                    service.clone(),
+                )
+                .route_layer(from_fn_with_state(
+                    (Arc::clone(&state), Scope::Screen),
+                    guard,
+                )),
+        )
+        .merge(
+            Router::new()
+                .route_service("/marketweft.research.v1.Research/SnapshotOptions", service)
+                .route_layer(from_fn_with_state((state, Scope::Options), guard)),
         )
 }
 
@@ -125,6 +136,13 @@ impl Research for LocalResearch {
         request: GrpcRequest<ScreenQuery>,
     ) -> Result<GrpcResponse<ScreenPage>, Status> {
         unary(request, analytics::evaluate_screen).await
+    }
+
+    async fn snapshot_options(
+        &self,
+        request: GrpcRequest<OptionQuery>,
+    ) -> Result<GrpcResponse<OptionPage>, Status> {
+        unary(request, analytics::evaluate_options).await
     }
 }
 

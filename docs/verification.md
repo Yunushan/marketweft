@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.102.0 · gRPC option snapshots
+
+| Check | Evidence |
+| --- | --- |
+| Transport parity | At three effective and known time pairs, loopback gRPC and WebSocket pages match REST row-for-row, including exact strikes, missing bids and the delayed American quote. |
+| Presence and scope | Tests establish that explicit zero quote age differs from omission, that out-of-range limits fail, and that formula and screen credentials cannot open option snapshots. |
+
+[Option snapshots over gRPC](local-rest-research.md#option-snapshots-over-grpc) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.101.0 · WebSocket option snapshots
 
 | Check | Evidence |
