@@ -1,9 +1,10 @@
+import { fixed } from './fixed-point'
 import { useState } from 'react'
 import {
   ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
-import type { DrawingEndpoint } from './market-core'
+import type { DrawingEndpoint, MarketCore, RiskRewardMeasurement, RiskRewardSide } from './market-core'
 
 type PointFields = Record<AnnotationCoordinate, string>
 type Draft = {
@@ -11,6 +12,7 @@ type Draft = {
   points: PointFields[]
   offset: string
   text: string
+  side: RiskRewardSide
   original?: ChartAnnotation
 }
 
@@ -24,7 +26,7 @@ function pointValue(fields: PointFields): DrawingEndpoint {
   return { time: parseAnnotationAnchor('time', fields.time), ticks: parseAnnotationAnchor('price', fields.price) }
 }
 
-function draftAnnotation(draft: Draft, id: string): ChartAnnotation {
+function draftAnnotation(draft: Draft, id: string, core: MarketCore): ChartAnnotation {
   const { kind, points } = draft
   if (kind === 'price') return { id, kind, ticks: parseAnnotationAnchor(kind, points[0].price) }
   if (kind === 'time' || kind === 'anchored-vwap')
@@ -50,6 +52,13 @@ function draftAnnotation(draft: Draft, id: string): ChartAnnotation {
     return { id, kind, start, text: draft.text }
   }
   const end = pointValue(points[1])
+  if (kind === 'risk-reward') {
+    const stopTicks = parseAnnotationAnchor('price', points[2].price)
+    const plan = { id, kind, start, end, stopTicks, side: draft.side } as const
+    validateAnnotationGeometry(plan)
+    core.measureRiskReward(plan.side, start.ticks, stopTicks, end.ticks)
+    return plan
+  }
   const annotation = kind === 'channel' ?
     { id, kind, start, end, offsetTicks: parseAnnotationAnchor('price', draft.offset) } :
     { id, kind, start, end }
@@ -87,14 +96,25 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'fibonacci':
     case 'arrow':
       return name + describePoint(entry.start) + ' to ' + describePoint(entry.end)
+    case 'risk-reward':
+      return name + entry.side + ' from ' + describePoint(entry.start) + ' to ' + describePoint(entry.end) +
+        ', stop ' + formatAnnotationAnchor('price', entry.stopTicks)
     case 'channel':
       return name + describePoint(entry.start) + ' to ' + describePoint(entry.end) +
         ', offset ' + formatAnnotationAnchor('price', entry.offsetTicks)
   }
 }
 
+function PlanValues({ value }: { value: RiskRewardMeasurement }) {
+  return <div className="ohlc chart-overlay-values" role="group" aria-label="Risk/reward values">
+    <span><small>Risk</small> {fixed(value.riskTicks, 6)}</span>
+    <span><small>Reward</small> {fixed(value.rewardTicks, 6)}</span>
+    <span><small>Reward per unit of risk</small> {fixed(value.rewardPerRiskMicros, 6)}</span>
+  </div>
+}
+
 export function ChartAnnotations({
-  entries, busy, picking, setPicker, defaults, vwapDefaultTime, save,
+  entries, busy, picking, setPicker, defaults, vwapDefaultTime, core, save,
 }: {
   entries: readonly ChartAnnotation[]
   busy: boolean
@@ -102,6 +122,7 @@ export function ChartAnnotations({
   setPicker: (picker: AnnotationPicker | null) => void
   defaults: { prior: DrawingEndpoint; start: DrawingEndpoint; end: DrawingEndpoint }
   vwapDefaultTime: number
+  core: MarketCore
   save: (before: ChartAnnotation | undefined, after: ChartAnnotation | undefined) => Promise<void>
 }) {
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -114,6 +135,10 @@ export function ChartAnnotations({
       (original && 'points' in original ? original.points : [defaults.prior, defaults.start, defaults.end]).map(pointFields) :
       hasTwoPoints(kind) || kind === 'price-range' || kind === 'time-range' ?
         [pointFields(defaults.start), pointFields(defaults.end)] : [pointFields(defaults.end)]
+    if (kind === 'risk-reward') {
+      points.push({ time: points[1].time, price: original?.kind === 'risk-reward' ?
+        formatAnnotationAnchor('price', original.stopTicks) : '' })
+    }
     if (kind === 'anchored-vwap') points[0].time = formatAnnotationAnchor('time', vwapDefaultTime)
     if (original?.kind === 'price') points[0].price = formatAnnotationAnchor('price', original.ticks)
     if (original?.kind === 'time' || original?.kind === 'anchored-vwap') points[0].time = formatAnnotationAnchor('time', original.time)
@@ -126,7 +151,7 @@ export function ChartAnnotations({
     if (original && 'end' in original) points[1] = pointFields(original.end)
     const offset = formatAnnotationAnchor('price', original?.kind === 'channel' ? original.offsetTicks : 1_000_000)
     const text = original?.kind === 'note' ? original.text : ''
-    setDraft({ kind, original, points, offset, text })
+    setDraft({ kind, original, points, offset, text, side: original?.kind === 'risk-reward' ? original.side : 'long' })
   }
 
   function cancel() {
@@ -138,7 +163,7 @@ export function ChartAnnotations({
   async function commit(remove = false, original = draft?.original) {
     if (busy) return
     try {
-      const next = !remove && draft ? draftAnnotation(draft, original?.id ?? crypto.randomUUID()) : undefined
+      const next = !remove && draft ? draftAnnotation(draft, original?.id ?? crypto.randomUUID(), core) : undefined
       await save(original, next)
       cancel()
     } catch (cause) {
@@ -168,10 +193,11 @@ export function ChartAnnotations({
     const vertex = kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork'
     const range = kind === 'price-range' || kind === 'time-range'
     const twoPoints = range || hasTwoPoints(kind)
-    const label = vertex ? 'Point ' + (point + 1) :
+    const plan = kind === 'risk-reward'
+    const label = plan ? ['Entry', 'Target', 'Stop'][point] : vertex ? 'Point ' + (point + 1) :
       twoPoints ? point === 0 ? 'Start' : 'End' : ANNOTATION_NAMES[kind]
-    const pickLabel = vertex || twoPoints ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
-    const coordinates: readonly AnnotationCoordinate[] = kind === 'price' || kind === 'time' || kind === 'anchored-vwap' ?
+    const pickLabel = plan || vertex || twoPoints ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
+    const coordinates: readonly AnnotationCoordinate[] = plan && point === 2 ? ['price'] : kind === 'price' || kind === 'time' || kind === 'anchored-vwap' ?
       [kind === 'price' ? 'price' : 'time'] : range ? [rangeCoordinate(kind)] : ['time', 'price']
     return <fieldset key={point}>
       <legend>{label}</legend>
@@ -198,6 +224,15 @@ export function ChartAnnotations({
     <section className="annotation-tools" aria-label="Chart drawings">
       {draft ? <form className="drawing-editor" aria-label={ANNOTATION_NAMES[draft.kind]}
         onSubmit={event => { event.preventDefault(); void commit() }}>
+        {draft.kind === 'risk-reward' && <label>Direction
+          <select value={draft.side} disabled={busy} onChange={event => {
+            setDraft({ ...draft, side: event.target.value === 'short' ? 'short' : 'long' })
+            setError('')
+          }}>
+            <option value="long">Long</option>
+            <option value="short">Short</option>
+          </select>
+        </label>}
         {draft.points.map((_, index) => pointEditor(index, draft))}
         {draft.kind === 'polyline' && <button type="button" disabled={busy}
           onClick={() => changePoints([...draft.points, pointFields(defaults.end)])}>Add point</button>}
@@ -234,6 +269,8 @@ export function ChartAnnotations({
             const description = describeAnnotation(entry)
             return <li key={entry.id}>
               <span>{description}</span>
+              {entry.kind === 'risk-reward' &&
+                <PlanValues value={core.measureRiskReward(entry.side, entry.start.ticks, entry.stopTicks, entry.end.ticks)} />}
               <div className="drawing-buttons">
                 <button type="button" aria-label={'Edit ' + description} disabled={busy}
                   onClick={() => edit(entry.kind, entry)}>Edit</button>

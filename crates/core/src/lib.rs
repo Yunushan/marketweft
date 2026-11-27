@@ -107,7 +107,10 @@ pub use dividend::{
     DividendMovement, DividendPositions, PositionObservation,
 };
 pub use donchian::donchian_channels;
-pub use drawing::{measure_drawing, DrawingEndpoint, DrawingMeasurement};
+pub use drawing::{
+    measure_drawing, measure_risk_reward, DrawingEndpoint, DrawingMeasurement,
+    RiskRewardMeasurement, RiskRewardSide,
+};
 pub use formula::{Formula, FormulaFunctionDefinition, FormulaLibrary, FORMULA_VERSION};
 pub use formula_walk::{
     walk_forward_formulas, FormulaWalkCandidate, FormulaWalkConfig, FormulaWalkFold,

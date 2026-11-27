@@ -908,6 +908,9 @@ export type ConfirmedSwing = { pivotAt: number; confirmedAt: number; close: bigi
 
 export type AnchoredVwapPoint = { price: bigint; cumulativeVolume: bigint };
 
+export type RiskRewardSide = 'long' | 'short';
+export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; rewardPerRiskMicros: bigint };
+
 export interface MarketCore {
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
   instrument(venue: string, symbol: string): string;
@@ -929,6 +932,7 @@ export interface MarketCore {
   aggregateSessionTimeframe(calendar: string, bars: readonly Bar[], sourceSeconds: number,
     targetSeconds: number): SessionTimeframeBar[];
   measureDrawing(drawing: MeasuredDrawing): DrawingMeasurement;
+  measureRiskReward(side: RiskRewardSide, entry: number, stop: number, target: number): RiskRewardMeasurement;
   indicator(kind: 'sma' | 'ema' | 'rsi' | 'atr', period: number, bars: readonly Bar[]): (number | null)[];
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
@@ -1039,6 +1043,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_aggregate_timeframe(sourceSeconds: number, targetSeconds: number): number;
   mw_aggregate_session_timeframe(calendarBytes: number, sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
+  mw_measure_risk_reward(side: number, entry: bigint, stop: bigint, target: bigint): number;
   mw_indicator(kind: number, period: number): number;
   mw_atr(period: number): number;
   mw_bollinger_bands(period: number): number;
@@ -1601,6 +1606,14 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         const value = values.getBigInt64(index * 8, true);
         return value === -(1n << 63n) ? null : value;
       }) };
+    },
+    measureRiskReward(side, entry, stop, target) {
+      if (side !== 'long' && side !== 'short') throw new Error('Choose long or short for the drawing.');
+      if (![entry, stop, target].every(Number.isSafeInteger)) throw new Error('Drawing prices require whole ticks.');
+      const [risk, reward, multiple] = decoder.decode(output(api.mw_measure_risk_reward(
+        side === 'long' ? 0 : 1, BigInt(entry), BigInt(stop), BigInt(target),
+      ))).split('\t');
+      return { riskTicks: BigInt(risk), rewardTicks: BigInt(reward), rewardPerRiskMicros: BigInt(multiple) };
     },
     measureDrawing({ start, end }) {
       if (![start.time, start.ticks, end.time, end.ticks].every(Number.isSafeInteger)) {

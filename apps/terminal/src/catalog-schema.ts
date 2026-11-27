@@ -214,6 +214,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           price: ['ticks'], time: ['time'], 'anchored-vwap': ['time'], ray: ['start'], trend: ['start', 'end'],
           rectangle: ['start', 'end'], channel: ['start', 'end', 'offsetTicks'],
           polyline: ['points'], fibonacci: ['start', 'end'], ellipse: ['start', 'end'], triangle: ['points'], pitchfork: ['points'], note: ['start', 'text'], arrow: ['start', 'end'],
+          'risk-reward': ['side', 'start', 'end', 'stopTicks'],
           'price-range': ['lower', 'upper'], 'time-range': ['lower', 'upper'],
         }
         if (typeof kind !== 'string' || !Object.hasOwn(coordinateFields, kind))
@@ -253,6 +254,15 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           return { id, kind: type, start, text: entry.text }
         }
         const end = annotationEndpoint(entry.end)
+        if (type === 'risk-reward') {
+          const { side, stopTicks } = entry
+          if ((side !== 'long' && side !== 'short') || !validAnnotationAnchor('price', stopTicks))
+            throw Error('Invalid risk/reward direction or stop.')
+          const plan = { id, kind: type, side, start, end, stopTicks } as const
+          validateAnnotationGeometry(plan)
+          core.measureRiskReward(side, start.ticks, stopTicks, end.ticks)
+          return plan
+        }
         if (type === 'channel') {
           if (!validAnnotationAnchor('price', entry.offsetTicks)) throw Error('Invalid channel offset.')
           const channel = { id, kind: type, start, end, offsetTicks: entry.offsetTicks }

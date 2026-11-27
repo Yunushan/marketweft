@@ -10,6 +10,19 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('risk/reward uses exact signed levels and wide ratios through the Wasm drawing interface', () => {
+  const result = (riskTicks, rewardTicks, rewardPerRiskMicros) => ({ riskTicks, rewardTicks, rewardPerRiskMicros });
+  assert.deepEqual(core.measureRiskReward('long', -2000001, -3000001, 999999),
+    result(1000000n, 3000000n, 3000000n));
+  assert.deepEqual(core.measureRiskReward('short', -2000000, -1500000, -3250000),
+    result(500000n, 1250000n, 2500000n));
+  assert.deepEqual(core.measureRiskReward('long', 0, -2000000, 1), result(2000000n, 1n, 1n));
+  assert.throws(() => core.measureRiskReward('long', 0, 0, 1), /stop below/);
+  assert.throws(() => core.measureRiskReward('short', 0, 1, 2), /target below/);
+  const max = 2000000000000000;
+  assert.equal(core.measureRiskReward('long', -max + 1, -max, max).rewardPerRiskMicros, 3999999999999999000000n);
+});
+
 test('anchored VWAP preserves signed typical prices and wide cumulative volume in Wasm', () => {
   const anchor = 1735689600;
   const bars = core.parseCsv(['time,open,high,low,close,volume',

@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.149.0 · Risk/reward drawing
+
+| Check | Evidence |
+| --- | --- |
+| Fixed-point calculation | The fixtures verify signed long and short levels, halfway rounding, invalid stops and targets, and ratios above the signed 64-bit range. |
+| Chromium drawing | Both directions draw risk and reward on opposite sides of the entry. The zone heights agree with the calculated ratio and the other pane retains its viewport. |
+| Workspace backup | Browser tests restore an earlier workspace and version 48, then edit a restored plan without changing the source histories. |
+
+[Risk/reward drawing](chart-workspace.md#riskreward-drawing) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.148.0 · Three-anchor pitchfork
 
 | Check | Evidence |

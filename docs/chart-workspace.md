@@ -186,6 +186,12 @@ Choose **New pitchfork** in **Chart drawings**. Set an origin and two rail ancho
 
 The two outer rays start at their own anchors and run parallel to the median in the chart. Each pane clips the three rays to its visible price plot. Pan and zoom preserve the saved anchors. A version 47 backup retains the three points in order and restores earlier drawings alongside them.
 
+## Risk/reward drawing
+
+Choose **New risk/reward** in **Chart drawings**, then set **Direction**, **Entry**, **Target**, and **Stop**. Enter exact prices or pick on the chart. Entry and target times set the horizontal range. The target time must follow the entry time. For a long plan, the stop must be below entry and the target above it. A short plan reverses those price comparisons.
+
+The drawing shades the reward and risk zones on opposite sides of the entry line. Values in the drawings panel show each price distance and reward divided by risk. The calculation supports signed prices and rounds the ratio to millionths. Edits and restores keep the exact input ticks. Version 48 stores the direction, stop and both endpoints. Each pane projects the same saved drawing against its own viewport.
+
 ## Moving-average periods
 
 Open **Indicators** to configure the primary chart. When the comparison pane is open, the same dialog provides a separate pair of period fields for it. Each field accepts a whole period from 1 to 100,000 bars. The default periods are 20 bars for SMA and 9 bars for EMA. Each overlay can be enabled independently.

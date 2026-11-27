@@ -771,6 +771,13 @@ function draw(
             ctx.fillRect(...box)
             ctx.strokeStyle = '#7eb4e2'
             ctx.strokeRect(...box)
+          } else if (annotation.kind === 'risk-reward') {
+            const stop = y(annotation.stopTicks / 1e6)
+            ctx.fillStyle = 'rgba(104, 215, 177, 0.19)'
+            ctx.fillRect(x1, Math.min(level, y2), x2 - x1, Math.abs(level - y2))
+            ctx.fillStyle = 'rgba(236, 129, 126, 0.19)'
+            ctx.fillRect(x1, Math.min(level, stop), x2 - x1, Math.abs(level - stop))
+            line(x1, level, x2, level, '#d9d0bd')
           } else if (annotation.kind === 'ellipse') {
             ctx.fillStyle = 'rgba(119, 192, 162, 0.15)'
             ctx.strokeStyle = '#77c0a2'
@@ -1539,6 +1546,7 @@ export function Chart({
               end: { ticks: Math.round(asset.bars[sourceIndex].close * 1e6), time },
             }}
             vwapDefaultTime={vwapSourceTimes?.[sourceIndex] ?? time}
+            core={drawingTools.core}
             save={drawingTools.saveAnnotation} />
         </div>
       )}

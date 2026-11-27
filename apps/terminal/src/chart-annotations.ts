@@ -1,5 +1,5 @@
 import { fixed, MAX_CHART_PRICE_TICKS, parsePriceSize } from './fixed-point'
-import type { DrawingEndpoint } from './market-core'
+import type { DrawingEndpoint, RiskRewardSide } from './market-core'
 import { utc } from './workspace'
 
 type TrianglePoints = [DrawingEndpoint, DrawingEndpoint, DrawingEndpoint]
@@ -18,6 +18,7 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'pitchfork'; points: TrianglePoints } |
   { kind: 'note'; start: DrawingEndpoint; text: string } |
   { kind: 'arrow'; start: DrawingEndpoint; end: DrawingEndpoint } |
+  { kind: 'risk-reward'; side: RiskRewardSide; start: DrawingEndpoint; end: DrawingEndpoint; stopTicks: number } |
   { kind: 'price-range'; lower: number; upper: number } |
   { kind: 'time-range'; lower: number; upper: number }
 )
@@ -42,6 +43,7 @@ export const ANNOTATION_NAMES = {
   pitchfork: 'Pitchfork',
   note: 'Chart note',
   arrow: 'Directional arrow',
+  'risk-reward': 'Risk/reward',
   'price-range': 'Price range',
   'time-range': 'Time range',
 } as const
@@ -73,6 +75,9 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'pitchfork':
       return second.kind === first.kind && first.points.length === second.points.length &&
         first.points.every((point, index) => sameEndpoint(point, second.points[index]))
+    case 'risk-reward':
+      return second.kind === first.kind && first.side === second.side && first.stopTicks === second.stopTicks &&
+        sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
     case 'channel':
       return second.kind === 'channel' && first.offsetTicks === second.offsetTicks &&
         sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
@@ -80,11 +85,13 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
 }
 
 export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
-  return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci' || kind === 'ellipse' || kind === 'arrow'
+  return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci' || kind === 'ellipse' || kind === 'arrow' || kind === 'risk-reward'
 }
 
 export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void {
   const { kind, start, end } = annotation
+  if (kind === 'risk-reward' && end.time <= start.time)
+    throw Error('The target time must be later than the entry time.')
   if (kind === 'trend' && sameEndpoint(start, end))
     throw Error('A trend line must have two different points.')
   if (kind === 'arrow' && sameEndpoint(start, end))

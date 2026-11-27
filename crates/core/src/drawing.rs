@@ -42,3 +42,54 @@ pub fn measure_drawing(
         return_pct_micros,
     })
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RiskRewardSide {
+    Long,
+    Short,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RiskRewardMeasurement {
+    pub risk_ticks: i64,
+    pub reward_ticks: i64,
+    /// Reward divided by risk, rounded to millionths.
+    pub reward_per_risk_micros: i128,
+}
+
+pub fn measure_risk_reward(
+    side: RiskRewardSide,
+    entry: i64,
+    stop: i64,
+    target: i64,
+) -> Result<RiskRewardMeasurement, String> {
+    if [entry, stop, target]
+        .iter()
+        .any(|ticks| !(-MAX_TICKS..=MAX_TICKS).contains(ticks))
+    {
+        return Err("Drawing prices must be within ±2,000,000,000.".into());
+    }
+    let (risk_ticks, reward_ticks) = match side {
+        RiskRewardSide::Long => (entry - stop, target - entry),
+        RiskRewardSide::Short => (stop - entry, entry - target),
+    };
+    if risk_ticks <= 0 || reward_ticks <= 0 {
+        return Err(match side {
+            RiskRewardSide::Long => {
+                "A long drawing needs a stop below entry and a target above entry."
+            }
+            RiskRewardSide::Short => {
+                "A short drawing needs a stop above entry and a target below entry."
+            }
+        }
+        .into());
+    }
+    Ok(RiskRewardMeasurement {
+        risk_ticks,
+        reward_ticks,
+        reward_per_risk_micros: rounded_div(
+            i128::from(reward_ticks) * i128::from(SCALE),
+            i128::from(risk_ticks),
+        ),
+    })
+}

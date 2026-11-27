@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.148.0 adds a three-anchor pitchfork with an exact data midpoint. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.149.0 adds editable long and short risk/reward drawings with exact level measurements. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Delivered · 0.149.0 | Risk/reward drawing (MW-014) | Verify signed long and short levels, exact distances and ratios, invalid controls, pane projection and version 48 restoration. [Risk/reward drawing](docs/chart-workspace.md#riskreward-drawing). |
 | Delivered · 0.148.0 | Three-anchor pitchfork (MW-014) | Verify the midpoint across irregular observation times, parallel rails, signed controls, pan, zoom and version 47 restoration. [Pitchfork](docs/chart-workspace.md#pitchfork). |
 | Delivered · 0.147.0 | Anchored VWAP drawing (MW-014) | Verify a source-bar anchor, exact cumulative weighting, zero volume, linked panes, rolled buckets, rights-aware export and version 46 restoration. [Anchored VWAP](docs/chart-workspace.md#anchored-vwap). |
 | Delivered · 0.146.0 | Confirmed close swings (MW-012) | Verify point-in-time markers, first ties, gaps, confirming bucket closure, exact CSV and version 45 restoration. [Confirmed close swings](docs/chart-workspace.md#confirmed-close-swings). |
@@ -162,5 +163,5 @@
 
 ## Handoff for the next change
 
-Add an editable long and short risk/reward drawing. Verify exact risk and reward, signed levels, invalid stop or target placement, pane projection and workspace restoration.
+Add an anchored least-squares regression channel with a residual envelope. Verify exact observations, a flat window, gaps, preserved source coordinates and workspace restoration.
 

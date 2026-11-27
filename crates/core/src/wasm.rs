@@ -176,6 +176,23 @@ pub extern "C" fn mw_measure_drawing(
 }
 
 #[no_mangle]
+pub extern "C" fn mw_measure_risk_reward(side: u32, entry: i64, stop: i64, target: i64) -> u32 {
+    process(|_| {
+        let side = match side {
+            0 => crate::RiskRewardSide::Long,
+            1 => crate::RiskRewardSide::Short,
+            _ => return Err("Choose long or short for the drawing.".into()),
+        };
+        let value = crate::measure_risk_reward(side, entry, stop, target)?;
+        Ok(format!(
+            "{}\t{}\t{}",
+            value.risk_ticks, value.reward_ticks, value.reward_per_risk_micros
+        )
+        .into_bytes())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_universe_index() -> u32 {
     use std::fmt::Write;
     process(|input| {
