@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.101.0 · WebSocket option snapshots
+
+| Check | Evidence |
+| --- | --- |
+| Credential scope | The loopback WebSocket test rejects unauthenticated upgrades and valid screen credentials. The options credential opens a stream. |
+| Resume and parity | The client reads the first page, disconnects, and resumes at the returned offset. Its combined quote rows match the full REST result at both knowledge cutoffs. |
+| Replay fields | The earlier stream omits the American contract and shows the exact USD 100 underlying. The revised stream reports USD 100.50 and includes the contract, and missing bids retain their distinct status. |
+
+[Option snapshots over WebSocket](local-rest-research.md#option-snapshots-over-websocket) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.100.0 · REST American option valuations
 
 | Check | Evidence |

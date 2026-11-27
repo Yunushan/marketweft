@@ -478,6 +478,7 @@ fn route_authority(
         .route("/v1/formula", post(formula))
         .route("/v1/universe/screen", post(screen))
         .route("/v1/options/snapshot", post(option_snapshot))
+        .route("/v1/options/snapshot/stream", get(websocket::options))
         .route("/v1/options/american/valuation", post(american_option))
         .route("/v1/formula/stream", get(websocket::formula))
         .route("/v1/universe/screen/stream", get(websocket::screen))

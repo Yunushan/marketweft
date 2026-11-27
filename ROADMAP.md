@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.100.0 adds authenticated American option valuations with observed cash dividends to the REST service. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.101.0 streams point-in-time option snapshots over the scoped research WebSocket. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -103,6 +103,7 @@
 | Delivered · 0.98.0 | Read-only MCP American option valuations (MW-026, MW-028) | Verify both valuation modes, unavailable statuses and exact cash report provenance over independent replay cutoffs. [MCP American option valuations](docs/local-mcp-research.md#american-option-valuations). |
 | Delivered · 0.99.0 | Scoped REST option snapshots (MW-026, MW-028) | Verify exact quote fields, isolated scopes, cutoff and pagination parity, and compatibility with version 1 credential and audit stores. [REST option snapshots](docs/local-rest-research.md#option-chain-snapshots). |
 | Delivered · 0.100.0 | REST American option valuations (MW-026, MW-028) | Reconcile price, midpoint IV, unavailable statuses and exact cash amounts with the native client. [REST American option valuations](docs/local-rest-research.md#american-option-valuations). |
+| Delivered · 0.101.0 | WebSocket option snapshots (MW-026, MW-028) | Verify resuming after a page, exact quote fields, and complete snapshot parity with REST at two independent replay cutoffs. [Option snapshots over WebSocket](docs/local-rest-research.md#option-snapshots-over-websocket). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -114,5 +115,5 @@
 
 ## Handoff for the next change
 
-Stream paginated option snapshots over local WebSocket under the options scope. Verify resumption at the next offset, exact quote data and parity with REST.
+Expose option snapshots through scoped gRPC. Verify its Protobuf contract and exact parity with REST and WebSocket at independent cutoffs.
 

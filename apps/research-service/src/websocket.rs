@@ -34,6 +34,21 @@ pub(crate) async fn screen(
     upgrade(state, &headers, ws, Scope::Screen, analytics::screen).await
 }
 
+pub(crate) async fn options(
+    State(state): State<Arc<Server>>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    upgrade(
+        state,
+        &headers,
+        ws,
+        Scope::Options,
+        analytics::option_snapshot,
+    )
+    .await
+}
+
 async fn upgrade(
     state: Arc<Server>,
     headers: &HeaderMap,

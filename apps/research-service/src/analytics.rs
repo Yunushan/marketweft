@@ -320,49 +320,56 @@ pub(crate) fn option_snapshot(
         .map_err(|error| analytical_error(error.to_string()))?;
     let source = book.underlying();
     let snapshot = book.snapshot(effective, known, params.max_age);
-    let (range, next_offset) = bounds(offset, limit, snapshot.options.len());
-    let rows = snapshot.options[range]
-        .iter()
-        .map(|row| OptionRow {
-            contract_id: row.contract.id.clone(),
-            expiration: row.contract.expiration,
-            strike_ticks: row.contract.strike.to_string(),
-            side: match row.contract.side {
-                OptionSide::Call => "call",
-                OptionSide::Put => "put",
-            },
-            exercise_style: match row.contract.exercise_style {
-                ExerciseStyle::European => "european",
-                ExerciseStyle::American => "american",
-            },
-            quote_at: row.quote.at,
-            observed_at: row.quote.observed_at,
-            bid_ticks: row.quote.bid.map(|ticks| ticks.to_string()),
-            ask_ticks: row.quote.ask.map(|ticks| ticks.to_string()),
-            status: row
-                .analytics
-                .as_ref()
-                .map_or_else(|error| error.code(), |_| "ok"),
-            analytics: row.analytics.ok().map(OptionModel::from),
-        })
-        .collect();
-    emit(ResearchPage::Options(OptionPage {
-        instrument: source.instrument.to_string(),
-        currency: source.currency.clone(),
-        effective_at: params.effective_at,
-        known_at: params.known_at,
-        underlying: snapshot.underlying.map(|quote| OptionUnderlying {
-            quote_at: quote.at,
-            observed_at: quote.observed_at,
-            spot_ticks: quote.spot.to_string(),
-            rate_units: quote.rate.to_string(),
-            dividend_yield_units: quote.yield_rate.to_string(),
-        }),
-        total_rows: snapshot.options.len() as u32,
-        offset: offset as u32,
-        next_offset: next_offset.map(|value| value as u32),
-        rows,
-    }));
+    pages(
+        offset,
+        limit,
+        snapshot.options.len(),
+        emit,
+        |offset, range, next_offset| {
+            let rows = snapshot.options[range]
+                .iter()
+                .map(|row| OptionRow {
+                    contract_id: row.contract.id.clone(),
+                    expiration: row.contract.expiration,
+                    strike_ticks: row.contract.strike.to_string(),
+                    side: match row.contract.side {
+                        OptionSide::Call => "call",
+                        OptionSide::Put => "put",
+                    },
+                    exercise_style: match row.contract.exercise_style {
+                        ExerciseStyle::European => "european",
+                        ExerciseStyle::American => "american",
+                    },
+                    quote_at: row.quote.at,
+                    observed_at: row.quote.observed_at,
+                    bid_ticks: row.quote.bid.map(|ticks| ticks.to_string()),
+                    ask_ticks: row.quote.ask.map(|ticks| ticks.to_string()),
+                    status: row
+                        .analytics
+                        .as_ref()
+                        .map_or_else(|error| error.code(), |_| "ok"),
+                    analytics: row.analytics.ok().map(OptionModel::from),
+                })
+                .collect();
+            ResearchPage::Options(OptionPage {
+                instrument: source.instrument.to_string(),
+                currency: source.currency.clone(),
+                effective_at: params.effective_at.clone(),
+                known_at: params.known_at.clone(),
+                underlying: snapshot.underlying.map(|quote| OptionUnderlying {
+                    quote_at: quote.at,
+                    observed_at: quote.observed_at,
+                    spot_ticks: quote.spot.to_string(),
+                    rate_units: quote.rate.to_string(),
+                    dividend_yield_units: quote.yield_rate.to_string(),
+                }),
+                total_rows: snapshot.options.len() as u32,
+                offset,
+                next_offset,
+                rows,
+            })
+        },
+    );
     Ok(())
 }
 

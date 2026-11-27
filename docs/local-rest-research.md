@@ -29,7 +29,7 @@ The service accepts at most 16 MiB per JSON body and reads each body within five
 
 ## WebSocket streaming
 
-Connect to `ws://127.0.0.1:4174/v1/formula/stream` or `ws://127.0.0.1:4174/v1/universe/screen/stream`, using the port printed by the service. Use a client that can set the `Authorization: Bearer <token>` header on the upgrade request. Each path requires the same scope as its REST equivalent. The Host and Origin checks apply to the upgrade.
+Connect to `ws://127.0.0.1:4174/v1/formula/stream` or `ws://127.0.0.1:4174/v1/universe/screen/stream`, using the port printed by the service. Use a client that can set the `Authorization: Bearer <token>` header on the upgrade request. Each path requires the same scope as its REST equivalent. Option snapshots also have a stream at `/v1/options/snapshot/stream` under the options scope. The Host and Origin checks apply to the upgrade.
 
 Send one JSON text message using the corresponding REST request fields. The service evaluates the query once and streams ascending offsets in text messages. Each message has `type: "page"` and a `page` object shaped like the REST response. A failure after upgrade has `type: "error"` with numeric `status` and a string `error`.
 
@@ -280,3 +280,10 @@ Post the query to `/v1/options/american/valuation` under the `options` scope. Su
 Supply `volatility` as an annual fraction to price the contract. An absent or null volatility solves the observed bid–ask midpoint. Supply `cash_dividends_csv` with up to 1 MiB of UTF-8 reports to apply distributions known by the cutoff with ex-dates after the effective time and at or before expiry. The response identifies both cutoffs, model status, currency, price, volatility and the reports used. Each report includes exact integer millionths per share as a decimal string and its announcement, ex-date, pay date and observation time in UTC seconds. An unavailable model has a status and null price and volatility.
 
 With the sample April American 90-strike call, the 14:06 UTC revision carries USD 1 and USD 9 per share and gives 32.53% IV for the USD 16.234568 midpoint. Direct pricing at 25% gives USD 14.171952 at the same cutoffs. [Example inputs and replay cutoffs](option-chain.md#cash-dividend-implied-volatility).
+
+
+## Option snapshots over WebSocket
+
+Connect to `ws://127.0.0.1:4174/v1/options/snapshot/stream` with an `options` bearer token and send one text message containing the same JSON as the REST snapshot request. On a configured private TLS listener, use its advertised `wss://` URL and an issued options credential.
+
+Each text response has a `type` of `page` and a `page` object with the same shape as REST. The connection closes after the last page. If it closes before you have received every page, reconnect and repeat the same CSVs, cutoffs, quote age and page size. Send the last received `next_offset` as `offset` to resume. When `next_offset` is null, the snapshot is complete. [REST snapshot schema and inputs](#option-chain-snapshots).

@@ -8,6 +8,7 @@ use std::time::Duration;
 
 pub const FORMULA_TOKEN: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 pub const SCREEN_TOKEN: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+pub const OPTIONS_TOKEN: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 pub const IO_DEADLINE: Duration = Duration::from_secs(5);
 
 pub struct ResearchProcess {
@@ -31,7 +32,7 @@ impl ResearchProcess {
         command
             .env("MARKETWEFT_FORMULA_TOKEN", FORMULA_TOKEN)
             .env("MARKETWEFT_SCREEN_TOKEN", SCREEN_TOKEN)
-            .env_remove("MARKETWEFT_OPTIONS_TOKEN")
+            .env("MARKETWEFT_OPTIONS_TOKEN", OPTIONS_TOKEN)
             .env("MARKETWEFT_RESEARCH_PORT", "0")
             .env_remove("MARKETWEFT_RESEARCH_AUDIT_DB")
             .env_remove("MARKETWEFT_RESEARCH_SLOTS")
@@ -51,7 +52,8 @@ impl ResearchProcess {
             command
                 .env("MARKETWEFT_RESEARCH_CREDENTIALS_DB", path)
                 .env_remove("MARKETWEFT_FORMULA_TOKEN")
-                .env_remove("MARKETWEFT_SCREEN_TOKEN");
+                .env_remove("MARKETWEFT_SCREEN_TOKEN")
+                .env_remove("MARKETWEFT_OPTIONS_TOKEN");
         }
         if let Some((certificate, key)) = settings.tls {
             command

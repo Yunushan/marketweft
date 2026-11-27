@@ -1,6 +1,11 @@
 mod support;
 
+use axum::{
+    body::{to_bytes, Body},
+    http::Request,
+};
 use futures_util::{SinkExt, StreamExt};
+use marketweft_research_service::{research_router, Tokens};
 use serde_json::{json, Value};
 use tokio::time::timeout;
 use tokio_tungstenite::{
@@ -8,8 +13,9 @@ use tokio_tungstenite::{
     tungstenite::{client::IntoClientRequest, http::StatusCode, Error, Message},
     MaybeTlsStream, WebSocketStream,
 };
+use tower::ServiceExt;
 
-use support::{ResearchProcess, Settings, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
+use support::{ResearchProcess, Settings, FORMULA_TOKEN, IO_DEADLINE, OPTIONS_TOKEN, SCREEN_TOKEN};
 
 const HISTORY: &str =
     include_str!("../../../crates/core/tests/fixtures/synthetic-formula-bars.csv");
@@ -191,4 +197,97 @@ async fn invalid_query_returns_one_error_frame_and_closes() {
     assert_eq!(error["type"], "error");
     assert_eq!(error["status"], 400);
     assert!(matches!(next(&mut client).await, Message::Close(_)));
+}
+
+#[tokio::test]
+async fn option_snapshot_stream_resumes_and_matches_rest_at_each_cutoff() {
+    const UNDERLYING: &str =
+        include_str!("../../../crates/core/tests/fixtures/synthetic-option-underlying.csv");
+    const QUOTES: &str =
+        include_str!("../../../crates/core/tests/fixtures/synthetic-option-exercise-quotes.csv");
+    let server = ResearchProcess::start(Settings::default());
+    let route = "/v1/options/snapshot/stream";
+    assert_http_error(
+        server.connect(route, None, None).await,
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_http_error(
+        server.connect(route, Some(SCREEN_TOKEN), None).await,
+        StatusCode::FORBIDDEN,
+    );
+    let router = research_router(
+        "127.0.0.1:4174".parse().unwrap(),
+        Tokens::with_options(None, None, Some(OPTIONS_TOKEN)).unwrap(),
+    )
+    .unwrap();
+    let rest = |query: Value| {
+        let router = router.clone();
+        async move {
+            let request = Request::post("/v1/options/snapshot")
+                .header("host", "127.0.0.1:4174")
+                .header("authorization", format!("Bearer {OPTIONS_TOKEN}"))
+                .header("content-type", "application/json")
+                .body(Body::from(query.to_string()))
+                .unwrap();
+            let response = router.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        }
+    };
+    for (known, spot, visible) in [
+        ("2025-04-03T14:00:00Z", "100000000", false),
+        ("2025-04-03T14:04:00Z", "100500000", true),
+    ] {
+        let mut query = json!({
+            "underlying_csv": UNDERLYING, "quotes_csv": QUOTES,
+            "effective_at": "2025-04-03T14:00:00Z", "known_at": known,
+        });
+        let full = rest(query.clone()).await;
+        query["limit"] = json!(3);
+        let mut first = server
+            .connect(route, Some(OPTIONS_TOKEN), None)
+            .await
+            .unwrap();
+        send(&mut first, query.clone()).await;
+        let page = frame(&mut first).await;
+        assert_eq!(page["type"], "page");
+        assert_eq!(page["page"]["underlying"]["spot_ticks"], spot);
+        assert_eq!(page["page"]["next_offset"], 3);
+        assert_eq!(page["page"], rest(query.clone()).await);
+        let mut rows = page["page"]["rows"].as_array().unwrap().clone();
+        drop(first);
+
+        let mut resumed = server
+            .connect(route, Some(OPTIONS_TOKEN), None)
+            .await
+            .unwrap();
+        query["offset"] = page["page"]["next_offset"].clone();
+        send(&mut resumed, query.clone()).await;
+        let mut expected_offset = 3;
+        loop {
+            let observed = frame(&mut resumed).await;
+            assert_eq!(observed["type"], "page");
+            let page = &observed["page"];
+            assert_eq!(page["offset"], expected_offset);
+            assert_eq!(page["known_at"], known);
+            rows.extend_from_slice(page["rows"].as_array().unwrap());
+            match page["next_offset"].as_u64() {
+                Some(offset) => expected_offset = offset,
+                None => break,
+            }
+        }
+        assert!(matches!(next(&mut resumed).await, Message::Close(_)));
+        assert_eq!(&rows, full["rows"].as_array().unwrap());
+        assert_eq!(
+            rows.iter().any(|row| row["contract_id"] == "APR-AM-C90"),
+            visible
+        );
+        let missing = rows
+            .iter()
+            .find(|row| row["contract_id"] == "APR-C105")
+            .unwrap();
+        assert!(missing["bid_ticks"].is_null());
+        assert_eq!(missing["status"], "missing-bid-ask");
+    }
 }
