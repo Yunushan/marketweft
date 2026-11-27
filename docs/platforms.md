@@ -57,3 +57,18 @@ sh scripts/verify_desktop_upgrade.sh PREVIOUS.deb CANDIDATE.deb
 ```
 
 The previous installation imports a synthetic CSV and saves the close-line chart preference. After the previous version reopens the profile successfully, APT upgrades the same installation. The candidate launches against the same profile and checks the saved chart preference and the exact OHLCV readout. The fixture removes its temporary profile after the test.
+
+### Verify Ubuntu package provenance
+
+The tagged release workflow publishes both architecture packages with SHA-256 files and a GitHub attestation bundle. The verification job binds the package bytes to the build’s repository, workflow, tag and commit. [GitHub attestation verification reference](https://cli.github.com/manual/gh_attestation_verify).
+
+Use the following command with the package, bundle, release tag and full commit SHA from a successful tag run.
+
+```sh
+gh attestation verify "$package" --repo Yunushan/marketweft \
+  --signer-workflow Yunushan/marketweft/.github/workflows/verify.yml \
+  --deny-self-hosted-runners --source-ref "$release_ref" --source-digest "$release_commit" \
+  --bundle marketweft-ubuntu-desktop.intoto.jsonl
+```
+
+Set `release_ref` to the release’s full Git ref, such as `refs/tags/v0.162.0`. A successful check confirms the exact package came from the selected GitHub-hosted build and release commit.
