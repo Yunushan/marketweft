@@ -218,6 +218,53 @@ test('offline successor shares follow the known delisting, delivery revisions an
   expect(await catalogContents(page)).toEqual(saved)
 })
 
+test('offline successor delivery ledger exports signed postings and rewinds exactly', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  const original = await catalogContents(page)
+  await context.setOffline(true)
+  await open(page)
+  await page.getByRole('button', { name: 'Start universe demo' }).click()
+  const panel = page.getByRole('region', { name: 'Portfolio replay' })
+  await panel.getByRole('button', { name: 'Load successor shares demo' }).click()
+  await panel.getByText('Successor delivery ledger', { exact: true }).click()
+  const ledger = panel.getByRole('table', { name: 'Successor delivery ledger', exact: true })
+  const rows = ledger.locator('tbody tr')
+  const query = async (effective, known) => {
+    await page.getByLabel('Effective time (UTC)').fill(utc(effective))
+    await page.getByLabel('Known time (UTC)').fill(utc(known))
+    await page.getByRole('button', { name: 'Run as-of query' }).click()
+  }
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await panel.getByRole('button', { name: 'Download successor delivery ledger' }).click()
+    const file = await pending
+    expect(file.suggestedFilename()).toBe('successor-delivery-ledger.csv')
+    return readFile(await file.path(), 'utf8')
+  }
+  await query('15:00:00', '14:48:59')
+  await expect(panel.getByText('No successor share deliveries posted at these cutoffs.')).toBeVisible()
+  await query('15:00:00', '14:49:00')
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first().getByRole('cell', { name: '10/3', exact: true })).toHaveCount(2)
+  const first = await download()
+  expect(first).toContain('2025-06-02T15:00:00Z,2025-06-02T14:49:00Z,2025-06-02T14:49:00Z,"BETA-DELIST","BETA-001","BETA-002",')
+  expect(first).toMatch(/,10,3,10,3\r\n$/)
+  await query('15:00:00', '15:02:00')
+  await expect(rows).toHaveCount(4)
+  await expect(rows.nth(1).getByRole('cell', { name: '-10/3', exact: true })).toBeVisible()
+  await expect(rows.nth(2).getByRole('cell', { name: 'ALFA-001', exact: true })).toBeVisible()
+  await expect(rows.nth(2).getByRole('cell', { name: '2025-06-02T14:58:00Z', exact: true })).toBeVisible()
+  await expect(rows.nth(3).getByRole('cell', { name: '-6', exact: true })).toBeVisible()
+  expect(await download()).toMatch(/,-6,1,0,1\r\n$/)
+  await query('14:59:59', '15:02:00')
+  await expect(rows).toHaveCount(2)
+  await query('15:00:00', '14:49:00')
+  expect(await download()).toBe(first)
+  await expect.poll(() => catalogContents(page)).toEqual(original)
+})
+
 test('offline portfolio spin-offs preserve exact fractions through revisions and ticker reuse', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()

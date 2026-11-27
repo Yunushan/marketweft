@@ -125,6 +125,10 @@ for the USD receivable, and 14:50 for the first cash posting.
 Portfolio replay combines portfolio-holdings.csv and universe-prices.csv.
 Add delisting-terms.csv for delisting proceeds and portfolio-dividends.csv
 for gross dividend income at the universe replay cutoffs.
+Load the successor shares demo or upload successor-shares.csv with the
+portfolio reports. Expand Successor delivery ledger. With effective time
+at 15:00 UTC, step knowledge from 14:49 to 15:02 to inspect the signed stock
+postings and export the exact quantities.
 Below the rankings, choose Load demo sectors or upload universe-sectors.csv
 with the matching membership and price reports. The Sector heatmap shows
 each listing's sector, weight, price return and observed contribution.

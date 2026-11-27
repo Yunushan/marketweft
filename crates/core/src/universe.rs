@@ -86,10 +86,14 @@ impl UniverseBook {
     }
 
     pub(crate) fn for_listing(&self, listing_id: &str) -> Option<Self> {
+        self.for_listing_observed_by(listing_id, i64::MAX)
+    }
+
+    pub(crate) fn for_listing_observed_by(&self, listing_id: &str, known_at: i64) -> Option<Self> {
         let rows: Vec<_> = self
             .rows
             .iter()
-            .filter(|row| row.listing_id == listing_id)
+            .filter(|row| row.listing_id == listing_id && row.observed_at <= known_at)
             .cloned()
             .collect();
         (!rows.is_empty()).then(|| Self {

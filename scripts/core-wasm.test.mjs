@@ -33,6 +33,28 @@ test('successor share bridge keeps exact quantities and absence at both cutoffs'
   assert.equal(query('15:00:00', '15:02:00')[0].state, 'no-distribution');
 });
 
+test('successor delivery ledger transports signed rational changes and both cutoffs exactly', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
+  const [membership, holdings, terms] = await Promise.all([
+    fixture('synthetic-universe.csv'), fixture('synthetic-portfolio-holdings.csv'), fixture('synthetic-successor-shares.csv'),
+  ]);
+  const time = label => '2025-06-02T' + label + 'Z';
+  const run = (effective, known, csv = terms) => core.portfolioSuccessorDeliveryLedger(membership, holdings, csv, time(effective), time(known));
+  assert.deepEqual(run('15:00:00', '14:48:59'), []);
+  const original = run('15:00:00', '14:55:00');
+  const all = run('15:00:00', '15:02:00');
+  assert.deepEqual(all.map(row => [row.successor, row.delta.numerator, row.delta.denominator, row.balance.numerator]), [
+    ['BETA-002', 10n, 3, 10n], ['BETA-002', -10n, 3, 0n], ['ALFA-001', 6n, 1, 6n], ['ALFA-001', -6n, 1, 0n],
+  ]);
+  assert.equal(all[2].positionObservedAt, Date.parse(time('14:58:00')) / 1000);
+  assert.deepEqual(run('15:00:00', '14:55:00'), original);
+  const large = terms.split(/\r?\n/).slice(0, 2).join('\n').replace(',1,3', ',1,999983')
+    + '\nDEMO-BASKET,BETA-001,BETA-DELIST,BETA-002,2025-06-02T14:50:00Z,2025-06-02T14:49:00Z,1,999979\n';
+  const [first, revision] = run('14:49:00', '14:50:00', large);
+  assert.deepEqual(first.delta, { numerator: 10n, denominator: 999983 });
+  assert.deepEqual(revision.delta, { numerator: 40n, denominator: 999983 * 999979 });
+});
+
 test('spin-off basis allocations retain every millionth across cutoff revisions in Wasm', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, reports, terms] = await Promise.all([

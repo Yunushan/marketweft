@@ -2,6 +2,12 @@ use super::{parse_holdings, ChildShares, MAX_SHARE_RATIO};
 use crate::{history::exact_utc, UniverseAction, UniverseBook, UniverseChange};
 use std::{collections::BTreeMap, ops::Bound::Excluded};
 
+#[path = "portfolio_successor_ledger.rs"]
+mod ledger;
+pub use ledger::{
+    portfolio_successor_delivery_ledger, SuccessorDeliveryPosting, SuccessorShareDelta,
+};
+
 const HEADER: &str =
     "universe,listing_id,change_id,successor_listing,observed_at,deliver_at,numerator,denominator";
 const MAX_REPORTS: usize = 5_000;

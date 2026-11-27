@@ -26,7 +26,9 @@ pub use spinoff::{
 pub(crate) use successor::{parse_successor_terms, value_successor_shares, SuccessorReports};
 
 pub use successor::{
-    portfolio_successor_shares_as_of, SuccessorShareRow, SuccessorShareState, SuccessorShareTerms,
+    portfolio_successor_delivery_ledger, portfolio_successor_shares_as_of,
+    SuccessorDeliveryPosting, SuccessorShareDelta, SuccessorShareRow, SuccessorShareState,
+    SuccessorShareTerms,
 };
 
 const MAX_SHARE_RATIO: u32 = 1_000_000;

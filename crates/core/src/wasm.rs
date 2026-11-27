@@ -417,6 +417,35 @@ fn portfolio_input(input: &[u8]) -> Result<(i64, i64, &str), String> {
     Ok((effective, known, body))
 }
 
+struct SuccessorInput<'a> {
+    effective: i64,
+    known: i64,
+    universe: crate::UniverseBook,
+    holdings: &'a str,
+    terms: &'a str,
+}
+
+fn successor_input(
+    input: &[u8],
+    membership_bytes: usize,
+    holding_bytes: usize,
+) -> Result<SuccessorInput<'_>, String> {
+    let (effective, known, input) = portfolio_input(input)?;
+    let (membership, input) = input
+        .split_at_checked(membership_bytes)
+        .ok_or("Supply a universe membership report.")?;
+    let (holdings, terms) = input
+        .split_at_checked(holding_bytes)
+        .ok_or("Supply portfolio holdings and successor share terms.")?;
+    Ok(SuccessorInput {
+        effective,
+        known,
+        universe: parse_universe(membership)?,
+        holdings,
+        terms,
+    })
+}
+
 #[no_mangle]
 pub extern "C" fn mw_portfolio_successor_shares_as_of(
     membership_bytes: usize,
@@ -424,14 +453,13 @@ pub extern "C" fn mw_portfolio_successor_shares_as_of(
 ) -> u32 {
     use std::fmt::Write;
     process(|input| {
-        let (effective, known, input) = portfolio_input(input)?;
-        let (membership, input) = input
-            .split_at_checked(membership_bytes)
-            .ok_or("Supply a universe membership report.")?;
-        let (holdings, terms) = input
-            .split_at_checked(holding_bytes)
-            .ok_or("Supply portfolio holdings and successor share terms.")?;
-        let universe = parse_universe(membership)?;
+        let SuccessorInput {
+            effective,
+            known,
+            universe,
+            holdings,
+            terms,
+        } = successor_input(input, membership_bytes, holding_bytes)?;
         let rows =
             crate::portfolio_successor_shares_as_of(&universe, holdings, terms, effective, known)?;
         let mut text = String::new();
@@ -463,6 +491,50 @@ pub extern "C" fn mw_portfolio_successor_shares_as_of(
                 optional_time(terms.and_then(|term| term.deliver_at)),
                 rate.unwrap_or_default(),
                 amount.unwrap_or_default(),
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_portfolio_successor_delivery_ledger(
+    membership_bytes: usize,
+    holding_bytes: usize,
+) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let SuccessorInput {
+            effective,
+            known,
+            universe,
+            holdings,
+            terms,
+        } = successor_input(input, membership_bytes, holding_bytes)?;
+        let rows = crate::portfolio_successor_delivery_ledger(
+            &universe, holdings, terms, effective, known,
+        )?;
+        let mut text = String::new();
+        for row in rows {
+            writeln!(
+                text,
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                row.posted_at,
+                row.listing_id,
+                row.change_id,
+                row.successor_listing,
+                row.delisted_at,
+                row.delisting_observed_at,
+                row.position_effective_at,
+                row.position_observed_at,
+                row.entitled_shares,
+                row.terms_observed_at,
+                row.scheduled_delivery_at,
+                row.delta.numerator,
+                row.delta.denominator,
+                row.balance.numerator,
+                row.balance.denominator
             )
             .unwrap();
         }

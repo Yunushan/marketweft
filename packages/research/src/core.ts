@@ -977,6 +977,22 @@ export interface PortfolioSuccessorShare {
   successorShares: { numerator: bigint; denominator: number } | null;
 }
 
+export interface PortfolioSuccessorDeliveryPosting {
+  postedAt: number;
+  listing: string;
+  delisting: string;
+  successor: string;
+  delistedAt: number;
+  delistingObservedAt: number;
+  positionEffectiveAt: number;
+  positionObservedAt: number;
+  entitledShares: number;
+  termsObservedAt: number;
+  scheduledDeliveryAt: number;
+  delta: { numerator: bigint; denominator: number };
+  balance: { numerator: bigint; denominator: number };
+}
+
 export interface PortfolioSpinOffBasis {
   id: string;
   parent: string;
@@ -1058,6 +1074,8 @@ export interface MarketCore {
   portfolioAsOf(membership: string, holdings: string, prices: string, terms: string,
     effectiveAt: string, knownAt: string, dividends?: string): PortfolioSnapshot;
   portfolioSuccessorSharesAsOf(membership: string, holdings: string, terms: string, effectiveAt: string, knownAt: string): PortfolioSuccessorShare[];
+  portfolioSuccessorDeliveryLedger(membership: string, holdings: string, terms: string,
+    effectiveAt: string, knownAt: string): PortfolioSuccessorDeliveryPosting[];
   portfolioSpinOffsAsOf(membership: string, holdings: string, reports: string,
     effectiveAt: string, knownAt: string): PortfolioSpinOff[];
   portfolioSpinOffCashAsOf(membership: string, holdings: string, reports: string, cashTerms: string,
@@ -1186,6 +1204,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number): number;
   mw_portfolio_income_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number, termsBytes: number): number;
   mw_portfolio_successor_shares_as_of(membershipBytes: number, holdingsBytes: number): number;
+  mw_portfolio_successor_delivery_ledger(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_offs_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_off_cash_as_of(membershipBytes: number, holdingsBytes: number, actionBytes: number): number;
   mw_portfolio_spin_off_basis_as_of(membershipBytes: number, holdingsBytes: number, actionBytes: number): number;
@@ -2393,6 +2412,25 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
             rate: { numerator: Number(rateNumerator), denominator: Number(rateDenominator) },
           } : null,
           successorShares: shares ? { numerator: BigInt(numerator), denominator: Number(denominator) } : null,
+        };
+      });
+    },
+    portfolioSuccessorDeliveryLedger(membership, holdings, terms, effectiveAt, knownAt) {
+      portfolioInput(effectiveAt, knownAt, membership, holdings, terms);
+      const text = decoder.decode(output(api.mw_portfolio_successor_delivery_ledger(
+        encoder.encode(membership).length, encoder.encode(holdings).length,
+      )));
+      if (!text) return [];
+      return text.slice(0, -1).split('\n').map(line => {
+        const [posted, listing, delisting, successor, delisted, delistingObserved, positionEffective,
+          positionObserved, entitled, termsObserved, scheduled, delta, denom, balance, balanceDenom] = line.split('\t');
+        return {
+          postedAt: Number(posted), listing, delisting, successor, delistedAt: Number(delisted),
+          delistingObservedAt: Number(delistingObserved), positionEffectiveAt: Number(positionEffective),
+          positionObservedAt: Number(positionObserved), entitledShares: Number(entitled),
+          termsObservedAt: Number(termsObserved), scheduledDeliveryAt: Number(scheduled),
+          delta: { numerator: BigInt(delta), denominator: Number(denom) },
+          balance: { numerator: BigInt(balance), denominator: Number(balanceDenom) },
         };
       });
     },

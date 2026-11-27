@@ -97,3 +97,21 @@ Use the universe, original listing and change IDs of a reported delisting and a 
 The claim appears once the delisting is both effective and known. Its entitlement uses the last holding effective strictly before delisting and visible at the knowledge cutoff. The latest terms visible at that cutoff determine the successor listing, exact reduced share quantity and delivery time. An effective delivery marks the shares as delivered. A cancellation of the delisting removes the claim. The table keeps missing holdings, unavailable terms and zero consideration distinct.
 
 Select **Load successor shares demo**. At effective 14:30 UTC and known 14:34:59 the delisting is unavailable. At known 14:35 the claim appears with unavailable terms. The original terms produce 10/3 BETA-002 shares, delivered at 14:49. At effective and known 15:00, revised terms and an eight-share holding produce six delivered ALFA-001 shares. Moving knowledge to 15:02 clears the stock consideration. The supplied holdings CSV remains the source for ordinary portfolio positions, and cash consideration remains in the delisting cash columns. [Successor share fixture](../crates/core/tests/fixtures/synthetic-successor-shares.csv)
+
+## Successor delivery ledger
+
+Expand **Successor delivery ledger** under the claim table. A posting appears when the delisting and scheduled delivery are effective and the necessary reports are known. The effective cutoff caps economic events. The knowledge cutoff caps posting timestamps, which lets a later correction change an earlier delivered balance. A scheduled delivery beyond the knowledge cutoff can appear in the claim table first.
+
+Each row gives the signed change and delivered balance for its delisting and successor listing, as exact fractions. A revised quantity in the same claim posts the exact net change. A successor change reverses the old balance before crediting the new listing. A cancellation, zero rate or revised delivery schedule can also reverse a posting. A reversal cites the reports behind the delivered balance it removes. Pending and unscheduled entitlements are visible in the claim table.
+
+Load the successor shares demo, set the effective cutoff to 15:00 UTC, then advance knowledge through these times on June 2, 2025.
+
+| Known UTC | Posting | Delivered balance |
+| --- | --- | --- |
+| 14:48:59 | Waiting for the first delivery | 0 |
+| 14:49 | BETA-002 receives 10/3 shares | 10/3 BETA-002 |
+| 14:56 | Revised terms reverse 10/3 BETA-002 shares | 0 BETA-002 |
+| 15:00 | A later schedule and corrected holding produce six ALFA-001 shares | 6 ALFA-001 |
+| 15:02 | Zero terms reverse six ALFA-001 shares | 0 ALFA-001 |
+
+**Download successor delivery ledger** exports all postings with both cutoffs, the delisting, holding, terms and delivery timestamps, and integer numerators and denominators. Rewinding knowledge to 14:49 reproduces the first export. For large inputs, use an earlier knowledge cutoff or supply fewer reports if the ledger exceeds two million membership and holding evaluations.

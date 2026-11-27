@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash, PortfolioSuccessorShare } from './market-core'
+import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash, PortfolioSuccessorDeliveryPosting, PortfolioSuccessorShare } from './market-core'
+import { quoteText } from './chart-export'
+import { downloadFile } from './download'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoHoldings from '../../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv?raw'
@@ -199,6 +201,8 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
       {error && <p role="alert" className="warning replay-error">{error}</p>}
       {snapshot && <PortfolioResult snapshot={snapshot} />}
       {successorClaims && <SuccessorShareClaims rows={successorClaims} />}
+      {source?.successors && <SuccessorDeliveryLedger core={core} membership={membership}
+        source={source} effective={effective} known={known} />}
       {distributions && <SpinOffEntitlements rows={distributions} />}
       {settlements && settlements.length > 0 && <SpinOffSettlements rows={settlements} />}
       {allocations && allocations.length > 0 && <SpinOffBasisAllocations rows={allocations} />}
@@ -225,6 +229,62 @@ function SuccessorShareClaims({ rows }: { rows: PortfolioSuccessorShare[] }) {
       </tr>)}</tbody>
     </table>
   </div>
+}
+
+function SuccessorDeliveryLedger({ core, membership, source, effective, known }: {
+  core: MarketCore; membership: string; source: Source; effective: string; known: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [page, setPage] = useState(0)
+  const ledger = useMemo(() => {
+    if (!expanded) return null
+    try {
+      return { rows: core.portfolioSuccessorDeliveryLedger(membership, source.holdings, source.successors, effective, known) }
+    } catch (cause) {
+      return { error: cause instanceof Error ? cause.message : 'Could not calculate the successor delivery ledger.' }
+    }
+  }, [expanded, core, membership, source, effective, known])
+  const rows = ledger?.rows ?? []
+  const pageSize = 100
+  const lastPage = Math.max(0, Math.ceil(rows.length / pageSize) - 1)
+  const currentPage = Math.min(lastPage, page)
+  const postingTimes = (row: PortfolioSuccessorDeliveryPosting) => [
+    utc(row.delistedAt), utc(row.delistingObservedAt), utc(row.positionEffectiveAt), utc(row.positionObservedAt),
+    row.entitledShares, utc(row.termsObservedAt), utc(row.scheduledDeliveryAt),
+  ]
+  function download() {
+    const header = 'effective_through_utc,known_through_utc,posted_utc,delisting,old_listing,successor_listing,delisting_utc,delisting_observed_utc,holding_effective_utc,holding_observed_utc,entitled_shares,terms_observed_utc,scheduled_delivery_utc,delta_numerator,delta_denominator,balance_numerator,balance_denominator'
+    const csv = [header, ...rows.map(row => [effective, known, utc(row.postedAt), quoteText(row.delisting),
+      quoteText(row.listing), quoteText(row.successor), ...postingTimes(row), row.delta.numerator,
+      row.delta.denominator, row.balance.numerator, row.balance.denominator].join(','))].join('\r\n') + '\r\n'
+    downloadFile('successor-delivery-ledger.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  }
+  return <details className="research-details" onToggle={event => setExpanded(event.currentTarget.open)}>
+    <summary>Successor delivery ledger</summary>
+    {ledger?.error && <p className="warning" role="alert">{ledger.error}</p>}
+    {ledger?.rows && (rows.length === 0 ? <p>No successor share deliveries posted at these cutoffs.</p> : <>
+      <div className="replay-table-scroll" tabIndex={0} role="region" aria-label="Scrollable successor delivery ledger">
+        <table className="universe-table" aria-label="Successor delivery ledger">
+          <thead><tr>{['Posted UTC', 'Delisting', 'Old listing', 'Successor listing', 'Delisted UTC', 'Delisting observed UTC',
+            'Holding effective UTC', 'Holding observed UTC', 'Entitled shares', 'Terms observed UTC', 'Scheduled delivery UTC',
+            'Share change', 'Delivered balance'].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
+          <tbody>{rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map(row => (
+            <tr key={`${row.postedAt}/${row.delisting}/${row.successor}`}>
+              <th scope="row">{utc(row.postedAt)}</th><td>{row.delisting}</td><td>{row.listing}</td><td>{row.successor}</td>
+              {postingTimes(row).map((value, index) => <td key={index}>{value}</td>)}
+              <td>{shareText(row.delta)}</td><td>{shareText(row.balance)}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      {lastPage > 0 && <div className="universe-query">
+        <button type="button" className="outline" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous postings</button>
+        <p>{currentPage + 1} / {lastPage + 1}</p>
+        <button type="button" className="outline" disabled={currentPage === lastPage} onClick={() => setPage(currentPage + 1)}>Next postings</button>
+      </div>}
+      <button type="button" className="outline" onClick={download}>Download successor delivery ledger</button>
+    </>)}
+  </details>
 }
 
 function SpinOffEntitlements({ rows }: { rows: PortfolioSpinOff[] }) {
