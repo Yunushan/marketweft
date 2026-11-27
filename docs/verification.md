@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.157.0 · Fibonacci price extensions
+
+| Check | Evidence |
+| --- | --- |
+| Signed projection and plot | Chromium verifies rejecting duplicate times and flat moves, labeled positive and negative price projections, common ray origins and horizontal geometry. |
+| Workspace backup | A version 50 backup retains all three exact anchors, including a later edit. The test restores both the new drawing and an earlier backup and checks that zooming the primary leaves the comparison viewport in place. |
+
+[Fibonacci price extensions](chart-workspace.md#fibonacci-price-extensions) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.156.0 · Point-in-time sector heatmap comparison
 
 | Check | Evidence |

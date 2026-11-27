@@ -214,6 +214,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           price: ['ticks'], time: ['time'], 'anchored-vwap': ['time'], ray: ['start'], trend: ['start', 'end'],
           rectangle: ['start', 'end'], channel: ['start', 'end', 'offsetTicks'],
           polyline: ['points'], fibonacci: ['start', 'end'], ellipse: ['start', 'end'], triangle: ['points'], pitchfork: ['points'], note: ['start', 'text'], arrow: ['start', 'end'],
+          'fibonacci-extension': ['points'],
           'risk-reward': ['side', 'start', 'end', 'stopTicks'],
           'price-range': ['lower', 'upper'], 'time-range': ['lower', 'upper'], 'regression-channel': ['lower', 'upper'],
         }
@@ -234,10 +235,10 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           if (!validAnnotationAnchor('time', entry.time)) throw Error('Invalid chart annotation time.')
           return { id, kind: type, time: entry.time }
         }
-        if (type === 'polyline' || type === 'triangle' || type === 'pitchfork') {
+        if (type === 'polyline' || type === 'triangle' || type === 'pitchfork' || type === 'fibonacci-extension') {
           if (!Array.isArray(entry.points)) throw Error('Invalid chart annotation points.')
           const points = Array.from(entry.points, annotationEndpoint)
-          if (type === 'triangle' || type === 'pitchfork') {
+          if (type !== 'polyline') {
             validateThreePoints(points, type)
             return { id, kind: type, points }
           }

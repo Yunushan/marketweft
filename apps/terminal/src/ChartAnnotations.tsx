@@ -1,7 +1,7 @@
 import { fixed } from './fixed-point'
 import { useState } from 'react'
 import {
-  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
+  ANNOTATION_NAMES, fibonacciExtensions, formatAnnotationAnchor, hasPointList, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint, MarketCore, RiskRewardMeasurement, RiskRewardSide } from './market-core'
@@ -31,9 +31,9 @@ function draftAnnotation(draft: Draft, id: string, core: MarketCore): ChartAnnot
   if (kind === 'price') return { id, kind, ticks: parseAnnotationAnchor(kind, points[0].price) }
   if (kind === 'time' || kind === 'anchored-vwap')
     return { id, kind, time: parseAnnotationAnchor('time', points[0].time) }
-  if (kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork') {
+  if (hasPointList(kind)) {
     const anchors = points.map(pointValue)
-    if (kind === 'triangle' || kind === 'pitchfork') {
+    if (kind !== 'polyline') {
       validateThreePoints(anchors, kind)
       return { id, kind, points: anchors }
     }
@@ -90,6 +90,7 @@ function describeAnnotation(entry: ChartAnnotation): string {
         describePoint(entry.points[0]) + ' to ' + describePoint(entry.points[entry.points.length - 1])
     case 'triangle':
     case 'pitchfork':
+    case 'fibonacci-extension':
       return name + entry.points.map(describePoint).join(', ')
     case 'trend':
     case 'rectangle':
@@ -132,7 +133,7 @@ export function ChartAnnotations({
   function edit(kind: AnnotationKind, original?: ChartAnnotation) {
     setPicker(null)
     setError('')
-    const points = kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork' ?
+    const points = hasPointList(kind) ?
       (original && 'points' in original ? original.points : [defaults.prior, defaults.start, defaults.end]).map(pointFields) :
       hasTwoPoints(kind) || kind === 'price-range' || kind === 'time-range' || kind === 'regression-channel' ?
         [pointFields(defaults.start), pointFields(defaults.end)] : [pointFields(defaults.end)]
@@ -178,7 +179,8 @@ export function ChartAnnotations({
 
   function pick(point: number) {
     if (!draft || picking === point) { setPicker(null); return }
-    setPicker({ point, sourceTime: draft.kind === 'anchored-vwap' || draft.kind === 'regression-channel', accept(anchor) {
+    setPicker({ point, sourceTime: draft.kind === 'anchored-vwap' || draft.kind === 'regression-channel' ||
+      draft.kind === 'fibonacci-extension', accept(anchor) {
       setError('')
       setDraft(current => current && {
         ...current, points: current.points.map((value, index) => index === point ? pointFields(anchor) : value),
@@ -195,11 +197,13 @@ export function ChartAnnotations({
 
   function pointEditor(point: number, current: Draft) {
     const { kind } = current
-    const vertex = kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork'
+    const vertex = hasPointList(kind)
     const range = kind === 'price-range' || kind === 'time-range' || kind === 'regression-channel'
     const twoPoints = range || hasTwoPoints(kind)
     const plan = kind === 'risk-reward'
-    const label = plan ? ['Entry', 'Target', 'Stop'][point] : vertex ? 'Point ' + (point + 1) :
+    const label = plan ? ['Entry', 'Target', 'Stop'][point] :
+      kind === 'fibonacci-extension' ? ['Move start', 'Move end', 'Projection anchor'][point] :
+      vertex ? 'Point ' + (point + 1) :
       twoPoints ? point === 0 ? 'Start' : 'End' : ANNOTATION_NAMES[kind]
     const pickLabel = plan || vertex || twoPoints ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
     const coordinates: readonly AnnotationCoordinate[] = plan && point === 2 ? ['price'] : kind === 'price' || kind === 'time' || kind === 'anchored-vwap' ?
@@ -276,6 +280,13 @@ export function ChartAnnotations({
               <span>{description}</span>
               {entry.kind === 'risk-reward' &&
                 <PlanValues value={core.measureRiskReward(entry.side, entry.start.ticks, entry.stopTicks, entry.end.ticks)} />}
+              {entry.kind === 'fibonacci-extension' && <details className="research-details">
+                <summary>Projection levels</summary>
+                <div className="ohlc chart-overlay-values" role="group" aria-label="Fibonacci extension levels">
+                  {fibonacciExtensions(entry.points).map(level =>
+                    <span key={level.label}><small>{level.label}</small> {fixed(level.ticks, 6)}</span>)}
+                </div>
+              </details>}
               <div className="drawing-buttons">
                 <button type="button" aria-label={'Edit ' + description} disabled={busy}
                   onClick={() => edit(entry.kind, entry)}>Edit</button>

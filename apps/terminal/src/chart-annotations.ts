@@ -13,6 +13,7 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'channel'; start: DrawingEndpoint; end: DrawingEndpoint; offsetTicks: number } |
   { kind: 'polyline'; points: DrawingEndpoint[] } |
   { kind: 'fibonacci'; start: DrawingEndpoint; end: DrawingEndpoint } |
+  { kind: 'fibonacci-extension'; points: TrianglePoints } |
   { kind: 'ellipse'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'triangle'; points: TrianglePoints } |
   { kind: 'pitchfork'; points: TrianglePoints } |
@@ -39,6 +40,7 @@ export const ANNOTATION_NAMES = {
   channel: 'Parallel channel',
   polyline: 'Polyline',
   fibonacci: 'Fibonacci retracement',
+  'fibonacci-extension': 'Fibonacci price extension',
   ellipse: 'Ellipse',
   triangle: 'Triangle',
   pitchfork: 'Pitchfork',
@@ -76,6 +78,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'polyline':
     case 'triangle':
     case 'pitchfork':
+    case 'fibonacci-extension':
       return second.kind === first.kind && first.points.length === second.points.length &&
         first.points.every((point, index) => sameEndpoint(point, second.points[index]))
     case 'risk-reward':
@@ -85,6 +88,10 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
       return second.kind === 'channel' && first.offsetTicks === second.offsetTicks &&
         sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
   }
+}
+
+export function hasPointList(kind: AnnotationKind): kind is 'polyline' | 'triangle' | 'pitchfork' | 'fibonacci-extension' {
+  return kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork' || kind === 'fibonacci-extension'
 }
 
 export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
@@ -138,9 +145,16 @@ export function validatePolyline(points: readonly DrawingEndpoint[]): void {
     throw Error('Consecutive polyline points must differ.')
 }
 
-export function validateThreePoints(points: DrawingEndpoint[], kind: 'triangle' | 'pitchfork'): asserts points is TrianglePoints {
-  if (points.length !== 3) throw Error('A ' + kind + ' needs exactly three points.')
+export function validateThreePoints(points: DrawingEndpoint[], kind: 'triangle' | 'pitchfork' | 'fibonacci-extension'): asserts points is TrianglePoints {
+  if (points.length !== 3) throw Error('A ' + kind.replace('-', ' ') + ' needs exactly three points.')
   const [origin, second, third] = points
+  if (kind === 'fibonacci-extension') {
+    if (origin.time >= second.time || second.time >= third.time)
+      throw Error('Fibonacci price extension times must run from earliest to latest.')
+    if (origin.ticks === second.ticks)
+      throw Error('The first two Fibonacci prices must differ.')
+    return
+  }
   const firstProduct = BigInt(second.time - origin.time) * BigInt(third.ticks - origin.ticks)
   const secondProduct = BigInt(third.time - origin.time) * BigInt(second.ticks - origin.ticks)
   if (firstProduct === secondProduct) throw Error(ANNOTATION_NAMES[kind] + ' points must enclose a nonzero area.')
@@ -158,6 +172,21 @@ export function fibonacciRetracements(start: number, end: number): { ticks: numb
     const scaled = final * 1000n + (initial - final) * ratio
     const rounded = (scaled + (scaled < 0n ? -500n : 500n)) / 1000n
     return { ticks: Number(rounded), label }
+  })
+}
+
+const EXTENSION_LEVELS = [
+  [0n, '0%'], [382n, '38.2%'], [618n, '61.8%'], [1000n, '100%'],
+  [1272n, '127.2%'], [1618n, '161.8%'], [2000n, '200%'], [2618n, '261.8%'],
+] as const
+
+export function fibonacciExtensions(points: Readonly<TrianglePoints>) {
+  const [start, end, anchor] = points
+  const change = BigInt(end.ticks) - BigInt(start.ticks)
+  const origin = BigInt(anchor.ticks) * 1000n
+  return EXTENSION_LEVELS.map(([ratio, label]) => {
+    const scaled = origin + change * ratio
+    return { ticks: (scaled + (scaled < 0n ? -500n : 500n)) / 1000n, label }
   })
 }
 

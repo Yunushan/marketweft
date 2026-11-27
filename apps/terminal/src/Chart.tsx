@@ -4,7 +4,7 @@ import { Icon } from './Icons'
 import { fixed, MAX_CHART_PRICE_TICKS, tickPrice } from './fixed-point'
 import { ChartAnnotations } from './ChartAnnotations'
 import type { AnnotationPicker } from './ChartAnnotations'
-import { EMPTY_ANNOTATIONS, fibonacciRetracements, formatAnnotationAnchor, markerColumn } from './chart-annotations'
+import { EMPTY_ANNOTATIONS, fibonacciExtensions, fibonacciRetracements, formatAnnotationAnchor, markerColumn } from './chart-annotations'
 import type { ChartAnnotation, TimeColumn } from './chart-annotations'
 import { isPriceStudy, studyOverlays, STUDIES } from './studies'
 import type { PanelLine, PanelStudy, StudyValue, StudyValues } from './studies'
@@ -736,6 +736,19 @@ function draw(
         ctx.closePath()
         ctx.fill()
         ctx.stroke()
+      } else if (annotation.kind === 'fibonacci-extension') {
+        const anchor = annotation.points[2]
+        const column = markerColumn(markerTimeline, anchor.time)
+        const beforeHistory = markerTimeline.length > 0 && anchor.time < markerTimeline[0].time
+        const from = beforeHistory ? left : column === null ? right : Math.max(left, x(column))
+        if (from >= right) continue
+        ctx.fillStyle = '#cbbce8'
+        for (const { ticks, label } of fibonacciExtensions(annotation.points)) {
+          const level = y(Number(ticks) / 1e6)
+          if (level < top || level > priceBottom) continue
+          line(from, level, right, level, '#cbbce8')
+          ctx.fillText(label + ' ' + fixed(ticks, 6), from + 4, level - 7)
+        }
       } else if (annotation.kind === 'pitchfork') {
         const rays = pitchforkRays(annotation.points, markerTimeline, x, y, { left, right, top, bottom: priceBottom })
         rays.forEach((ray, index) => {

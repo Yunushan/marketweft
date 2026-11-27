@@ -154,6 +154,14 @@ Choose **New Fibonacci retracement** to enter or pick the start and end of a pri
 
 The workspace keeps the exact anchors and point order. Version 34 backups store these tools and restore all earlier drawing formats. [Backup format](workspace-backup.md)
 
+## Fibonacci price extensions
+
+Choose **New Fibonacci price extension**. Enter or pick the start and end of the price move, then place the projection anchor after them. All three times must be in ascending order, and the first two prices must differ. Use **Edit** to change any anchor.
+
+Each horizontal ray starts at the projection anchor. Its price is the anchor price plus the signed move from the first price to the second, multiplied by the labeled ratio. **Projection levels** shows 0%, 38.2%, 61.8%, 100%, 127.2%, 161.8%, 200% and 261.8%. Prices round to the nearest millionth, with ties away from zero. The selected plot range determines which rays are visible.
+
+Workspace backup version 50 retains the exact UTC seconds and signed prices of the three anchors. [Backup format](workspace-backup.md).
+
 ## Ellipses and triangles
 
 Choose **New ellipse** and enter or pick two opposite corners of its bounding box. The ellipse accepts either corner first and requires different UTC times and prices.
