@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.170.0
+# Platform support · MarketWeft 0.171.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
@@ -7,7 +7,7 @@ A successful web test validates a specific browser, build and host. Producing a 
 | Browser / installable PWA | Static React app with a Wasm core. Windows x64 Chromium-family automation, responsive viewport and offline reload. | Browser-engine and device matrix, install/update tests and storage lifecycle acceptance. |
 | Windows x64 | Per-user installer, native WebView2 CSV import and same-profile installer upgrade on hosted Windows Server 2022. | Windows client coverage and Authenticode verification. |
 | Windows ARM64 | Per-user installer, installed release startup, same-profile upgrade with an instrumented build and Python research SDK on hosted Windows 11 ARM64. | Authenticode verification. |
-| macOS Apple Silicon / Intel | Browser route and macOS 15 hosted Tauri builds with native Mach-O, Python research SDK and WKWebView CSV import checks for both architectures. | Native file-picker interaction, sandbox, signing and notarization on actual hosts. |
+| macOS Apple Silicon / Intel | Per-architecture app archives with Mach-O and bundle checks, hosted Launch Services startup and native WKWebView CSV import in a packaged test build. | Disk image distribution, native file-picker interaction, Developer ID signing and notarization. |
 | Linux x64 | Ubuntu 24.04 x64 package installation and native CSV import. Debian 12 native window and chart rendering observed through AT-SPI. See [verification](verification.md) and the [advisory review](native-advisories.md). | Broader upgrade coverage, continued backport maintenance and validation on other supported distributions. |
 | Linux ARM64 | Browser route and Ubuntu 24.04 ARM64 package installation, native X11 launch and CSV import smoke test. | Broader upgrade coverage and validation on other supported distributions. |
 | Android | Responsive browser path. Phone-sized desktop viewport tested. | Physical-device browser/PWA acceptance. Android wrapper project and signing remain future work. |
@@ -51,6 +51,12 @@ Set `$Installer` to the downloaded x64 or ARM64 installer and `$Commit` to the f
 The desktop CI matrix uses separate macOS 15 runners for Intel and Apple Silicon. Each job builds the Tauri desktop executable and native research engine, checks the machine and both Mach-O architectures, and runs the Python research SDK fixture against the built engine. [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#standard-github-hosted-runners-for-public-repositories) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 The CSV fixture opens the bundled terminal in an ephemeral WKWebView, sends a synthetic file through the visible import form, and checks the resulting chart and exact open, high, low, close and volume.
+
+### macOS application archives
+
+Download `macos-desktop-x64-attempt-N` for Intel or `macos-desktop-arm64-attempt-N` for Apple Silicon from a successful GitHub run. Verify the SHA-256 sidecar and extract the ZIP to get `MarketWeft.app`. The bundle includes its icon, source revision, native dependency inventory and notices. [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
+The macOS jobs build the archive twice, verify its ad hoc code signature after extraction and open the exact release bundle with Launch Services. A separate packaged test build exercises CSV import in WKWebView. Developer ID signing and notarization are follow-on release gates. [Apple bundle layout](https://developer.apple.com/documentation/bundleresources/placing-content-in-a-bundle).
 
 ## Linux native verification
 

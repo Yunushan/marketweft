@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.171.0 · macOS application archives
+
+| Check | Evidence |
+| --- | --- |
+| Bundle identity and reproducibility | Each macOS job packages its release executable twice, compares the ZIP bytes, verifies the extracted ad hoc signature, and checks the Mach-O architecture, bundle metadata, source revision, icon and native dependency records. |
+| Launch and CSV | Launch Services starts the extracted release bundle. An independently packaged test build opens WKWebView and verifies the exact shared CSV quote. |
+
+[macOS application archives](platforms.md#macos-application-archives) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.170.0 · Windows installer build provenance
 
 | Check | Evidence |
