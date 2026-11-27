@@ -2,6 +2,32 @@ import Foundation
 import XCTest
 
 @MainActor
+func enterSimulatorSymbol(_ symbol: String, in web: XCUIElement) {
+    let field = web.textFields.matching(
+        NSPredicate(format: "label == %@ OR placeholderValue == %@", "Symbol", "e.g. ABC")
+    ).firstMatch
+    guard field.waitForExistence(timeout: 15) else {
+        XCTFail("The import symbol field was unavailable. \(web.debugDescription)")
+        return
+    }
+    for _ in 0..<2 {
+        if (field.value as? String) == symbol { return }
+        field.tap()
+        let value = field.value as? String ?? ""
+        let entered = value == field.placeholderValue ? "" : value
+        guard symbol.hasPrefix(entered) else {
+            XCTFail("Unexpected import symbol \(entered). \(field.debugDescription)")
+            return
+        }
+        let remaining = String(symbol.dropFirst(entered.count))
+        if !remaining.isEmpty { field.typeText(remaining) }
+        let typed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", symbol), object: field)
+        if XCTWaiter.wait(for: [typed], timeout: 3) == .completed { return }
+    }
+    XCTAssertEqual(field.value as? String, symbol, field.debugDescription)
+}
+
+@MainActor
 func chooseSimulatorFile(in app: XCUIApplication, input: String, folders: [String], filename: String) {
     let web = app.webViews.firstMatch
     let file = web.descendants(matching: .any)

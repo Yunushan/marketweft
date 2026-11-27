@@ -38,10 +38,20 @@ final class FilePickerTests: XCTestCase {
             predicate: NSPredicate(format: "enabled == true AND hittable == true"),
             object: openButton
         )
-        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed, app.debugDescription)
-        openButton.click()
-
         let fixture = URL(fileURLWithPath: csvPath).lastPathComponent
+        if XCTWaiter.wait(for: [ready], timeout: 10) == .completed {
+            openButton.click()
+        } else {
+            // The panel can preserve the selected file while withholding a mouse hit point.
+            let panel = app.descendants(matching: .dialog)
+                .matching(NSPredicate(format: "identifier == %@", "open-panel")).firstMatch
+            let selected = panel.descendants(matching: .any).matching(
+                NSPredicate(format: "selected == true AND value == %@", fixture)
+            ).firstMatch
+            XCTAssertTrue(selected.waitForExistence(timeout: 15), app.debugDescription)
+            app.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
+        }
+
         let chosen = web.buttons.matching(NSPredicate(format: "value == %@", fixture)).firstMatch
         XCTAssertTrue(chosen.waitForExistence(timeout: 10), web.debugDescription)
         let submit = web.buttons["Import to watchlist"]

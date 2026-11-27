@@ -45,12 +45,10 @@ final class SimulatorImportTests: XCTestCase {
         XCTAssertTrue(open.waitForExistence(timeout: 35), app.debugDescription)
         open.tap()
 
-        let symbol = web.textFields.matching(NSPredicate(format: "label == %@ OR placeholderValue == %@", "Symbol", "e.g. ABC")).firstMatch
-        XCTAssertTrue(symbol.waitForExistence(timeout: 15), web.debugDescription)
-        symbol.tap()
-        symbol.typeText("IOSCSV")
-
+        enterSimulatorSymbol("IOSCSV", in: web)
         chooseSimulatorFile(in: app, input: "Historical CSV file", folders: ["MarketWeft Test Files"], filename: "native-verification.csv")
+
+        enterSimulatorSymbol("IOSCSV", in: web)
 
         let submit = web.buttons["Import to watchlist"]
         XCTAssertTrue(submit.waitForExistence(timeout: 15), app.debugDescription)
