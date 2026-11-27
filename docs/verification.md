@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.112.0 · Wilder ATR
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | A synthetic fixture distinguishes the current high-to-low range from the preceding-close gap. It verifies exact full-window values, the 4,000,000,000-unit signed span and each earlier prefix. |
+| Browser chart and export | Offline Chromium checks separate ATR and RSI traces, linked readouts at warm-up and the gap, and exact research CSV values. |
+| Workspace | ATR periods are independent for each pane. A legacy RSI-only backup restores and the shared study schema retains both studies. |
+
+[Wilder ATR](chart-workspace.md#wilder-average-true-range) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.111.0 · Wilder RSI
 
 | Check | Evidence |

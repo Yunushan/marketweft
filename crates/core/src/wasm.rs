@@ -2834,10 +2834,21 @@ pub extern "C" fn mw_indicator(kind: u32, period: usize) -> u32 {
             2 => crate::relative_strength_index(period, &closes)?,
             _ => return Err("Unknown indicator.".into()),
         };
-        Ok(results
-            .into_iter()
-            .flat_map(|v| v.unwrap_or(i64::MIN).to_le_bytes())
-            .collect())
+        Ok(encode_indicator_values(results))
+    })
+}
+
+fn encode_indicator_values(results: Vec<Option<i64>>) -> Vec<u8> {
+    results
+        .into_iter()
+        .flat_map(|value| value.unwrap_or(i64::MIN).to_le_bytes())
+        .collect()
+}
+
+#[no_mangle]
+pub extern "C" fn mw_atr(period: usize) -> u32 {
+    process(|input| {
+        crate::average_true_range(period, &decode_bars(input)?).map(encode_indicator_values)
     })
 }
 

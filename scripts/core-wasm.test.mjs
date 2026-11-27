@@ -1240,3 +1240,16 @@ test('Wilder RSI uses a full window of changes, exact scaled values and neutral 
     [null, null, 50, 50]);
   assert.throws(() => core.indicator('rsi', 1, bars), /2–100,000/);
 });
+
+test('Wilder ATR includes gaps and preserves exact values at each source prefix', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-atr.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  assert.deepEqual(core.indicator('atr', 1, bars), [4, 9, 5, 18, 7, 0, 0.000001]);
+  const expected = [null, null, 6, 10, 9, 6, 4];
+  assert.deepEqual(core.indicator('atr', 3, bars), expected);
+  assert.deepEqual(core.indicator('atr', 3, bars.slice(0, 4)), expected.slice(0, 4));
+  assert.equal(core.indicator('atr', 1, [{
+    time: 0, open: 0, high: 2_000_000_000, low: -2_000_000_000, close: 0, volume: 0,
+  }])[0], 4_000_000_000);
+  assert.throws(() => core.indicator('atr', 3, [bars[0], bars[0]]), /later/);
+});

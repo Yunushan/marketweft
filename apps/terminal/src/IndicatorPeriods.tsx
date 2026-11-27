@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import type { OverlayPeriods, RsiSettings } from './catalog-schema'
-import { MAX_INDICATOR_PERIOD, validIndicatorPeriod, validRsiPeriod } from './market-core'
+import type { OverlayPeriods } from './catalog-schema'
+import { MAX_INDICATOR_PERIOD, validIndicatorPeriod } from './market-core'
+import { STUDIES, validStudyPeriod } from './studies'
+import type { StudyKind, StudySettings } from './studies'
 
 export function IndicatorPeriods({ label, periods, saving, onApply }: {
   label: string
@@ -40,12 +42,14 @@ export function IndicatorPeriods({ label, periods, saving, onApply }: {
   )
 }
 
-export function RsiControls({ label, settings, saving, onApply }: {
+export function StudyControls({ kind, label, settings, saving, onApply }: {
+  kind: StudyKind
   label: string
-  settings: RsiSettings
+  settings: StudySettings
   saving: boolean
-  onApply: (settings: RsiSettings) => void
+  onApply: (settings: StudySettings) => void
 }) {
+  const { name, minPeriod } = STUDIES[kind]
   const [enabled, setEnabled] = useState(settings.enabled)
   const [period, setPeriod] = useState(String(settings.period))
   const [error, setError] = useState(false)
@@ -53,7 +57,7 @@ export function RsiControls({ label, settings, saving, onApply }: {
     <form className="indicator-periods" aria-label={label} onSubmit={event => {
       event.preventDefault()
       const bars = Number(period)
-      if (!/^\d+$/.test(period.trim()) || !validRsiPeriod(bars)) {
+      if (!/^\d+$/.test(period.trim()) || !validStudyPeriod(kind, bars)) {
         setError(true)
         return
       }
@@ -61,16 +65,16 @@ export function RsiControls({ label, settings, saving, onApply }: {
     }}>
       <fieldset>
         <legend>{label}</legend>
-        <label>Show RSI
+        <label>Show {name}
           <input type="checkbox" checked={enabled} disabled={saving}
             onChange={event => setEnabled(event.target.checked)} />
         </label>
-        <label>RSI period (bars)
+        <label>{name} period (bars)
           <input type="text" inputMode="numeric" value={period} disabled={saving}
             onChange={event => { setPeriod(event.target.value); setError(false) }} />
         </label>
-        <button type="submit" disabled={saving}>Apply RSI</button>
-        {error && <p role="alert">Enter a whole RSI period from 2 through 100,000 bars.</p>}
+        <button type="submit" disabled={saving}>Apply {name}</button>
+        {error && <p role="alert">Enter a whole {name} period from {minPeriod} through 100,000 bars.</p>}
       </fieldset>
     </form>
   )

@@ -1,12 +1,7 @@
-use crate::{MAX_BARS, MAX_TICKS, SCALE};
-
-// Keep twelve additional decimal places in the smoothed price-tick averages.
-// All intermediates, including a full window of maximum signed changes, fit in i128.
-const PRECISION: i128 = 1_000_000_000_000;
-
-fn rounded(numerator: i128, denominator: i128) -> i128 {
-    (numerator + denominator / 2) / denominator
-}
+use crate::{
+    wilder::{rounded, update, PRECISION},
+    MAX_BARS, MAX_TICKS, SCALE,
+};
 
 fn gain_and_loss(previous: i64, close: i64) -> (i128, i128) {
     let change = i128::from(close - previous) * PRECISION;
@@ -48,8 +43,8 @@ pub fn relative_strength_index(period: usize, closes: &[i64]) -> Result<Vec<Opti
     result[period] = Some(value);
     for index in (period + 1)..closes.len() {
         let (up, down) = gain_and_loss(closes[index - 1], closes[index]);
-        gain = rounded(gain * (weight - 1) + up, weight);
-        loss = rounded(loss * (weight - 1) + down, weight);
+        gain = update(gain, up, weight);
+        loss = update(loss, down, weight);
         // Flat closes decay both averages by the same factor without changing their ratio.
         if up != 0 || down != 0 {
             value = score(gain, loss);

@@ -920,9 +920,6 @@ h1 {
   height: var(--price-chart-height);
   margin: 0 7px;
 }
-.canvas-zone.with-rsi {
-  height: calc(var(--price-chart-height) + 110px);
-}
 .canvas-zone canvas {
   position: absolute;
   inset: 0;

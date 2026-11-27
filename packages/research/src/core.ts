@@ -862,7 +862,7 @@ export interface MarketCore {
   aggregateSessionTimeframe(calendar: string, bars: readonly Bar[], sourceSeconds: number,
     targetSeconds: number): SessionTimeframeBar[];
   measureDrawing(drawing: MeasuredDrawing): DrawingMeasurement;
-  indicator(kind: 'sma' | 'ema' | 'rsi', period: number, bars: readonly Bar[]): (number | null)[];
+  indicator(kind: 'sma' | 'ema' | 'rsi' | 'atr', period: number, bars: readonly Bar[]): (number | null)[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
   splitBook(instrument: string, csv: string): Split[];
   adjustSplits(bars: readonly Bar[], splits: readonly Split[], asOf: number): Bar[];
@@ -951,6 +951,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_aggregate_session_timeframe(calendarBytes: number, sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
   mw_indicator(kind: number, period: number): number;
+  mw_atr(period: number): number;
   mw_formula_version(): number;
   mw_evaluate_formula(sourceBytes: number): number;
   mw_evaluate_formula_library(sourceBytes: number, libraryBytes: number): number;
@@ -1690,21 +1691,28 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       });
     },
     indicator(kind, period, bars) {
-      if (kind !== 'sma' && kind !== 'ema' && kind !== 'rsi') throw new Error('Unknown indicator.');
+      if (kind !== 'sma' && kind !== 'ema' && kind !== 'rsi' && kind !== 'atr') throw new Error('Unknown indicator.');
       if (kind === 'rsi' && !validRsiPeriod(period)) throw new Error('RSI periods must be 2–100,000.');
       if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD) {
         throw new Error('Series and indicator period must fit within 100,000 bars.');
       }
-      const dest = input(bars.length * 8);
-      bars.forEach(({ close }, i) => {
-        const ticks = Math.round(close * SCALE);
-        if (!Number.isSafeInteger(ticks) || Math.abs(close) > 2_000_000_000 ||
-          close !== ticks / SCALE) {
-          throw new Error('Close must be a finite six-place fixed-point price.');
-        }
-        dest.setBigInt64(i * 8, BigInt(ticks), true);
-      });
-      const out = output(api.mw_indicator({ sma: 0, ema: 1, rsi: 2 }[kind], period));
+      let out: DataView;
+      if (kind === 'atr') {
+        const dest = input(bars.length * 48);
+        for (const [i, bar] of bars.entries()) putBar(dest, i * 48, bar, 'ATR');
+        out = output(api.mw_atr(period));
+      } else {
+        const dest = input(bars.length * 8);
+        bars.forEach(({ close }, i) => {
+          const ticks = Math.round(close * SCALE);
+          if (!Number.isSafeInteger(ticks) || Math.abs(close) > 2_000_000_000 ||
+            close !== ticks / SCALE) {
+            throw new Error('Close must be a finite six-place fixed-point price.');
+          }
+          dest.setBigInt64(i * 8, BigInt(ticks), true);
+        });
+        out = output(api.mw_indicator({ sma: 0, ema: 1, rsi: 2 }[kind], period));
+      }
       return Array.from({ length: bars.length }, (_, i) => {
         const v = out.getBigInt64(i * 8, true);
         return v === MISSING ? null : Number(v) / SCALE;

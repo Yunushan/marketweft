@@ -2,6 +2,8 @@ import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
 import type { Asset, SavedImport } from './workspace'
 import { isSha256, sha256Text } from './sha256'
+import { isStudyKind, validStudyPeriod } from './studies'
+import type { StudySet, StudySettings } from './studies'
 import { validProvider, verifyProviderSignature } from './provider-signature'
 
 export type Preferences = {
@@ -12,7 +14,8 @@ export type Preferences = {
   comparison?: ComparisonPreferences
   drawings?: Record<string, MeasuredDrawing>
   overlayPeriods?: Partial<Record<ChartPane, OverlayPeriods>>
-  rsi?: Partial<Record<ChartPane, RsiSettings>>
+  rsi?: Partial<Record<ChartPane, StudySettings>>
+  studies?: Partial<Record<ChartPane, StudySet>>
   chartTypes?: Partial<Record<ChartPane, Exclude<ChartType, 'candles'>>>
   renkoTicks?: Partial<Record<ChartPane, number>>
   kagiTicks?: Partial<Record<ChartPane, number>>
@@ -28,8 +31,6 @@ export const DEFAULT_KAGI_TICKS = 1_000_000
 export const DEFAULT_POINT_FIGURE_TICKS = 1_000_000
 export const MAX_CHART_PRICE_TICKS = 2_000_000_000_000_000
 export type OverlayPeriods = { sma: number; ema: number }
-export type RsiSettings = { enabled: boolean; period: number }
-export const DEFAULT_RSI_SETTINGS: RsiSettings = { enabled: false, period: 14 }
 
 export type ComparisonPreferences = {
   selected: string
@@ -128,6 +129,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   if (value && typeof value === 'object' && Object.hasOwn(value, 'overlayPeriods')) keys.push('overlayPeriods')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'chartTypes')) keys.push('chartTypes')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'rsi')) keys.push('rsi')
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'studies')) keys.push('studies')
   const tickSettings = ['renkoTicks', 'kagiTicks', 'pointFigureTicks', 'rangeTicks', 'volumeTicks'] as const
   for (const key of tickSettings) {
     if (value && typeof value === 'object' && Object.hasOwn(value, key)) keys.push(key)
@@ -201,6 +203,28 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       if (typeof entry.enabled !== 'boolean' || !validRsiPeriod(entry.period))
         throw Error('RSI needs an enabled setting and a whole period from 2 through 100,000.')
       return [pane, { enabled: entry.enabled, period: entry.period }]
+    }))
+  }
+  if (keys.includes('studies')) {
+    const settings = value.studies
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings))
+      throw Error('Invalid study settings.')
+    const panes = Object.entries(settings)
+    if (!panes.length) throw Error('Study settings require a chart pane.')
+    result.studies = Object.fromEntries(panes.map(([pane, value]) => {
+      if (pane !== 'primary' && pane !== 'comparison') throw Error('Invalid chart pane in study settings.')
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Invalid pane studies.')
+      const entries = Object.entries(value)
+      if (!entries.length) throw Error('Study settings require a study.')
+      const studies: StudySet = {}
+      for (const [kind, entry] of entries) {
+        if (!isStudyKind(kind)) throw Error('Unknown configured study.')
+        fields(entry, ['enabled', 'period'], 'pane study settings')
+        if (typeof entry.enabled !== 'boolean' || !validStudyPeriod(kind, entry.period))
+          throw Error('Invalid enabled setting or period for the configured study.')
+        studies[kind] = { enabled: entry.enabled, period: entry.period }
+      }
+      return [pane, studies]
     }))
   }
   if (keys.includes('chartTypes')) {

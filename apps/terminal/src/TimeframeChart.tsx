@@ -7,12 +7,14 @@ import { fixed, parsePriceSize } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
 import type { TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
+import { STUDY_KINDS } from './studies'
+import type { StudySet, StudyValues } from './studies'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'rsi' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
-  activeRsi?: number
+  studySettings?: StudySet
   renkoTicks?: number
   kagiTicks?: number
   pointFigureTicks?: number
@@ -50,7 +52,7 @@ function PriceSize({ ticks, saving, apply, type }: {
   </form>
 }
 
-export function TimeframeChart({ core, activeSma, activeEma, activeRsi, asset, periods, onTimestamp,
+export function TimeframeChart({ core, activeSma, activeEma, studySettings, asset, periods, onTimestamp,
   renkoTicks = DEFAULT_RENKO_TICKS, kagiTicks = DEFAULT_KAGI_TICKS, pointFigureTicks = DEFAULT_POINT_FIGURE_TICKS,
   priceSizeSaving, onRenkoTicks, onKagiTicks, onPointFigureTicks, ...chart }: Props) {
   const initialSource = asset.source === 'sample' ? '86400' : ''
@@ -96,9 +98,10 @@ export function TimeframeChart({ core, activeSma, activeEma, activeRsi, asset, p
   const ema = useMemo(() => activeEma && periods ?
     core.indicator('ema', periods.ema, display.bars) : [], [core, activeEma, periods?.ema, display.bars])
 
-  const rsi = useMemo(() => activeRsi === undefined ? undefined :
-    { period: activeRsi, series: core.indicator('rsi', activeRsi, display.bars) },
-  [core, activeRsi, display.bars])
+  const studies = useMemo<StudyValues[]>(() => STUDY_KINDS.flatMap(kind => {
+    const settings = studySettings?.[kind]
+    return settings?.enabled ? [{ kind, period: settings.period, series: core.indicator(kind, settings.period, display.bars) }] : []
+  }), [core, studySettings, display.bars])
 
   async function apply() {
     if (busy) return
@@ -176,12 +179,12 @@ export function TimeframeChart({ core, activeSma, activeEma, activeRsi, asset, p
               { name: 'sma_' + periods.sma, series: sma },
               { name: 'ema_' + periods.ema, series: ema },
             ].filter(overlay => overlay.series.length > 0) : []),
-            ...(rsi ? [{ name: 'rsi_' + rsi.period, series: rsi.series }] : []),
+            ...studies.map(({ kind, period, series }) => ({ name: kind + '_' + period, series })),
           ]} />}
       </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceChartKey}`}
         asset={display} displayBars={displayBars} priceMovements={transformed?.priceMovements} kagiSegments={transformed?.kagiSegments}
         pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6}
-        sma={sma} ema={ema} periods={periods} rsi={rsi}
+        sma={sma} ema={ema} periods={periods} studies={studies}
         timeframe={timeframe} onTimestamp={onTimestamp} />}
     </>
   )

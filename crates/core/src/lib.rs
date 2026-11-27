@@ -2,6 +2,7 @@
 
 mod actions;
 mod alerts;
+mod atr;
 mod backtest;
 mod chart_movement;
 mod cross_section;
@@ -44,6 +45,7 @@ mod volume_bars;
 mod walk_forward;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
+mod wilder;
 
 pub use actions::{
     parse_split_revisions, parse_splits, ShareRatio, Split, SplitBook, SplitRevision,
@@ -52,6 +54,7 @@ pub use actions::{
 pub use alerts::{
     AlertBook, AlertDirection, AlertNotification, AlertRule, Comparator, Observation,
 };
+pub use atr::average_true_range;
 pub use backtest::{
     backtest, backtest_with_formulas, backtest_with_trades, validate_formula_strategy,
     validate_formula_strategy_with_library, BacktestConfig, BacktestMark, BacktestReport,

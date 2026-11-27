@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from './Icons'
 import { fixed, tickPrice } from './fixed-point'
+import { STUDIES } from './studies'
+import type { StudyValues } from './studies'
 import { kagiLayout, kagiSegmentAt } from './kagi-chart'
 import type { KagiLayout } from './kagi-chart'
 import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
@@ -17,7 +19,7 @@ import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema
 
 type View = { end: number; count: number }
 type Series = (number | null)[]
-type Study = { period: number; series: Series }
+const NO_STUDIES: StudyValues[] = []
 type ChartObservation = KagiSegment | PointFigureBox
 type Plot = { left: number; right: number; top: number; bottom: number; high: number; low: number }
 type DrawingTools = {
@@ -30,8 +32,7 @@ const UP = '#68d7b1',
   DOWN = '#ec817e',
   GOLD = '#e8ba70',
   LILAC = '#b59be6',
-  CLOSE_LINE = '#55b5ee',
-  RSI_LINE = '#8eb3fa'
+  CLOSE_LINE = '#55b5ee'
 const chartNames: Record<ChartType, string> = {
   candles: 'candlestick',
   line: 'close line',
@@ -87,8 +88,8 @@ function draw(
   kagi?: KagiLayout,
   pointFigure?: PointFigureLayout,
   activePrice?: number,
-  rsi?: Series,
-  activeRsi?: number | null,
+  studies: StudyValues[] = NO_STUDIES,
+  activeStudyValues: (number | null)[] = [],
 ): Plot | undefined {
   const ctx = canvas.getContext('2d')
   if (!ctx || width < 80 || height < 100) return
@@ -100,7 +101,7 @@ function draw(
   const closeBased = isPriceMovement || kagi !== undefined || pointFigure !== undefined
   const left = 10,
     top = 19,
-    bottom = height - (rsi ? 138 : 28),
+    bottom = height - 28 - 110 * studies.length,
     volTop = top + (bottom - top) * 0.8,
     priceBottom = closeBased ? bottom : volTop - 13
   const start = view.end - view.count
@@ -127,10 +128,19 @@ function draw(
   const ticksY = Array.from({ length: 6 }, (_, t) =>
     tickFormat.format(high - ((high - low) * t) / 5),
   )
+  const studyPanels = studies.map(study => {
+    if (study.kind === 'rsi')
+      return { ...study, high: 100, ticks: [0, 30, 70, 100], format: String }
+    let maximum = 0
+    for (let index = start; index < view.end; index++) maximum = Math.max(maximum, study.series[index] ?? 0)
+    const high = maximum || 1
+    return { ...study, high, ticks: [0, high / 2, high], format: price }
+  })
+  const studyLabels = studyPanels.flatMap(panel => panel.ticks.map(panel.format))
   const closeLabel = price(bars[view.end - 1].close)
   const axisWidth = Math.max(
     64,
-    ...[closeLabel, ...ticksY].map(
+    ...[closeLabel, ...ticksY, ...studyLabels].map(
       (label) => Math.ceil(ctx.measureText(label).width) + 14,
     ),
   )
@@ -383,50 +393,52 @@ function draw(
     ctx.arc(axis, pos, 3, 0, Math.PI * 2)
     ctx.fill()
   }
-  if (rsi) {
-    const rsiTop = bottom + 30
-    const rsiBottom = height - 11
-    const rsiY = (value: number) => rsiBottom - value / 100 * (rsiBottom - rsiTop)
+  for (const [panelIndex, panel] of studyPanels.entries()) {
+    const panelTop = bottom + 30 + 110 * panelIndex
+    const panelBottom = panelTop + 97
+    const studyY = (value: number) => panelBottom - value / panel.high * (panelBottom - panelTop)
+    const color = STUDIES[panel.kind].color
+    const selected = activeStudyValues[panelIndex]
     ctx.lineWidth = 1
-    for (const tick of [0, 30, 70, 100]) {
-      const level = rsiY(tick)
-      line(left, level, right, level, tick === 30 || tick === 70 ? '#3e4c6a' : '#293036')
+    for (const tick of panel.ticks) {
+      const level = studyY(tick)
+      line(left, level, right, level, panel.kind === 'rsi' && (tick === 30 || tick === 70) ? '#3e4c6a' : '#293036')
       ctx.fillStyle = '#93a19e'
-      ctx.fillText(String(tick), right + 7, level)
+      ctx.fillText(panel.format(tick), right + 7, level)
     }
     ctx.beginPath()
     ctx.lineWidth = 1.5
-    ctx.strokeStyle = RSI_LINE
+    ctx.strokeStyle = color
     let points = 0
     let first = start
     for (let index = start; index < view.end; index++) {
-      const value = rsi[index]
+      const value = panel.series[index]
       if (value == null) continue
       if (points === 0) {
         first = index
-        ctx.moveTo(x(index), rsiY(value))
+        ctx.moveTo(x(index), studyY(value))
       } else {
-        ctx.lineTo(x(index), rsiY(value))
+        ctx.lineTo(x(index), studyY(value))
       }
       points++
     }
     ctx.stroke()
     if (points === 1) {
       ctx.beginPath()
-      ctx.fillStyle = RSI_LINE
-      ctx.arc(x(first), rsiY(rsi[first]!), 2.5, 0, Math.PI * 2)
+      ctx.fillStyle = color
+      ctx.arc(x(first), studyY(panel.series[first]!), 2.5, 0, Math.PI * 2)
       ctx.fill()
     }
     if (active !== null && active >= start && active < view.end) {
       const axis = x(active)
       ctx.lineWidth = 1
       ctx.setLineDash([3, 4])
-      line(axis, rsiTop, axis, rsiBottom, '#bdc9c7')
+      line(axis, panelTop, axis, panelBottom, '#bdc9c7')
       ctx.setLineDash([])
-      if (activeRsi != null) {
+      if (selected != null) {
         ctx.beginPath()
-        ctx.fillStyle = RSI_LINE
-        ctx.arc(axis, rsiY(activeRsi), 3, 0, Math.PI * 2)
+        ctx.fillStyle = color
+        ctx.arc(axis, studyY(selected), 3, 0, Math.PI * 2)
         ctx.fill()
       }
     }
@@ -470,7 +482,7 @@ export function Chart({
   asset,
   sma,
   ema,
-  rsi,
+  studies = NO_STUDIES,
   linkedTimestamp,
   onTimestamp,
   drawingTools,
@@ -491,7 +503,7 @@ export function Chart({
   asset: Asset
   sma: Series
   ema: Series
-  rsi?: Study
+  studies?: StudyValues[]
   linkedTimestamp?: number | null
   onTimestamp?: (timestamp: number | null) => void
   drawingTools?: DrawingTools
@@ -525,8 +537,8 @@ export function Chart({
     sourceIndices.map(index => sma[index]) : sma, [sourceIndices, sma])
   const plottedEma = useMemo(() => sourceIndices && ema.length ?
     sourceIndices.map(index => ema[index]) : ema, [sourceIndices, ema])
-  const plottedRsi = useMemo(() => sourceIndices && rsi ?
-    sourceIndices.map(index => rsi.series[index]) : rsi?.series, [sourceIndices, rsi])
+  const plottedStudies = useMemo(() => !sourceIndices ? studies : studies.map(study =>
+    ({ ...study, series: sourceIndices.map(index => study.series[index]) })), [sourceIndices, studies])
   const n = bars.length
   const [view, setView] = useState<View>(() => defaultView(n)),
     [pointerIndex, setPointerIndex] = useState<number | null>(null)
@@ -562,7 +574,7 @@ export function Chart({
   const closeBased = Boolean(observationsByTime || priceMovements)
   const sourceIndex = selectedObservation?.sourceIndex ?? movement?.sourceIndex ?? readoutIndex
   const time = selectedObservation?.sourceTime ?? b.time
-  const rsiValue = rsi?.series[sourceIndex]
+  const studyValues = useMemo(() => studies.map(study => study.series[sourceIndex]), [studies, sourceIndex])
   const crosshairPrice = segment ? tickPrice(segment.toTicks) : box ? tickPrice(box.levelTicks) : undefined
   const firstObservation = kagi?.columns[start].segments[0] ?? pointFigure?.columns[start][0]
   const sourceStart = firstObservation?.sourceIndex ?? priceMovements?.[start].sourceIndex ?? start
@@ -641,10 +653,10 @@ export function Chart({
           kagi,
           pointFigure,
           crosshairPrice,
-          plottedRsi,
-          rsiValue,
+          plottedStudies,
+          studyValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, type, kagi, pointFigure, crosshairPrice, plottedRsi, rsiValue])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, type, kagi, pointFigure, crosshairPrice, plottedStudies, studyValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -684,7 +696,7 @@ export function Chart({
     const rect = e.currentTarget.getBoundingClientRect()
     const index = barIndexAt(e.clientX - rect.left, bounds)
     const y = e.clientY - rect.top
-    const observation = index === null || !observationsByTime || (rsi && y > bounds.bottom) ?
+    const observation = index === null || !observationsByTime || (studies.length && y > bounds.bottom) ?
       undefined : observationAt(index, priceTicksAt(y, bounds))
     hover(index, observation)
   }
@@ -782,10 +794,15 @@ export function Chart({
           })}
         </div>
       )}
-      {rsi && <div className="ohlc chart-overlay-values" role="group" aria-label="Relative Strength Index">
-        <span><small>RSI {rsi.period}</small> {rsiValue == null ? '—' : fixed(BigInt(Math.round(rsiValue * 1e6)), 6)}</span>
-      </div>}
-      <div ref={zone} className={'canvas-zone' + (picking ? ' picking-endpoint' : '') + (rsi ? ' with-rsi' : '')}>
+      {studies.map(({ kind, period }, index) => {
+        const { name, label } = STUDIES[kind]
+        const value = studyValues[index]
+        return <div key={kind} className="ohlc chart-overlay-values" role="group" aria-label={label}>
+          <span><small>{name} {period}</small> {value == null ? '—' : fixed(BigInt(Math.round(value * 1e6)), 6)}</span>
+        </div>
+      })}
+      <div ref={zone} className={picking ? 'canvas-zone picking-endpoint' : 'canvas-zone'}
+        style={studies.length ? { height: `calc(var(--price-chart-height) + ${110 * studies.length}px)` } : undefined}>
         <canvas
           tabIndex={0}
           aria-label={asset.symbol + ' interactive ' + chartNames[type] + (closeBased ? ' chart' : ' and volume chart')}
@@ -919,7 +936,7 @@ export function Chart({
               { name: 'sma_' + periods.sma, series: sma },
               { name: 'ema_' + periods.ema, series: ema },
             ].filter(overlay => overlay.series.length > 0) : []),
-            ...(rsi ? [{ name: 'rsi_' + rsi.period, series: rsi.series }] : []),
+            ...studies.map(({ kind, period, series }) => ({ name: kind + '_' + period, series })),
           ]} />
       )}
       <span className="sr-only">

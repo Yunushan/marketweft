@@ -80,13 +80,21 @@ The first average gain and loss are arithmetic means over the full window of clo
 
 The study uses the selected timeframe's source closes. In Heikin-Ashi and other derived chart types, the RSI readout follows the source observation represented by the displayed bar or movement. Research CSV includes the study as a column such as `rsi_14`, with empty fields during warm-up. Workspace backup keeps the enabled state and period of each pane.
 
+## Wilder Average True Range
+
+Open **Indicators**, select **Show ATR** for either pane and choose **Apply ATR**. The default period is 14. The available periods are 1 through 100,000 source bars. ATR displays price units on an independent scale that runs from zero to the highest visible positive ATR. During warm-up or when all visible values are zero, it spans zero to one price unit. RSI keeps its own fixed 0–100 scale when both studies are visible.
+
+True range spans the current high, current low and previous source close. The first source bar uses its high minus low. The first ATR averages a full period of true ranges. Subsequent values use Wilder smoothing. A period of one returns the true range directly, including a gap from the previous close. ATR uses the selected timeframe's source OHLC and exports a six-place value in a research CSV column such as `atr_14`. [True range and Wilder smoothing](https://www.tradingview.com/support/solutions/43000501823-average-true-range-atr/).
+
+Settings save independently for each pane. A workspace with legacy RSI settings preserves them when an ATR study is configured.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.
 
 **OHLCV bars for reimport** writes the six columns accepted by the terminal importer. Timestamps use UTC Unix seconds, and signed prices and volume retain their original values through six decimal places.
 
-**Bars, provenance and enabled indicators** includes instrument identity, source, interval, usage grant and adjustment policy. Each enabled study adds a column such as `sma_20`, `ema_9`, or `rsi_14`. Calculations use the instrument's full history through each exported bar, so the visible-range export preserves values calculated before the visible boundary. Cells stay empty while the study has too few closes. A leading apostrophe escapes formula-like provenance text. The research format can be used in analysis tools.
+**Bars, provenance and enabled indicators** includes instrument identity, source, interval, usage grant and adjustment policy. Each enabled study adds a column such as `sma_20`, `ema_9`, `rsi_14`, or `atr_14`. Calculations use the instrument's full history through each exported bar, so the visible-range export preserves values calculated before the visible boundary. Cells stay empty while the study has too few closes. A leading apostrophe escapes formula-like provenance text. The research format can be used in analysis tools.
 
 ## Recorded range bars
 

@@ -15,7 +15,7 @@ import { DEFAULT_INDICATOR_PERIODS } from './market-core'
 import { Spark } from './Chart'
 import { TimeframeChart } from './TimeframeChart'
 import { FootprintResearch } from './FootprintResearch'
-import { IndicatorPeriods, RsiControls } from './IndicatorPeriods'
+import { IndicatorPeriods, StudyControls } from './IndicatorPeriods'
 import { Icon, Mark } from './Icons'
 import { changeString, dateLabel, movement, price, volume } from './workspace'
 import type { Asset, SavedImport } from './workspace'
@@ -28,10 +28,12 @@ import type {
   Preferences,
   SeriesMetadata,
 } from './catalog'
-import { DEFAULT_RSI_SETTINGS, parseProviderHistoryFixture, SOURCE_RIGHTS } from './catalog-schema'
+import { parseProviderHistoryFixture, SOURCE_RIGHTS } from './catalog-schema'
 import type {
-  ChartPane, ChartType, OverlayPeriods, RsiSettings, SourceRight, SourceRights, SourceRightStatus,
+  ChartPane, ChartType, OverlayPeriods, SourceRight, SourceRights, SourceRightStatus,
 } from './catalog-schema'
+import { DEFAULT_STUDY_SETTINGS, STUDIES, STUDY_KINDS } from './studies'
+import type { StudyKind, StudySet, StudySettings } from './studies'
 import { WorkspaceBackup } from './WorkspaceBackup'
 import { HistoricalReplay } from './HistoricalReplay'
 import { checkImportRows, type ImportPolicy } from './import-policy'
@@ -474,8 +476,12 @@ export function App({
   const color = move.delta === null ? 'muted' : move.delta < 0 ? 'down' : 'up'
   const primaryPeriods = ws.overlayPeriods?.primary ?? DEFAULT_INDICATOR_PERIODS
   const comparisonPeriods = ws.overlayPeriods?.comparison ?? DEFAULT_INDICATOR_PERIODS
-  const primaryRsi = ws.rsi?.primary ?? DEFAULT_RSI_SETTINGS
-  const comparisonRsi = ws.rsi?.comparison ?? DEFAULT_RSI_SETTINGS
+  const primaryStudies = useMemo<StudySet>(() => ({
+    ...(ws.rsi?.primary && { rsi: ws.rsi.primary }), ...ws.studies?.primary,
+  }), [ws.rsi?.primary, ws.studies?.primary])
+  const comparisonStudies = useMemo<StudySet>(() => ({
+    ...(ws.rsi?.comparison && { rsi: ws.rsi.comparison }), ...ws.studies?.comparison,
+  }), [ws.rsi?.comparison, ws.studies?.comparison])
   const comparison = ws.comparison
   const other = comparison && assets.find((item) => item.id === comparison.selected)
   const otherBars = other?.bars
@@ -607,12 +613,24 @@ export function App({
     }
     update(Object.keys(overlayPeriods).length ? { ...preferences, overlayPeriods } : preferences)
   }
-  function setRsi(pane: ChartPane, settings: RsiSettings) {
-    const { rsi: current, ...preferences } = ws
-    const rsi = { ...current }
-    if (!settings.enabled && settings.period === DEFAULT_RSI_SETTINGS.period) delete rsi[pane]
-    else rsi[pane] = settings
-    update(Object.keys(rsi).length ? { ...preferences, rsi } : preferences)
+  function setStudy(pane: ChartPane, kind: StudyKind, settings: StudySettings) {
+    const { rsi: legacy, studies: current, ...preferences } = ws
+    const useDefault = !settings.enabled && settings.period === DEFAULT_STUDY_SETTINGS.period
+    if (useDefault && kind !== 'rsi' && !current) return
+    if (kind === 'rsi' && !current) {
+      const rsi = { ...legacy }
+      if (useDefault) delete rsi[pane]
+      else rsi[pane] = settings
+      update(Object.keys(rsi).length ? { ...preferences, rsi } : preferences)
+      return
+    }
+    const studies = { primary: primaryStudies, comparison: comparisonStudies }
+    const next = { ...studies[pane] }
+    if (useDefault) delete next[kind]
+    else next[kind] = settings
+    studies[pane] = next
+    const configured = Object.fromEntries(Object.entries(studies).filter(([, value]) => Object.keys(value).length))
+    update(Object.keys(configured).length ? { ...preferences, studies: configured } : preferences)
   }
   function setChartType(pane: ChartPane, type: ChartType) {
     const { chartTypes: current, ...preferences } = ws
@@ -883,7 +901,7 @@ export function App({
                   core={core} activeSma={ws.sma} activeEma={ws.ema}
                   linkedTimestamp={cursor} onTimestamp={comparison?.linked ? onCrosshair : undefined}
                   drawingTools={drawingTools(asset.id)} periods={primaryPeriods}
-                  activeRsi={primaryRsi.enabled ? primaryRsi.period : undefined}
+                  studySettings={primaryStudies}
                   type={ws.chartTypes?.primary}
                   renkoTicks={ws.renkoTicks?.primary} kagiTicks={ws.kagiTicks?.primary}
                   pointFigureTicks={ws.pointFigureTicks?.primary} priceSizeSaving={saving}
@@ -902,7 +920,7 @@ export function App({
                     core={core} activeSma={comparison.sma} activeEma={comparison.ema}
                     linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined}
                     drawingTools={drawingTools(other.id)} periods={comparisonPeriods}
-                    activeRsi={comparisonRsi.enabled ? comparisonRsi.period : undefined}
+                    studySettings={comparisonStudies}
                     type={ws.chartTypes?.comparison}
                     renkoTicks={ws.renkoTicks?.comparison} kagiTicks={ws.kagiTicks?.comparison}
                     pointFigureTicks={ws.pointFigureTicks?.comparison} priceSizeSaving={saving}
@@ -1135,16 +1153,22 @@ export function App({
               <IndicatorPeriods label="Primary chart periods" periods={primaryPeriods} saving={saving}
                 key={`primary:${primaryPeriods.sma}:${primaryPeriods.ema}`}
                 onApply={periods => setPeriods('primary', periods)} />
-              <RsiControls label="Primary chart RSI" settings={primaryRsi} saving={saving}
-                key={`primary-rsi:${primaryRsi.period}:${primaryRsi.enabled}`}
-                onApply={settings => setRsi('primary', settings)} />
+              {STUDY_KINDS.map(kind => {
+                const settings = primaryStudies[kind] ?? DEFAULT_STUDY_SETTINGS
+                return <StudyControls key={`primary-${kind}:${settings.period}:${settings.enabled}`}
+                  kind={kind} label={'Primary chart ' + STUDIES[kind].name} settings={settings} saving={saving}
+                  onApply={value => setStudy('primary', kind, value)} />
+              })}
               {comparison && <>
                 <IndicatorPeriods label="Comparison chart periods" periods={comparisonPeriods} saving={saving}
                   key={`comparison:${comparisonPeriods.sma}:${comparisonPeriods.ema}`}
                   onApply={periods => setPeriods('comparison', periods)} />
-                <RsiControls label="Comparison chart RSI" settings={comparisonRsi} saving={saving}
-                  key={`comparison-rsi:${comparisonRsi.period}:${comparisonRsi.enabled}`}
-                  onApply={settings => setRsi('comparison', settings)} />
+                {STUDY_KINDS.map(kind => {
+                  const settings = comparisonStudies[kind] ?? DEFAULT_STUDY_SETTINGS
+                  return <StudyControls key={`comparison-${kind}:${settings.period}:${settings.enabled}`}
+                    kind={kind} label={'Comparison chart ' + STUDIES[kind].name} settings={settings} saving={saving}
+                    onApply={value => setStudy('comparison', kind, value)} />
+                })}
               </>}
             </>
           )}
