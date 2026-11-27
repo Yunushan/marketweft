@@ -1,16 +1,19 @@
 //! Versioned native process interfaces for read-only research clients.
 
+use crate::dividend::MAX_CASH_DIVIDEND_CSV_BYTES;
 use crate::financial_wire::financial_rows;
 use crate::formula::{decode_formula_library, MAX_FORMULA_LIBRARY_BYTES, MAX_SOURCE_BYTES};
 use crate::fundamentals::MAX_FINANCIAL_CSV_BYTES;
 use crate::history::exact_utc;
 use crate::option_chain::MAX_OPTION_CSV_BYTES;
-use crate::option_wire::option_snapshot_rows;
+use crate::option_price::MAX_VOLATILITY;
+use crate::option_wire::{option_cash_status, option_dividend_rows, option_snapshot_rows};
 use crate::screen::MAX_PRICE_BYTES;
-use crate::universe::MAX_MEMBERSHIP_BYTES;
+use crate::universe::{valid_id, MAX_MEMBERSHIP_BYTES};
 use crate::{
-    parse_csv, parse_universe, FinancialBook, Formula, OptionBook, PriceBook, FORMULA_VERSION,
-    MAX_INPUT_BYTES,
+    parse_csv, parse_dividends, parse_universe, AmericanCashImpliedRequest, AmericanCashRequest,
+    AmericanImplied, CashOptionError, FinancialBook, Formula, OptionBook, PriceBook,
+    FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_INPUT_BYTES,
 };
 use std::fmt::Write;
 
@@ -20,6 +23,8 @@ pub const MAX_REQUEST_BYTES: usize =
 pub const MAX_SCREEN_REQUEST_BYTES: usize = MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 128;
 pub const MAX_FINANCIAL_REQUEST_BYTES: usize = 2 * MAX_FINANCIAL_CSV_BYTES + 128;
 pub const MAX_OPTION_REQUEST_BYTES: usize = 2 * MAX_OPTION_CSV_BYTES + 128;
+pub const MAX_AMERICAN_OPTION_REQUEST_BYTES: usize =
+    2 * MAX_OPTION_CSV_BYTES + MAX_CASH_DIVIDEND_CSV_BYTES + 256;
 
 /// Return annual and quarterly financial evidence for independently dated cutoffs.
 pub fn financial_snapshot_request(bytes: &[u8]) -> Result<String, String> {
@@ -71,13 +76,7 @@ pub fn option_snapshot_request(bytes: &[u8]) -> Result<String, String> {
         .ok()
         .filter(|size| *size <= MAX_OPTION_CSV_BYTES)
         .ok_or("Invalid underlying CSV length.")?;
-    let (Some(effective_at), Some(known_at)) = (exact_utc(effective_at), exact_utc(known_at))
-    else {
-        return Err("Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.".into());
-    };
-    let max_age: u32 = max_age
-        .parse()
-        .map_err(|_| "Use a whole maximum quote age in seconds.")?;
+    let (effective_at, known_at, max_age) = option_request_times(effective_at, known_at, max_age)?;
     let (underlying, quotes) = payload
         .split_at_checked(length)
         .ok_or("Invalid underlying CSV boundary.")?;
@@ -88,6 +87,138 @@ pub fn option_snapshot_request(bytes: &[u8]) -> Result<String, String> {
         "marketweft-options\t{PROTOCOL_VERSION}\t{},{}\n{rows}",
         source.instrument, source.currency
     ))
+}
+
+/// Price a dated American contract or solve its observed midpoint.
+pub fn american_option_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_AMERICAN_OPTION_REQUEST_BYTES {
+        return Err("American option request exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 American option request.")?;
+    let (header, payload) = request
+        .split_once('\n')
+        .ok_or("Missing American option request header.")?;
+    let fields = header.split('\t').collect::<Vec<_>>();
+    let ["marketweft-american-option", "1", underlying_size, quote_size, contract_id, effective, known, age, steps, volatility, cash_mode] =
+        fields.as_slice()
+    else {
+        return Err("Invalid American option request or protocol version.".into());
+    };
+    let length = |value: &str| {
+        value
+            .parse::<usize>()
+            .ok()
+            .filter(|size| *size <= MAX_OPTION_CSV_BYTES)
+    };
+    let underlying_size = length(underlying_size).ok_or("Invalid underlying CSV length.")?;
+    let quote_size = length(quote_size).ok_or("Invalid option quotes CSV length.")?;
+    if !valid_id(contract_id) {
+        return Err("Select a valid American contract ID.".into());
+    }
+    let (effective_at, known_at, max_age) = option_request_times(effective, known, age)?;
+    let steps = steps
+        .parse::<u16>()
+        .ok()
+        .filter(|steps| (1..=MAX_AMERICAN_STEPS).contains(steps))
+        .ok_or("Use 1 to 256 whole pricing steps.")?;
+    let volatility = (!volatility.is_empty())
+        .then(|| {
+            volatility
+                .parse::<f64>()
+                .ok()
+                .filter(|value| (0.0..=MAX_VOLATILITY).contains(value))
+                .ok_or("Use annual volatility from 0 to 10.")
+        })
+        .transpose()?;
+    let (underlying, payload) = payload
+        .split_at_checked(underlying_size)
+        .ok_or("Invalid underlying CSV boundary.")?;
+    let (quotes, cash) = payload
+        .split_at_checked(quote_size)
+        .ok_or("Invalid option quotes CSV boundary.")?;
+    let book = OptionBook::parse(underlying, quotes).map_err(|error| error.to_string())?;
+    let source = book.underlying();
+    let dividends = match *cash_mode {
+        "cash" => Some(parse_dividends(cash, &source.instrument)?),
+        "continuous" if cash.is_empty() => None,
+        _ => return Err("Supply cash dividend reports only in cash mode.".into()),
+    };
+    let result = match (volatility, dividends.as_ref()) {
+        (Some(volatility), None) => book
+            .price_american(
+                contract_id,
+                effective_at,
+                known_at,
+                max_age,
+                volatility,
+                steps,
+            )
+            .map(|price| (AmericanImplied { price, volatility }, Vec::new()))
+            .map_err(CashOptionError::Quote),
+        (None, None) => book
+            .implied_american(contract_id, effective_at, known_at, max_age, steps)
+            .map(|model| (model, Vec::new()))
+            .map_err(CashOptionError::Quote),
+        (Some(volatility), Some(dividends)) => book
+            .american_cash_valuation(
+                dividends,
+                AmericanCashRequest {
+                    contract_id,
+                    effective_at,
+                    known_at,
+                    max_age,
+                    volatility,
+                    steps,
+                },
+            )
+            .map(|value| {
+                (
+                    AmericanImplied {
+                        price: value.price,
+                        volatility,
+                    },
+                    value.dividends,
+                )
+            }),
+        (None, Some(dividends)) => book
+            .american_cash_implied_valuation(
+                dividends,
+                AmericanCashImpliedRequest {
+                    contract_id,
+                    effective_at,
+                    known_at,
+                    max_age,
+                    steps,
+                },
+            )
+            .map(|value| (value.model, value.dividends)),
+    };
+    let mut output = format!(
+        "marketweft-american-option\t{PROTOCOL_VERSION}\t{contract_id},{}\n",
+        source.currency
+    );
+    match result {
+        Ok((model, applied)) => {
+            writeln!(output, "value\t{}\t{}", model.price, model.volatility).unwrap();
+            option_dividend_rows(&mut output, applied);
+        }
+        Err(error) => writeln!(output, "{}", option_cash_status(error)?).unwrap(),
+    }
+    Ok(output)
+}
+
+fn option_request_times(
+    effective: &str,
+    known: &str,
+    max_age: &str,
+) -> Result<(i64, i64, u32), String> {
+    let (Some(effective), Some(known)) = (exact_utc(effective), exact_utc(known)) else {
+        return Err("Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.".into());
+    };
+    let max_age = max_age
+        .parse()
+        .map_err(|_| "Use a whole maximum quote age in seconds.")?;
+    Ok((effective, known, max_age))
 }
 
 /// Evaluate one length-framed request and return UTC timestamps and integer ticks.

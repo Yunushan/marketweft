@@ -404,8 +404,10 @@ pub(crate) fn parse_report<'a>(
     Ok(row)
 }
 
+pub(crate) const MAX_CASH_DIVIDEND_CSV_BYTES: usize = 1024 * 1024;
+
 pub fn parse_dividends(csv: &str, instrument: &Instrument) -> Result<DividendBook, String> {
-    if csv.len() > 1024 * 1024 {
+    if csv.len() > MAX_CASH_DIVIDEND_CSV_BYTES {
         return Err("Cash dividends CSV exceeds 1 MiB.".into());
     }
     let mut lines = csv

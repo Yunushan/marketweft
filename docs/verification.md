@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.95.0 · Native American option valuations
+
+| Check | Evidence |
+| --- | --- |
+| Continuous-yield lattice | The Python SDK reproduced USD 16.247756 and USD 16.614676 at 25% volatility before and after the underlying revision and preserved the unavailable status before the first American quote. |
+| Cash-dividend lattice | The native executable matched browser prices at supplied volatility and solved the same USD 16.234568 midpoint through the first announcement, second report, revision, cancellation and rewind. It retained exact amounts and ex-date and payout provenance. |
+| Input and quality checks | Native tests verify crossed or one-sided spreads, a European selection, a mismatched cash currency and an invalid volatility. |
+
+[Native American option valuations](../packages/python-research/README.md#american-option-valuations) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.94.0 · Native option snapshots
 
 | Check | Evidence |

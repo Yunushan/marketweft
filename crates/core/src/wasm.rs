@@ -1,7 +1,9 @@
 //! Single-threaded, synchronous ABI. The host copies input after mw_input and
 //! reads output before its next call. No Rust allocation is owned by JavaScript.
 use crate::formula::{decode_formula_library, MAX_FORMULA_LIBRARY_BYTES};
-use crate::option_wire::{option_snapshot_rows, option_status};
+use crate::option_wire::{
+    option_cash_status, option_dividend_rows, option_snapshot_rows, option_status,
+};
 use crate::{
     aggregate_session_timeframe, aggregate_timeframe, measure_drawing, AlertBook, AlertDirection,
     Comparator, DrawingEndpoint, TimeframeBar,
@@ -18,7 +20,7 @@ use crate::{
     PaperSide,
 };
 use crate::{parse_split_revisions, ShareRatio, SplitRevision, SplitRevisionBook};
-use crate::{AmericanCashImpliedRequest, AmericanCashRequest, CashOptionError, OptionBook};
+use crate::{AmericanCashImpliedRequest, AmericanCashRequest, OptionBook};
 use std::cell::RefCell;
 
 thread_local! {
@@ -2141,7 +2143,6 @@ fn american_option_cash(
     steps: u32,
     volatility: Option<f64>,
 ) -> u32 {
-    use std::fmt::Write;
     process(|input| {
         let (contract_id, effective_at, known_at, reports) = american_option_fields(input)?;
         let (chain, cash) = underlying_bytes
@@ -2185,30 +2186,9 @@ fn american_option_cash(
         };
         let (mut text, reports) = match result {
             Ok(model) => model,
-            Err(CashOptionError::Quote(status)) => {
-                return Ok(option_status(status).as_bytes().to_vec())
-            }
-            Err(CashOptionError::InstrumentMismatch) => {
-                return Err("Cash dividend instrument must match the option chain.".into())
-            }
-            Err(CashOptionError::CurrencyMismatch) => {
-                return Err("Cash dividend currency must match the option chain.".into())
-            }
+            Err(error) => return Ok(option_cash_status(error)?.as_bytes().to_vec()),
         };
-        for report in reports {
-            writeln!(
-                text,
-                "D\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                report.id,
-                report.announced_at,
-                report.ex_at,
-                report.pay_at,
-                report.observed_at,
-                report.currency,
-                report.amount_per_share,
-            )
-            .unwrap();
-        }
+        option_dividend_rows(&mut text, reports);
         Ok(text.into_bytes())
     })
 }

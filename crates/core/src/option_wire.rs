@@ -1,4 +1,6 @@
-use crate::{ChainSnapshot, ExerciseStyle, ModelError, OptionSide, QuoteStatus};
+use crate::{
+    CashOptionError, ChainSnapshot, Dividend, ExerciseStyle, ModelError, OptionSide, QuoteStatus,
+};
 use std::fmt::Write;
 
 pub(crate) fn option_snapshot_rows(view: ChainSnapshot<'_>) -> String {
@@ -70,5 +72,34 @@ pub(crate) fn option_status(status: QuoteStatus) -> &'static str {
         QuoteStatus::Model(ModelError::InputsOutOfRange) => "model-range",
         QuoteStatus::Model(ModelError::PriceOutsideBounds) => "price-bounds",
         QuoteStatus::Model(ModelError::VolatilityUnresolved) => "unresolved-vol",
+    }
+}
+
+pub(crate) fn option_dividend_rows(text: &mut String, reports: Vec<&Dividend>) {
+    for report in reports {
+        writeln!(
+            text,
+            "D\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            report.id,
+            report.announced_at,
+            report.ex_at,
+            report.pay_at,
+            report.observed_at,
+            report.currency,
+            report.amount_per_share,
+        )
+        .unwrap();
+    }
+}
+
+pub(crate) fn option_cash_status(error: CashOptionError) -> Result<&'static str, String> {
+    match error {
+        CashOptionError::Quote(status) => Ok(option_status(status)),
+        CashOptionError::InstrumentMismatch => {
+            Err("Cash dividend instrument must match the option chain.".into())
+        }
+        CashOptionError::CurrencyMismatch => {
+            Err("Cash dividend currency must match the option chain.".into())
+        }
     }
 }

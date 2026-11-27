@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.6.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.7.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -78,6 +78,30 @@ for row in snapshot.options:
 
 The snapshot retains the exact quote and observation timestamps in UTC seconds. Strike, bid, ask and spot use integer millionths in the instrument currency. Interest rate and continuous dividend yield use integer millionths of an annual fraction. European `analytics` includes modeled price, implied volatility as an annual fraction, and Delta, Gamma, Vega, Theta and Rho. Unavailable models return `None` with a status, and contracts with no known observation are excluded. [Option inputs and demo cutoffs](../../docs/option-chain.md).
 
+## American option valuations
+
+Call `american_option_valuation` with the two option CSVs, a contract ID and both replay cutoffs. Provide an annual volatility fraction to calculate a price. Omit volatility to solve the observed midpoint. Supply `cash_dividends_csv` to include distributions with future ex-dates that were known by the cutoff.
+
+```python
+from pathlib import Path
+from marketweft_research import ResearchEngine
+
+engine = ResearchEngine("./marketweft-research")
+result = engine.american_option_valuation(
+    Path("underlying.csv").read_text(encoding="utf-8"),
+    Path("option-quotes.csv").read_text(encoding="utf-8"),
+    contract_id="APR-AM-C90",
+    effective_at="2025-04-03T14:00:00Z",
+    known_at="2025-04-03T14:06:00Z",
+    cash_dividends_csv=Path("cash-dividends.csv").read_text(encoding="utf-8"),
+)
+print(result.status, result.currency, result.price, result.volatility)
+for report in result.dividends:
+    print(report.id, report.amount_per_share_ticks, report.ex_at, report.pay_at, report.observed_at)
+```
+
+The fixture's USD 16.234568 midpoint yields 32.53% at this cutoff with 128 steps. The return value contains the selected reports with exact integer millionths per share and UTC seconds. An unavailable result has a status and empty model values. A dividend currency mismatch is an input error. [Demo cash-dividend inputs and replay](../../docs/option-chain.md#discrete-cash-dividends).
+
 ## Native protocol
 
 `marketweft-research --version` prints the process protocol version. An evaluation sends one UTF-8 request to standard input. The first line contains these tab-separated fields in order.
@@ -122,3 +146,21 @@ The response header contains the same identifier and version followed by the und
 | `Q` | Contract ID, expiration, strike, side, effective quote time, observation time, bid, ask and model status. For `ok`, seven model fields follow in the order volatility, price, Delta, Gamma, Vega, Theta and Rho. The last field is exercise style. |
 
 Blank bid and ask fields denote missing quotes. The response may contain only the header when no underlying or contract quotes are visible.
+
+
+### American option valuation protocol
+
+Run `marketweft-research american-option` with a UTF-8 request on standard input. The LF-terminated header has tab-separated fields in the following order.
+
+| Field | Contents |
+| --- | --- |
+| Identifier and version | `marketweft-american-option` and `1` |
+| CSV lengths | Underlying CSV byte length and option quotes CSV byte length |
+| Contract and cutoffs | Contract ID, effective UTC timestamp and known UTC timestamp |
+| Quote age and steps | Maximum quote age in seconds, then an integer from 1 to 256 |
+| Volatility | An annual fraction from zero to 10 for direct pricing, or an empty field to solve the observed midpoint |
+| Dividend mode | `cash` to apply the supplied cash schedule, or `continuous` |
+
+Append the exact underlying and option CSV bytes, then the cash dividend CSV in cash mode. The first two files are limited to 2 MiB each, and the cash dividend CSV is limited to 1 MiB.
+
+The response header contains the identifier, protocol version and contract ID with currency separated by a comma. The next tab-separated row is either a status or `value`, model price and annual volatility. Each applied dividend follows on a `D` row with ID, announcement time, ex-date, pay date, observation time, currency and exact integer millionths per share.

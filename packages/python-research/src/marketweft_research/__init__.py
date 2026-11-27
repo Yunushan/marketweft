@@ -8,6 +8,7 @@ import subprocess
 from typing import Sequence
 
 __all__ = [
+    "AmericanOptionValuation", "OptionCashDividend",
     "FinancialFiling", "FinancialMarketCap", "FinancialMultiple", "FinancialMultiples",
     "FinancialSnapshot", "FinancialTrailing",
     "FormulaFunction", "FormulaResult", "FormulaRow",
@@ -29,6 +30,7 @@ _MAX_SOURCE = 2048
 _MAX_CSV = 8 * 1024 * 1024
 _MAX_FINANCIAL_CSV = 1024 * 1024
 _MAX_OPTION_CSV = 2 * 1024 * 1024
+_MAX_OPTION_DIVIDEND_CSV = 1024 * 1024
 _OPTION_STATUSES = {
     "expired", "stale-option", "missing-bid-ask", "crossed", "missing-underlying",
     "stale-underlying", "american-volatility-required", "model-range", "price-bounds",
@@ -182,6 +184,27 @@ class OptionChainSnapshot:
     currency: str
     underlying: OptionUnderlyingQuote | None
     options: tuple[OptionChainQuote, ...]
+
+
+@dataclass(frozen=True)
+class OptionCashDividend:
+    id: str
+    announced_at: int
+    ex_at: int
+    pay_at: int
+    observed_at: int
+    currency: str
+    amount_per_share_ticks: int
+
+
+@dataclass(frozen=True)
+class AmericanOptionValuation:
+    contract_id: str
+    currency: str
+    status: str
+    price: float | None
+    volatility: float | None
+    dividends: tuple[OptionCashDividend, ...]
 
 
 def _definitions(functions: Sequence[FormulaFunction]) -> bytes:
@@ -404,6 +427,55 @@ def _option_snapshot(output: bytes) -> OptionChainSnapshot:
     return OptionChainSnapshot(instrument, currency, underlying, tuple(options))
 
 
+def _option_inputs(
+    underlying_csv: str, quotes_csv: str, effective_at: str, known_at: str, max_age: int,
+) -> tuple[bytes, bytes]:
+    times = (effective_at, known_at)
+    if any(not isinstance(timestamp, str) or not _UTC.fullmatch(timestamp) for timestamp in times):
+        raise ValueError("Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+    if type(max_age) is not int or not 0 <= max_age <= 0xFFFFFFFF:
+        raise ValueError("Use a whole maximum quote age from 0 to 4,294,967,295 seconds.")
+    underlying, quotes = underlying_csv.encode("utf-8"), quotes_csv.encode("utf-8")
+    if max(len(underlying), len(quotes)) > _MAX_OPTION_CSV:
+        raise ValueError("Each option input CSV must fit within 2 MiB.")
+    return underlying, quotes
+
+
+def _american_option_valuation(output: bytes, requested_contract: str) -> AmericanOptionValuation:
+    identity, lines = _response(output, "marketweft-american-option")
+    contract, separator, currency = identity.partition(",")
+    if not separator or contract != requested_contract or not _CURRENCY.fullmatch(currency):
+        raise ResearchError("Invalid identity in American option response.")
+    if not lines or len(lines) > 1001:
+        raise ResearchError("Invalid row count in American option response.")
+    status, *values = lines[0].split("\t")
+    if status in _OPTION_STATUSES | {"missing-contract", "european-contract"} and not values and len(lines) == 1:
+        return AmericanOptionValuation(contract, currency, status, None, None, ())
+    if status != "value" or len(values) != 2:
+        raise ResearchError("Invalid status in American option response.")
+    try:
+        price, volatility = map(float, values)
+    except ValueError as exc:
+        raise ResearchError("Invalid model values in American option response.") from exc
+    if not math.isfinite(price) or price < 0 or not 0 <= volatility <= 10:
+        raise ResearchError("Invalid model values in American option response.")
+    reports = []
+    ids = set()
+    for line in lines[1:]:
+        fields = line.split("\t")
+        if len(fields) != 8:
+            raise ResearchError("Invalid dividend report in American option response.")
+        tag, identifier, announced, ex_at, pay_at, observed, unit, amount = fields
+        ticks = _whole(amount)
+        if (tag != "D" or not _IDENTITY.fullmatch(identifier) or identifier in ids
+                or unit != currency or ticks <= 0):
+            raise ResearchError("Invalid dividend report in American option response.")
+        ids.add(identifier)
+        reports.append(OptionCashDividend(identifier, _whole(announced), _whole(ex_at), _whole(pay_at),
+                                          _whole(observed), unit, ticks))
+    return AmericanOptionValuation(contract, currency, status, price, volatility, tuple(reports))
+
+
 class ResearchEngine:
     """Run read-only analytics using a caller-selected native executable."""
 
@@ -491,16 +563,40 @@ class ResearchEngine:
         max_age: int = 300,
     ) -> OptionChainSnapshot:
         """Return the eligible option quotes and model results at both inclusive UTC cutoffs."""
-        times = (effective_at, known_at)
-        if any(not isinstance(timestamp, str) or not _UTC.fullmatch(timestamp) for timestamp in times):
-            raise ValueError("Options times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
-        if type(max_age) is not int or not 0 <= max_age <= 0xFFFFFFFF:
-            raise ValueError("Use a whole maximum quote age from 0 to 4,294,967,295 seconds.")
-        underlying, quotes = underlying_csv.encode("utf-8"), quotes_csv.encode("utf-8")
-        if max(len(underlying), len(quotes)) > _MAX_OPTION_CSV:
-            raise ValueError("Each option input CSV must fit within 2 MiB.")
-        header = "\t".join(("marketweft-options", "1", str(len(underlying)), *times, str(max_age)))
+        underlying, quotes = _option_inputs(underlying_csv, quotes_csv, effective_at, known_at, max_age)
+        header = "\t".join(("marketweft-options", "1", str(len(underlying)), effective_at, known_at, str(max_age)))
         return _option_snapshot(self._invoke(header.encode("ascii") + b"\n" + underlying + quotes, "options"))
+
+    def american_option_valuation(
+        self,
+        underlying_csv: str,
+        quotes_csv: str,
+        *,
+        contract_id: str,
+        effective_at: str,
+        known_at: str,
+        max_age: int = 300,
+        steps: int = 128,
+        volatility: float | None = None,
+        cash_dividends_csv: str | None = None,
+    ) -> AmericanOptionValuation:
+        """Price at the specified annual volatility or solve the observed bid–ask midpoint."""
+        underlying, quotes = _option_inputs(underlying_csv, quotes_csv, effective_at, known_at, max_age)
+        if not isinstance(contract_id, str) or not _IDENTITY.fullmatch(contract_id):
+            raise ValueError("Select a valid American contract ID.")
+        if type(steps) is not int or not 1 <= steps <= 256:
+            raise ValueError("Use 1 to 256 whole pricing steps.")
+        if volatility is not None and (type(volatility) not in {float, int} or not 0 <= volatility <= 10):
+            raise ValueError("Use annual volatility from 0 to 10.")
+        mode = "continuous" if cash_dividends_csv is None else "cash"
+        cash = b"" if cash_dividends_csv is None else cash_dividends_csv.encode("utf-8")
+        if len(cash) > _MAX_OPTION_DIVIDEND_CSV:
+            raise ValueError("Cash dividends CSV must fit within 1 MiB.")
+        header = "\t".join(("marketweft-american-option", "1", str(len(underlying)), str(len(quotes)),
+                            contract_id, effective_at, known_at, str(max_age), str(steps),
+                            "" if volatility is None else str(volatility), mode))
+        response = self._invoke(header.encode("ascii") + b"\n" + underlying + quotes + cash, "american-option")
+        return _american_option_valuation(response, contract_id)
 
     def _invoke(self, request: bytes, *arguments: str) -> bytes:
         try:
