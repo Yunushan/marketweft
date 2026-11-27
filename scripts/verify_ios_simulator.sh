@@ -15,9 +15,9 @@ xcrun simctl list runtimes --json |
 export TAURI_APP_PATH="$repository/apps/desktop"
 export TAURI_FRONTEND_PATH="$repository"
 rustup target add aarch64-apple-ios-sim
-cargo fetch --locked --target aarch64-apple-ios-sim --manifest-path apps/desktop/Cargo.toml
+cargo fetch --locked --manifest-path apps/desktop/Cargo.toml
 npm run tauri -- ios init --ci --skip-targets-install
-CARGO_NET_OFFLINE=true npm run tauri -- ios build --ci --debug --target aarch64-sim --no-sign
+npm run tauri -- ios build --ci --debug --target aarch64-sim --no-sign -- --locked
 git diff --exit-code -- apps/desktop/Cargo.lock
 
 app=$(find apps/desktop/gen/apple -type d -name MarketWeft.app -print -prune)
