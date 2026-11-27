@@ -739,7 +739,7 @@ dependencies = [
 
 [[package]]
 name = "marketweft-core"
-version = "0.86.0"
+version = "0.87.0"
 
 [[package]]
 name = "marketweft-research-service"

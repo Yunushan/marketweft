@@ -1,4 +1,4 @@
-use super::{parse_holdings, ChildShares, MAX_SHARE_RATIO};
+use super::{parse_holdings, ChildShares, PositionSeries, MAX_SHARE_RATIO};
 use crate::{
     delisting::valid_currency,
     history::{decimal, exact_utc, valid_second},
@@ -73,12 +73,12 @@ pub struct RightsOfferingRow {
     pub entitlement: Option<RightsEntitlement>,
 }
 
-struct RightsHistory {
+pub(super) struct RightsHistory {
     listing_id: String,
     revisions: BTreeMap<i64, Option<RightsOfferingTerms>>,
 }
 
-fn parse_rights(
+pub(super) fn parse_rights(
     universe: &UniverseBook,
     csv: &str,
 ) -> Result<BTreeMap<String, RightsHistory>, String> {
@@ -224,55 +224,61 @@ pub fn portfolio_rights_as_of(
     Ok(reports
         .into_iter()
         .filter_map(|(offering_id, history)| {
-            let (&observed_at, terms) = history.revisions.range(..=known_at).next_back()?;
-            let (phase, entitlement) = match terms {
-                None => (RightsOfferingPhase::Cancelled, None),
-                Some(terms) if effective_at < terms.announced_at => return None,
-                Some(terms) if effective_at < terms.entitlement_at => {
-                    (RightsOfferingPhase::Announced, None)
-                }
-                Some(terms) => {
-                    let phase = if effective_at < terms.opens_at {
-                        RightsOfferingPhase::AwaitingOpen
-                    } else if effective_at < terms.expires_at {
-                        RightsOfferingPhase::Open
-                    } else {
-                        RightsOfferingPhase::Expired
-                    };
-                    let entitlement = holdings
-                        .get(&history.listing_id)
-                        .and_then(|series| {
-                            series.position(Excluded(terms.entitlement_at), known_at)
-                        })
-                        .map(|(holding_effective_at, holding_observed_at, held_shares)| {
-                            let exact_shares = ChildShares::from_rate(
-                                held_shares,
-                                terms.numerator,
-                                terms.denominator,
-                            );
-                            let subscribable_shares =
-                                terms.fraction_policy.whole_shares(exact_shares);
-                            RightsEntitlement {
-                                holding_effective_at,
-                                holding_observed_at,
-                                held_shares,
-                                exact_shares,
-                                subscribable_shares,
-                                full_subscription_cost: i128::from(subscribable_shares)
-                                    * i128::from(terms.subscription_price),
-                            }
-                        });
-                    (phase, entitlement)
-                }
-            };
-            Some(RightsOfferingRow {
-                offering_id,
-                listing_id: history.listing_id,
-                observed_at,
-                phase,
-                terms: terms.clone(),
-                entitlement,
-            })
+            history.as_of(&offering_id, &holdings, effective_at, known_at)
         })
         .collect())
+}
+
+impl RightsHistory {
+    pub(super) fn as_of(
+        &self,
+        offering_id: &str,
+        holdings: &BTreeMap<String, PositionSeries>,
+        effective_at: i64,
+        known_at: i64,
+    ) -> Option<RightsOfferingRow> {
+        let (&observed_at, terms) = self.revisions.range(..=known_at).next_back()?;
+        let (phase, entitlement) = match terms {
+            None => (RightsOfferingPhase::Cancelled, None),
+            Some(terms) if effective_at < terms.announced_at => return None,
+            Some(terms) if effective_at < terms.entitlement_at => {
+                (RightsOfferingPhase::Announced, None)
+            }
+            Some(terms) => {
+                let phase = if effective_at < terms.opens_at {
+                    RightsOfferingPhase::AwaitingOpen
+                } else if effective_at < terms.expires_at {
+                    RightsOfferingPhase::Open
+                } else {
+                    RightsOfferingPhase::Expired
+                };
+                let entitlement = holdings
+                    .get(&self.listing_id)
+                    .and_then(|series| series.position(Excluded(terms.entitlement_at), known_at))
+                    .map(|(holding_effective_at, holding_observed_at, held_shares)| {
+                        let exact_shares =
+                            ChildShares::from_rate(held_shares, terms.numerator, terms.denominator);
+                        let subscribable_shares = terms.fraction_policy.whole_shares(exact_shares);
+                        RightsEntitlement {
+                            holding_effective_at,
+                            holding_observed_at,
+                            held_shares,
+                            exact_shares,
+                            subscribable_shares,
+                            full_subscription_cost: i128::from(subscribable_shares)
+                                * i128::from(terms.subscription_price),
+                        }
+                    });
+                (phase, entitlement)
+            }
+        };
+        Some(RightsOfferingRow {
+            offering_id: offering_id.to_owned(),
+            listing_id: self.listing_id.clone(),
+            observed_at,
+            phase,
+            terms: terms.clone(),
+            entitlement,
+        })
+    }
 }

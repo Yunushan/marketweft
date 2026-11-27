@@ -333,6 +333,77 @@ test('offline subscription rights replay revises the window, holding and exact c
   await expect.poll(() => catalogContents(page)).toEqual(originalCatalog)
 })
 
+
+test('offline subscription exercises replay reported settlement and preserve request-time capacity', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  const saved = await catalogContents(page)
+  await context.setOffline(true)
+  await open(page)
+  await page.getByRole('button', { name: 'Start universe demo' }).click()
+  const panel = page.getByRole('region', { name: 'Portfolio replay' })
+  await panel.getByRole('button', { name: 'Load subscription exercise demo' }).click()
+  const table = panel.getByRole('table', { name: 'Portfolio subscription exercises', exact: true })
+  const a = table.getByRole('row', { name: /^EX-A/ })
+  const cell = name => a.getByRole('cell', { name, exact: true })
+  const query = async (effective, known) => {
+    await page.getByLabel('Effective time (UTC)').fill(utc(effective))
+    await page.getByLabel('Known time (UTC)').fill(utc(known))
+    await page.getByRole('button', { name: 'Run as-of query' }).click()
+  }
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await panel.getByRole('button', { name: 'Download subscription exercises' }).click()
+    const file = await pending
+    expect(file.suggestedFilename()).toBe('portfolio-rights-exercises.csv')
+    return readFile(await file.path(), 'utf8')
+  }
+  await query('14:42:00', '14:44:59')
+  await expect(panel.getByText('No subscription exercises reported at these cutoffs.')).toBeVisible()
+  await query('14:54:00', '14:45:00')
+  await expect(cell('Requested')).toBeVisible()
+  await expect(cell('Within basic capacity')).toBeVisible()
+  await query('14:54:00', '14:56:59')
+  await expect(cell('Allocated')).toBeVisible()
+  await expect(cell('38.5 USD')).toHaveCount(0)
+  await query('14:54:00', '14:57:00')
+  await expect(cell('Settled')).toBeVisible()
+  await expect(cell('38.5 USD')).toBeVisible()
+  const first = await download()
+  expect(first).toContain('"synthetic-rights-exercises.csv","synthetic-subscription-rights.csv","synthetic-rights-holdings.csv"')
+  expect(first).toMatch(/,within-capacity,3,2,USD,19\.25,2,38\.5,0\r\n$/)
+  await query('15:00:00', '14:59:00')
+  await expect(cell('39.000001 USD')).toBeVisible()
+  await expect(cell('0.500001 USD')).toBeVisible()
+  await expect(table.getByRole('row', { name: /^EX-B/ })).toContainText('Outside the known exercise window')
+  await query('15:00:00', '15:02:00')
+  await expect(cell('Cancelled')).toBeVisible()
+  await expect(cell('39.000001 USD')).toHaveCount(0)
+  await query('14:54:00', '14:57:00')
+  expect(await download()).toBe(first)
+
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8')
+  const upload = (label, name, content) =>
+    panel.getByLabel(label).setInputFiles({ name, mimeType: 'text/csv', buffer: Buffer.from(content) })
+  const [holdings, terms, exercises] = await Promise.all([
+    fixture('synthetic-rights-holdings.csv'), fixture('synthetic-subscription-rights.csv'), fixture('synthetic-rights-exercises.csv'),
+  ])
+  await upload('Portfolio holdings CSV', 'local-holdings.csv', holdings)
+  await upload('Subscription rights CSV', 'local-rights.csv', terms)
+  await upload('Subscription exercise reports CSV', 'local-exercises.csv', exercises.replace(',2,38.50', ',4,38.50'))
+  const load = panel.getByRole('button', { name: 'Load portfolio reports' })
+  await load.click()
+  await expect(panel.getByRole('alert')).toContainText('within the allocation')
+  expect(await download()).toBe(first)
+  await upload('Subscription exercise reports CSV', 'local-exercises.csv', exercises)
+  await load.click()
+  await expect(panel.getByRole('alert')).toHaveCount(0)
+  await expect(cell('38.5 USD')).toBeVisible()
+  expect(await download()).toContain('"local-exercises.csv","local-rights.csv","local-holdings.csv"')
+  await expect.poll(() => catalogContents(page)).toEqual(saved)
+})
+
 test('offline portfolio spin-offs preserve exact fractions through revisions and ticker reuse', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()

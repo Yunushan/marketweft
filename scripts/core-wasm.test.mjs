@@ -36,6 +36,38 @@ test('subscription rights keep the fractional entitlement, whole exercise and ex
   assert.deepEqual(run('14:40:00', '14:49:00'), initial);
 });
 
+
+test('subscription exercise reports preserve dated allocations, cash revisions and request-time capacity in Wasm', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
+  const [membership, holdings, rights, exercises] = await Promise.all([
+    fixture('synthetic-universe.csv'), fixture('synthetic-rights-holdings.csv'), fixture('synthetic-subscription-rights.csv'),
+    fixture('synthetic-rights-exercises.csv'),
+  ]);
+  const time = label => '2025-06-02T' + label + 'Z';
+  const run = (effective, known) => core.portfolioRightsExercisesAsOf(membership, holdings, rights, exercises, time(effective), time(known));
+  assert.deepEqual(run('14:54:00', '14:44:59'), []);
+  const requested = run('14:50:00', '14:51:59')[0];
+  assert.equal(requested.stage, 'requested');
+  assert.equal(requested.basicCapacity, 3n);
+  assert.equal(requested.settlement, null);
+  const allocated = run('14:54:00', '14:56:59')[0];
+  assert.equal(allocated.stage, 'allocated');
+  assert.deepEqual(allocated.allocation, { shares: 2n, currency: 'USD', unitPrice: 19250000n });
+  assert.equal(allocated.settlement, null);
+  const first = run('14:54:00', '14:57:00');
+  assert.deepEqual(first[0].settlement, { shares: 2n, cashPaid: 38500000n, cashVariance: 0n });
+  const revised = run('15:00:00', '14:59:00');
+  assert.deepEqual(revised[0].settlement, { shares: 2n, cashPaid: 39000001n, cashVariance: 500001n });
+  assert.equal(revised[0].basicCapacity, 3n);
+  assert.equal(revised[1].assessment, 'outside-window');
+  assert.equal(revised[1].basicCapacity, null);
+  assert.deepEqual(run('14:59:59', '15:02:00'), revised);
+  const cancelled = run('15:00:00', '15:02:00')[0];
+  assert.equal(cancelled.stage, 'cancelled');
+  assert.equal(cancelled.settlement, null);
+  assert.deepEqual(run('14:54:00', '14:57:00'), first);
+});
+
 test('successor share bridge keeps exact quantities and absence at both cutoffs', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, terms] = await Promise.all([

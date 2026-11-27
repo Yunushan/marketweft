@@ -993,6 +993,20 @@ export interface PortfolioSuccessorDeliveryPosting {
   balance: { numerator: bigint; denominator: number };
 }
 
+export interface PortfolioRightsExercise {
+  offeringId: string;
+  exerciseId: string;
+  effectiveAt: number;
+  observedAt: number;
+  requestedAt: number;
+  stage: 'requested' | 'allocated' | 'settled' | 'cancelled';
+  requestedShares: bigint;
+  assessment: 'unavailable' | 'outside-window' | 'within-capacity' | 'above-capacity';
+  basicCapacity: bigint | null;
+  allocation: { shares: bigint; currency: string; unitPrice: bigint } | null;
+  settlement: { shares: bigint; cashPaid: bigint; cashVariance: bigint } | null;
+}
+
 export interface PortfolioRightsOffering {
   offeringId: string;
   listingId: string;
@@ -1095,6 +1109,7 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string, dividends?: string): PortfolioSnapshot;
   portfolioSuccessorSharesAsOf(membership: string, holdings: string, terms: string, effectiveAt: string, knownAt: string): PortfolioSuccessorShare[];
   portfolioRightsAsOf(membership: string, holdings: string, reports: string, effectiveAt: string, knownAt: string): PortfolioRightsOffering[];
+  portfolioRightsExercisesAsOf(membership: string, holdings: string, rights: string, exercises: string, effectiveAt: string, knownAt: string): PortfolioRightsExercise[];
   portfolioSuccessorDeliveryLedger(membership: string, holdings: string, terms: string,
     effectiveAt: string, knownAt: string): PortfolioSuccessorDeliveryPosting[];
   portfolioSpinOffsAsOf(membership: string, holdings: string, reports: string,
@@ -1228,6 +1243,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_income_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number, termsBytes: number): number;
   mw_portfolio_successor_shares_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_rights_as_of(membershipBytes: number, holdingsBytes: number): number;
+  mw_portfolio_rights_exercises_as_of(membershipBytes: number, holdingsBytes: number, rightsBytes: number): number;
   mw_portfolio_successor_delivery_ledger(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_offs_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_off_cash_as_of(membershipBytes: number, holdingsBytes: number, actionBytes: number): number;
@@ -2474,6 +2490,25 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
             heldShares: Number(held), exactShares: { numerator: BigInt(exactNumerator), denominator: Number(exactDenominator) },
             subscribableShares: BigInt(whole), fullSubscriptionCost: BigInt(cost),
           } : null,
+        };
+      });
+    },
+    portfolioRightsExercisesAsOf(membership, holdings, rights, exercises, effectiveAt, knownAt) {
+      portfolioInput(effectiveAt, knownAt, membership, holdings, rights, exercises);
+      const text = decoder.decode(output(api.mw_portfolio_rights_exercises_as_of(
+        encoder.encode(membership).length, encoder.encode(holdings).length, encoder.encode(rights).length,
+      )));
+      if (!text) return [];
+      return text.slice(0, -1).split('\n').map(line => {
+        const [offeringId, exerciseId, effective, observed, stage, requested, requestedShares, assessment,
+          capacity, allocated, currency, unitPrice, settled, paid, variance] = line.split('\t');
+        return {
+          offeringId, exerciseId, effectiveAt: Number(effective), observedAt: Number(observed),
+          requestedAt: Number(requested), requestedShares: BigInt(requestedShares),
+          stage: stage as PortfolioRightsExercise['stage'], assessment: assessment as PortfolioRightsExercise['assessment'],
+          basicCapacity: capacity === '' ? null : BigInt(capacity),
+          allocation: currency ? { shares: BigInt(allocated), currency, unitPrice: BigInt(unitPrice) } : null,
+          settlement: settled === undefined ? null : { shares: BigInt(settled), cashPaid: BigInt(paid), cashVariance: BigInt(variance) },
         };
       });
     },

@@ -134,6 +134,10 @@ postings and export the exact quantities.
 Load the subscription rights demo or upload subscription-rights.csv and
 rights-holdings.csv. Compare effective 14:40 and known 14:49 with effective
 15:00 and known 14:58 to see the revised currency, holding and cash requirement.
+Load the subscription exercise demo or add rights-exercises.csv. Hold
+effective time at 14:54 UTC and advance knowledge from 14:56:59 to 14:57
+to see the reported cash settlement. At effective 15:00 and known 14:59,
+compare the revised cash and the separate request at the original expiry.
 Below the rankings, choose Load demo sectors or upload universe-sectors.csv
 with the matching membership and price reports. The Sector heatmap shows
 each listing's sector, weight, price return and observed contribution.
@@ -224,6 +228,7 @@ def main():
     files["successor-shares.csv"] = (fixture / "synthetic-successor-shares.csv").read_bytes()
     files["subscription-rights.csv"] = (fixture / "synthetic-subscription-rights.csv").read_bytes()
     files["rights-holdings.csv"] = (fixture / "synthetic-rights-holdings.csv").read_bytes()
+    files["rights-exercises.csv"] = (fixture / "synthetic-rights-exercises.csv").read_bytes()
     files["portfolio-dividends.csv"] = (fixture / "synthetic-portfolio-dividends.csv").read_bytes()
     files["split-revisions.csv"] = (fixture / "synthetic-split-revisions.csv").read_bytes()
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash, PortfolioSuccessorShare } from './market-core'
 import { SuccessorDeliveryLedger, shareText } from './SuccessorDeliveryLedger'
 import { PortfolioRights } from './PortfolioRights'
+import { PortfolioRightsExercises } from './PortfolioRightsExercises'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoHoldings from '../../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv?raw'
@@ -16,11 +17,12 @@ import demoBasisTerms from '../../../crates/core/tests/fixtures/synthetic-spin-o
 import demoSuccessors from '../../../crates/core/tests/fixtures/synthetic-successor-shares.csv?raw'
 import demoRightsHoldings from '../../../crates/core/tests/fixtures/synthetic-rights-holdings.csv?raw'
 import demoRights from '../../../crates/core/tests/fixtures/synthetic-subscription-rights.csv?raw'
+import demoExercises from '../../../crates/core/tests/fixtures/synthetic-rights-exercises.csv?raw'
 
 type Source = {
   holdings: string; prices: string; terms: string; dividends: string; spinOffs: string
   cashTerms: string; basisTerms: string; successors: string
-  rights?: { csv: string; reportsName: string; holdingsName: string }
+  rights?: { csv: string; reportsName: string; holdingsName: string; exercises?: { csv: string; name: string } }
 }
 const states = {
   unobserved: 'Listing unobserved',
@@ -83,9 +85,10 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   const [basisTerms, setBasisTerms] = useState<File | null>(null)
   const [successors, setSuccessors] = useState<File | null>(null)
   const [rights, setRights] = useState<File | null>(null)
+  const [exercises, setExercises] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const needsPrices = !rights || !!(terms || dividends || spinOffs || cashTerms || basisTerms || successors)
+  const needsPrices = !(rights || exercises) || !!(terms || dividends || spinOffs || cashTerms || basisTerms || successors)
   const snapshot = useMemo(() => source?.prices
     ? core.portfolioAsOf(membership, source.holdings, source.prices, source.terms, effective, known, source.dividends)
     : null, [core, membership, source, effective, known])
@@ -106,6 +109,9 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   const rightOfferings = useMemo(() => source?.rights
     ? core.portfolioRightsAsOf(membership, source.holdings, source.rights.csv, effective, known)
     : null, [core, membership, source, effective, known])
+  const exerciseReports = useMemo(() => source?.rights?.exercises
+    ? core.portfolioRightsExercisesAsOf(membership, source.holdings, source.rights.csv, source.rights.exercises.csv, effective, known)
+    : null, [core, membership, source, effective, known])
 
   const calculateDeliveries = useCallback(() => source?.successors
     ? core.portfolioSuccessorDeliveryLedger(membership, source.holdings, source.successors, effective, known)
@@ -118,17 +124,23 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
     if (source.basisTerms) core.portfolioSpinOffBasisAsOf(membership, source.holdings, source.spinOffs, source.basisTerms, effective, known)
     if (source.successors) core.portfolioSuccessorSharesAsOf(membership, source.holdings, source.successors, effective, known)
     if (source.rights) core.portfolioRightsAsOf(membership, source.holdings, source.rights.csv, effective, known)
+    if (source.rights?.exercises)
+      core.portfolioRightsExercisesAsOf(membership, source.holdings, source.rights.csv, source.rights.exercises.csv, effective, known)
     setSource(source)
     setError('')
   }
 
-  function startDemo(mode?: 'income' | 'spin-offs' | 'successors' | 'rights') {
+  function startDemo(mode?: 'income' | 'spin-offs' | 'successors' | 'rights' | 'exercises') {
     try {
-      open({ holdings: mode === 'rights' ? demoRightsHoldings : demoHoldings, prices: demoPrices, terms: demoTerms,
+      const rightsDemo = mode === 'rights' || mode === 'exercises'
+      open({ holdings: rightsDemo ? demoRightsHoldings : demoHoldings, prices: demoPrices, terms: demoTerms,
         dividends: mode === 'income' ? demoDividends : '', spinOffs: mode === 'spin-offs' ? demoSpinOffs : '',
         cashTerms: mode === 'spin-offs' ? demoCashTerms : '', basisTerms: mode === 'spin-offs' ? demoBasisTerms : '',
         successors: mode === 'successors' ? demoSuccessors : '',
-        rights: mode === 'rights' ? { csv: demoRights, reportsName: 'synthetic-subscription-rights.csv', holdingsName: 'synthetic-rights-holdings.csv' } : undefined })
+        rights: rightsDemo ? {
+          csv: demoRights, reportsName: 'synthetic-subscription-rights.csv', holdingsName: 'synthetic-rights-holdings.csv',
+          exercises: mode === 'exercises' ? { csv: demoExercises, name: 'synthetic-rights-exercises.csv' } : undefined,
+        } : undefined })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio demo.')
     }
@@ -139,12 +151,13 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
     if (!holdings || (needsPrices && !prices)) return
     setBusy(true)
     try {
-      const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv, cashTermsCsv, basisTermsCsv, successorCsv, rightsCsv] = await Promise.all([
+      const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv, cashTermsCsv, basisTermsCsv, successorCsv, rightsCsv, exerciseCsv] = await Promise.all([
         readReport(holdings, 2), prices ? readReport(prices, 2) : '', terms ? readReport(terms, 1) : '',
         dividends ? readReport(dividends, 1) : '', spinOffs ? readReport(spinOffs, 1) : '',
         cashTerms ? readReport(cashTerms, 1) : '', basisTerms ? readReport(basisTerms, 1) : '',
         successors ? readReport(successors, 1) : '',
         rights ? readReport(rights, 1) : '',
+        exercises ? readReport(exercises, 1) : '',
       ])
       if (prices && !priceCsv.trim()) throw new Error('Portfolio closes CSV contains no reports.')
       if (dividends && !dividendCsv.trim()) throw new Error('Portfolio dividends CSV contains no reports.')
@@ -155,9 +168,14 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
       if (basisTerms && !spinOffCsv) throw new Error('Supply spin-off reports with the basis terms.')
       if (successors && !successorCsv.trim()) throw new Error('Successor share terms CSV contains no reports.')
       if (rights && !rightsCsv.trim()) throw new Error('Subscription rights CSV contains no reports.')
+      if (exercises && !rightsCsv) throw new Error('Supply subscription rights with the exercise reports.')
+      if (exercises && !exerciseCsv.trim()) throw new Error('Subscription exercises CSV contains no reports.')
       open({ holdings: holdingCsv, prices: priceCsv, terms: termCsv, dividends: dividendCsv,
         spinOffs: spinOffCsv, cashTerms: cashTermsCsv, basisTerms: basisTermsCsv, successors: successorCsv,
-        rights: rights ? { csv: rightsCsv, reportsName: rights.name, holdingsName: holdings.name } : undefined })
+        rights: rights ? {
+          csv: rightsCsv, reportsName: rights.name, holdingsName: holdings.name,
+          exercises: exercises ? { csv: exerciseCsv, name: exercises.name } : undefined,
+        } : undefined })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio reports.')
     } finally {
@@ -178,6 +196,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <button className="outline" onClick={() => startDemo('spin-offs')} disabled={busy}>Load spin-off demo</button>
           <button className="outline" onClick={() => startDemo('successors')} disabled={busy}>Load successor shares demo</button>
           <button className="outline" onClick={() => startDemo('rights')} disabled={busy}>Load subscription rights demo</button>
+          <button className="outline" onClick={() => startDemo('exercises')} disabled={busy}>Load subscription exercise demo</button>
         </div>}
       </div>
       <form className="universe-query" onSubmit={load}>
@@ -213,9 +232,13 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <input type="file" accept=".csv,text/csv"
             onChange={event => setSuccessors(event.target.files?.[0] ?? null)} />
         </label>
-        <label>Subscription rights CSV (optional)
-          <input type="file" accept=".csv,text/csv"
+        <label>Subscription rights CSV{exercises ? '' : ' (optional)'}
+          <input required={!!exercises} type="file" accept=".csv,text/csv"
             onChange={event => setRights(event.target.files?.[0] ?? null)} />
+        </label>
+        <label>Subscription exercise reports CSV (optional)
+          <input type="file" accept=".csv,text/csv"
+            onChange={event => setExercises(event.target.files?.[0] ?? null)} />
         </label>
         <button className="outline" disabled={busy || !holdings || (needsPrices && !prices)}>Load portfolio reports</button>
       </form>
@@ -223,6 +246,9 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
       {snapshot && <PortfolioResult snapshot={snapshot} />}
       {rightOfferings && source?.rights && <PortfolioRights rows={rightOfferings} effective={effective} known={known}
         reportsSource={source.rights.reportsName} holdingsSource={source.rights.holdingsName} />}
+      {exerciseReports && source?.rights?.exercises && <PortfolioRightsExercises rows={exerciseReports}
+        effective={effective} known={known} exerciseSource={source.rights.exercises.name}
+        rightsSource={source.rights.reportsName} holdingsSource={source.rights.holdingsName} />}
       {successorClaims && <SuccessorShareClaims rows={successorClaims} />}
       {source?.successors && <SuccessorDeliveryLedger title="Successor delivery ledger" filename="successor-delivery-ledger.csv"
         calculate={calculateDeliveries} effective={effective} known={known} />}

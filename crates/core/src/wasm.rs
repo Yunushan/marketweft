@@ -592,6 +592,78 @@ pub extern "C" fn mw_portfolio_rights_as_of(membership_bytes: usize, holding_byt
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_portfolio_rights_exercises_as_of(
+    membership_bytes: usize,
+    holding_bytes: usize,
+    rights_bytes: usize,
+) -> u32 {
+    use crate::{RightsExerciseStage, RightsRequestAssessment};
+    use std::fmt::Write;
+    process(|input| {
+        let PortfolioActionInput {
+            effective,
+            known,
+            universe,
+            holdings,
+            terms,
+        } = portfolio_action_input(input, membership_bytes, holding_bytes)?;
+        let (rights, exercises) = terms
+            .split_at_checked(rights_bytes)
+            .ok_or("Supply subscription rights and exercise reports.")?;
+        let rows = crate::portfolio_rights_exercises_as_of(
+            &universe, holdings, rights, exercises, effective, known,
+        )?;
+        let mut text = String::new();
+        for row in rows {
+            let stage = match row.stage {
+                RightsExerciseStage::Requested => "requested",
+                RightsExerciseStage::Allocated => "allocated",
+                RightsExerciseStage::Settled => "settled",
+                RightsExerciseStage::Cancelled => "cancelled",
+            };
+            let assessment = match row.assessment {
+                RightsRequestAssessment::Unavailable => "unavailable",
+                RightsRequestAssessment::OutsideWindow => "outside-window",
+                RightsRequestAssessment::WithinCapacity => "within-capacity",
+                RightsRequestAssessment::AboveCapacity => "above-capacity",
+            };
+            write!(
+                text,
+                "{}\t{}\t{}\t{}\t{stage}\t{}\t{}\t{assessment}\t{}",
+                row.offering_id,
+                row.exercise_id,
+                row.effective_at,
+                row.observed_at,
+                row.requested_at,
+                row.requested_shares,
+                row.basic_capacity
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+            )
+            .unwrap();
+            if let Some(allocation) = row.allocation {
+                write!(
+                    text,
+                    "\t{}\t{}\t{}",
+                    allocation.shares, allocation.currency, allocation.unit_price
+                )
+                .unwrap();
+            }
+            if let Some(settlement) = row.settlement {
+                write!(
+                    text,
+                    "\t{}\t{}\t{}",
+                    settlement.shares, settlement.cash_paid, settlement.cash_variance
+                )
+                .unwrap();
+            }
+            text.push('\n');
+        }
+        Ok(text.into_bytes())
+    })
+}
+
 fn write_successor_delivery(text: &mut String, row: &crate::SuccessorDeliveryPosting) {
     use std::fmt::Write;
     write!(

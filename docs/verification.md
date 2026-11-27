@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.197.0 · Reported subscription exercises
+
+- The Rust fixture covers independently observed requests, allocations, settlement revisions and cancellation. It checks invalid quantities, duplicate revisions, missing holdings, above-capacity requests and complete settlement reports supplied without earlier stages.
+- Wasm and offline Chromium display the two-share allocation, 38.50 USD reported paid and the later correction to 39.000001 USD with a 0.500001 USD variance. The request at the original expiry remains outside the window known at its request time.
+- Chromium accepts the three source CSVs without closes, preserves the prior replay when an upload fails, and reproduces the original settlement export byte for byte after rewind. An offline upgrade from the hosted 0.196.0 archive to the locally built 0.197.0 archive preserved the saved quote and replayed the settlement and revision.
+
+[Exercise, allocation and settlement reports](portfolio-rights.md#exercise-allocation-and-settlement-reports)
+
 ## 0.196.0 · Point-in-time subscription rights
 
 - Rust verifies separate announcement, observation, entitlement, opening and expiry cutoffs, a late holdings correction, and an observed cancellation. It checks all three whole-share policies and distinguishes unavailable holdings from explicit zero.

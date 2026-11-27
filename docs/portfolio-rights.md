@@ -31,3 +31,30 @@ The latest report visible at the knowledge cutoff determines the terms. Once eff
 | 15:00 | 15:03 | Cancellation is visible. |
 
 All sample times are on June 2, 2025. **Download subscription rights** includes the sources, both cutoffs, terms, holding times, exact share numerator and denominator, and quoted cost. Rewind to effective 14:40 and known 14:49 to reproduce the original CSV. [Synthetic reports](../crates/core/tests/fixtures/synthetic-subscription-rights.csv) · [Synthetic holdings](../crates/core/tests/fixtures/synthetic-rights-holdings.csv)
+
+## Exercise, allocation and settlement reports
+
+In **Portfolio replay**, select **Load subscription exercise demo** or supply holdings, subscription rights and a **Subscription exercise reports CSV**. Each row reports the complete status of an exercise at an effective time. A different observation time at that same effective time reports a revision.
+
+```csv
+universe,offering_id,exercise_id,effective_at,observed_at,status,requested_at,requested_shares,allocated_shares,currency,unit_price,settled_shares,cash_paid
+```
+
+- Keep the offering ID stable for each exercise ID. Use an offering from the rights CSV and distinct effective and observation pairs for each exercise. Use exact UTC times with request at or before effectiveness and observation at or after effectiveness. A `requested` report has the request timestamp as its effective time.
+- All stages include the request timestamp and a positive whole-share request quantity. For `requested` and `cancelled`, leave the last five fields empty. For `allocated` and `settled`, include the allocated quantity, currency and positive unit price. Allocated shares may range from zero to the requested quantity. A `settled` report also supplies settled shares up to the allocation and the nonnegative cash actually paid. Use amounts with up to six decimal places. Supply at most 2,000 reports in a 1 MiB file.
+- The query selects the latest effective report at or before the effective cutoff that has an observation at or before the knowledge cutoff. At the same effective time it selects the latest visible revision. Each settlement carries the observed cash and signed variance, calculated as cash paid minus settled shares times the reported unit price.
+- The request assessment uses the offer and holding known at the request timestamp. It indicates whether the request was inside the exercise window and within the basic capacity. Each assessment applies to the individual report. Allocation, settlement and cancellation are supplied by the source.
+
+Issuers can distinguish requested and allocated shares, with separate handling of cash paid beyond the final allocation. [Issuer subscription procedures](https://www.sec.gov/Archives/edgar/data/1468327/000114036125036554/ny20055620x2_ex99-1.htm) · [Issuer allocation and overpayment terms](https://www.sec.gov/Archives/edgar/data/1625101/000114036118042445/s002354x2_ex99-1.htm)
+
+| Effective UTC | Known UTC | Synthetic result on June 2, 2025 |
+| --- | --- | --- |
+| 14:42 | 14:44:59 | EX-A is still unobserved. |
+| 14:54 | 14:45 | EX-A requests three shares against a basic capacity of three. |
+| 14:54 | 14:56:59 | Two shares are allocated at 19.25 USD each. |
+| 14:54 | 14:57 | Reported settlement delivers two shares for 38.50 USD. |
+| 15:00 | 14:59 | A revision reports 39.000001 USD paid, or 0.500001 USD above the reported share cost. EX-B's 14:55 request falls exactly at the expiry then known. |
+| 15:00 | 15:02 | EX-A's cancellation is visible. |
+| 14:54 | 14:57 | Rewind to reproduce the original settlement CSV. |
+
+**Download subscription exercises** exports the three source filenames, both cutoffs, the reported stage and quantities, request assessment, and settlement amounts. [Synthetic exercise reports](../crates/core/tests/fixtures/synthetic-rights-exercises.csv)
