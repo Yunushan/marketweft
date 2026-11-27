@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.144.0 adds a percent-change chart rebased at an observed close in each pane. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.145.0 adds peak-to-trough drawdown charts with exact observed peak evidence. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Delivered · 0.145.0 | Peak-to-trough drawdown (MW-012) | Verify running peaks, exact observed prefixes, recoveries, incomplete buckets, offscreen peak provenance and version 44 restoration. [Drawdown chart](docs/chart-workspace.md#peak-to-trough-drawdown). |
 | Delivered · 0.144.0 | Rebased percent-change chart (MW-012) | Verify signed exact returns, independent UTC anchors, zero and missing bases, linked panes and version 43 restoration. [Rebased percent change](docs/chart-workspace.md#rebased-percent-change). |
 | Delivered · 0.143.0 | High-low band (MW-012) | Verify observed extrema, close traces, gaps at different zoom levels, and version 42 restoration. [High-low band](docs/chart-workspace.md#high-low-band). |
 | Delivered · 0.142.0 | Volume-weighted candles (MW-012) | Verify proportional candle widths, zero-volume wicks, unchanged OHLC coordinates, and version 41 restoration. [Volume-weighted candles](docs/chart-workspace.md#volume-weighted-candles). |
@@ -158,5 +159,5 @@
 
 ## Handoff for the next change
 
-Add a peak-to-trough drawdown chart with an observed running peak. Verify recovery to zero, missing or ineligible prices, exact prefix results, and the peak evidence in exports.
+Add a chart of confirmed price swings. Verify when pivots become visible, deterministic ties, missing intervals, exact source timestamps and mixed chart restoration.
 

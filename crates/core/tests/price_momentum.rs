@@ -1,6 +1,6 @@
 use marketweft_core::{
-    commodity_channel_index, parse_csv, rate_of_change, rebased_percent_changes, Bar, MAX_BARS,
-    MAX_TICKS, SCALE,
+    commodity_channel_index, observed_drawdown, parse_csv, rate_of_change, rebased_percent_changes,
+    Bar, MAX_BARS, MAX_TICKS, SCALE,
 };
 
 #[test]
@@ -145,4 +145,39 @@ fn rebased_change_uses_the_exact_observation_and_never_changes_earlier_prefixes(
         rebased_percent_changes(0, &half_ticks).unwrap(),
         [Some(0), Some(1), Some(-1)]
     );
+}
+
+#[test]
+fn drawdown_keeps_first_peak_evidence_and_never_uses_later_observations() {
+    let mut csv = String::from("time,open,high,low,close,volume\n");
+    use std::fmt::Write;
+    for (index, close) in [-1, 0, 100, 50, 100, -8, 0, 120, 120, 90]
+        .into_iter()
+        .enumerate()
+    {
+        writeln!(csv, "{},{close},{close},{close},{close},1", index * 60).unwrap();
+    }
+    let bars = parse_csv(&csv).unwrap();
+    let observed = |at, peak, percent| Some((at, peak * SCALE, percent * SCALE));
+    let expected = [
+        None,
+        None,
+        observed(120, 100, 0),
+        observed(120, 100, -50),
+        observed(120, 100, 0),
+        None,
+        observed(120, 100, -100),
+        observed(420, 120, 0),
+        observed(420, 120, 0),
+        observed(420, 120, -25),
+    ];
+    for end in 0..=bars.len() {
+        let got = observed_drawdown(&bars[..end]).unwrap();
+        let evidence: Vec<_> = got
+            .iter()
+            .map(|point| point.map(|point| (point.peak_at, point.peak_close, point.percent)))
+            .collect();
+        assert_eq!(evidence, expected[..end]);
+    }
+    assert!(observed_drawdown(&[bars[0], bars[0]]).is_err());
 }

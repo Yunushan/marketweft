@@ -6,12 +6,12 @@ import { ChartExport } from './ChartExport'
 import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, MAX_CHART_PRICE_TICKS, validChartIntervalSeconds } from './catalog-schema'
 import { fixed, parsePriceSize } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
-import type { CloseChangeSeries, RebasedReturnSeries, TimeframeView } from './chart-export'
+import type { CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
 import { computeStudies, studyOverlays } from './studies'
 import type { StudySet } from './studies'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'bandSeconds' | 'rebasedReturns'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -197,6 +197,19 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         error: cause instanceof Error ? cause.message : 'Could not calculate rebased changes.' }
     }
   }, [core, type, rebaseTime, display.bars, timeframe])
+  const drawdown = useMemo<{ series?: DrawdownSeries; error?: string }>(() => {
+    if (type !== 'drawdown') return {}
+    try {
+      const buckets = timeframe?.buckets
+      if (!buckets) return { series: core.observedDrawdown(display.bars) }
+      const complete = buckets.map(bucket => bucket.observedBars === bucket.expectedBars)
+      const values = core.observedDrawdown(display.bars.filter((_, index) => complete[index]))
+      let next = 0
+      return { series: complete.map(included => included ? values[next++] : null) }
+    } catch (cause) {
+      return { series: [], error: cause instanceof Error ? cause.message : 'Could not calculate drawdown.' }
+    }
+  }, [core, type, display.bars, timeframe])
   const sizeTicks = type === 'renko' ? renkoTicks : type === 'kagi' ? kagiTicks : pointFigureTicks
   const applySize = type === 'renko' ? onRenkoTicks : type === 'kagi' ? onKagiTicks : onPointFigureTicks
   const isSized = type === 'renko' || type === 'kagi' || type === 'point-and-figure'
@@ -307,6 +320,9 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
           saving={priceSizeSaving} custom={rebaseTime !== undefined} apply={onRebaseTime} />}
       {rebased.status && <p role="status">{rebased.status}</p>}
       {rebased.error && <p role="alert">{rebased.error}</p>}
+      {drawdown.error && <p role="alert">{drawdown.error}</p>}
+      {drawdown.series && !drawdown.error && !drawdown.series.some(point => point !== null) &&
+        <p role="status">Drawdown requires a positive observed close.</p>}
       {transformed && !count ? <>
         {transformed.error ? <p role="alert">{transformed.error}</p> :
           <p role="status">{type === 'renko' ? 'No source close has moved far enough to form a brick at this size.' :
@@ -326,8 +342,9 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         asset={display} displayBars={displayBars} priceMovements={transformed?.priceMovements} kagiSegments={transformed?.kagiSegments}
         pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6} baselineTicks={baselineTicks}
         closeChanges={changes.series} bandSeconds={type === 'high-low-band' ? changeInterval : undefined}
-        rebasedReturns={rebased.series}
-        drawingTools={type === 'close-change' || type === 'rebased-percent' ? undefined : chart.drawingTools}
+        rebasedReturns={rebased.series} drawdowns={drawdown.series}
+        drawingTools={type === 'close-change' || type === 'rebased-percent' || type === 'drawdown' ?
+          undefined : chart.drawingTools}
         sma={sma} ema={ema} periods={periods} studies={studies}
         timeframe={timeframe} onTimestamp={onTimestamp} />}
     </>

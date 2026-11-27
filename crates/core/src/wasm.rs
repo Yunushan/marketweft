@@ -2934,6 +2934,23 @@ pub extern "C" fn mw_rebased_percent_changes(anchor_at: i64) -> u32 {
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_observed_drawdown() -> u32 {
+    process(|input| {
+        let results = crate::observed_drawdown(&decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(results.len() * 24);
+        for row in results {
+            let (time, peak, percent) = row.map_or((0, 0, i64::MIN), |point| {
+                (point.peak_at, point.peak_close, point.percent)
+            });
+            bytes.extend_from_slice(&time.to_le_bytes());
+            bytes.extend_from_slice(&peak.to_le_bytes());
+            bytes.extend_from_slice(&percent.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
 fn encode_wide_indicator_values(values: Vec<Option<i128>>) -> Vec<u8> {
     values
         .into_iter()

@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.145.0 · Peak-to-trough drawdown
+
+| Check | Evidence |
+| --- | --- |
+| Rust and WebAssembly | Tests compare every prefix and verify exact drawdowns, peak ties, recoveries, zero closes and ineligible prices. |
+| Chromium chart and CSV | Tests inspect the segmented shading and readouts. CSV evidence preserves the original peak outside the viewport and excludes incomplete aggregate buckets. |
+| Workspace backup | A version 44 backup restores the drawdown chart with the original history. An earlier version 43 backup restores its rebased chart. |
+
+[Peak-to-trough drawdown](chart-workspace.md#peak-to-trough-drawdown) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.144.0 · Rebased percent change
 
 | Check | Evidence |

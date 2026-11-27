@@ -10,6 +10,19 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('drawdown returns exact peak price and time without looking past each observed prefix', () => {
+  const from = 1735689600;
+  const prices = [-1, 0, 3, 2, 3, -1, 0, 4, 3];
+  const bars = core.parseCsv(['time,open,high,low,close,volume', ...prices.map((price, index) =>
+    [from + index * 60, price, price, price, price, 1].join(','))].join('\n'));
+  const point = (index, peak, percent) => ({ peakAt: from + index * 60, peakClose: peak, percent });
+  const expected = [null, null, point(2, 3000000n, 0n), point(2, 3000000n, -33333333n),
+    point(2, 3000000n, 0n), null, point(2, 3000000n, -100000000n),
+    point(7, 4000000n, 0n), point(7, 4000000n, -25000000n)];
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.observedDrawdown(bars.slice(0, end)), expected.slice(0, end));
+});
+
 test('per-pane rebased changes preserve wide values and earlier observation prefixes in Wasm', () => {
   const from = 1735689600;
   const observations = [[0, '1'], [60, '0.000001'], [120, '2000000000'], [240, '0']];

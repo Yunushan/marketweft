@@ -81,6 +81,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   'close-change': 'Close-change histogram',
   'high-low-band': 'High-low band',
   'rebased-percent': 'Rebased percent change',
+  drawdown: 'Peak-to-trough drawdown',
   ohlc: 'OHLC bars',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',

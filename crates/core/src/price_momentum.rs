@@ -138,6 +138,44 @@ pub fn rebased_percent_changes(anchor_at: i64, bars: &[Bar]) -> Result<Vec<Optio
         .collect()
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DrawdownPoint {
+    pub peak_at: i64,
+    pub peak_close: i64,
+    pub percent: i64,
+}
+
+/// Signed percentage below the largest eligible observed close, in millionths of a percent.
+/// The first observation at a repeated peak supplies the peak timestamp.
+pub fn observed_drawdown(bars: &[Bar]) -> Result<Vec<Option<DrawdownPoint>>, String> {
+    if bars.len() > MAX_BARS {
+        return Err("Drawdown charts support up to 100,000 bars.".into());
+    }
+    let mut previous = None;
+    let mut peak: Option<&Bar> = None;
+    bars.iter()
+        .enumerate()
+        .map(|(index, bar)| {
+            validate_ohlcv(bar, index)?;
+            validate_bar_time(bar.time, previous, index)?;
+            previous = Some(bar.time);
+            if bar.close < 0 {
+                return Ok(None);
+            }
+            if bar.close > 0 && peak.is_none_or(|prior| bar.close > prior.close) {
+                peak = Some(bar);
+            }
+            Ok(peak.and_then(|source| {
+                percent_change(bar.close, source.close).map(|value| DrawdownPoint {
+                    peak_at: source.time,
+                    peak_close: source.close,
+                    percent: value as i64,
+                })
+            }))
+        })
+        .collect()
+}
+
 fn percent_change(close: i64, base: i64) -> Option<i128> {
     let base = i128::from(base);
     if base == 0 {

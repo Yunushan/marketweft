@@ -58,6 +58,14 @@ The chart uses 100 × (observed close ÷ signed base close − 1). Returns are r
 
 The percent axis marks zero. The readout retains the observed close and volume. Price annotations and same-axis price overlays are available on price charts. Version 43 backups preserve explicit UTC anchors by pane. **Bars, provenance and enabled indicators** in **Export CSV** includes the exact base time, base close and return. Rows before the base leave all three fields blank, and the OHLCV reimport format retains its original fields.
 
+### Peak-to-trough drawdown
+
+Choose **Peak-to-trough drawdown** to measure closes against the highest positive close observed through each bar. The chart uses 100 × (current close ÷ running peak − 1) and rounds to six decimal places. A new or recovered peak plots zero. If the same peak is reached again, its original timestamp remains the source.
+
+Negative closes and incomplete timeframe buckets leave a gap and preserve the previous peak. Zero closes produce −100% once a positive peak is known. Observations before the first positive peak leave the value blank. The running peak starts at the beginning of the source history, so it can be outside the visible viewport.
+
+The readout and analysis CSV include the observed peak's UTC timestamp and exact close. A visible-only analysis export keeps that peak evidence when the peak is outside the export range. The OHLCV reimport format retains its original fields. Version 44 backups preserve the selected chart types.
+
 ### Heikin-Ashi
 
 Each pane can display Heikin-Ashi candles independently. The first derived open is the midpoint of the first observed open and close. Subsequent opens are the midpoint of the previous derived open and close. The derived close averages the current observed open, high, low and close. The derived high and low enclose both the observed extremes and the derived body. Prices use signed millionths and round halfway values away from zero at each step. [Dan Valcu’s original calculation](https://c.mql5.com/forextsd/forum/118/using_the_heikin_ashi_technique_d_valcu.pdf).

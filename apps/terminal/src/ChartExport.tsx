@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import type { SeriesMetadata } from './catalog-schema'
 import { chartCsv } from './chart-export'
-import type { BarRange, CloseChangeSeries, ExportOverlay, RebasedReturnSeries, TimeframeView } from './chart-export'
+import type { BarRange, CloseChangeSeries, DrawdownSeries, ExportOverlay, RebasedReturnSeries, TimeframeView } from './chart-export'
 import { downloadFile } from './download'
 import type { Asset } from './workspace'
 
-export function ChartExport({ asset, visible, metadata, overlays, timeframe, closeChanges, rebasedReturns }: {
+export function ChartExport({ asset, visible, metadata, overlays, timeframe, closeChanges, rebasedReturns, drawdowns }: {
   asset: Asset
   visible: BarRange
   metadata?: SeriesMetadata
@@ -13,13 +13,14 @@ export function ChartExport({ asset, visible, metadata, overlays, timeframe, clo
   timeframe?: TimeframeView
   closeChanges?: CloseChangeSeries
   rebasedReturns?: RebasedReturnSeries
+  drawdowns?: DrawdownSeries
 }) {
   const [range, setRange] = useState('visible')
   const [format, setFormat] = useState('bars')
   const [error, setError] = useState('')
   function download() {
     const interval = range === 'visible' ? visible : { start: 0, end: asset.bars.length }
-    const analysis = format === 'analysis' ? { overlays, timeframe, closeChanges, rebasedReturns } : undefined
+    const analysis = format === 'analysis' ? { overlays, timeframe, closeChanges, rebasedReturns, drawdowns } : undefined
     const identity = (asset.venue + '-' + asset.symbol).replace(/[^A-Za-z0-9_.-]/g, '_')
     const intervalName = timeframe ? '-' + timeframe.targetSeconds + 's' : ''
     setError('')

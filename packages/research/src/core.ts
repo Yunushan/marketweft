@@ -902,6 +902,8 @@ export interface PortfolioSnapshot {
   }[];
 }
 
+export type DrawdownPoint = { peakAt: number; peakClose: bigint; percent: bigint };
+
 export interface MarketCore {
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
   instrument(venue: string, symbol: string): string;
@@ -932,6 +934,7 @@ export interface MarketCore {
   commodityChannelIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   closeChanges(intervalSeconds: number, bars: readonly Bar[]): (bigint | null)[];
   rebasedPercentChanges(anchorAt: number, bars: readonly Bar[]): (bigint | null)[];
+  observedDrawdown(bars: readonly Bar[]): (DrawdownPoint | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
   moneyFlowIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1040,6 +1043,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_commodity_channel_index(period: number): number;
   mw_close_changes(intervalSeconds: number): number;
   mw_rebased_percent_changes(anchorAt: bigint): number;
+  mw_observed_drawdown(): number;
   mw_rate_of_change(period: number): number;
   mw_directional_movement(diPeriod: number, adxPeriod: number): number;
   mw_money_flow_index(period: number): number;
@@ -1905,6 +1909,20 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return Array.from({ length: bars.length }, (_, index) => {
         const delta = out.getBigInt64(index * 8, true);
         return delta === MISSING ? null : delta;
+      });
+    },
+    observedDrawdown(bars) {
+      if (bars.length > 100_000) throw new Error('Drawdown charts support up to 100,000 bars.');
+      putIndicatorBars(bars, 'Drawdown chart');
+      const out = output(api.mw_observed_drawdown());
+      return Array.from({ length: bars.length }, (_, index) => {
+        const start = 24 * index;
+        const percent = out.getBigInt64(start + 16, true);
+        return percent === MISSING ? null : {
+          peakAt: Number(out.getBigInt64(start, true)),
+          peakClose: out.getBigInt64(start + 8, true),
+          percent,
+        };
       });
     },
     rebasedPercentChanges(anchorAt, bars) {
