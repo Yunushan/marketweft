@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.162.0 · Ubuntu desktop build provenance
+
+| Check | Evidence |
+| --- | --- |
+| Package subject validation | Before signing, the workflow checks the package names, architectures, versions, digests and recorded Git commit. The local fixture uses the two published 0.160.0 packages and rejects a different source commit. |
+| Release tag workflow | The release-tag job attests both packages after verification and checks each bundle against the exact GitHub workflow, tag, repository and source digest. |
+
+[Ubuntu package provenance](platforms.md#verify-ubuntu-package-provenance) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.161.0 · Ubuntu desktop package upgrades
 
 | Check | Evidence |

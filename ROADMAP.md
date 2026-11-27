@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.161.0 checks workspace continuity across Ubuntu desktop package upgrades. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.162.0 adds signed build provenance for Ubuntu packages on release tags. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Delivered · 0.162.0 | Ubuntu desktop build provenance (MW-010, MW-011) | Validate both architecture packages and verify the attestation against the repository, workflow, release tag and full Git commit. [Ubuntu package provenance](docs/platforms.md#verify-ubuntu-package-provenance). |
 | Delivered · 0.161.0 | Ubuntu desktop package upgrades (MW-010, MW-011) | Verify an APT upgrade from 0.160.0 on x64 and ARM64. Reopen the original workspace and check the chart type and exact imported OHLCV. [Upgrade verification](docs/platforms.md#verify-an-ubuntu-package-upgrade). |
 | Delivered · 0.160.0 | Ubuntu desktop packages (MW-010, MW-011) | Verify package identity, reproducibility for the same executable, runtime library dependencies, notices, installation and native CSV import on x64 and ARM64. [Ubuntu desktop packages](docs/platforms.md#ubuntu-desktop-package). |
 | Delivered · 0.159.0 | Ubuntu Linux ARM64 desktop verification (MW-010, MW-011) | Verify a native AArch64 binary, the GLib fixture, X11 launch and local CSV import through the WebView. [Platform evidence](docs/platforms.md#linux-native-verification). |
@@ -175,5 +176,5 @@
 
 ## Handoff for the next change
 
-Add signed build provenance for Ubuntu desktop packages on both architectures. Verify each package’s checksum, repository identity and exact commit with the published attestation.
+Verify native macOS Intel builds alongside Apple Silicon on GitHub-hosted runners. Inspect both Mach-O architectures and run the native research SDK fixture on each.
 

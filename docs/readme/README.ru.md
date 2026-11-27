@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.161.0 · 0BSD**
+**0.162.0 · 0BSD**
 
 **Языки документации**
 
@@ -15,20 +15,20 @@
 
 MarketWeft — локальный исследовательский терминал для аналитиков, разработчиков и операторов. Он открывает разрешённые файлы OHLCV, показывает свечи и объёмы, рассчитывает SMA и EMA с фиксированной точкой и сохраняет список наблюдения, инструмент и индикаторы в IndexedDB. После кэширования работает офлайн. Встроенные цены и объёмы синтетические, учётная запись поставщика не нужна.
 
-MarketWeft 0.161.0 проверяет сохранение рабочего пространства при обновлении пакета Ubuntu. MarketWeft 0.7.0 добавляет отбор по ценовой доходности среди участников с учётом данных, известных на момент запроса. Воспроизведение торговых сессий учитывает дробления, денежные дивиденды, состав выборки и делистинги. В репозитории также есть модуль TypeScript с доступом для чтения к отдельному сервису trading-bot и экспериментальная оболочка Tauri. Подключение поставщиков данных, заявки, подписанные установщики и многопользовательский режим остаются в плане.
+MarketWeft 0.162.0 добавляет подписанное подтверждение происхождения сборки для пакетов Ubuntu с тегами выпуска. MarketWeft 0.7.0 добавляет отбор по ценовой доходности среди участников с учётом данных, известных на момент запроса. Воспроизведение торговых сессий учитывает дробления, денежные дивиденды, состав выборки и делистинги. В репозитории также есть модуль TypeScript с доступом для чтения к отдельному сервису trading-bot и экспериментальная оболочка Tauri. Подключение поставщиков данных, заявки, подписанные установщики и многопользовательский режим остаются в плане.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Запуск переносимого терминала
 
-Откройте успешный запуск GitHub, скачайте browser-terminal-attempt-N и извлеките MarketWeft-browser-0.161.0.zip. Оставьте dist/ рядом с serve-terminal.mjs и выполните команду в этой папке. Откройте http://127.0.0.1:4173/ в актуальном браузере с WebAssembly, Canvas, BigInt и IndexedDB. Нужен Node.js 22.12 или новее. Установка npm не нужна. Перед отключением дождитесь Offline ready.
+Откройте успешный запуск GitHub, скачайте browser-terminal-attempt-N и извлеките MarketWeft-browser-0.162.0.zip. Оставьте dist/ рядом с serve-terminal.mjs и выполните команду в этой папке. Откройте http://127.0.0.1:4173/ в актуальном браузере с WebAssembly, Canvas, BigInt и IndexedDB. Нужен Node.js 22.12 или новее. Установка npm не нужна. Перед отключением дождитесь Offline ready.
 
 ```sh
 node serve-terminal.mjs
 ```
 
-[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md) · [Linux native verification](../../docs/platforms.md#linux-native-verification) · [Ubuntu desktop package](../../docs/platforms.md#ubuntu-desktop-package) · [Ubuntu upgrade verification](../../docs/platforms.md#verify-an-ubuntu-package-upgrade)
+[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md) · [Linux native verification](../../docs/platforms.md#linux-native-verification) · [Ubuntu desktop package](../../docs/platforms.md#ubuntu-desktop-package) · [Ubuntu upgrade verification](../../docs/platforms.md#verify-an-ubuntu-package-upgrade) · [Ubuntu package provenance](../../docs/platforms.md#verify-ubuntu-package-provenance)
 
 <!-- section:03 -->
 ## Воспроизведение примера NYSE

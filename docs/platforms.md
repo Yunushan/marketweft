@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.161.0
+# Platform support · MarketWeft 0.162.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. No signed native distribution is part of this milestone.
 
@@ -8,8 +8,8 @@ A successful web test validates a specific browser, build and host. Producing a 
 | Windows x64 | Tested web path. Windows Server 2022 hosted Tauri build passed. Local native build was blocked by Windows Application Control while running dependency build scripts. | Native window, installer and upgrade acceptance on a supported client OS. |
 | Windows ARM64 | Browser route. Experimental native target. | ARM64 WebView2 runtime, native runner and package tests. |
 | macOS Apple Silicon / Intel | Browser route. macOS 15 hosted Tauri build passed. Intel remains unverified. | Per-architecture launch, import, sandbox, signing and notarization on actual hosts. |
-| Linux x64 | Ubuntu 24.04 x64 package installation and native CSV import. Debian 12 native window and chart rendering observed through AT-SPI. See [verification](verification.md) and the [advisory review](native-advisories.md). | Signed release evidence, broader upgrade coverage, continued backport maintenance and validation on other supported distributions. |
-| Linux ARM64 | Browser route and Ubuntu 24.04 ARM64 package installation, native X11 launch and CSV import smoke test. | Signed release evidence, broader upgrade coverage and validation on other supported distributions. |
+| Linux x64 | Ubuntu 24.04 x64 package installation and native CSV import. Debian 12 native window and chart rendering observed through AT-SPI. See [verification](verification.md) and the [advisory review](native-advisories.md). | Broader upgrade coverage, continued backport maintenance and validation on other supported distributions. |
+| Linux ARM64 | Browser route and Ubuntu 24.04 ARM64 package installation, native X11 launch and CSV import smoke test. | Broader upgrade coverage and validation on other supported distributions. |
 | Android | Responsive browser path. Phone-sized desktop viewport tested. | Physical-device browser/PWA acceptance. Android wrapper project and signing remain future work. |
 | iOS / iPadOS | Responsive browser route. | Safari storage/import, installation and device tests. Native wrapper and Apple signing remain future work. |
 | FreeBSD / OpenBSD / NetBSD / DragonFly BSD | The complete static browser build uses standard web APIs, with no wrapper or server OS dependency. A BSD user may serve the ZIP's dist/ from any static server or open it on an HTTPS host. | Each BSD/browser combination needs its own offline and import tests. No native BSD wrapper has a release claim. |
@@ -38,7 +38,7 @@ Use an Ubuntu 24.04 machine. Download the matching `ubuntu-desktop-X64-attempt-N
 
 ```sh
 architecture=$(dpkg --print-architecture)
-package="marketweft-desktop_0.161.0_$architecture.deb"
+package="marketweft-desktop_0.162.0_$architecture.deb"
 sha256sum --check "$package.sha256"
 sudo apt install "./$package"
 marketweft-desktop
@@ -46,7 +46,7 @@ marketweft-desktop
 
 Build a package on its target Ubuntu architecture with `python3 -B scripts/package_desktop_deb.py apps/desktop/target/release/marketweft-desktop` after compiling the frontend and the native release executable. The packager derives runtime dependencies from the linked libraries and records the source revision and locked Rust crate sources. Packaging twice from the same executable and commit produces the same archive.
 
-GitHub Actions verifies a fresh package installation and the native WebView import fixture on Ubuntu 24.04 x64 and ARM64. The upgrade fixture verifies version 0.160.0 to 0.161.0 on the same Ubuntu runners. Signing and other distributions remain separate release checks.
+GitHub Actions verifies a fresh package installation and the native WebView import fixture on Ubuntu 24.04 x64 and ARM64. The upgrade fixture verifies version 0.160.0 to 0.161.0 on the same Ubuntu runners. Tagged releases provide signed build provenance for both Ubuntu packages. Other distributions retain their separate verification requirements.
 
 ### Verify an Ubuntu package upgrade
 

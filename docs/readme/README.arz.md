@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.161.0 · 0BSD**
+**0.162.0 · 0BSD**
 
 **لغات الدليل**
 
@@ -21,7 +21,7 @@ MarketWeft محطة بحث بتشتغل محلي للمحللين والمطور
 
 <div dir="rtl">
 
-MarketWeft 0.161.0 بيتأكد إن ترقية حزمة سطح المكتب على Ubuntu بتحافظ على مساحة الشغل۔ MarketWeft 0.7.0 بيضيف ترتيب أعضاء المجموعة حسب عائد السعر بالمعلومات اللي كانت معروفة وقت الاستعلام. إعادة التشغيل حسب الجلسة فيها تجزئة الأسهم والتوزيعات النقدية وتغييرات العضوية والشطب. المستودع فيه كمان مراقب TypeScript للقراءة بس لخدمة trading-bot منفصلة وغلاف Tauri تجريبي. تغذية البيانات والأوامر والمثبّتات الموقّعة والاستضافة لأكتر من مستخدم لسه في خطة الشغل.
+MarketWeft 0.162.0 بيضيف إثبات موقّع لمصدر بناء حزم Ubuntu وقت نشر وسوم الإصدار۔ MarketWeft 0.7.0 بيضيف ترتيب أعضاء المجموعة حسب عائد السعر بالمعلومات اللي كانت معروفة وقت الاستعلام. إعادة التشغيل حسب الجلسة فيها تجزئة الأسهم والتوزيعات النقدية وتغييرات العضوية والشطب. المستودع فيه كمان مراقب TypeScript للقراءة بس لخدمة trading-bot منفصلة وغلاف Tauri تجريبي. تغذية البيانات والأوامر والمثبّتات الموقّعة والاستضافة لأكتر من مستخدم لسه في خطة الشغل.
 
 </div>
 
@@ -32,7 +32,7 @@ MarketWeft 0.161.0 بيتأكد إن ترقية حزمة سطح المكتب ع�
 
 <div dir="rtl">
 
-نزّل browser-terminal-attempt-N من تشغيل GitHub ناجح. فك MarketWeft-browser-0.161.0.zip وسيب dist/ جنب serve-terminal.mjs وشغّل الأمر جوه نفس المجلد. افتح http://127.0.0.1:4173/ في متصفح حديث فيه WebAssembly وCanvas وBigInt وIndexedDB. استخدم Node.js 22.12 أو أحدث. مش محتاج تثبت npm. استنى Offline ready قبل ما تفصل النت.
+نزّل browser-terminal-attempt-N من تشغيل GitHub ناجح. فك MarketWeft-browser-0.162.0.zip وسيب dist/ جنب serve-terminal.mjs وشغّل الأمر جوه نفس المجلد. افتح http://127.0.0.1:4173/ في متصفح حديث فيه WebAssembly وCanvas وBigInt وIndexedDB. استخدم Node.js 22.12 أو أحدث. مش محتاج تثبت npm. استنى Offline ready قبل ما تفصل النت.
 
 </div>
 
@@ -40,7 +40,7 @@ MarketWeft 0.161.0 بيتأكد إن ترقية حزمة سطح المكتب ع�
 node serve-terminal.mjs
 ```
 
-[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md) · [Linux native verification](../../docs/platforms.md#linux-native-verification) · [Ubuntu desktop package](../../docs/platforms.md#ubuntu-desktop-package) · [Ubuntu upgrade verification](../../docs/platforms.md#verify-an-ubuntu-package-upgrade)
+[GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml) · [docs/platforms.md](../../docs/platforms.md) · [Linux native verification](../../docs/platforms.md#linux-native-verification) · [Ubuntu desktop package](../../docs/platforms.md#ubuntu-desktop-package) · [Ubuntu upgrade verification](../../docs/platforms.md#verify-an-ubuntu-package-upgrade) · [Ubuntu package provenance](../../docs/platforms.md#verify-ubuntu-package-provenance)
 
 <!-- section:03 -->
 ## شغّل مثال NYSE
