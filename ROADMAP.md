@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.127.0 adds editable horizontal rays and two-point trend lines. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.128.0 adds editable chart rectangles and parallel price channels. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -130,9 +130,10 @@
 | Delivered · 0.125.0 | Aroon and Aroon Oscillator (MW-014) | Verify the latest tied extrema, observed ages, two chart scales, separate periods and exact research CSV. [Aroon](docs/chart-workspace.md#aroon-and-aroon-oscillator). |
 | Delivered · 0.126.0 | Horizontal price lines and vertical UTC markers (MW-014) | Verify exact anchors, chart picking, UTC interpolation, instrument isolation, independent edits, and legacy backup restore. [Price lines and UTC markers](docs/chart-workspace.md#horizontal-price-lines-and-utc-time-markers). |
 | Delivered · 0.127.0 | Horizontal rays and trend lines (MW-014) | Verify forward-only rays, exact UTC and price endpoints, chart picking, zoom projection and version 31 and 32 backups. [Horizontal rays and trend lines](docs/chart-workspace.md#horizontal-rays-and-trend-lines). |
+| Delivered · 0.128.0 | Chart rectangles and parallel channels (MW-014) | Verify opposite-corner placement, the signed offset of both channel endpoints, zero-area validation and exact version 33 restore. [Rectangles and parallel channels](docs/chart-workspace.md#rectangles-and-parallel-channels). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
-| P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Add editable rectangles and parallel channels. Validate new chart types against fixtures and restore exact settings after migrations. |
+| P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Add editable polylines and Fibonacci retracements. Validate new chart types against fixtures and restore exact settings after migrations. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Broaden reproducible strategy signals, portfolio-level optimization and execution inputs. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Support isolated executable plugins and independent formula SDK conformance. Verify schema compatibility across SDKs and extend the read-only MCP research tools. |
 | P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Expose options analytics through native research interfaces. Add explicit webhook configuration, authenticated delivery, bounded retry, delivery receipts and authorized data sources. |

@@ -32,12 +32,12 @@ async function restore(page, backup) {
 async function traceDrawings(page) {
   await page.addInitScript(() => {
     const proto = CanvasRenderingContext2D.prototype
-    const { scale, beginPath, moveTo, lineTo, stroke } = proto
+    const { scale, beginPath, moveTo, lineTo, stroke, strokeRect } = proto
     const paths = new WeakMap()
     const primary = ctx => ctx.canvas.getAttribute('aria-label')?.startsWith('ANNOTATIONS interactive') &&
       ctx.canvas.closest('[aria-label="Primary chart pane"]')
     proto.scale = function (...args) {
-      if (primary(this)) window.chartMarks = { prices: [], times: [], rays: [], trends: [], grid: [] }
+      if (primary(this)) window.chartMarks = { prices: [], times: [], rays: [], trends: [], rectangles: [], channels: [], grid: [] }
       return scale.apply(this, args)
     }
     proto.beginPath = function () {
@@ -50,6 +50,10 @@ async function traceDrawings(page) {
         return fn.call(this, x, y)
       }
     }
+    proto.strokeRect = function (...box) {
+      if (primary(this) && this.strokeStyle === '#7eb4e2') window.chartMarks.rectangles.push(box)
+      return strokeRect.apply(this, box)
+    }
     proto.stroke = function () {
       if (primary(this)) {
         const path = paths.get(this) ?? []
@@ -57,6 +61,7 @@ async function traceDrawings(page) {
         if (this.strokeStyle === '#ad9df5') window.chartMarks.times.push(path)
         if (this.strokeStyle === '#83d1ef') window.chartMarks.rays.push(path)
         if (this.strokeStyle === '#ee9dbd') window.chartMarks.trends.push(path)
+        if (this.strokeStyle === '#c3a662') window.chartMarks.channels.push(path)
         if (this.strokeStyle === '#293036' && path.length === 2) window.chartMarks.grid.push(path)
       }
       return stroke.apply(this, arguments)
@@ -290,4 +295,84 @@ test('horizontal rays start at their anchor and trend lines retain two exact end
   await tools(left).getByRole('button', { name: 'Remove Horizontal ray -2.000001 at ' + anchor, exact: true }).click()
   await expect(tools(left).getByRole('listitem')).toHaveCount(3)
   expect((await downloadWorkspace(page)).version).toBe(31)
+})
+
+test('rectangles and channels preserve area coordinates, parallel offsets and earlier backups', async ({ page }) => {
+  await traceDrawings(page)
+  const trace = () => page.evaluate(() => window.chartMarks)
+  const csv = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-directional.csv', import.meta.url), 'utf8')
+  await page.goto('/')
+  await openImport(page, 'ANNOTATIONS', csv)
+  await submitImport(page, 'ANNOTATIONS')
+  const left = pane(page)
+  const first = '2026-01-01T09:02:00Z'
+  const middle = '2026-01-01T09:04:00Z'
+  const last = '2026-01-01T09:06:00Z'
+  for (const time of [first, middle, last]) await add(left, 'Time marker', time)
+  for (const price of ['-5', '5']) await add(left, 'Price line', price)
+  const legacy = await downloadWorkspace(page)
+  expect(legacy.version).toBe(31)
+
+  async function draw(kind, from, to) {
+    await tools(left).getByRole('button', { name: 'New ' + kind.toLowerCase() }).click()
+    const form = editor(left, kind)
+    for (const [index, [time, price]] of [from, to].entries()) {
+      const point = form.getByRole('group', { name: index === 0 ? 'Start' : 'End', exact: true })
+      await point.getByRole('textbox', { name: 'Time (UTC)' }).fill(time)
+      await point.getByRole('textbox', { name: 'Price' }).fill(price)
+    }
+    return { form, save: () => form.getByRole('button', { name: 'Save ' + kind.toLowerCase() }).click() }
+  }
+
+  const rectangle = await draw('Rectangle', [last, '5'], [first, '5'])
+  await rectangle.save()
+  await expect(rectangle.form.getByRole('alert')).toContainText('two different prices')
+  await rectangle.form.getByRole('group', { name: 'End', exact: true }).getByRole('textbox', { name: 'Price' }).fill('-5')
+  await rectangle.save()
+  const boxText = 'Rectangle 5 at ' + last + ' to -5 at ' + first
+  await expect(tools(left).getByText(boxText, { exact: true })).toBeVisible()
+  const box = await trace()
+  const [x1, xMid, x2] = box.times.map(path => path[0][0])
+  const [lower, upper] = box.prices.map(path => path[0][1])
+  expect(box.rectangles).toEqual([[x1, upper, x2 - x1, lower - upper]])
+
+  const channel = await draw('Parallel channel', [middle, '0.000001'], [last, '5'])
+  const offset = channel.form.getByRole('textbox', { name: 'Price offset' })
+  await offset.fill('0')
+  await channel.save()
+  await expect(channel.form.getByRole('alert')).toContainText('nonzero price offset')
+  await offset.fill('-2.000001')
+  await channel.save()
+  const channelText = 'Parallel channel 0.000001 at ' + middle + ' to 5 at ' + last + ', offset -2.000001'
+  await expect(tools(left).getByText(channelText, { exact: true })).toBeVisible()
+  const [base, edge] = (await trace()).channels
+  expect(base.map(([x]) => x)).toEqual([xMid, x2])
+  expect(edge.map(([x]) => x)).toEqual([xMid, x2])
+  expect(edge[0][1]).toBeGreaterThan(base[0][1])
+  expect(edge[0][1] - base[0][1]).toBeCloseTo(edge[1][1] - base[1][1], 9)
+
+  const backup = await downloadWorkspace(page)
+  expect(backup.version).toBe(33)
+  const entries = backup.manifest.preferences.annotations['LOCAL:ANNOTATIONS']
+  const seconds = value => Date.parse(value) / 1000
+  expect(entries.slice(-2).map(({ id, ...entry }) => entry)).toEqual([
+    { kind: 'rectangle', start: { time: seconds(last), ticks: 5000000 }, end: { time: seconds(first), ticks: -5000000 } },
+    { kind: 'channel', start: { time: seconds(middle), ticks: 1 }, end: { time: seconds(last), ticks: 5000000 }, offsetTicks: -2000001 },
+  ])
+
+  const invalid = structuredClone(backup)
+  invalid.manifest.preferences.annotations['LOCAL:ANNOTATIONS'].at(-1).offsetTicks = 2_000_000_000_000_000
+  invalid.sha256 = createHash('sha256').update(canonical(invalid.manifest)).digest('hex')
+  await page.getByRole('button', { name: 'Workspace backup', exact: true }).click()
+  await selectBackup(page, invalid)
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('shifted channel prices')
+  await page.keyboard.press('Escape')
+  await expect(tools(left).getByText(channelText, { exact: true })).toBeVisible()
+
+  await restore(page, legacy)
+  await expect(tools(left).getByRole('listitem')).toHaveCount(5)
+  await restore(page, backup)
+  await page.reload()
+  await expect(tools(left).getByText(boxText, { exact: true })).toBeVisible()
+  await expect(tools(left).getByText(channelText, { exact: true })).toBeVisible()
 })

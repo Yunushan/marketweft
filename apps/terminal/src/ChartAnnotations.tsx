@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { ANNOTATION_NAMES, formatAnnotationAnchor, parseAnnotationAnchor, sameEndpoint } from './chart-annotations'
+import {
+  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, validateAnnotationGeometry,
+} from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint } from './market-core'
 
@@ -8,6 +10,7 @@ type PointFields = Record<AnnotationCoordinate, string>
 type Draft = {
   kind: AnnotationKind
   points: Record<Point, PointFields>
+  offset: string
   original?: ChartAnnotation
 }
 
@@ -28,8 +31,11 @@ function draftAnnotation(draft: Draft, id: string): ChartAnnotation {
   const start = pointValue(points.start)
   if (kind === 'ray') return { id, kind, start }
   const end = pointValue(points.end)
-  if (sameEndpoint(start, end)) throw Error('A trend line must have two different points.')
-  return { id, kind, start, end }
+  const annotation = kind === 'channel' ?
+    { id, kind, start, end, offsetTicks: parseAnnotationAnchor('price', draft.offset) } :
+    { id, kind, start, end }
+  validateAnnotationGeometry(annotation)
+  return annotation
 }
 
 function describePoint(point: DrawingEndpoint): string {
@@ -43,7 +49,12 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'price': return name + formatAnnotationAnchor('price', entry.ticks)
     case 'time': return name + formatAnnotationAnchor('time', entry.time)
     case 'ray': return name + describePoint(entry.start)
-    case 'trend': return name + describePoint(entry.start) + ' to ' + describePoint(entry.end)
+    case 'trend':
+    case 'rectangle':
+      return name + describePoint(entry.start) + ' to ' + describePoint(entry.end)
+    case 'channel':
+      return name + describePoint(entry.start) + ' to ' + describePoint(entry.end) +
+        ', offset ' + formatAnnotationAnchor('price', entry.offsetTicks)
   }
 }
 
@@ -63,12 +74,13 @@ export function ChartAnnotations({
   function edit(kind: AnnotationKind, original?: ChartAnnotation) {
     setPicker(null)
     setError('')
-    const points = { start: pointFields(kind === 'trend' ? defaults.start : defaults.end), end: pointFields(defaults.end) }
+    const points = { start: pointFields(hasTwoPoints(kind) ? defaults.start : defaults.end), end: pointFields(defaults.end) }
     if (original?.kind === 'price') points.start.price = formatAnnotationAnchor('price', original.ticks)
     if (original?.kind === 'time') points.start.time = formatAnnotationAnchor('time', original.time)
-    if (original?.kind === 'ray' || original?.kind === 'trend') points.start = pointFields(original.start)
-    if (original?.kind === 'trend') points.end = pointFields(original.end)
-    setDraft({ kind, original, points })
+    if (original && 'start' in original) points.start = pointFields(original.start)
+    if (original && 'end' in original) points.end = pointFields(original.end)
+    const offset = formatAnnotationAnchor('price', original?.kind === 'channel' ? original.offsetTicks : 1_000_000)
+    setDraft({ kind, original, points, offset })
   }
 
   function cancel() {
@@ -98,11 +110,11 @@ export function ChartAnnotations({
 
   function pointEditor(point: Point, current: Draft) {
     const outerLabel = point === 'start' ? 'Start' : 'End'
-    const trend = current.kind === 'trend'
+    const twoPoints = hasTwoPoints(current.kind)
     const coordinates: readonly AnnotationCoordinate[] = current.kind === 'price' || current.kind === 'time' ?
       [current.kind] : ['time', 'price']
     return <fieldset key={point}>
-      <legend>{trend ? outerLabel : ANNOTATION_NAMES[current.kind]}</legend>
+      <legend>{twoPoints ? outerLabel : ANNOTATION_NAMES[current.kind]}</legend>
       {coordinates.map(coordinate => <label key={coordinate}>{coordinate === 'price' ? 'Price' : 'Time (UTC)'}
         <input type="text" inputMode={coordinate === 'price' ? 'decimal' : undefined}
           spellCheck={false} value={current.points[point][coordinate]} disabled={busy}
@@ -113,7 +125,7 @@ export function ChartAnnotations({
           }} />
       </label>)}
       <button type="button" aria-pressed={picking === point} disabled={busy} onClick={() => pick(point)}>
-        {trend ? 'Pick ' + point + ' on chart' : 'Pick on chart'}
+        {twoPoints ? 'Pick ' + point + ' on chart' : 'Pick on chart'}
       </button>
     </fieldset>
   }
@@ -123,7 +135,14 @@ export function ChartAnnotations({
       {draft ? <form className="drawing-editor" aria-label={ANNOTATION_NAMES[draft.kind]}
         onSubmit={event => { event.preventDefault(); void commit() }}>
         {pointEditor('start', draft)}
-        {draft.kind === 'trend' && pointEditor('end', draft)}
+        {hasTwoPoints(draft.kind) && pointEditor('end', draft)}
+        {draft.kind === 'channel' && <fieldset>
+          <legend>Parallel edge</legend>
+          <label>Price offset
+            <input type="text" inputMode="decimal" spellCheck={false} value={draft.offset} disabled={busy}
+              onChange={event => { setDraft({ ...draft, offset: event.target.value }); setError('') }} />
+          </label>
+        </fieldset>}
         {picking && <p role="status">Select a point in the price plot.</p>}
         {error && <p role="alert">{error}</p>}
         <div className="drawing-buttons">

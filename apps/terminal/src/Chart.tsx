@@ -474,7 +474,31 @@ function draw(
         } else {
           const to = markerColumn(markerTimeline, annotation.end.time)
           if (from === null || to === null) continue
-          line(x(from), level, x(to), y(annotation.end.ticks / 1e6), '#ee9dbd')
+          const x1 = x(from)
+          const x2 = x(to)
+          const y2 = y(annotation.end.ticks / 1e6)
+          if (annotation.kind === 'rectangle') {
+            const box = [Math.min(x1, x2), Math.min(level, y2), Math.abs(x2 - x1), Math.abs(y2 - level)] as const
+            ctx.fillStyle = 'rgba(126, 180, 226, 0.15)'
+            ctx.fillRect(...box)
+            ctx.strokeStyle = '#7eb4e2'
+            ctx.strokeRect(...box)
+          } else if (annotation.kind === 'channel') {
+            const offset1 = y((annotation.start.ticks + annotation.offsetTicks) / 1e6)
+            const offset2 = y((annotation.end.ticks + annotation.offsetTicks) / 1e6)
+            ctx.fillStyle = 'rgba(195, 166, 98, 0.15)'
+            ctx.beginPath()
+            ctx.moveTo(x1, level)
+            ctx.lineTo(x2, y2)
+            ctx.lineTo(x2, offset2)
+            ctx.lineTo(x1, offset1)
+            ctx.closePath()
+            ctx.fill()
+            line(x1, level, x2, y2, '#c3a662')
+            line(x1, offset1, x2, offset2, '#c3a662')
+          } else {
+            line(x1, level, x2, y2, '#ee9dbd')
+          }
         }
       }
     }

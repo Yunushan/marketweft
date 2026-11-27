@@ -6,8 +6,11 @@ export type AnnotationCoordinate = 'price' | 'time'
 export type ChartAnnotation = { id: string } & (
   { kind: 'price'; ticks: number } | { kind: 'time'; time: number } |
   { kind: 'ray'; start: DrawingEndpoint } |
-  { kind: 'trend'; start: DrawingEndpoint; end: DrawingEndpoint }
+  { kind: 'trend'; start: DrawingEndpoint; end: DrawingEndpoint } |
+  { kind: 'rectangle'; start: DrawingEndpoint; end: DrawingEndpoint } |
+  { kind: 'channel'; start: DrawingEndpoint; end: DrawingEndpoint; offsetTicks: number }
 )
+type TwoPointAnnotation = Extract<ChartAnnotation, { end: DrawingEndpoint }>
 export type AnnotationKind = ChartAnnotation['kind']
 export type TimeColumn = { time: number; column: number }
 
@@ -18,6 +21,8 @@ export const ANNOTATION_NAMES = {
   time: 'Time marker',
   ray: 'Horizontal ray',
   trend: 'Trend line',
+  rectangle: 'Rectangle',
+  channel: 'Parallel channel',
 } as const
 
 export function sameEndpoint(first: DrawingEndpoint, second: DrawingEndpoint): boolean {
@@ -29,8 +34,31 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'price': return second.kind === 'price' && first.ticks === second.ticks
     case 'time': return second.kind === 'time' && first.time === second.time
     case 'ray': return second.kind === 'ray' && sameEndpoint(first.start, second.start)
-    case 'trend': return second.kind === 'trend' &&
-      sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
+    case 'trend':
+    case 'rectangle':
+      return second.kind === first.kind && sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
+    case 'channel':
+      return second.kind === 'channel' && first.offsetTicks === second.offsetTicks &&
+        sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
+  }
+}
+
+export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
+  return kind === 'trend' || kind === 'rectangle' || kind === 'channel'
+}
+
+export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void {
+  const { kind, start, end } = annotation
+  if (kind === 'trend' && sameEndpoint(start, end))
+    throw Error('A trend line must have two different points.')
+  if (kind === 'rectangle' && (start.time === end.time || start.ticks === end.ticks))
+    throw Error('A rectangle needs two different times and two different prices.')
+  if (kind === 'channel') {
+    const offset = annotation.offsetTicks
+    if (start.time === end.time || offset === 0)
+      throw Error('A parallel channel needs two different times and a nonzero price offset.')
+    if (!validAnnotationAnchor('price', start.ticks + offset) || !validAnnotationAnchor('price', end.ticks + offset))
+      throw Error('Both shifted channel prices must stay within the chart price bounds.')
   }
 }
 

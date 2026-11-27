@@ -80,6 +80,14 @@ Choose **New trend line** to set two distinct price and UTC points. The line ext
 
 Both tools share the instrument's existing drawing list and preserve exact coordinates in backup version 32. With only price lines and time markers saved, backup version 31 still applies. [Backup format](workspace-backup.md)
 
+## Rectangles and parallel channels
+
+Choose **New rectangle** and enter or pick two opposite corners. The rectangle spans those UTC times and prices. It accepts either corner first and requires a nonzero width and height in data coordinates.
+
+Choose **New parallel channel** and enter or pick the two endpoints of its base edge. Enter a signed **Price offset** with up to six decimal places. The parallel edge uses the same UTC points with the offset applied to both base prices. A positive offset places it above the base, and a negative one places it below. The channel requires different UTC times and a nonzero offset. Both shifted prices must stay within supported chart bounds.
+
+The selected chart type and viewport determine the visible portion of each drawing. Workspace backup version 33 preserves both shapes, including the exact signed channel offset. Earlier drawings still use their original backup versions when saved on their own. [Backup format](workspace-backup.md)
+
 ## Moving-average periods
 
 Open **Indicators** to configure the primary chart. When the comparison pane is open, the same dialog provides a separate pair of period fields for it. Each field accepts a whole period from 1 to 100,000 bars. The default periods are 20 bars for SMA and 9 bars for EMA. Each overlay can be enabled independently.

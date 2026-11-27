@@ -1,5 +1,5 @@
 import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core'
-import { sameEndpoint, validAnnotationAnchor } from './chart-annotations'
+import { validAnnotationAnchor, validateAnnotationGeometry } from './chart-annotations'
 import type { ChartAnnotation } from './chart-annotations'
 import { MAX_CHART_PRICE_TICKS } from './fixed-point'
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
@@ -196,29 +196,39 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       return [instrument, entries.map((entry: unknown) => {
         const kind = entry && typeof entry === 'object' && Object.hasOwn(entry, 'kind') ?
           (entry as { kind: unknown }).kind : undefined
-        if (kind !== 'price' && kind !== 'time' && kind !== 'ray' && kind !== 'trend')
+        const coordinateFields = {
+          price: ['ticks'], time: ['time'], ray: ['start'], trend: ['start', 'end'],
+          rectangle: ['start', 'end'], channel: ['start', 'end', 'offsetTicks'],
+        }
+        if (typeof kind !== 'string' || !Object.hasOwn(coordinateFields, kind))
           throw Error('Invalid chart annotation type.')
-        const extraFields = kind === 'trend' ? ['start', 'end'] :
-          [kind === 'ray' ? 'start' : kind === 'price' ? 'ticks' : 'time']
-        fields(entry, ['id', 'kind', ...extraFields], 'chart annotation')
+        const type = kind as keyof typeof coordinateFields
+        fields(entry, ['id', 'kind', ...coordinateFields[type]], 'chart annotation')
         const { id } = entry
         if (typeof id !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id) ||
             annotationIds.has(id))
           throw Error('Invalid chart annotation ID.')
         annotationIds.add(id)
-        if (kind === 'price') {
-          if (!validAnnotationAnchor(kind, entry.ticks)) throw Error('Invalid chart annotation price.')
-          return { id, kind, ticks: entry.ticks }
+        if (type === 'price') {
+          if (!validAnnotationAnchor(type, entry.ticks)) throw Error('Invalid chart annotation price.')
+          return { id, kind: type, ticks: entry.ticks }
         }
-        if (kind === 'time') {
-          if (!validAnnotationAnchor(kind, entry.time)) throw Error('Invalid chart annotation time.')
-          return { id, kind, time: entry.time }
+        if (type === 'time') {
+          if (!validAnnotationAnchor(type, entry.time)) throw Error('Invalid chart annotation time.')
+          return { id, kind: type, time: entry.time }
         }
         const start = annotationEndpoint(entry.start)
-        if (kind === 'ray') return { id, kind, start }
+        if (type === 'ray') return { id, kind: type, start }
         const end = annotationEndpoint(entry.end)
-        if (sameEndpoint(start, end)) throw Error('A trend line must have two different points.')
-        return { id, kind, start, end }
+        if (type === 'channel') {
+          if (!validAnnotationAnchor('price', entry.offsetTicks)) throw Error('Invalid channel offset.')
+          const channel = { id, kind: type, start, end, offsetTicks: entry.offsetTicks }
+          validateAnnotationGeometry(channel)
+          return channel
+        }
+        const annotation = { id, kind: type, start, end }
+        validateAnnotationGeometry(annotation)
+        return annotation
       })]
     }))
   }

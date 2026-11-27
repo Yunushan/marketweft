@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.128.0 · Rectangles and parallel channels
+
+| Check | Evidence |
+| --- | --- |
+| Browser chart | Chromium verifies reversed rectangle corners, an interpolated UTC channel endpoint, the same signed shift on both edges, and validation of zero height and zero offset. |
+| Workspace backup | Chromium verifies exact version 33 prices, times and channel offset, version 31 restore, reload, and rejection of shifted prices beyond the chart bounds. |
+
+[Rectangles and parallel channels](chart-workspace.md#rectangles-and-parallel-channels) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.127.0 · Horizontal rays and trend lines
 
 | Check | Evidence |
