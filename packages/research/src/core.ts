@@ -436,6 +436,11 @@ export interface Heatmap extends WeightTotals {
   groups: SectorGroup[];
 }
 
+export interface HeatmapComparison {
+  before: Heatmap;
+  after: Heatmap;
+}
+
 export interface FinancialIssuer {
   id: string;
   suggestedAt: number;
@@ -995,6 +1000,8 @@ export interface MarketCore {
     query: JointScenarioQuery): JointScenarioReport;
   sectorHeatmap(membership: string, prices: string, sectors: string, baselineAt: string,
     effectiveAt: string, knownAt: string): Heatmap;
+  compareSectorHeatmaps(membership: string, prices: string, sectors: string, baselineAt: string,
+    before: ScreenCutoff, after: ScreenCutoff): HeatmapComparison;
   financialIndex(filings: string, caps: string): FinancialIssuer[];
   financialAsOf(filings: string, caps: string, issuer: string, at: string, known: string): Valuation;
   financialSnapshot(filings: string, caps: string, issuer: string, at: string, known: string): FinancialSnapshot;
@@ -1104,6 +1111,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_listing_risk(membershipBytes: number, intervalSeconds: number, windowPeriods: number, volatilityPeriods: number): number;
   mw_portfolio_scenarios(membershipBytes: number): number;
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
+  mw_compare_sector_heatmaps(membershipBytes: number, priceBytes: number): number;
   mw_financial_index(filingBytes: number): number;
   mw_financial_as_of(filingBytes: number): number;
   mw_financial_snapshot(filingBytes: number): number;
@@ -1435,6 +1443,36 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       throw new Error('Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
     }
     textInput([...times, files.join('')].join('\n'));
+  }
+
+  function decodeHeatmap(text: string): Heatmap {
+    const optionalInt = (value: string) => value === '' ? null : Number(value);
+    const optionalBigInt = (value: string) => value === '' ? null : BigInt(value);
+    const [summary, ...lines] = text.replace(/\n$/, '').split('\n');
+    const [kind, knownWeight, coveredWeight, net] = summary.split('\t');
+    if (kind !== 'H') throw new Error('Invalid heatmap summary from the calculation engine.');
+    const map: Heatmap = {
+      knownWeight: Number(knownWeight), coveredWeight: Number(coveredWeight),
+      contribution: optionalBigInt(net), groups: [],
+    };
+    for (const line of lines) {
+      const [type, ...fields] = line.split('\t');
+      if (type === 'S') {
+        const [sector, known, covered, weightedReturn, contribution] = fields;
+        map.groups.push({ sector: sector || null, knownWeight: Number(known),
+          coveredWeight: Number(covered), weightedReturn: optionalBigInt(weightedReturn),
+          contribution: optionalBigInt(contribution), listings: [] });
+      } else {
+        const group = map.groups.at(-1);
+        if (type !== 'L' || !group) throw new Error('Invalid heatmap record from the calculation engine.');
+        const [listingId, instrument, rank, change, weight, effective, observed, contribution] = fields;
+        group.listings.push({ listingId, instrument, rank: optionalInt(rank),
+          returnUnits: optionalBigInt(change), weight: optionalInt(weight),
+          effectiveAt: optionalInt(effective), observedAt: optionalInt(observed),
+          contribution: optionalBigInt(contribution) });
+      }
+    }
+    return map;
   }
 
   function validListingId(id: string) {
@@ -2439,32 +2477,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const text = decoder.decode(output(api.mw_sector_heatmap(
         encoder.encode(membership).length, encoder.encode(prices).length,
       )));
-      const optionalInt = (value: string) => value === '' ? null : Number(value);
-      const optionalBigInt = (value: string) => value === '' ? null : BigInt(value);
-      const [summary, ...lines] = text.slice(0, -1).split('\n');
-      const [, knownWeight, coveredWeight, net] = summary.split('\t');
-      const map: Heatmap = {
-        knownWeight: Number(knownWeight), coveredWeight: Number(coveredWeight),
-        contribution: optionalBigInt(net), groups: [],
-      };
-      for (const line of lines) {
-        const [type, ...fields] = line.split('\t');
-        if (type === 'S') {
-          const [sector, known, covered, weightedReturn, contribution] = fields;
-          map.groups.push({ sector: sector || null, knownWeight: Number(known),
-            coveredWeight: Number(covered), weightedReturn: optionalBigInt(weightedReturn),
-            contribution: optionalBigInt(contribution), listings: [] });
-        } else {
-          const group = map.groups.at(-1);
-          if (type !== 'L' || !group) throw new Error('Invalid heatmap record from the calculation engine.');
-          const [listingId, instrument, rank, change, weight, effective, observed, contribution] = fields;
-          group.listings.push({ listingId, instrument, rank: optionalInt(rank),
-            returnUnits: optionalBigInt(change), weight: optionalInt(weight),
-            effectiveAt: optionalInt(effective), observedAt: optionalInt(observed),
-            contribution: optionalBigInt(contribution) });
-        }
-      }
-      return map;
+      return decodeHeatmap(text);
+    },
+    compareSectorHeatmaps(membership, prices, sectors, baselineAt, before, after) {
+      screenInput([baselineAt, before.effective, before.known, after.effective, after.known], membership, prices, sectors);
+      const text = decoder.decode(output(api.mw_compare_sector_heatmaps(
+        encoder.encode(membership).length, encoder.encode(prices).length,
+      )));
+      const [left, right] = text.split('\n\n');
+      if (right === undefined) throw new Error('Incomplete sector comparison from the calculation engine.');
+      return { before: decodeHeatmap(left), after: decodeHeatmap(right) };
     },
     financialIndex(filings, caps) {
       textInput(filings + caps);

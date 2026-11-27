@@ -89,3 +89,57 @@ test('sector CSV rejects foreign membership and leaves the current heatmap and c
   await page.getByRole('button', { name: 'Return to workspace' }).click()
   expect(await catalogContents(page)).toEqual(catalog)
 })
+
+test('offline sector comparison retains exact weight and return revisions across two cutoffs', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+  const map = await start(page)
+  const metadata = await readFile(new URL(
+    '../../../crates/core/tests/fixtures/synthetic-universe-sectors.csv', import.meta.url,
+  ), 'utf8')
+  await map.getByLabel('Sector and weight CSV').setInputFiles({
+    name: 'revised-sectors.csv', mimeType: 'text/csv',
+    buffer: Buffer.from(metadata.replace('Technology,0.4', 'Technology,0.25')),
+  })
+  await map.getByRole('button', { name: 'Load sectors', exact: true }).click()
+  await map.getByText('Compare sector heatmaps at two cutoffs', { exact: true }).click()
+  const comparison = map.locator('.sector-comparison')
+  const cutoffs = async (beforeEffective, beforeKnown, afterEffective, afterKnown) => {
+    await comparison.getByLabel('Before effective (UTC)').fill(utc(beforeEffective))
+    await comparison.getByLabel('Before known (UTC)').fill(utc(beforeKnown))
+    await comparison.getByLabel('After effective (UTC)').fill(utc(afterEffective))
+    await comparison.getByLabel('After known (UTC)').fill(utc(afterKnown))
+    await comparison.getByRole('button', { name: 'Compare sectors' }).click()
+  }
+  await cutoffs('14:10:00', '14:10:00', '14:10:00', '14:16:00')
+  const sectors = comparison.getByRole('table', { name: 'Sector heatmap comparison' })
+  const total = sectors.getByRole('row', { name: /Universe total/ }).getByRole('cell')
+  await expect(total.nth(0)).toContainText('60% of 100% covered')
+  await expect(total.nth(1)).toContainText('85% of 85% covered')
+  await expect(total.nth(1)).toContainText('Contribution 1.7059%')
+  const financials = sectors.getByRole('row', { name: /Financials/ }).getByRole('cell')
+  await expect(financials.nth(0)).toContainText('0% of 40% covered')
+  await expect(financials.nth(1)).toHaveText('No members')
+
+  await comparison.getByText('Listing evidence', { exact: true }).click()
+  const evidence = comparison.getByRole('table', { name: 'Sector classification comparison' })
+  const beta = evidence.getByRole('row', { name: /BETA-001/ }).getByRole('cell')
+  await expect(beta.nth(1)).toContainText('Weight 40% · Return —')
+  await expect(beta.nth(2)).toContainText('Weight 25% · Return 1%')
+  await expect(beta.nth(2)).toContainText('Known ' + utc('14:16:00'))
+  await comparison.getByLabel('After known (UTC)').fill('invalid')
+  await comparison.getByRole('button', { name: 'Compare sectors' }).click()
+  await expect(comparison.getByRole('alert')).toContainText('UTC timestamps')
+  await expect(total.nth(1)).toContainText('85% of 85% covered')
+
+  await cutoffs('14:10:00', '14:12:00', '14:45:00', '14:45:00')
+  await expect(beta.nth(2)).toHaveText('Out of universe')
+  const replacement = evidence.getByRole('row', { name: /BETA-002/ }).getByRole('cell')
+  await expect(replacement.nth(1)).toHaveText('Out of universe')
+  await expect(replacement.nth(2)).toContainText('Unclassified')
+  await expect(replacement.nth(2)).toContainText('Weight — · Return —')
+  await page.setViewportSize({ width: 360, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360)
+})

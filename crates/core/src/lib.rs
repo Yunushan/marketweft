@@ -172,7 +172,7 @@ pub use screen::{
     ScenarioAllocation, ScenarioCoverage, ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
     ScreenRow,
 };
-pub use sector::{Classification, Heatmap, HeatmapListing, SectorGroup};
+pub use sector::{Classification, Heatmap, HeatmapComparison, HeatmapListing, SectorGroup};
 pub use stochastic::{stochastic_oscillator, StochasticValue};
 pub use tick_bars::{
     FlowVolume, FootprintBar, FootprintLevel, PriceProfile, ProfileArea, ProfileLevel, TickBar,

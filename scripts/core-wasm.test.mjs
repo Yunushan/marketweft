@@ -991,6 +991,27 @@ test('sector heatmap Wasm bridge groups the screen and preserves weighted covera
   assert.equal(relisted.listings[0].weight, null);
 });
 
+test('sector comparison Wasm bridge preserves both heatmaps and empty snapshots', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-universe' + name + '.csv', import.meta.url), 'utf8');
+  const [members, prices, sectors] = await Promise.all([fixture(''), fixture('-prices'), fixture('-sectors')]);
+  const metadata = sectors.replace('Technology,0.4', 'Technology,0.25');
+  const iso = t => '2025-06-02T' + t + 'Z';
+  const baseline = iso('14:00:00');
+  const makeCutoff = (effective, known) => ({ effective: iso(effective), known: iso(known) });
+  const before = makeCutoff('14:10:00', '14:10:00');
+  const after = makeCutoff('14:10:00', '14:16:00');
+  const compare = (left, right) => core.compareSectorHeatmaps(members, prices, metadata, baseline, left, right);
+  const single = ({ effective, known }) => core.sectorHeatmap(members, prices, metadata, baseline, effective, known);
+  const result = compare(before, after);
+  assert.deepEqual(result, { before: single(before), after: single(after) });
+  assert.equal(result.before.groups[1].listings[0].returnUnits, null);
+  assert.deepEqual([result.after.knownWeight, result.after.coveredWeight, result.after.contribution], [850000, 850000, 17059n]);
+  const empty = makeCutoff('14:35:00', '14:35:00');
+  const relisted = makeCutoff('14:45:00', '14:45:00');
+  assert.deepEqual(compare(empty, relisted), { before: single(empty), after: single(relisted) });
+  assert.equal(compare(empty, relisted).after.groups[0].listings[0].listingId, 'BETA-002');
+});
+
 test('screen Wasm bridge retains missing ends, revisions and precise rank units', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-universe' + name + '.csv', import.meta.url), 'utf8');
   const [membership, prices] = await Promise.all([fixture(''), fixture('-prices')]);

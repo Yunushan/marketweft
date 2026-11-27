@@ -1,7 +1,7 @@
 use crate::{
     history::{decimal, exact_utc},
     screen::rounded_div,
-    PriceBook, ScreenRow, UniverseBook, SCALE,
+    PriceBook, ScreenCutoff, ScreenRow, UniverseBook, SCALE,
 };
 use std::collections::BTreeMap;
 
@@ -44,6 +44,12 @@ pub struct Heatmap<'a> {
     pub known_weight: i64,
     pub covered_weight: i64,
     pub contribution: Option<i128>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HeatmapComparison<'a> {
+    pub before: Heatmap<'a>,
+    pub after: Heatmap<'a>,
 }
 
 // Revisions share an effective time and are stored in ascending observation order.
@@ -149,6 +155,31 @@ impl<'a> PriceBook<'a> {
         known_at: i64,
     ) -> Result<Heatmap<'a>, String> {
         let reports = parse(self.universe, metadata)?;
+        self.heatmap_at(&reports, baseline_at, effective_at, known_at)
+    }
+
+    /// Compare two snapshots of the same classified universe under independent cutoffs.
+    pub fn compare_heatmaps(
+        &self,
+        metadata: &str,
+        baseline_at: i64,
+        before: ScreenCutoff,
+        after: ScreenCutoff,
+    ) -> Result<HeatmapComparison<'a>, String> {
+        let reports = parse(self.universe, metadata)?;
+        Ok(HeatmapComparison {
+            before: self.heatmap_at(&reports, baseline_at, before.effective_at, before.known_at)?,
+            after: self.heatmap_at(&reports, baseline_at, after.effective_at, after.known_at)?,
+        })
+    }
+
+    fn heatmap_at(
+        &self,
+        reports: &Classifications,
+        baseline_at: i64,
+        effective_at: i64,
+        known_at: i64,
+    ) -> Result<Heatmap<'a>, String> {
         let listings: Vec<_> = self
             .screen(baseline_at, effective_at, known_at)?
             .into_iter()

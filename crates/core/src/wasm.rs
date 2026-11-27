@@ -1107,58 +1107,99 @@ fn screen_times<const N: usize>(input: &[u8]) -> Result<([i64; N], &str), String
 
 #[no_mangle]
 pub extern "C" fn mw_sector_heatmap(membership_bytes: usize, price_bytes: usize) -> u32 {
-    use std::fmt::Write;
     process(|input| {
         let ([baseline_at, effective_at, known_at], csvs) = screen_inputs(input)?;
-        let (membership, rest) = csvs
-            .split_at_checked(membership_bytes)
-            .ok_or("Supply membership, price and sector reports.")?;
-        let (closes, metadata) = rest
-            .split_at_checked(price_bytes)
-            .ok_or("Supply both price and sector reports.")?;
+        let (membership, closes, metadata) = heatmap_sources(csvs, membership_bytes, price_bytes)?;
         let universe = parse_universe(membership)?;
         let prices = PriceBook::parse(&universe, closes)?;
         let map = prices.heatmap(metadata, baseline_at, effective_at, known_at)?;
         let mut text = String::new();
-        writeln!(
-            &mut text,
-            "H\t{}\t{}\t{}",
-            map.known_weight,
-            map.covered_weight,
-            optional_number(map.contribution)
-        )
-        .unwrap();
-        for group in map.groups {
-            writeln!(
-                &mut text,
-                "S\t{}\t{}\t{}\t{}\t{}",
-                group.sector.as_deref().unwrap_or_default(),
-                group.known_weight,
-                group.covered_weight,
-                optional_number(group.weighted_return),
-                optional_number(group.contribution)
-            )
-            .unwrap();
-            for listing in group.listings {
-                let rank = listing.ranking;
-                let report = listing.classification.as_ref();
-                writeln!(
-                    &mut text,
-                    "L\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                    rank.listing.listing_id,
-                    rank.listing.instrument,
-                    optional_number(rank.rank),
-                    optional_number(rank.return_units),
-                    optional_number(report.and_then(|r| r.weight)),
-                    optional_number(report.map(|r| r.effective_at)),
-                    optional_number(report.map(|r| r.observed_at)),
-                    optional_number(listing.contribution)
-                )
-                .unwrap();
-            }
-        }
+        append_heatmap(&mut text, map);
         Ok(text.into_bytes())
     })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_compare_sector_heatmaps(membership_bytes: usize, price_bytes: usize) -> u32 {
+    process(|input| {
+        let ([baseline, before_effective, before_known, after_effective, after_known], csvs) =
+            screen_times(input)?;
+        let (membership, closes, metadata) = heatmap_sources(csvs, membership_bytes, price_bytes)?;
+        let universe = parse_universe(membership)?;
+        let prices = PriceBook::parse(&universe, closes)?;
+        let maps = prices.compare_heatmaps(
+            metadata,
+            baseline,
+            crate::ScreenCutoff {
+                effective_at: before_effective,
+                known_at: before_known,
+            },
+            crate::ScreenCutoff {
+                effective_at: after_effective,
+                known_at: after_known,
+            },
+        )?;
+        let mut text = String::new();
+        append_heatmap(&mut text, maps.before);
+        text.push('\n');
+        append_heatmap(&mut text, maps.after);
+        Ok(text.into_bytes())
+    })
+}
+
+fn heatmap_sources(
+    csvs: &str,
+    membership_bytes: usize,
+    price_bytes: usize,
+) -> Result<(&str, &str, &str), String> {
+    let (membership, rest) = csvs
+        .split_at_checked(membership_bytes)
+        .ok_or("Supply membership, price and sector reports.")?;
+    let (closes, metadata) = rest
+        .split_at_checked(price_bytes)
+        .ok_or("Supply both price and sector reports.")?;
+    Ok((membership, closes, metadata))
+}
+
+fn append_heatmap(text: &mut String, map: crate::Heatmap<'_>) {
+    use std::fmt::Write;
+    writeln!(
+        text,
+        "H\t{}\t{}\t{}",
+        map.known_weight,
+        map.covered_weight,
+        optional_number(map.contribution)
+    )
+    .unwrap();
+    for group in map.groups {
+        writeln!(
+            text,
+            "S\t{}\t{}\t{}\t{}\t{}",
+            group.sector.as_deref().unwrap_or_default(),
+            group.known_weight,
+            group.covered_weight,
+            optional_number(group.weighted_return),
+            optional_number(group.contribution)
+        )
+        .unwrap();
+        for listing in group.listings {
+            let rank = listing.ranking;
+            let report = listing.classification.as_ref();
+            writeln!(
+                text,
+                "L\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                rank.listing.listing_id,
+                rank.listing.instrument,
+                optional_number(rank.rank),
+                optional_number(rank.return_units),
+                optional_number(report.and_then(|r| r.weight)),
+                optional_number(report.map(|r| r.effective_at)),
+                optional_number(report.map(|r| r.observed_at)),
+                optional_number(listing.contribution)
+            )
+            .unwrap();
+        }
+    }
 }
 
 fn optional_number(value: Option<impl ToString>) -> String {

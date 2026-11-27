@@ -332,7 +332,8 @@ main {
   flex-wrap: wrap;
   gap: 12px;
 }
-.rank-comparison fieldset {
+.rank-comparison fieldset,
+.sector-comparison fieldset {
   flex: 1 1 13.75rem;
   min-inline-size: 0;
 }

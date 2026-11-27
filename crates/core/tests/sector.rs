@@ -1,4 +1,4 @@
-use marketweft_core::{parse_universe, PriceBook};
+use marketweft_core::{parse_universe, PriceBook, ScreenCutoff};
 
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-universe.csv");
 const PRICES: &str = include_str!("fixtures/synthetic-universe-prices.csv");
@@ -132,4 +132,60 @@ fn metadata_validates_id_time_weight_duplicates_and_zero() {
     assert_eq!(zero.groups[0].weighted_return, None);
     assert_eq!(zero.groups[0].contribution, None);
     assert_eq!(run(HEADER).unwrap().groups[0].sector, None);
+}
+
+#[test]
+fn comparison_reconciles_independent_classification_weight_and_price_revisions() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let book = PriceBook::parse(&universe, PRICES).unwrap();
+    let baseline = universe.checkpoints()[0];
+    let metadata = SECTORS.replace("Technology,0.4", "Technology,0.25");
+    let cutoff = |effective, known| ScreenCutoff {
+        effective_at: baseline + effective,
+        known_at: baseline + known,
+    };
+    let before = cutoff(600, 600);
+    let after = cutoff(600, 960);
+    let comparison = book
+        .compare_heatmaps(&metadata, baseline, before, after)
+        .unwrap();
+    assert_eq!(
+        comparison.before,
+        book.heatmap(&metadata, baseline, before.effective_at, before.known_at)
+            .unwrap()
+    );
+    assert_eq!(
+        comparison.after,
+        book.heatmap(&metadata, baseline, after.effective_at, after.known_at)
+            .unwrap()
+    );
+    assert_eq!(
+        (
+            comparison.before.known_weight,
+            comparison.before.covered_weight
+        ),
+        (1_000_000, 600_000)
+    );
+    assert_eq!(
+        (
+            comparison.after.known_weight,
+            comparison.after.covered_weight
+        ),
+        (850_000, 850_000)
+    );
+    assert_eq!(comparison.after.contribution, Some(17_059));
+    let early = &comparison.before.groups[1];
+    let revised = &comparison.after.groups[0];
+    assert_eq!(early.sector.as_deref(), Some("Financials"));
+    assert_eq!(early.listings[0].ranking.current, None);
+    assert_eq!(revised.sector.as_deref(), Some("Technology"));
+    assert_eq!(revised.listings[1].ranking.listing.listing_id, "BETA-001");
+    assert_eq!(revised.listings[1].ranking.return_units, Some(10_000));
+    assert_eq!(
+        revised.listings[1].classification.as_ref().unwrap().weight,
+        Some(250_000)
+    );
+    assert!(book
+        .compare_heatmaps(&metadata, baseline, before, cutoff(-1, 960))
+        .is_err());
 }

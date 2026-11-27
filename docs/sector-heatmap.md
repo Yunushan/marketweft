@@ -35,3 +35,11 @@ For each listing, select the latest effective report at or before the target tha
 | 14:50 | 14:50 | ALFA has moved to Industrials. The now-classified new BETA remains missing its weight. |
 
 Times are UTC on June 2, 2025. Rewind to restore earlier classifications, prices and coverage. [Architecture decision](adr/0008-sector-attribution.md).
+
+## Compare heatmaps at two cutoffs
+
+Load sector and weight reports, then open **Compare sector heatmaps at two cutoffs**. Enter an effective and known UTC time for each side, or copy the current replay cutoffs. Both sides share the screen baseline. The table shows covered and known weight, weighted return and contribution for each sector, including sectors that appear on only one side.
+
+Open **Listing evidence** to see the sector, reported weight, price return and classification timestamps for each side. The comparison joins listings by their stable IDs. A reused ticker appears under separate listing IDs. A missing classification appears as Unclassified, and a missing weight or return appears as a dash. Select **Compare sectors** again after changing an input file or the baseline.
+
+For the demo, hold both effective times at 14:10 UTC on June 2, 2025. Compare a known time of 14:10 to 14:16. The first snapshot covers 60% of known weight, with BETA in Financials and a missing target close. The second has full coverage and places BETA in Technology after the revised classification and price become known. Technology’s revised weighted return is 1.6%.

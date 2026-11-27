@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.156.0 · Point-in-time sector heatmap comparison
+
+| Check | Evidence |
+| --- | --- |
+| Rust and Wasm | Comparison fixtures check parity with both standalone heatmaps, exact coverage and contribution after revisions, an empty snapshot and a relisted ID. |
+| Chromium | Offline replay verifies missing returns, changed classifications and weights, report timestamps, a preserved result after invalid input, ticker reuse and the phone-width layout. |
+
+[Sector heatmap comparison](sector-heatmap.md#compare-heatmaps-at-two-cutoffs) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.155.0 · gRPC rank comparison
 
 | Check | Evidence |

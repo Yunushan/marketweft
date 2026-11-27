@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react'
 import type { MarketCore, SectorGroup } from './market-core'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
+import { SectorHeatmapComparison } from './SectorHeatmapComparison'
 import demoSectors from '../../../crates/core/tests/fixtures/synthetic-universe-sectors.csv?raw'
 
 function percent(units: bigint | number | null, missing = 'Missing'): string {
@@ -133,6 +134,8 @@ export function SectorHeatmap({ core, membership, prices, baseline, effective, k
         </label>
         <button className="outline" disabled={!file || busy}>Load sectors</button>
       </form>
+      {metadata && <SectorHeatmapComparison core={core} membership={membership} prices={prices}
+        metadata={metadata.csv} baseline={baseline} effective={effective} known={known} />}
       {(result?.error || error) && <p className="warning" role="alert">{result?.error || error}</p>}
       {map && (
         <>
