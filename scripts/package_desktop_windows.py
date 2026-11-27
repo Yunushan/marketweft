@@ -27,7 +27,7 @@ def write_payload_macros(staging):
     for directory in directories:
         destination = "$INSTDIR" if directory == Path(".") else "$INSTDIR\\" + directory.as_posix().replace("/", "\\")
         script.append(f'  SetOutPath "{destination}"')
-        script.extend(f'  File "payload/{path.as_posix()}"' for path in paths if path.parent == directory)
+        script.extend(f'  File "{Path("payload") / path}"' for path in paths if path.parent == directory)
     script.extend(("!macroend", "", "!macro RemovePayload"))
     for path in paths:
         destination = path.as_posix().replace("/", "\\")
@@ -76,7 +76,7 @@ def build(binary, output, compiler):
     with tempfile.TemporaryDirectory(prefix="marketweft-nsis-") as temporary:
         staging = Path(temporary)
         stage(binary, staging, revision)
-        subprocess.run([compiler, f"{option}V2", f"{option}WX", f"{option}DMARKETWEFT_VERSION={version}",
+        subprocess.run([compiler, f"{option}NOCD", f"{option}V2", f"{option}WX", f"{option}DMARKETWEFT_VERSION={version}",
                         "installer.nsi"], cwd=staging, check=True)
         shutil.copyfile(staging / "marketweft-desktop-x64.exe", destination)
     with destination.open("rb") as file:
