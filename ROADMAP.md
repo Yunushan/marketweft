@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.157.0 adds editable three-anchor Fibonacci price extensions. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.158.0 adds editable Fibonacci time zones with exact UTC intervals. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Delivered · 0.158.0 | Fibonacci time zones (MW-014) | Verify exact elapsed UTC through irregular history, year bounds, independent pane navigation and version 51 restoration. [Fibonacci time zones](docs/chart-workspace.md#fibonacci-time-zones). |
 | Delivered · 0.157.0 | Fibonacci price extensions (MW-014) | Verify exact signed prices at three anchors, upward and downward extensions, independent pane navigation and version 50 restoration. [Fibonacci price extensions](docs/chart-workspace.md#fibonacci-price-extensions). |
 | Delivered · 0.156.0 | Point-in-time sector heatmap comparison (MW-018) | Verify independent classification, weight and price revisions, coverage, empty groups and stable listing IDs after reuse. [Sector heatmap comparison](docs/sector-heatmap.md#compare-heatmaps-at-two-cutoffs). |
 | Delivered · 0.155.0 | gRPC rank comparison (MW-018, MW-028) | Verify screen scope, Protobuf field presence, values above int64, REST parity and managed TLS access. [gRPC rank comparison](docs/local-rest-research.md#rank-comparisons-over-grpc). |
@@ -171,5 +172,5 @@
 
 ## Handoff for the next change
 
-Add Fibonacci time zones to the chart workspace. Verify exact UTC projection intervals, input bounds, pane navigation and backup restoration.
+Verify the native desktop on Linux ARM64. Use an ARM64 runner to build and launch the Tauri application, exercise the same local import smoke test as x64, and record the supported platform scope.
 

@@ -162,6 +162,12 @@ Each horizontal ray starts at the projection anchor. Its price is the anchor pri
 
 Workspace backup version 50 retains the exact UTC seconds and signed prices of the three anchors. [Backup format](workspace-backup.md).
 
+## Fibonacci time zones
+
+Choose **New Fibonacci time zones** and enter or pick two increasing UTC times. The difference between the anchors sets the base interval in seconds. From the first anchor, the drawing projects vertical lines at 0, 1, 2, 3, 5, 8, 13, 21, 34, 55 and 89 times that interval. [Fibonacci time-zone reference](https://www.tradingview.com/support/solutions/43000518155-fib-time-zone/).
+
+The chart places lines by UTC. Between adjacent observations it interpolates their display position using the elapsed time. **Projected times** lists the exact timestamps, including projections outside the displayed history. Dates beyond year 9999 are omitted. Both editable anchors are saved per instrument in workspace backup version 51. [Backup format](workspace-backup.md).
+
 ## Ellipses and triangles
 
 Choose **New ellipse** and enter or pick two opposite corners of its bounding box. The ellipse accepts either corner first and requires different UTC times and prices.

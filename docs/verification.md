@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.158.0 · Fibonacci time zones
+
+| Check | Evidence |
+| --- | --- |
+| UTC projections and plot | Chromium verifies ordered anchors, invalid timestamps, clipping at year 9999, exact times across gaps, and vertical lines that follow chart navigation. |
+| Workspace backup | A version 51 backup retains both UTC anchors and the source history. The fixture also verifies restoration of an earlier backup and independent comparison-pane navigation. |
+
+[Fibonacci time zones](chart-workspace.md#fibonacci-time-zones) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.157.0 · Fibonacci price extensions
 
 | Check | Evidence |

@@ -22,7 +22,8 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'risk-reward'; side: RiskRewardSide; start: DrawingEndpoint; end: DrawingEndpoint; stopTicks: number } |
   { kind: 'price-range'; lower: number; upper: number } |
   { kind: 'time-range'; lower: number; upper: number } |
-  { kind: 'regression-channel'; lower: number; upper: number }
+  { kind: 'regression-channel'; lower: number; upper: number } |
+  { kind: 'fibonacci-time-zones'; lower: number; upper: number }
 )
 type TwoPointAnnotation = Extract<ChartAnnotation, { end: DrawingEndpoint }>
 export type AnnotationKind = ChartAnnotation['kind']
@@ -41,6 +42,7 @@ export const ANNOTATION_NAMES = {
   polyline: 'Polyline',
   fibonacci: 'Fibonacci retracement',
   'fibonacci-extension': 'Fibonacci price extension',
+  'fibonacci-time-zones': 'Fibonacci time zones',
   ellipse: 'Ellipse',
   triangle: 'Triangle',
   pitchfork: 'Pitchfork',
@@ -66,6 +68,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'price-range':
     case 'time-range':
     case 'regression-channel':
+    case 'fibonacci-time-zones':
       return second.kind === first.kind && first.lower === second.lower && first.upper === second.upper
     case 'trend':
     case 'rectangle':
@@ -121,7 +124,11 @@ export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void
   }
 }
 
-type RangeKind = 'price-range' | 'time-range' | 'regression-channel'
+type RangeKind = Extract<ChartAnnotation, { lower: number }>['kind']
+
+export function hasRange(kind: AnnotationKind): kind is RangeKind {
+  return kind === 'price-range' || kind === 'time-range' || kind === 'regression-channel' || kind === 'fibonacci-time-zones'
+}
 
 export function rangeCoordinate(kind: RangeKind): AnnotationCoordinate {
   return kind === 'price-range' ? 'price' : 'time'
@@ -129,8 +136,10 @@ export function rangeCoordinate(kind: RangeKind): AnnotationCoordinate {
 
 export function rangeBounds(kind: RangeKind, lower: unknown, upper: unknown) {
   const coordinate = rangeCoordinate(kind)
-  if (!validAnnotationAnchor(coordinate, lower) || !validAnnotationAnchor(coordinate, upper) || lower >= upper)
+  if (!validAnnotationAnchor(coordinate, lower) || !validAnnotationAnchor(coordinate, upper) || lower >= upper) {
+    if (kind === 'fibonacci-time-zones') throw Error('The second Fibonacci time must follow the first.')
     throw Error('A ' + ANNOTATION_NAMES[kind].toLowerCase() + ' needs two different ' + (coordinate === 'price' ? 'prices.' : 'UTC times.'))
+  }
   return { lower, upper }
 }
 
@@ -188,6 +197,14 @@ export function fibonacciExtensions(points: Readonly<TrianglePoints>) {
     const scaled = origin + change * ratio
     return { ticks: (scaled + (scaled < 0n ? -500n : 500n)) / 1000n, label }
   })
+}
+
+const TIME_ZONE_MULTIPLIERS = [0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89] as const
+
+export function fibonacciTimeZones(start: number, end: number) {
+  const interval = end - start
+  return TIME_ZONE_MULTIPLIERS.map(multiplier => ({ multiplier, time: start + multiplier * interval }))
+    .filter(({ time }) => validAnnotationAnchor('time', time))
 }
 
 export function formatAnnotationAnchor(kind: AnnotationCoordinate, anchor: number): string {

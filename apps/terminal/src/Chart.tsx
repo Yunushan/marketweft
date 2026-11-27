@@ -4,7 +4,7 @@ import { Icon } from './Icons'
 import { fixed, MAX_CHART_PRICE_TICKS, tickPrice } from './fixed-point'
 import { ChartAnnotations } from './ChartAnnotations'
 import type { AnnotationPicker } from './ChartAnnotations'
-import { EMPTY_ANNOTATIONS, fibonacciExtensions, fibonacciRetracements, formatAnnotationAnchor, markerColumn } from './chart-annotations'
+import { EMPTY_ANNOTATIONS, fibonacciExtensions, fibonacciRetracements, fibonacciTimeZones, formatAnnotationAnchor, markerColumn } from './chart-annotations'
 import type { ChartAnnotation, TimeColumn } from './chart-annotations'
 import { isPriceStudy, studyOverlays, STUDIES } from './studies'
 import type { PanelLine, PanelStudy, StudyValue, StudyValues } from './studies'
@@ -683,6 +683,15 @@ function draw(
         if (column === null || column < start - 0.5 || column > view.end - 0.5) continue
         const axis = x(column)
         line(axis, top, axis, priceBottom, '#ad9df5')
+      } else if (annotation.kind === 'fibonacci-time-zones') {
+        ctx.fillStyle = '#829bd6'
+        for (const { multiplier, time } of fibonacciTimeZones(annotation.lower, annotation.upper)) {
+          const column = markerColumn(markerTimeline, time)
+          if (column === null || column < start - 0.5 || column > view.end - 0.5) continue
+          const axis = x(column)
+          line(axis, top, axis, priceBottom, '#829bd6')
+          ctx.fillText(String(multiplier), Math.min(axis + 3, right - 15), top + 10)
+        }
       } else if (annotation.kind === 'price-range') {
         const upper = y(annotation.upper / 1e6)
         const lower = y(annotation.lower / 1e6)

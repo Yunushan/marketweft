@@ -1,7 +1,7 @@
 import { fixed } from './fixed-point'
 import { useState } from 'react'
 import {
-  ANNOTATION_NAMES, fibonacciExtensions, formatAnnotationAnchor, hasPointList, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
+  ANNOTATION_NAMES, fibonacciExtensions, fibonacciTimeZones, formatAnnotationAnchor, hasPointList, hasRange, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint, MarketCore, RiskRewardMeasurement, RiskRewardSide } from './market-core'
@@ -40,10 +40,11 @@ function draftAnnotation(draft: Draft, id: string, core: MarketCore): ChartAnnot
     validatePolyline(anchors)
     return { id, kind, points: anchors }
   }
-  if (kind === 'price-range' || kind === 'time-range' || kind === 'regression-channel') {
+  if (hasRange(kind)) {
     const coordinate = rangeCoordinate(kind)
     const [first, last] = points.map(point => parseAnnotationAnchor(coordinate, point[coordinate]))
-    return { id, kind, ...rangeBounds(kind, Math.min(first, last), Math.max(first, last)) }
+    const [lower, upper] = kind === 'fibonacci-time-zones' ? [first, last] : [Math.min(first, last), Math.max(first, last)]
+    return { id, kind, ...rangeBounds(kind, lower, upper) }
   }
   const start = pointValue(points[0])
   if (kind === 'ray') return { id, kind, start }
@@ -79,7 +80,8 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'anchored-vwap': return name + formatAnnotationAnchor('time', entry.time)
     case 'price-range':
     case 'time-range':
-    case 'regression-channel': {
+    case 'regression-channel':
+    case 'fibonacci-time-zones': {
       const coordinate = rangeCoordinate(entry.kind)
       return name + formatAnnotationAnchor(coordinate, entry.lower) + ' to ' + formatAnnotationAnchor(coordinate, entry.upper)
     }
@@ -135,20 +137,20 @@ export function ChartAnnotations({
     setError('')
     const points = hasPointList(kind) ?
       (original && 'points' in original ? original.points : [defaults.prior, defaults.start, defaults.end]).map(pointFields) :
-      hasTwoPoints(kind) || kind === 'price-range' || kind === 'time-range' || kind === 'regression-channel' ?
+      hasTwoPoints(kind) || hasRange(kind) ?
         [pointFields(defaults.start), pointFields(defaults.end)] : [pointFields(defaults.end)]
     if (kind === 'risk-reward') {
       points.push({ time: points[1].time, price: original?.kind === 'risk-reward' ?
         formatAnnotationAnchor('price', original.stopTicks) : '' })
     }
     if (kind === 'anchored-vwap') points[0].time = formatAnnotationAnchor('time', sourceDefaults.end)
-    if (kind === 'regression-channel') {
+    if (kind === 'regression-channel' || kind === 'fibonacci-time-zones') {
       points[0].time = formatAnnotationAnchor('time', sourceDefaults.start)
       points[1].time = formatAnnotationAnchor('time', sourceDefaults.end)
     }
     if (original?.kind === 'price') points[0].price = formatAnnotationAnchor('price', original.ticks)
     if (original?.kind === 'time' || original?.kind === 'anchored-vwap') points[0].time = formatAnnotationAnchor('time', original.time)
-    if (original?.kind === 'price-range' || original?.kind === 'time-range' || original?.kind === 'regression-channel') {
+    if (original && hasRange(original.kind) && 'lower' in original) {
       const coordinate = rangeCoordinate(original.kind)
       points[0][coordinate] = formatAnnotationAnchor(coordinate, original.lower)
       points[1][coordinate] = formatAnnotationAnchor(coordinate, original.upper)
@@ -180,7 +182,7 @@ export function ChartAnnotations({
   function pick(point: number) {
     if (!draft || picking === point) { setPicker(null); return }
     setPicker({ point, sourceTime: draft.kind === 'anchored-vwap' || draft.kind === 'regression-channel' ||
-      draft.kind === 'fibonacci-extension', accept(anchor) {
+      draft.kind === 'fibonacci-extension' || draft.kind === 'fibonacci-time-zones', accept(anchor) {
       setError('')
       setDraft(current => current && {
         ...current, points: current.points.map((value, index) => index === point ? pointFields(anchor) : value),
@@ -198,7 +200,7 @@ export function ChartAnnotations({
   function pointEditor(point: number, current: Draft) {
     const { kind } = current
     const vertex = hasPointList(kind)
-    const range = kind === 'price-range' || kind === 'time-range' || kind === 'regression-channel'
+    const range = hasRange(kind)
     const twoPoints = range || hasTwoPoints(kind)
     const plan = kind === 'risk-reward'
     const label = plan ? ['Entry', 'Target', 'Stop'][point] :
@@ -280,6 +282,13 @@ export function ChartAnnotations({
               <span>{description}</span>
               {entry.kind === 'risk-reward' &&
                 <PlanValues value={core.measureRiskReward(entry.side, entry.start.ticks, entry.stopTicks, entry.end.ticks)} />}
+              {entry.kind === 'fibonacci-time-zones' && <details className="research-details">
+                <summary>Projected times</summary>
+                <div className="ohlc chart-overlay-values" role="group" aria-label="Fibonacci projected UTC times">
+                  {fibonacciTimeZones(entry.lower, entry.upper).map(({ multiplier, time }) =>
+                    <span key={multiplier}><small>{multiplier}×</small> {formatAnnotationAnchor('time', time)}</span>)}
+                </div>
+              </details>}
               {entry.kind === 'fibonacci-extension' && <details className="research-details">
                 <summary>Projection levels</summary>
                 <div className="ohlc chart-overlay-values" role="group" aria-label="Fibonacci extension levels">
