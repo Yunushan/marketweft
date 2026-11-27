@@ -24,6 +24,11 @@ The policy also accepts the permissive Zlib and Unicode-3.0 terms and the
 Apache-2.0 license with the LLVM exception. For dual-licensed packages select
 an approved permissive branch. Preserve the terms of each required license.
 
+The Windows installer uses the NSIS installer stub with zlib compression.
+NSIS is copyright 1999–2026 Contributors and uses the zlib/libpng license for
+these components. Upstream terms and project sources are published at
+https://nsis.sourceforge.io/License.
+
 The Ubuntu desktop package includes the linked Rust crates' notices and source
 locations in /usr/share/doc/marketweft-desktop. See cargo-sources.json for
 pinned crate archives and their checksums, including the MPL-2.0 sources.
