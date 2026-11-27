@@ -541,6 +541,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/marketweft-android"
           printf 'GRADLE_USER_HOME=%s\nANDROID_USER_HOME=%s\n' \
             "$RUNNER_TEMP/marketweft-gradle" "$RUNNER_TEMP/marketweft-android" >> "$GITHUB_ENV"
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$ANDROID_HOME/platform-tools/adb"
+          printf '%s\n' "$ANDROID_HOME/cmdline-tools/latest/bin" "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
       - run: npm ci
       - run: npm run build
       - name: Build the x86_64 MarketWeft Android test APK
@@ -551,9 +554,10 @@ jobs:
           if [[ ! -d "$NDK_HOME" ]]; then
             sdkmanager --install 'ndk;29.0.14206865'
           fi
-          if [[ ! -d "$ANDROID_HOME/platforms/android-37" || ! -x "$ANDROID_HOME/build-tools/36.0.0/apksigner" ]]; then
-            sdkmanager --install 'platforms;android-37' 'build-tools;36.0.0'
-          fi
+          test -f "$ANDROID_HOME/platforms/android-37.0/android.jar" ||
+            sdkmanager --install 'platforms;android-37.0'
+          test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner" ||
+            sdkmanager --install 'build-tools;37.0.0'
           bash scripts/build_android_terminal.sh
       - name: Verify the installed Android terminal offline
         run: bash scripts/verify_android_terminal.sh

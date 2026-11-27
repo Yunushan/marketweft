@@ -5,7 +5,7 @@ version=$(node -p 'require("./package.json").version')
 package=$(node -p 'require("./apps/desktop/tauri.conf.json").identifier')
 name="MarketWeft-android-$version-x86_64-debug.apk"
 apk="reports/$name"
-sdk_tools="$ANDROID_HOME/build-tools/36.0.0"
+sdk_tools="$ANDROID_HOME/build-tools/37.0.0"
 image='system-images;android-35;google_apis;x86_64'
 emulator="$ANDROID_HOME/emulator/emulator"
 test -c /dev/kvm
