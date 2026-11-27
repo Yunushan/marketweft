@@ -123,8 +123,14 @@ def import_csv():
             encoding="utf-8",
         )
         click(wait_for(lambda nodes: control(nodes, "push button", "Historical CSV"), "the CSV file input"))
-        wait_for(visible_file_chooser, "the native file chooser")
-        keyboard("ctrl+l")
+        chooser = wait_for(visible_file_chooser, "the native file chooser")
+        # Xvfb has no window manager to transfer keyboard focus to the GTK dialog.
+        windows = subprocess.check_output(
+            ["xdotool", "search", "--sync", "--onlyvisible", "--name", "^" + re.escape(chooser.name) + "$"],
+            text=True, timeout=8,
+        ).splitlines()
+        subprocess.run(["xdotool", "windowfocus", "--sync", windows[0]], check=True, timeout=8)
+        keyboard("ctrl+l", "ctrl+a")
         type_text(str(fixture))
         keyboard("Return")
         wait_for(lambda nodes: True if visible_file_chooser(nodes) is None else None,
