@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { sourcePermissionRestriction } from './catalog-schema'
-import type { SourceRights } from './catalog-schema'
+import type { History, SourceRights } from './catalog-schema'
 import type { Bar, CandlePatternHit, MarketCore } from './market-core'
 import { utc } from './workspace'
 import { saveAlerts } from './alert-inbox'
 import { patternAlerts, patternNames } from './pattern-alert'
+import { patternAlertSource } from './pattern-alert-export'
 
 type Pattern = CandlePatternHit['kind']
 type Delivery = { cursor: number; pattern: Pattern; message: string; failed?: boolean }
 
 export function CandlePatternReplay({
-  core, calendar, interval, series, bars, cutoff, cursor, sourceRights,
+  core, calendar, interval, series, bars, cutoff, cursor, sourceRights, sourceHistory, fixture,
 }: {
   core: MarketCore
   calendar: string
@@ -20,6 +21,8 @@ export function CandlePatternReplay({
   cutoff: number | undefined
   cursor: number
   sourceRights?: SourceRights
+  sourceHistory?: History
+  fixture: boolean
 }) {
   const [scan, setScan] = useState<{ cursor: number; hits: CandlePatternHit[]; error?: string } | null>(null)
   const [pattern, setPattern] = useState<Pattern>('doji')
@@ -30,7 +33,8 @@ export function CandlePatternReplay({
   const hasMatches = current?.hits.some(hit => hit.kind === pattern) ?? false
 
   function checkPermission(action: 'automatedUse' | 'storage') {
-    const restriction = sourcePermissionRestriction(sourceRights, action)
+    const restriction = sourcePermissionRestriction(sourceHistory?.descriptor.sourceRights, action) ??
+      sourcePermissionRestriction(sourceRights, action)
     if (restriction === 'expired') throw Error('The source grant has expired.')
     if (restriction === 'permission') throw Error(action === 'storage'
       ? 'Saving pattern evidence requires granted storage permission.'
@@ -44,7 +48,9 @@ export function CandlePatternReplay({
     try {
       checkPermission('automatedUse')
       checkPermission('storage')
-      const alerts = await patternAlerts(series, calendar, interval, bars, pattern, current.hits)
+      const provenance = fixture ? { kind: 'fixture' } as const :
+        sourceHistory ? await patternAlertSource(sourceHistory) : undefined
+      const alerts = await patternAlerts(series, calendar, interval, bars, pattern, current.hits, provenance)
       const inserted = await saveAlerts(alerts)
       setDelivery({ cursor, pattern, message: inserted + (inserted === 1 ? ' new pattern alert saved.' : ' new pattern alerts saved.') })
     } catch (cause) {

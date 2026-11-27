@@ -1,6 +1,10 @@
-import { readFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { createHash, createHmac } from 'node:crypto'
+import { createServer } from 'node:http'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { promisify } from 'node:util'
 import { expect, test } from './fixtures.mjs'
-import { catalogContents, openImport, submitImport } from './catalog-fixtures.mjs'
+import { catalogContents, downloadWorkspace, openImport, selectBackup, submitImport } from './catalog-fixtures.mjs'
 
 const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8')
 
@@ -83,7 +87,7 @@ test('a restricted source blocks pattern scans without changing imported history
   expect(await catalogContents(page)).toEqual(saved)
 })
 
-test('selected pattern alerts share the inbox with crossing alerts and deduplicate on rewind', async ({ page, context }) => {
+test('selected pattern alerts share the inbox with crossing alerts and deduplicate on rewind', async ({ page, context }, testInfo) => {
   await page.goto('/')
   await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
@@ -129,6 +133,48 @@ test('selected pattern alerts share the inbox with crossing alerts and deduplica
   await expect(bullish).toContainText('4 / 7 / 3 / 6 / 1')
   await expect(bullish).toContainText('5 / 6 / 3 / 4 / 1')
   await expect(bullish).toContainText(/[a-f0-9]{64}/)
+  const download = page.waitForEvent('download')
+  await bullish.getByRole('button', { name: 'Download webhook event' }).click()
+  const eventPath = await (await download).path()
+  const exported = JSON.parse(await readFile(eventPath, 'utf8'))
+  expect(exported.kind).toBe('candlestick')
+  expect(exported.observed_at).toBe('2026-01-12T14:02:00Z')
+  expect(exported.data.current.ticks).toEqual({
+    open: 4000000, high: 7000000, low: 3000000, close: 6000000, volume: 1000000,
+  })
+  expect(exported.data.previous.ticks.close).toBe(4000000)
+  expect(exported.id).toContain(exported.data.rule.contextDigest)
+  expect(exported.data.source).toBeUndefined()
+
+  const binary = process.env.MARKETWEFT_TEST_RESEARCH_WEBHOOK
+  if (binary) await test.step('deliver the exact browser export through the native webhook sender', async () => {
+    const requests = []
+    const server = createServer(async (request, response) => {
+      const chunks = []
+      for await (const chunk of request) chunks.push(chunk)
+      requests.push({ headers: request.headers, body: Buffer.concat(chunks) })
+      response.writeHead(204).end()
+    })
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+    try {
+      await mkdir(testInfo.outputDir, { recursive: true })
+      const config = testInfo.outputPath('webhook-test-config.json')
+      const key = testInfo.outputPath('webhook-test-key.hex')
+      const receipt = testInfo.outputPath('webhook-test-receipt.json')
+      const secret = Buffer.alloc(32, 0x35)
+      await writeFile(config, JSON.stringify({ endpoint: 'http://127.0.0.1:' + server.address().port + '/alerts', key_id: 'browser-fixture' }))
+      await writeFile(key, secret.toString('hex'))
+      await promisify(execFile)(binary, ['webhook', 'deliver', config, eventPath, key, receipt], { timeout: 10_000 })
+      expect(requests).toHaveLength(1)
+      expect(JSON.parse(requests[0].body)).toEqual({ version: 1, event: exported })
+      const signature = createHmac('sha256', secret).update(requests[0].body).digest('hex')
+      expect(requests[0].headers['x-marketweft-signature']).toBe('v1=' + signature)
+      expect(requests[0].headers['idempotency-key']).toBe(exported.id)
+      expect(JSON.parse(await readFile(receipt, 'utf8')).attempts).toEqual([{ outcome: 'delivered', status: 204 }])
+    } finally {
+      await new Promise(resolve => server.close(resolve))
+    }
+  })
   await expect(saved.getByRole('row', { name: /Bearish engulfing/ })).toHaveCount(0)
   await expect(saved.getByRole('row', { name: /2026-01-13T14:02:30Z/ })).toContainText('Doji')
 
@@ -166,4 +212,131 @@ test('pattern evaluation does not grant permission to persist its raw evidence',
   await page.getByRole('button', { name: 'Change replay' }).click()
   await page.getByRole('button', { name: 'Open replay alerts' }).click()
   await expect(page.getByText('0 saved alerts', { exact: true })).toBeVisible()
+})
+
+test('webhook event export requires the recorded and current redistribution grant', async ({ page }) => {
+  const [csv, calendar] = await Promise.all([fixture('synthetic-candle-patterns'), fixture('synthetic-candle-pattern-sessions')])
+  await page.clock.setFixedTime(new Date('2099-12-31T23:59:59Z'))
+  await page.goto('/')
+  const download = page.getByRole('button', { name: 'Download webhook event' })
+  const saved = page.getByRole('table', { name: 'Saved alerts' })
+
+  async function savePattern(symbol, redistribution) {
+    await openImport(page, symbol, csv)
+    const dialog = page.getByRole('dialog')
+    await dialog.getByText('Series details', { exact: true }).click()
+    for (const name of ['Display', 'Automated use', 'Storage']) {
+      await dialog.getByRole('combobox', { name, exact: true }).selectOption('granted')
+    }
+    await dialog.getByRole('combobox', { name: 'Redistribution', exact: true }).selectOption(redistribution)
+    await dialog.getByLabel('Grant expiration in UTC').fill('2099-12-31')
+    await submitImport(page, symbol)
+    await page.getByRole('button', { name: 'Historical replay' }).click()
+    await page.getByLabel('Session calendar CSV', { exact: true }).setInputFiles({
+      name: 'sessions.csv', mimeType: 'text/csv', buffer: Buffer.from(calendar),
+    })
+    await page.getByLabel('Bar interval in seconds').fill('60')
+    await page.getByRole('button', { name: 'Start replay', exact: true }).click()
+    const next = page.getByRole('button', { name: 'Next event' })
+    for (let i = 0; i < 3; i++) await next.click()
+    await page.getByText('Candlestick patterns', { exact: true }).click()
+    await page.getByRole('button', { name: 'Scan observed candles' }).click()
+    await page.getByLabel('Pattern alert rule').selectOption('bullish-engulfing')
+    await page.getByRole('button', { name: 'Save pattern alerts' }).click()
+    await expect(page.getByText('1 new pattern alert saved.', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Change replay' }).click()
+    await page.getByRole('button', { name: 'Open replay alerts' }).click()
+    const row = saved.getByRole('row').filter({ has: page.getByRole('cell', { name: 'LOCAL:' + symbol, exact: true }) })
+    await row.getByText('Show evidence').click()
+    return row
+  }
+
+  const downloads = []
+  page.on('download', file => downloads.push(file.suggestedFilename()))
+  await savePattern('RESTRICTED-EXPORT', 'restricted')
+  await download.click()
+  await expect(page.getByRole('alert')).toContainText('requires granted redistribution permission')
+  expect(downloads).toEqual([])
+  await page.getByRole('button', { name: 'Return to historical replay' }).click()
+  await page.getByRole('button', { name: 'Return to workspace' }).click()
+
+  const allowed = await savePattern('AUTHORIZED-EXPORT', 'granted')
+  const specificDownload = allowed.getByRole('button', { name: 'Download webhook event' })
+  const file = page.waitForEvent('download')
+  await specificDownload.click()
+  const data = JSON.parse(await readFile(await (await file).path(), 'utf8'))
+  expect(data.data.rule.series).toBe('LOCAL:AUTHORIZED-EXPORT')
+  await page.clock.setFixedTime(new Date('2100-01-01T00:00:00Z'))
+  await specificDownload.click()
+  await expect(page.getByRole('alert')).toContainText('source grant has expired')
+  expect(downloads).toHaveLength(1)
+
+  await page.clock.setFixedTime(new Date('2099-12-31T23:59:59Z'))
+  const returnToWorkspace = async () => {
+    await page.getByRole('button', { name: 'Return to historical replay' }).click()
+    await page.getByRole('button', { name: 'Return to workspace' }).click()
+  }
+  await returnToWorkspace()
+  const original = await downloadWorkspace(page)
+  function canonical(value) {
+    if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']'
+    if (!value || typeof value !== 'object') return JSON.stringify(value)
+    return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}'
+  }
+  const digest = value => createHash('sha256').update(canonical(value)).digest('hex')
+  for (const [change, error] of [
+    [history => { history.descriptor.sourceRights.redistribution = 'restricted' }, 'requires granted redistribution permission'],
+    [history => { history.csv = history.csv.trimEnd() + '\n' + '2026-01-13T14:03:00Z,1,2,1,2,1\n'; history.barCount++ },
+      'source history no longer matches'],
+  ]) {
+    const bundle = structuredClone(original)
+    const history = bundle.manifest.series.find(row => row.id === 'LOCAL:AUTHORIZED-EXPORT')
+    change(history)
+    const { sha256, ...body } = history
+    history.sha256 = digest(body)
+    bundle.manifest.barCount = bundle.manifest.series.reduce((total, entry) => total + entry.barCount, 0)
+    bundle.sha256 = digest(bundle.manifest)
+    await page.getByRole('button', { name: 'Workspace backup', exact: true }).click()
+    await selectBackup(page, bundle)
+    await page.getByRole('button', { name: 'Restore workspace', exact: true }).click()
+    await expect(page.getByText('Workspace restored.')).toBeVisible()
+    await page.getByRole('button', { name: 'Historical replay' }).click()
+    await page.getByRole('button', { name: 'Open replay alerts' }).click()
+    await allowed.getByText('Show evidence').click()
+    await specificDownload.click()
+    await expect(page.getByRole('alert')).toContainText(error)
+    await returnToWorkspace()
+  }
+  expect(downloads.filter(name => name === 'marketweft-candlestick-event.json')).toHaveLength(1)
+})
+
+test('alerts saved by earlier builds with no provenance remain readable and cannot export', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    const open = indexedDB.open('marketweft.alert-inbox', 1)
+    open.onerror = () => reject(open.error)
+    open.onupgradeneeded = () => open.result.createObjectStore('notifications', { keyPath: 'id' })
+      .createIndex('observed', 'current.observedAt')
+    open.onsuccess = () => {
+      const db = open.result
+      const tx = db.transaction('notifications', 'readwrite')
+      tx.onabort = () => reject(tx.error)
+      tx.oncomplete = () => { db.close(); resolve() }
+      tx.objectStore('notifications').add({
+        id: 'old-pattern-record', type: 'candlestick',
+        rule: { revision: 'candlestick-v1', series: 'LOCAL:OLDER', pattern: 'doji', contextDigest: 'a'.repeat(64), interval: 60 },
+        current: { measuredAt: 1700000000, observedAt: 1700000060, ticks: { open: 5, high: 7, low: 4, close: 5, volume: 1 } },
+      })
+    }
+  }))
+  await page.getByRole('button', { name: 'Historical replay' }).click()
+  await page.getByRole('button', { name: 'Open replay alerts' }).click()
+  const row = page.getByRole('row', { name: /old-pattern-record/ })
+  await expect(row).toContainText('Doji')
+  await row.getByText('Show evidence').click()
+  const downloads = []
+  page.on('download', file => downloads.push(file.suggestedFilename()))
+  await row.getByRole('button', { name: 'Download webhook event' }).click()
+  await expect(page.getByRole('alert')).toContainText('no recorded source grant')
+  expect(downloads).toEqual([])
 })

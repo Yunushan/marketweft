@@ -3,6 +3,9 @@ import type { FormEvent } from 'react'
 import type { AlertCrossing, MarketCore } from './market-core'
 import { readAlertInbox, saveAlerts } from './alert-inbox'
 import type { AlertInboxRecord } from './alert-inbox'
+import type { History } from './catalog-schema'
+import { downloadFile } from './download'
+import { patternAlertEvent } from './pattern-alert-export'
 import { patternNames, type PatternAlert } from './pattern-alert'
 import { Mark } from './Icons'
 import { fixed } from './fixed-point'
@@ -13,7 +16,11 @@ import demoObservations from '../../../crates/core/tests/fixtures/synthetic-aler
 type Query = { effective: string; known: string }
 type Source = { rules: string; observations: string; title: string; demo: boolean }
 
-function PatternAlertRow({ row }: { row: PatternAlert }) {
+function PatternAlertRow({ row, download, exporting }: {
+  row: PatternAlert
+  download?: (alert: PatternAlert) => void
+  exporting?: boolean
+}) {
   return (
     <tr>
       <th scope="row">{row.id}</th>
@@ -36,20 +43,28 @@ function PatternAlertRow({ row }: { row: PatternAlert }) {
               </div>
             ))}
           </dl>
+          {download && <button className="outline" disabled={exporting} onClick={() => download(row)}>
+            Download webhook event
+          </button>}
         </details>
       </td>
     </tr>
   )
 }
 
-function AlertTable({ title, rows }: { title: string; rows: AlertInboxRecord[] }) {
+function AlertTable({ title, rows, download, exporting }: {
+  title: string
+  rows: AlertInboxRecord[]
+  download?: (alert: PatternAlert) => void
+  exporting?: boolean
+}) {
   return (
     <div className="replay-table-scroll">
       <table className="universe-table" aria-label={title}>
         <thead><tr><th scope="col">Alert</th><th scope="col">Series</th><th scope="col">Trigger</th>
           <th scope="col">Measured UTC</th><th scope="col">Observed UTC</th><th scope="col">Evidence</th></tr></thead>
         <tbody>
-          {rows.map(row => 'type' in row ? <PatternAlertRow key={row.id} row={row} /> : (
+          {rows.map(row => 'type' in row ? <PatternAlertRow key={row.id} row={row} download={download} exporting={exporting} /> : (
             <tr key={row.id}>
               <th scope="row">{row.id}</th>
               <td>{row.rule.series}</td>
@@ -83,7 +98,11 @@ function AlertTable({ title, rows }: { title: string; rows: AlertInboxRecord[] }
   )
 }
 
-export function AlertReplay({ core, close }: { core: MarketCore; close: () => void }) {
+export function AlertReplay({ core, close, readHistory }: {
+  core: MarketCore
+  close: () => void
+  readHistory: (id: string) => Promise<History | undefined>
+}) {
   const [source, setSource] = useState<Source | null>(null)
   const [draft, setDraft] = useState<Query>({ effective: '', known: '' })
   const [preview, setPreview] = useState<(Query & { alerts: AlertCrossing[] }) | null>(null)
@@ -92,10 +111,25 @@ export function AlertReplay({ core, close }: { core: MarketCore; close: () => vo
   const [inbox, setInbox] = useState<{ total: number; recent: AlertInboxRecord[] }>({ total: 0, recent: [] })
   const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [saved, setSaved] = useState('')
   const [error, setError] = useState('')
   const [inboxError, setInboxError] = useState('')
   const heading = useRef<HTMLHeadingElement>(null)
+
+  async function download(alert: PatternAlert) {
+    if (exporting) return
+    setExporting(true)
+    setInboxError('')
+    try {
+      const event = await patternAlertEvent(alert, readHistory)
+      downloadFile('marketweft-candlestick-event.json', new Blob([event], { type: 'application/json' }))
+    } catch (cause) {
+      setInboxError(cause instanceof Error ? cause.message : 'Could not export the webhook event.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   async function refresh() {
     try {
@@ -263,7 +297,7 @@ export function AlertReplay({ core, close }: { core: MarketCore; close: () => vo
           {saved && <p role="status">{saved}</p>}
           {inboxError && <p className="warning" role="alert">{inboxError}</p>}
           {inbox.total > inbox.recent.length && <p>Showing the 100 most recent alerts.</p>}
-          {inbox.recent.length > 0 && <AlertTable title="Saved alerts" rows={inbox.recent} />}
+          {inbox.recent.length > 0 && <AlertTable title="Saved alerts" rows={inbox.recent} download={alert => void download(alert)} exporting={exporting} />}
         </section>
       </main>
     </>

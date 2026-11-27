@@ -14,7 +14,7 @@ import { MacroReplay } from './MacroReplay'
 import { OptionReplay } from './OptionReplay'
 import { AlertReplay } from './AlertReplay'
 import { CandlePatternReplay } from './CandlePatternReplay'
-import type { SourceRights } from './catalog-schema'
+import type { History } from './catalog-schema'
 import { PaperReplay } from './PaperReplay'
 import { BacktestReplay } from './BacktestReplay'
 import type { Asset } from './workspace'
@@ -66,6 +66,7 @@ type ReplayRun = {
   calendarName: string
   calendar: string
   seconds: number
+  sourceHistory?: History
   events: TimelineEvent[]
   counts: Uint32Array
   splits: Split[]
@@ -80,13 +81,15 @@ export function HistoricalReplay({
   core,
   assets,
   selected,
-  sourceRights,
+  histories,
+  readHistory,
   close,
 }: {
   core: MarketCore
   assets: Asset[]
   selected: string
-  sourceRights: Record<string, SourceRights | undefined>
+  histories: readonly History[]
+  readHistory: (id: string) => Promise<History | undefined>
   close: () => void
 }) {
   const [active, setActive] = useState<ReplayRun | null>(null)
@@ -168,7 +171,8 @@ export function HistoricalReplay({
     setCursor(-1)
     setPlaying(false)
     setBasis('raw')
-    setActive({ asset, calendarName, calendar, seconds, events, counts, splits, dividends })
+    const sourceHistory = histories.find(history => history.id === asset.id)
+    setActive({ asset, calendarName, calendar, seconds, sourceHistory, events, counts, splits, dividends })
   }
 
   function splitDemo(actions: string) {
@@ -370,7 +374,7 @@ export function HistoricalReplay({
   if (view === 'options')
     return <OptionReplay core={core} close={() => setView(null)} />
   if (view === 'alerts')
-    return <AlertReplay core={core} close={() => setView(null)} />
+    return <AlertReplay core={core} readHistory={readHistory} close={() => setView(null)} />
   if (view === 'paper')
     return <PaperReplay core={core} close={() => setView(null)} />
   if (view === 'backtest')
@@ -863,7 +867,9 @@ export function HistoricalReplay({
               bars={rawBars}
               cutoff={clock}
               cursor={cursor}
-              sourceRights={sourceRights[active.asset.id]}
+              fixture={active.asset.source === 'sample'}
+              sourceHistory={active.sourceHistory}
+              sourceRights={histories.find(history => history.id === active.asset.id)?.descriptor.sourceRights}
             />
             {adjustmentError ? (
               <p role="alert" className="warning replay-empty">

@@ -76,6 +76,8 @@ jobs:
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm run build
       - run: npm test
+        env:
+          MARKETWEFT_TEST_RESEARCH_WEBHOOK: ${{ github.workspace }}/apps/research-service/target/release/marketweft-research-service
       - name: Pack and install the research SDK offline
         run: |
           mkdir -p reports

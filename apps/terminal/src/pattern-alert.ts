@@ -1,4 +1,5 @@
 import type { Bar, CandlePatternHit } from './market-core'
+import type { PatternAlertSource } from './pattern-alert-export'
 import { sha256Text } from './sha256'
 
 export const patternNames: Record<CandlePatternHit['kind'], string> = {
@@ -25,6 +26,7 @@ export type PatternAlert = {
   }
   current: PatternBarEvidence
   previous?: PatternBarEvidence
+  source?: PatternAlertSource
 }
 
 function candleEvidence(bar: Bar, observedAt: number): PatternBarEvidence {
@@ -43,7 +45,7 @@ function candleEvidence(bar: Bar, observedAt: number): PatternBarEvidence {
 
 export async function patternAlerts(
   series: string, calendar: string, interval: number, source: readonly Bar[],
-  pattern: CandlePatternHit['kind'], matches: readonly CandlePatternHit[],
+  pattern: CandlePatternHit['kind'], matches: readonly CandlePatternHit[], provenance?: PatternAlertSource,
 ): Promise<PatternAlert[]> {
   const contextDigest = await sha256Text(JSON.stringify([series, interval, calendar]))
   const rule = { revision: 'candlestick-v1', pattern, series, contextDigest, interval } as const
@@ -57,6 +59,7 @@ export async function patternAlerts(
       rule,
       current,
       ...(pattern === 'doji' ? {} : { previous: candleEvidence(source[hit.barIndex - 1], bar.time) }),
+      ...(provenance ? { source: provenance } : {}),
     }
   })
 }

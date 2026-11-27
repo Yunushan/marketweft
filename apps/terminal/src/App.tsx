@@ -743,7 +743,8 @@ export function App({
           core={core}
           assets={assets.filter((item) => item.source === 'import')}
           selected={ws.selected}
-          sourceRights={Object.fromEntries(saved.series.map(({ id, descriptor }) => [id, descriptor.sourceRights]))}
+          histories={saved.series}
+          readHistory={async id => (await catalog.read()).series.find(history => history.id === id)}
           close={() => {
             restoreReplayFocus.current = true
             setReplaying(false)

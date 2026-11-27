@@ -30,8 +30,14 @@ function openInbox(): Promise<IDBDatabase> {
   })
 }
 
+function evidence(record: AlertInboxRecord) {
+  if (!('type' in record)) return record
+  const { source: _source, ...original } = record
+  return original
+}
+
 function sameRecord(a: AlertInboxRecord, b: AlertInboxRecord) {
-  return JSON.stringify(a) === JSON.stringify(b)
+  return JSON.stringify(evidence(a)) === JSON.stringify(evidence(b))
 }
 
 export async function saveAlerts(records: readonly AlertInboxRecord[]): Promise<number> {
