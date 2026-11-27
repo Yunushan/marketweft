@@ -7,6 +7,7 @@ mod credentials;
 mod grpc;
 mod operations;
 mod shutdown;
+mod webhook;
 mod websocket;
 
 /// Versioned Protobuf messages and client generated from the published schema.
@@ -21,6 +22,7 @@ pub use audit_recovery::{
 pub use credentials::{issue_research_credential, revoke_research_credential, IssuedCredential};
 pub use operations::ResearchOperations;
 pub use shutdown::ResearchShutdown;
+pub use webhook::{deliver_webhook, WebhookReceipt};
 
 use analytics::ResearchPage;
 use audit::{Outcome, Receipt, Trail, Transport};
