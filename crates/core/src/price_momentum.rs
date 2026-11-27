@@ -1,5 +1,5 @@
 use crate::{
-    history::{typical_sum, validate_bar_time, validate_ohlcv},
+    history::{typical_sum, valid_second, validate_bar_time, validate_ohlcv},
     screen::rounded_div,
     Bar, MAX_BARS, MAX_TICKS, SCALE,
 };
@@ -108,15 +108,43 @@ pub fn rate_of_change(period: usize, closes: &[i64]) -> Result<Vec<Option<i128>>
         .iter()
         .enumerate()
         .map(|(index, &close)| {
-            let base = i128::from(closes[index.checked_sub(period)?]);
-            if base == 0 {
-                return None;
-            }
-            let difference = i128::from(close) - base;
-            Some(rounded_div(
-                difference * i128::from(100 * SCALE) * base.signum(),
-                base.abs(),
-            ))
+            let base = closes[index.checked_sub(period)?];
+            percent_change(close, base)
         })
         .collect())
+}
+
+/// Percentage change from the close at the exact UTC anchor, in millionths of a percent.
+/// An absent or zero anchor has no defined result. Observations before the anchor remain missing.
+pub fn rebased_percent_changes(anchor_at: i64, bars: &[Bar]) -> Result<Vec<Option<i128>>, String> {
+    if !valid_second(anchor_at) || bars.len() > MAX_BARS {
+        return Err(
+            "Rebased change requires an in-range UTC anchor and up to 100,000 bars.".into(),
+        );
+    }
+    let mut previous = None;
+    let mut base = None;
+    bars.iter()
+        .enumerate()
+        .map(|(index, bar)| {
+            validate_ohlcv(bar, index)?;
+            validate_bar_time(bar.time, previous, index)?;
+            previous = Some(bar.time);
+            if bar.time == anchor_at {
+                base = Some(bar.close);
+            }
+            Ok(base.and_then(|base| percent_change(bar.close, base)))
+        })
+        .collect()
+}
+
+fn percent_change(close: i64, base: i64) -> Option<i128> {
+    let base = i128::from(base);
+    if base == 0 {
+        return None;
+    }
+    Some(rounded_div(
+        (i128::from(close) - base) * i128::from(100 * SCALE) * base.signum(),
+        base.abs(),
+    ))
 }

@@ -931,6 +931,7 @@ export interface MarketCore {
   aroon(period: number, bars: readonly Bar[]): (AroonValue | null)[];
   commodityChannelIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   closeChanges(intervalSeconds: number, bars: readonly Bar[]): (bigint | null)[];
+  rebasedPercentChanges(anchorAt: number, bars: readonly Bar[]): (bigint | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
   moneyFlowIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1038,6 +1039,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_aroon(period: number): number;
   mw_commodity_channel_index(period: number): number;
   mw_close_changes(intervalSeconds: number): number;
+  mw_rebased_percent_changes(anchorAt: bigint): number;
   mw_rate_of_change(period: number): number;
   mw_directional_movement(diPeriod: number, adxPeriod: number): number;
   mw_money_flow_index(period: number): number;
@@ -1904,6 +1906,12 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         const delta = out.getBigInt64(index * 8, true);
         return delta === MISSING ? null : delta;
       });
+    },
+    rebasedPercentChanges(anchorAt, bars) {
+      if (!Number.isSafeInteger(anchorAt) || bars.length > 100_000)
+        throw new Error('Rebased change requires a whole UTC second and up to 100,000 bars.');
+      putIndicatorBars(bars, 'Rebased change chart');
+      return readWideIndicator(output(api.mw_rebased_percent_changes(BigInt(anchorAt))), bars.length);
     },
     rateOfChange(period, bars) {
       validateIndicatorHistory(period, bars.length);

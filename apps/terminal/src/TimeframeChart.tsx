@@ -1,17 +1,17 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
-import { parseAnnotationAnchor } from './chart-annotations'
+import { formatAnnotationAnchor, parseAnnotationAnchor } from './chart-annotations'
 import { Chart } from './Chart'
 import { ChartExport } from './ChartExport'
 import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, MAX_CHART_PRICE_TICKS, validChartIntervalSeconds } from './catalog-schema'
 import { fixed, parsePriceSize } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
-import type { CloseChangeSeries, TimeframeView } from './chart-export'
+import type { CloseChangeSeries, RebasedReturnSeries, TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
 import { computeStudies, studyOverlays } from './studies'
 import type { StudySet } from './studies'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'bandSeconds'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'bandSeconds' | 'rebasedReturns'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -25,6 +25,8 @@ type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'tim
   onCloseChangeSeconds?: (seconds: number) => void
   highLowSeconds?: number
   onHighLowSeconds?: (seconds: number) => void
+  rebaseTime?: number
+  onRebaseTime?: (time: number | null) => void
   onRenkoTicks?: (ticks: number) => void
   onKagiTicks?: (ticks: number) => void
   onPointFigureTicks?: (ticks: number) => void
@@ -104,10 +106,36 @@ function ChartInterval({ label, seconds, saving, apply }: {
   </form>
 }
 
+function RebaseAnchor({ time, custom, saving, apply }: {
+  time?: number; custom: boolean; saving?: boolean; apply: (time: number | null) => void
+}) {
+  const [error, setError] = useState('')
+  return <form className="chart-export price-size-control" aria-label="Rebased chart settings" onSubmit={event => {
+    event.preventDefault()
+    try {
+      apply(parseAnnotationAnchor('time', String(new FormData(event.currentTarget).get('time'))))
+      setError('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Enter a valid UTC anchor.')
+    }
+  }}>
+    <label>Rebase at (UTC)
+      <input name="time" defaultValue={time === undefined ? '' : formatAnnotationAnchor('time', time)}
+        maxLength={20} spellCheck={false} autoComplete="off" disabled={saving} onChange={() => setError('')} />
+    </label>
+    <button className="outline" type="submit" disabled={saving}>Apply anchor</button>
+    {custom && <button className="outline" type="button" disabled={saving} onClick={() => {
+      setError('')
+      apply(null)
+    }}>Use first close</button>}
+    {error && <p role="alert">{error}</p>}
+  </form>
+}
+
 export function TimeframeChart({ core, activeSma, activeEma, studySettings, asset, periods, onTimestamp,
   renkoTicks = DEFAULT_RENKO_TICKS, kagiTicks = DEFAULT_KAGI_TICKS, pointFigureTicks = DEFAULT_POINT_FIGURE_TICKS,
   baselineTicks = 0, priceSizeSaving, onBaselineTicks, onRenkoTicks, onKagiTicks, onPointFigureTicks,
-  closeChangeSeconds, onCloseChangeSeconds, highLowSeconds, onHighLowSeconds, ...chart }: Props) {
+  closeChangeSeconds, onCloseChangeSeconds, highLowSeconds, onHighLowSeconds, rebaseTime, onRebaseTime, ...chart }: Props) {
   const initialSource = asset.source === 'sample' ? '86400' : ''
   const [source, setSource] = useState(initialSource)
   const [target, setTarget] = useState('')
@@ -144,6 +172,31 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       return { error: cause instanceof Error ? cause.message : 'Could not calculate close changes.' }
     }
   }, [core, type, changeInterval, display.bars, timeframe])
+  const rebased = useMemo<{ series?: RebasedReturnSeries; status?: string; error?: string }>(() => {
+    if (type !== 'rebased-percent') return {}
+    const buckets = timeframe?.buckets
+    const index = rebaseTime === undefined ?
+      (buckets ? buckets.findIndex(bucket => bucket.observedBars === bucket.expectedBars) : 0) :
+      display.bars.findIndex(bar => bar.time === rebaseTime)
+    const base = display.bars[index]
+    const bucket = buckets?.[index]
+    if (!base || (bucket && bucket.observedBars !== bucket.expectedBars))
+      return { series: { anchorAt: rebaseTime, values: [] },
+        status: 'Choose a UTC anchor with a complete observed close.' }
+    const series = { anchorAt: base.time, baseClose: base.close }
+    if (base.close === 0)
+      return { series: { ...series, values: [] }, status: 'Choose a nonzero close to calculate percent change.' }
+    try {
+      const values = core.rebasedPercentChanges(base.time, display.bars)
+      buckets?.forEach((entry, position) => {
+        if (entry.observedBars !== entry.expectedBars) values[position] = null
+      })
+      return { series: { ...series, values } }
+    } catch (cause) {
+      return { series: { ...series, values: [] },
+        error: cause instanceof Error ? cause.message : 'Could not calculate rebased changes.' }
+    }
+  }, [core, type, rebaseTime, display.bars, timeframe])
   const sizeTicks = type === 'renko' ? renkoTicks : type === 'kagi' ? kagiTicks : pointFigureTicks
   const applySize = type === 'renko' ? onRenkoTicks : type === 'kagi' ? onKagiTicks : onPointFigureTicks
   const isSized = type === 'renko' || type === 'kagi' || type === 'point-and-figure'
@@ -249,6 +302,11 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       {type === 'close-change' && changeInterval === undefined &&
         <p role="status">Set an interval to calculate changes between consecutive closes.</p>}
       {changes.error && <p role="alert">{changes.error}</p>}
+      {type === 'rebased-percent' && onRebaseTime &&
+        <RebaseAnchor key={rebaseTime ?? rebased.series?.anchorAt} time={rebaseTime ?? rebased.series?.anchorAt}
+          saving={priceSizeSaving} custom={rebaseTime !== undefined} apply={onRebaseTime} />}
+      {rebased.status && <p role="status">{rebased.status}</p>}
+      {rebased.error && <p role="alert">{rebased.error}</p>}
       {transformed && !count ? <>
         {transformed.error ? <p role="alert">{transformed.error}</p> :
           <p role="status">{type === 'renko' ? 'No source close has moved far enough to form a brick at this size.' :
@@ -268,7 +326,8 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         asset={display} displayBars={displayBars} priceMovements={transformed?.priceMovements} kagiSegments={transformed?.kagiSegments}
         pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6} baselineTicks={baselineTicks}
         closeChanges={changes.series} bandSeconds={type === 'high-low-band' ? changeInterval : undefined}
-        drawingTools={type === 'close-change' ? undefined : chart.drawingTools}
+        rebasedReturns={rebased.series}
+        drawingTools={type === 'close-change' || type === 'rebased-percent' ? undefined : chart.drawingTools}
         sma={sma} ema={ema} periods={periods} studies={studies}
         timeframe={timeframe} onTimestamp={onTimestamp} />}
     </>

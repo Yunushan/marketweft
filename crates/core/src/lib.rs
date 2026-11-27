@@ -144,7 +144,7 @@ pub use portfolio::{
     PortfolioIncomeCurrency, PortfolioIncomeSnapshot, PortfolioRow, PortfolioSnapshot,
     PortfolioState,
 };
-pub use price_momentum::{commodity_channel_index, rate_of_change};
+pub use price_momentum::{commodity_channel_index, rate_of_change, rebased_percent_changes};
 pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use range_bars::RangeBar;
 pub use range_position::williams_percent_r;

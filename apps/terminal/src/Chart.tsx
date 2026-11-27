@@ -13,7 +13,7 @@ import type { KagiLayout } from './kagi-chart'
 import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
 import type { PointFigureLayout } from './point-figure-chart'
 import { ChartExport } from './ChartExport'
-import type { CloseChangeSeries, TimeframeView } from './chart-export'
+import type { CloseChangeSeries, RebasedReturnSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
@@ -67,6 +67,7 @@ const chartNames: Record<ChartType, string> = {
   baseline: 'baseline',
   'close-change': 'close-change histogram',
   'high-low-band': 'high-low band',
+  'rebased-percent': 'rebased percent change',
   ohlc: 'OHLC bar',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
@@ -156,6 +157,7 @@ function draw(
   type: ChartType,
   baselineTicks: number,
   closeChanges: CloseChangeSeries | undefined,
+  rebasedPlot: Series | undefined,
   bandSeconds: number | undefined,
   timeframe: TimeframeView | undefined,
   kagi: KagiLayout | undefined,
@@ -173,6 +175,10 @@ function draw(
   ctx.scale(dpr, dpr)
   const baseline = type === 'baseline' ? baselineTicks / 1e6 : undefined
   const histogram = type === 'close-change'
+  const rebasedPercent = type === 'rebased-percent'
+  const derivedAxis = histogram || rebasedPercent
+  const derivedValue = (index: number) => histogram ? plotValue(closeChanges?.values[index] ?? null) :
+    rebasedPlot?.[index] ?? null
   const volumeWeighted = type === 'volume-candles'
   const rangeBand = type === 'high-low-band'
   function consecutive(index: number) {
@@ -191,16 +197,15 @@ function draw(
     volTop = top + (bottom - top) * 0.8,
     priceBottom = closeBased ? bottom : volTop - 13
   const start = view.end - view.count
-  let low = histogram ? 0 : Infinity,
-    high = histogram ? 0 : -Infinity,
+  let low = derivedAxis ? 0 : Infinity,
+    high = derivedAxis ? 0 : -Infinity,
     maxVol = 0
   for (let i = start; i < view.end; i++) {
-    if (histogram) {
-      const ticks = closeChanges?.values[i]
-      if (ticks != null) {
-        const change = tickPrice(ticks)
-        low = Math.min(low, change)
-        high = Math.max(high, change)
+    if (derivedAxis) {
+      const value = derivedValue(i)
+      if (value !== null) {
+        low = Math.min(low, value)
+        high = Math.max(high, value)
       }
       continue
     }
@@ -232,7 +237,7 @@ function draw(
     maximumFractionDigits: tickDigits,
   })
   const ticksY = Array.from({ length: 6 }, (_, t) =>
-    tickFormat.format(high - ((high - low) * t) / 5),
+    tickFormat.format(high - ((high - low) * t) / 5) + (rebasedPercent ? '%' : ''),
   )
   const studyPanels = studies.map(study => {
     const fixedScale = FIXED_STUDY_SCALES[study.kind]
@@ -257,7 +262,7 @@ function draw(
     return { ...study, low, high, ticks: [...new Set(ticks)].sort((a, b) => a - b), format, guides }
   })
   const studyLabels = studyPanels.flatMap(panel => panel.ticks.map(panel.format))
-  const closeLabel = histogram ? '0' : price(bars[view.end - 1].close)
+  const closeLabel = rebasedPercent ? '0%' : histogram ? '0' : price(bars[view.end - 1].close)
   const axisWidth = Math.max(
     64,
     ...[closeLabel, ...ticksY, ...studyLabels].map(
@@ -418,7 +423,7 @@ function draw(
       w = Math.max(1, dx * (b.last - b.first + 1) * 0.68)
     const col = b.close >= b.open ? UP : DOWN
     ctx.fillStyle = col
-    if (!closeTrace && !histogram && !rangeBand) {
+    if (!closeTrace && !derivedAxis && !rangeBand) {
       line(axis, y(b.high), axis, y(b.low), col)
       const open = y(b.open), close = y(b.close)
       if (type === 'ohlc') {
@@ -484,11 +489,15 @@ function draw(
       first = end
     }
   }
-  if (histogram) {
+  if (derivedAxis) {
     const zero = y(0)
     line(left, zero, right, zero, '#899eb0')
     ctx.fillStyle = '#a2b4af'
-    ctx.fillText('0', right + 7, zero)
+    ctx.fillText(closeLabel, right + 7, zero)
+  }
+  if (rebasedPlot) drawStudyLine(ctx, rebasedPlot, start, view.end, x, y, CLOSE_LINE, 3)
+  if (histogram) {
+    const zero = y(0)
     const barWidth = Math.max(1, dx * 0.68)
     for (let index = start; index < view.end; index++) {
       const ticks = closeChanges?.values[index]
@@ -557,7 +566,7 @@ function draw(
       ctx.fill()
     }
   }
-  for (const [values, color] of histogram ? [] : [[sma, GOLD], [ema, LILAC]] as const) {
+  for (const [values, color] of derivedAxis ? [] : [[sma, GOLD], [ema, LILAC]] as const) {
     ctx.beginPath()
     ctx.strokeStyle = color
     ctx.lineWidth = 1.5
@@ -572,10 +581,10 @@ function draw(
     }
     ctx.stroke()
   }
-  for (const { color, series } of histogram ? [] : priceLines) {
+  for (const { color, series } of derivedAxis ? [] : priceLines) {
     drawStudyLine(ctx, series, start, view.end, x, y, color, 2)
   }
-  if (!histogram) {
+  if (!derivedAxis) {
     const last = bars[view.end - 1]
     const at = y(last.close)
     const tag = last.close >= last.open ? UP : DOWN
@@ -770,8 +779,7 @@ function draw(
   }
   if (active !== null && active >= start && active < view.end) {
     const axis = x(active)
-    const ticks = closeChanges?.values[active]
-    const value = histogram ? (ticks == null ? null : tickPrice(ticks)) : activePrice ?? bars[active].close
+    const value = derivedAxis ? derivedValue(active) : activePrice ?? bars[active].close
     ctx.setLineDash([3, 4])
     line(axis, top, axis, bottom, '#bdc9c7')
     if (value !== null) line(left, y(value), right, y(value), '#a2b4af')
@@ -874,6 +882,7 @@ export function Chart({
   type = 'candles',
   baselineTicks = 0,
   closeChanges,
+  rebasedReturns,
   bandSeconds,
   timeframe,
   ticks,
@@ -898,6 +907,7 @@ export function Chart({
   type?: ChartType
   baselineTicks?: number
   closeChanges?: CloseChangeSeries
+  rebasedReturns?: RebasedReturnSeries
   bandSeconds?: number
   timeframe?: TimeframeView
   ticks?: TickBar[]
@@ -1002,6 +1012,11 @@ export function Chart({
   const range = ranges?.[sourceIndex]
   const volumeBar = volumes?.[sourceIndex]
   const observation = observedAt?.[sourceIndex]
+  const rebasedPlot = useMemo(() => rebasedReturns?.values.map(plotValue), [rebasedReturns])
+  const percentChange = rebasedReturns?.values[sourceIndex]
+  const rebaseAt = rebasedReturns?.anchorAt
+  const baseClose = rebasedReturns?.baseClose
+  const rebasedPercent = type === 'rebased-percent'
   const change = closeChanges?.values[sourceIndex]
   const histogram = type === 'close-change'
   const indicatorValues = sma.length > 0 || ema.length > 0
@@ -1073,6 +1088,7 @@ export function Chart({
           type,
           baselineTicks,
           closeChanges,
+          rebasedPlot,
           bandSeconds,
           timeframe,
           kagi,
@@ -1082,7 +1098,7 @@ export function Chart({
           plottedPriceLines,
           activeStudyPlotValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, baselineTicks, closeChanges, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, baselineTicks, closeChanges, rebasedPlot, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -1161,13 +1177,19 @@ export function Chart({
     setAnnotationPicker(null)
   }
   return (
-    <section className="plot" aria-label={closeBased || histogram ? chartNames[type] + ' chart' : 'Price and volume chart'}
+    <section className="plot" aria-label={closeBased || histogram || rebasedPercent ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : time}>
       <div className="ohlc" role={displayBars || movement || selectedObservation ? 'group' : undefined}
         aria-label={box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
           displayBars ? 'Heikin-Ashi prices' : undefined}>
         <time>{timeLabel(time)} UTC</time>
-        {histogram ? <>
+        {rebasedPercent ? <>
+          <span><small>Percent change</small> {percentChange == null ? 'Missing' : fixed(percentChange, 6) + '%'}</span>
+          <span><small>Observed close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>
+          {rebaseAt !== undefined && baseClose !== undefined && time >= rebaseAt &&
+            <span><small>Base close</small> {fixed(BigInt(Math.round(baseClose * 1e6)), 6)} · {timeLabel(rebaseAt)} UTC</span>}
+          <span className="ohlc-vol"><small>Vol</small> {volume(b.volume)}</span>
+        </> : histogram ? <>
           <span><small>Close change</small> {change == null ? 'Missing' : fixed(change, 6)}</span>
           <span><small>Observed close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>
           {change != null && <span><small>Previous close</small> {fixed(BigInt(Math.round(prior.close * 1e6)), 6)}
@@ -1409,7 +1431,7 @@ export function Chart({
       )}
       {exportOptions && (
         <ChartExport asset={asset} visible={{ start: sourceStart, end: sourceEnd }} metadata={exportOptions.metadata}
-          timeframe={timeframe} closeChanges={closeChanges}
+          timeframe={timeframe} closeChanges={closeChanges} rebasedReturns={rebasedReturns}
           overlays={[
             ...(periods ? [
               { name: 'sma_' + periods.sma, series: sma },

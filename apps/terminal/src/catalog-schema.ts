@@ -29,10 +29,11 @@ export type Preferences = {
   baselineTicks?: Partial<Record<ChartPane, number>>
   closeChangeSeconds?: Partial<Record<ChartPane, number>>
   highLowSeconds?: Partial<Record<ChartPane, number>>
+  rebaseTimes?: Partial<Record<ChartPane, number>>
 }
 
 export type ChartPane = 'primary' | 'comparison'
-export type ChartType = 'candles' | 'volume-candles' | 'line' | 'area' | 'step-line' | 'baseline' | 'close-change' | 'high-low-band' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
+export type ChartType = 'candles' | 'volume-candles' | 'line' | 'area' | 'step-line' | 'baseline' | 'close-change' | 'high-low-band' | 'rebased-percent' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
 const MAX_CHART_INTERVAL_SECONDS = 0xffff_ffff
 export const DEFAULT_RENKO_TICKS = 1_000_000
 export const DEFAULT_KAGI_TICKS = 1_000_000
@@ -146,6 +147,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   if (value && typeof value === 'object' && Object.hasOwn(value, 'chartTypes')) keys.push('chartTypes')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'rsi')) keys.push('rsi')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'studies')) keys.push('studies')
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'rebaseTimes')) keys.push('rebaseTimes')
   const intervalSettings = ['closeChangeSeconds', 'highLowSeconds'] as const
   for (const key of intervalSettings) {
     if (value && typeof value === 'object' && Object.hasOwn(value, key)) keys.push(key)
@@ -331,7 +333,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       throw Error('Invalid workspace chart types.')
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, type]) =>
-      (pane !== 'primary' && pane !== 'comparison') || (type !== 'volume-candles' && type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'baseline' && type !== 'close-change' && type !== 'high-low-band' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
+      (pane !== 'primary' && pane !== 'comparison') || (type !== 'volume-candles' && type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'baseline' && type !== 'close-change' && type !== 'high-low-band' && type !== 'rebased-percent' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
         type !== 'three-line-break' && type !== 'kagi' && type !== 'point-and-figure'))) {
       throw Error('Unknown pane or chart type in the workspace.')
     }
@@ -362,6 +364,17 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       throw Error('Chart intervals must be positive whole seconds within the supported range.')
     }
     result[key] = Object.fromEntries(entries)
+  }
+  if (keys.includes('rebaseTimes')) {
+    const settings = value.rebaseTimes
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings))
+      throw Error('Invalid rebased chart anchors.')
+    const entries = Object.entries(settings)
+    if (!entries.length || entries.some(([pane, time]) =>
+      (pane !== 'primary' && pane !== 'comparison') || !validAnnotationAnchor('time', time))) {
+      throw Error('Rebased chart anchors must be whole UTC seconds in the supported date range.')
+    }
+    result.rebaseTimes = Object.fromEntries(entries)
   }
   return result
 }

@@ -80,6 +80,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   baseline: 'Baseline',
   'close-change': 'Close-change histogram',
   'high-low-band': 'High-low band',
+  'rebased-percent': 'Rebased percent change',
   ohlc: 'OHLC bars',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
@@ -658,6 +659,13 @@ export function App({
   function setChartInterval(pane: ChartPane, setting: 'closeChangeSeconds' | 'highLowSeconds', seconds: number) {
     update({ ...ws, [setting]: { ...ws[setting], [pane]: seconds } })
   }
+  function setRebaseTime(pane: ChartPane, time: number | null) {
+    const { rebaseTimes: current, ...preferences } = ws
+    const rebaseTimes = { ...current }
+    if (time === null) delete rebaseTimes[pane]
+    else rebaseTimes[pane] = time
+    update(Object.keys(rebaseTimes).length ? { ...preferences, rebaseTimes } : preferences)
+  }
   function drawingTools(id: string) {
     return {
       core,
@@ -950,6 +958,7 @@ export function App({
                   onCloseChangeSeconds={seconds => setChartInterval('primary', 'closeChangeSeconds', seconds)}
                   highLowSeconds={ws.highLowSeconds?.primary}
                   onHighLowSeconds={seconds => setChartInterval('primary', 'highLowSeconds', seconds)}
+                  rebaseTime={ws.rebaseTimes?.primary} onRebaseTime={time => setRebaseTime('primary', time)}
                   onRenkoTicks={ticks => setChartPriceTicks('primary', 'renkoTicks', ticks)}
                   onKagiTicks={ticks => setChartPriceTicks('primary', 'kagiTicks', ticks)}
                   onPointFigureTicks={ticks => setChartPriceTicks('primary', 'pointFigureTicks', ticks)}
@@ -974,6 +983,7 @@ export function App({
                     onCloseChangeSeconds={seconds => setChartInterval('comparison', 'closeChangeSeconds', seconds)}
                     highLowSeconds={ws.highLowSeconds?.comparison}
                     onHighLowSeconds={seconds => setChartInterval('comparison', 'highLowSeconds', seconds)}
+                    rebaseTime={ws.rebaseTimes?.comparison} onRebaseTime={time => setRebaseTime('comparison', time)}
                     onRenkoTicks={ticks => setChartPriceTicks('comparison', 'renkoTicks', ticks)}
                     onKagiTicks={ticks => setChartPriceTicks('comparison', 'kagiTicks', ticks)}
                     onPointFigureTicks={ticks => setChartPriceTicks('comparison', 'pointFigureTicks', ticks)}

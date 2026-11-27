@@ -2926,6 +2926,14 @@ pub extern "C" fn mw_rate_of_change(period: usize) -> u32 {
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_rebased_percent_changes(anchor_at: i64) -> u32 {
+    process(|input| {
+        crate::rebased_percent_changes(anchor_at, &decode_bars(input)?)
+            .map(encode_wide_indicator_values)
+    })
+}
+
 fn encode_wide_indicator_values(values: Vec<Option<i128>>) -> Vec<u8> {
     values
         .into_iter()

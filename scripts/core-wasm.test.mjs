@@ -10,6 +10,25 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('per-pane rebased changes preserve wide values and earlier observation prefixes in Wasm', () => {
+  const from = 1735689600;
+  const observations = [[0, '1'], [60, '0.000001'], [120, '2000000000'], [240, '0']];
+  const bars = core.parseCsv(['time,open,high,low,close,volume',
+    ...observations.map(([offset, price]) => [from + offset, price, price, price, price, 1].join(',')),
+  ].join('\n'));
+  const expected = [null, 0n, 199999999999999900000000n, -100000000n];
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.rebasedPercentChanges(from + 60, bars.slice(0, end)), expected.slice(0, end));
+  assert.deepEqual(core.rebasedPercentChanges(from + 180, bars), [null, null, null, null]);
+  assert.deepEqual(core.rebasedPercentChanges(from + 240, bars), [null, null, null, null]);
+  assert.throws(() => core.rebasedPercentChanges(from + 0.5, bars), /whole UTC second/);
+  const halfTicks = core.parseCsv(['time,open,high,low,close,volume',
+    ...['200', '200.000001', '199.999999'].map((price, index) =>
+      [from + index * 60, price, price, price, price, 1].join(',')),
+  ].join('\n'));
+  assert.deepEqual(core.rebasedPercentChanges(from, halfTicks), [0n, 1n, -1n]);
+});
+
 test('close changes preserve signed ticks and observed prefixes across the Wasm boundary', () => {
   const observations = [[0, '-2000000000'], [1, '2000000000'], [2, '2000000000'],
     [4, '-1'], [5, '-0.999999'], [6, '-1']];

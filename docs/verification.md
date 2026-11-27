@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.144.0 · Rebased percent change
+
+| Check | Evidence |
+| --- | --- |
+| Rust and WebAssembly | Fixtures preserve earlier prefixes, signed bases, zero and missing anchors, half-away rounding and results beyond a signed 64-bit integer. |
+| Chromium chart and CSV | Linked panes use independent UTC anchors and keep all return evidence blank before each anchor. The tests reconcile exact returns and withhold incomplete timeframe buckets. |
+| Workspace backup | Chromium restores a version 42 backup and both version 43 anchor selections with identical source histories. It also verifies resetting one pane to the first close. |
+
+[Rebased percent change](chart-workspace.md#rebased-percent-change) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.143.0 · High-low band
 
 | Check | Evidence |

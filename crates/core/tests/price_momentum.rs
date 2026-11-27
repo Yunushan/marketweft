@@ -1,5 +1,6 @@
 use marketweft_core::{
-    commodity_channel_index, parse_csv, rate_of_change, Bar, MAX_BARS, MAX_TICKS, SCALE,
+    commodity_channel_index, parse_csv, rate_of_change, rebased_percent_changes, Bar, MAX_BARS,
+    MAX_TICKS, SCALE,
 };
 
 #[test]
@@ -103,4 +104,45 @@ fn full_lookback_keeps_exact_deviations_near_the_price_limit() {
     let values = commodity_channel_index(MAX_BARS, &bars).unwrap();
     assert_eq!(values[MAX_BARS - 2], None);
     assert_eq!(values[MAX_BARS - 1], Some(133_332_000));
+}
+
+#[test]
+fn rebased_change_uses_the_exact_observation_and_never_changes_earlier_prefixes() {
+    let bars = parse_csv(
+        "time,open,high,low,close,volume\n0,9,9,9,9,0\n60,-3,-3,-3,-3,0\n120,-2,-2,-2,-2,0\n180,-4,-4,-4,-4,0\n300,0,0,0,0,0\n360,1,1,1,1,0",
+    )
+    .unwrap();
+    let expected = [
+        None,
+        Some(0),
+        Some(-33_333_333),
+        Some(33_333_333),
+        Some(-100_000_000),
+        Some(-133_333_333),
+    ];
+    for end in 0..=bars.len() {
+        assert_eq!(
+            rebased_percent_changes(60, &bars[..end]).unwrap(),
+            expected[..end]
+        );
+    }
+    assert_eq!(
+        rebased_percent_changes(240, &bars).unwrap(),
+        vec![None; bars.len()]
+    );
+    assert_eq!(
+        rebased_percent_changes(300, &bars).unwrap(),
+        vec![None; bars.len()]
+    );
+    assert!(rebased_percent_changes(60, &[bars[0], bars[0]]).is_err());
+    assert!(rebased_percent_changes(i64::MAX, &bars).is_err());
+
+    let half_ticks = parse_csv(
+        "time,open,high,low,close,volume\n0,200,200,200,200,0\n60,200.000001,200.000001,200.000001,200.000001,0\n120,199.999999,199.999999,199.999999,199.999999,0",
+    )
+    .unwrap();
+    assert_eq!(
+        rebased_percent_changes(0, &half_ticks).unwrap(),
+        [Some(0), Some(1), Some(-1)]
+    );
 }

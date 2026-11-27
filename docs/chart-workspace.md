@@ -50,6 +50,14 @@ Built-in samples use 86,400 seconds. Imported metadata in the form `60 seconds` 
 
 The crosshair shows observed OHLCV. Version 42 backups preserve each pane's choice and saved interval. Source CSV exports continue to use the observed bars.
 
+### Rebased percent change
+
+Choose **Rebased percent change** to compare each close with an observed base close in that pane. The default is the first complete displayed observation in the history. To choose another base, enter the exact bar timestamp in **Rebase at (UTC)** and choose **Apply anchor**. **Use first close** restores the default. A linked cursor uses the same UTC timestamp in each pane and reads each pane's own base.
+
+The chart uses 100 × (observed close ÷ signed base close − 1). Returns are rounded to six decimal places, halfway values away from zero. Values can be negative or positive with a signed base. Earlier rows stay blank, and an absent or zero base leaves returns undefined. When a timeframe is active, use the bucket timestamp. Incomplete buckets supply neither a base nor a return.
+
+The percent axis marks zero. The readout retains the observed close and volume. Price annotations and same-axis price overlays are available on price charts. Version 43 backups preserve explicit UTC anchors by pane. **Bars, provenance and enabled indicators** in **Export CSV** includes the exact base time, base close and return. Rows before the base leave all three fields blank, and the OHLCV reimport format retains its original fields.
+
 ### Heikin-Ashi
 
 Each pane can display Heikin-Ashi candles independently. The first derived open is the midpoint of the first observed open and close. Subsequent opens are the midpoint of the previous derived open and close. The derived close averages the current observed open, high, low and close. The derived high and low enclose both the observed extremes and the derived body. Prices use signed millionths and round halfway values away from zero at each step. [Dan Valcu’s original calculation](https://c.mql5.com/forextsd/forum/118/using_the_heikin_ashi_technique_d_valcu.pdf).
