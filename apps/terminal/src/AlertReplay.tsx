@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { AlertCrossing, MarketCore } from './market-core'
 import { readAlertInbox, saveAlerts } from './alert-inbox'
+import type { AlertInboxRecord } from './alert-inbox'
+import { patternNames, type PatternAlert } from './pattern-alert'
 import { Mark } from './Icons'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
@@ -11,14 +13,43 @@ import demoObservations from '../../../crates/core/tests/fixtures/synthetic-aler
 type Query = { effective: string; known: string }
 type Source = { rules: string; observations: string; title: string; demo: boolean }
 
-function AlertTable({ title, rows }: { title: string; rows: AlertCrossing[] }) {
+function PatternAlertRow({ row }: { row: PatternAlert }) {
+  return (
+    <tr>
+      <th scope="row">{row.id}</th>
+      <td>{row.rule.series}</td>
+      <td>{patternNames[row.rule.pattern]}</td>
+      <td>{utc(row.current.measuredAt)}</td>
+      <td>{utc(row.current.observedAt)}</td>
+      <td className="alert-evidence">
+        <details>
+          <summary>Show evidence</summary>
+          <dl>
+            <div><dt>Rule revision</dt><dd>{row.rule.revision}</dd></div>
+            <div><dt>Replay context digest</dt><dd>{row.rule.contextDigest}</dd></div>
+            <div><dt>Bar interval</dt><dd>{row.rule.interval} seconds</dd></div>
+            {[row.previous, row.current].map((bar, index) => bar && (
+              <div key={bar.measuredAt}>
+                <dt>{index === 0 ? 'Previous' : 'Current'} OHLCV</dt>
+                <dd>{utc(bar.measuredAt)} · known {utc(bar.observedAt)}</dd>
+                <dd>{Object.values(bar.ticks).map(ticks => fixed(BigInt(ticks), 6)).join(' / ')}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      </td>
+    </tr>
+  )
+}
+
+function AlertTable({ title, rows }: { title: string; rows: AlertInboxRecord[] }) {
   return (
     <div className="replay-table-scroll">
       <table className="universe-table" aria-label={title}>
-        <thead><tr><th scope="col">Alert</th><th scope="col">Series</th><th scope="col">Crossing</th>
+        <thead><tr><th scope="col">Alert</th><th scope="col">Series</th><th scope="col">Trigger</th>
           <th scope="col">Measured UTC</th><th scope="col">Observed UTC</th><th scope="col">Evidence</th></tr></thead>
         <tbody>
-          {rows.map(row => (
+          {rows.map(row => 'type' in row ? <PatternAlertRow key={row.id} row={row} /> : (
             <tr key={row.id}>
               <th scope="row">{row.id}</th>
               <td>{row.rule.series}</td>
@@ -58,7 +89,7 @@ export function AlertReplay({ core, close }: { core: MarketCore; close: () => vo
   const [preview, setPreview] = useState<(Query & { alerts: AlertCrossing[] }) | null>(null)
   const [rulesFile, setRulesFile] = useState<File | null>(null)
   const [observationsFile, setObservationsFile] = useState<File | null>(null)
-  const [inbox, setInbox] = useState<{ total: number; recent: AlertCrossing[] }>({ total: 0, recent: [] })
+  const [inbox, setInbox] = useState<{ total: number; recent: AlertInboxRecord[] }>({ total: 0, recent: [] })
   const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState('')

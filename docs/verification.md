@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.134.0 · Candlestick pattern alerts
+
+| Check | Evidence |
+| --- | --- |
+| Browser inbox | Offline Chromium verifies selected rules, exact current and prior OHLCV values, stable evidence after rewind, a mixed inbox with legacy crossing alerts, and reload. |
+| Source permissions | Chromium scans a history with automated use granted and verifies that unconfirmed storage prevents it from saving alert evidence. |
+
+[Candlestick pattern alerts](replay-alerts.md#candlestick-pattern-alerts) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.133.0 · Candlestick pattern replay
 
 | Check | Evidence |

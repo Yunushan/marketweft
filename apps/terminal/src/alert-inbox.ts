@@ -1,4 +1,7 @@
 import type { AlertCrossing } from './market-core'
+import type { PatternAlert } from './pattern-alert'
+
+export type AlertInboxRecord = AlertCrossing | PatternAlert
 
 const DB_NAME = 'marketweft.alert-inbox'
 const STORE = 'notifications'
@@ -27,12 +30,12 @@ function openInbox(): Promise<IDBDatabase> {
   })
 }
 
-function sameRecord(a: AlertCrossing, b: AlertCrossing) {
+function sameRecord(a: AlertInboxRecord, b: AlertInboxRecord) {
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
-export async function saveAlerts(records: readonly AlertCrossing[]): Promise<number> {
-  const distinct = new Map<string, AlertCrossing>()
+export async function saveAlerts(records: readonly AlertInboxRecord[]): Promise<number> {
+  const distinct = new Map<string, AlertInboxRecord>()
   for (const record of records) {
     const previous = distinct.get(record.id)
     if (previous && !sameRecord(previous, record)) throw Error('Conflicting alert ' + record.id + '.')
@@ -50,7 +53,7 @@ export async function saveAlerts(records: readonly AlertCrossing[]): Promise<num
   return writeAlerts(distinct)
 }
 
-async function writeAlerts(distinct: ReadonlyMap<string, AlertCrossing>): Promise<number> {
+async function writeAlerts(distinct: ReadonlyMap<string, AlertInboxRecord>): Promise<number> {
   const db = await openInbox()
   try {
     return await new Promise((resolve, reject) => {
@@ -61,7 +64,7 @@ async function writeAlerts(distinct: ReadonlyMap<string, AlertCrossing>): Promis
       tx.oncomplete = () => resolve(inserted)
       tx.onabort = () => reject(conflict ?? tx.error ?? new DOMException('The alert batch was interrupted.', 'AbortError'))
       for (const record of distinct.values()) {
-        const lookup = store.get(record.id) as IDBRequest<AlertCrossing | undefined>
+        const lookup = store.get(record.id) as IDBRequest<AlertInboxRecord | undefined>
         lookup.onsuccess = () => {
           if (lookup.result === undefined) {
             store.add(record).onsuccess = () => { inserted += 1 }
@@ -77,19 +80,19 @@ async function writeAlerts(distinct: ReadonlyMap<string, AlertCrossing>): Promis
   }
 }
 
-export async function readAlertInbox(): Promise<{ total: number; recent: AlertCrossing[] }> {
+export async function readAlertInbox(): Promise<{ total: number; recent: AlertInboxRecord[] }> {
   const db = await openInbox()
   try {
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly')
       const store = tx.objectStore(STORE)
       const total = store.count()
-      const recent: AlertCrossing[] = []
+      const recent: AlertInboxRecord[] = []
       const request = store.index('observed').openCursor(null, 'prev')
       request.onsuccess = () => {
         const cursor = request.result
         if (!cursor) return
-        recent.push(cursor.value as AlertCrossing)
+        recent.push(cursor.value as AlertInboxRecord)
         if (recent.length < RECENT_LIMIT) cursor.continue()
       }
       tx.oncomplete = () => resolve({ total: total.result, recent })

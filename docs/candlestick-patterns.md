@@ -13,3 +13,5 @@ Patterns use the raw OHLCV prefix even when the chart displays split-adjusted ca
 A real body is the interval between open and close. Engulfing uses consecutive observed intervals in the same session. A missing interval or session boundary resets that comparison. The final partial interval becomes known at the calendar's early close. The rules use integer price ticks and have no configurable tolerance in this version.
 
 The demo discloses a bullish engulfing candle at 14:02 UTC and a bearish one at 14:03 UTC on January 12, 2026. There is no match across the missing interval. A doji appears at 14:06 UTC, and the last doji appears at the next day's 14:02:30 UTC early close. Rewind and scan again to reproduce the earlier result. [Synthetic bars](../crates/core/tests/fixtures/synthetic-candle-patterns.csv) · [Synthetic calendar](../crates/core/tests/fixtures/synthetic-candle-pattern-sessions.csv).
+
+[Save and inspect pattern alerts](replay-alerts.md#candlestick-pattern-alerts).

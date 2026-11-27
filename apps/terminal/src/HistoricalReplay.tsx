@@ -859,6 +859,7 @@ export function HistoricalReplay({
               core={core}
               calendar={active.calendar}
               interval={active.seconds}
+              series={active.asset.id}
               bars={rawBars}
               cutoff={clock}
               cursor={cursor}

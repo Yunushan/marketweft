@@ -30,3 +30,11 @@ O2C,DEMO.CLOSE,2025-04-03T14:02:00Z,2025-04-03T14:03:00Z,3
 An alert key combines rule, revision and triggering observation IDs. The saved record retains both input measurements and source times, the selected rule and exact comparator fractions. A single transaction inserts a batch. Identical existing evidence is ignored. Conflicting existing evidence aborts the entire batch. Transient interruptions retry at most twice. This applies to the local inbox, and outbound delivery remains separately tracked.
 
 At 14:02 UTC the fixture first crosses the threshold. At 14:03 the correction crosses below both the level and the three-sample SMA. A later old observation leaves the rolling state unchanged. At 14:07 a revised threshold emits a last alert, and the rule's disable revision becomes known at 14:08. The final replay contains eight distinct IDs. [Architecture decision](adr/0012-alert-evidence.md).
+
+## Candlestick pattern alerts
+
+In [candlestick pattern replay](candlestick-patterns.md), select **Scan observed candles**, choose a **Pattern alert rule**, and select **Save pattern alerts**. The rule saves every matching candle in that observed prefix. The available rules are Doji, Bullish engulfing and Bearish engulfing. Saving a shorter prefix after rewinding leaves existing inbox entries intact.
+
+The inbox shows these records alongside threshold and moving-average crossings. **Show evidence** includes the rule revision, the triggering bar's raw OHLCV values, its opening time and when it became known. Engulfing records include the previous raw candle and its observation time. The replay context digest hashes the instrument key, interval and calendar. The record ID combines that digest, rule revision, pattern and triggering bar time. Replaying an identical record adds no duplicate. Conflicting evidence under the same ID cancels the batch.
+
+Structured source grants must allow both automated use and storage when saving raw evidence. The inbox remains local to IndexedDB on the current browser origin.
