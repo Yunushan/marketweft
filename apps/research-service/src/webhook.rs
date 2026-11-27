@@ -3,13 +3,24 @@ use axum::http::{header, Request, StatusCode, Uri};
 use http_body_util::Full;
 use hyper_util::rt::TokioIo;
 use ring::hmac;
+use rustls::{
+    pki_types::{pem::PemObject, CertificateDer, ServerName},
+    ClientConfig, RootCertStore,
+};
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::net::{IpAddr, SocketAddr};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::{net::TcpStream, task::JoinSet, time};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::TcpStream,
+    task::JoinSet,
+    time,
+};
+use tokio_rustls::TlsConnector;
 
 const ATTEMPTS: usize = 3;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
@@ -19,11 +30,27 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 struct ConfigFile {
     endpoint: String,
     key_id: String,
+    ca_certificate: Option<PathBuf>,
+}
+
+enum Transport {
+    Loopback(SocketAddr),
+    Https {
+        host: String,
+        port: u16,
+        name: ServerName<'static>,
+        connector: TlsConnector,
+    },
+}
+
+enum RequestFailure {
+    Transport,
+    TlsRejected,
 }
 
 struct Destination {
     uri: Uri,
-    address: SocketAddr,
+    transport: Transport,
     key_id: String,
 }
 
@@ -83,34 +110,74 @@ fn identifier(value: &str, max: usize) -> bool {
             .all(|ch| ch.is_ascii_alphanumeric() || b"._:-".contains(&ch))
 }
 
-fn destination(config: ConfigFile) -> io::Result<Destination> {
+fn destination(config: ConfigFile, config_path: &Path) -> io::Result<Destination> {
     let invalid = || {
         io::Error::other(
-            "Use an HTTP loopback IP with an explicit port and a valid webhook key ID.",
+            "Use an HTTP loopback IP with an explicit port or an HTTPS receiver with a CA certificate, and a valid webhook key ID.",
         )
     };
     let uri: Uri = config.endpoint.parse().map_err(|_| invalid())?;
     let authority = uri.authority().ok_or_else(invalid)?;
-    let host = authority.host();
-    let ip: IpAddr = host
-        .trim_start_matches('[')
-        .trim_end_matches(']')
-        .parse()
-        .map_err(|_| invalid())?;
-    let port = authority
-        .port_u16()
-        .filter(|&port| port != 0)
-        .ok_or_else(invalid)?;
-    if uri.scheme_str() != Some("http")
-        || !ip.is_loopback()
-        || authority.as_str().contains('@')
-        || !identifier(&config.key_id, 40)
-    {
+    if authority.as_str().contains('@') || !identifier(&config.key_id, 40) {
         return Err(invalid());
     }
+    let host = authority
+        .host()
+        .trim_start_matches('[')
+        .trim_end_matches(']');
+    let transport = match uri.scheme_str() {
+        Some("http") => {
+            let ip: IpAddr = host.parse().map_err(|_| invalid())?;
+            let port = authority
+                .port_u16()
+                .filter(|&port| port != 0)
+                .ok_or_else(invalid)?;
+            if !ip.is_loopback() || config.ca_certificate.is_some() {
+                return Err(invalid());
+            }
+            Transport::Loopback(SocketAddr::new(ip, port))
+        }
+        Some("https") => {
+            let port = authority.port_u16().unwrap_or(443);
+            if port == 0 {
+                return Err(invalid());
+            }
+            let name = ServerName::try_from(host.to_owned()).map_err(|_| invalid())?;
+            let certificate = config.ca_certificate.ok_or_else(invalid)?;
+            let root_path = config_path
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join(certificate);
+            let mut roots = RootCertStore::empty();
+            let pem = bounded(&root_path, 1024 * 1024)?;
+            for certificate in CertificateDer::pem_slice_iter(&pem) {
+                let certificate = certificate.map_err(io::Error::other)?;
+                roots.add(certificate).map_err(io::Error::other)?;
+            }
+            if roots.is_empty() {
+                return Err(io::Error::other(
+                    "The CA file must contain at least one PEM certificate.",
+                ));
+            }
+            let tls = ClientConfig::builder_with_provider(Arc::new(
+                rustls::crypto::ring::default_provider(),
+            ))
+            .with_safe_default_protocol_versions()
+            .map_err(io::Error::other)?
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+            Transport::Https {
+                host: host.to_owned(),
+                port,
+                name,
+                connector: TlsConnector::from(Arc::new(tls)),
+            }
+        }
+        _ => return Err(invalid()),
+    };
     Ok(Destination {
         uri,
-        address: SocketAddr::new(ip, port),
+        transport,
         key_id: config.key_id,
     })
 }
@@ -153,8 +220,46 @@ async fn request(
     body: Bytes,
     event_id: &str,
     signature: &str,
+) -> Result<StatusCode, RequestFailure> {
+    let result = match &destination.transport {
+        Transport::Loopback(address) => {
+            let stream = TcpStream::connect(address)
+                .await
+                .map_err(|_| RequestFailure::Transport)?;
+            request_http(stream, destination, body, event_id, signature).await
+        }
+        Transport::Https {
+            host,
+            port,
+            name,
+            connector,
+        } => {
+            let tcp = TcpStream::connect((host.as_str(), *port))
+                .await
+                .map_err(|_| RequestFailure::Transport)?;
+            let stream = connector
+                .connect(name.clone(), tcp)
+                .await
+                .map_err(|error| {
+                    if error.kind() == io::ErrorKind::InvalidData {
+                        RequestFailure::TlsRejected
+                    } else {
+                        RequestFailure::Transport
+                    }
+                })?;
+            request_http(stream, destination, body, event_id, signature).await
+        }
+    };
+    result.map_err(|_| RequestFailure::Transport)
+}
+
+async fn request_http<T: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
+    stream: T,
+    destination: &Destination,
+    body: Bytes,
+    event_id: &str,
+    signature: &str,
 ) -> io::Result<StatusCode> {
-    let stream = TcpStream::connect(destination.address).await?;
     let (mut sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
         .await
         .map_err(io::Error::other)?;
@@ -183,7 +288,7 @@ async fn request(
         .map_err(io::Error::other)
 }
 
-/// Send a signed event to an explicitly configured loopback receiver.
+/// Send a signed event to an explicitly configured webhook receiver.
 /// The receipt is created before delivery and updated after each attempt.
 pub async fn deliver_webhook(
     config: &Path,
@@ -191,8 +296,10 @@ pub async fn deliver_webhook(
     key: &Path,
     receipt_path: &Path,
 ) -> io::Result<WebhookReceipt> {
-    let destination =
-        destination(serde_json::from_slice(&bounded(config, 4096)?).map_err(io::Error::other)?)?;
+    let destination = destination(
+        serde_json::from_slice(&bounded(config, 4096)?).map_err(io::Error::other)?,
+        config,
+    )?;
     let event: Event =
         serde_json::from_slice(&bounded(event, 64 * 1024)?).map_err(io::Error::other)?;
     if !identifier(&event.id, 160)
@@ -220,7 +327,8 @@ pub async fn deliver_webhook(
         version: 1,
         event_id: event.id,
         endpoint: format!(
-            "http://{}{}",
+            "{}://{}{}",
+            destination.uri.scheme_str().expect("validated scheme"),
             destination.uri.authority().expect("validated authority"),
             destination.uri.path()
         ),
@@ -252,7 +360,8 @@ pub async fn deliver_webhook(
                         StatusCode::REQUEST_TIMEOUT | StatusCode::TOO_MANY_REQUESTS
                     ),
             ),
-            Ok(Err(_)) => ("transport-error", None, true),
+            Ok(Err(RequestFailure::Transport)) => ("transport-error", None, true),
+            Ok(Err(RequestFailure::TlsRejected)) => ("tls-rejected", None, false),
             Err(_) => ("timeout", None, true),
         };
         receipt.attempts.push(Attempt { outcome, status });

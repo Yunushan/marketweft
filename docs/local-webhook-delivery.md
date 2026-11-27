@@ -6,11 +6,17 @@ Build the standalone research-service binary and run its explicit delivery comma
 marketweft-research-service webhook deliver config.json event.json signing-key.txt receipt.json
 ```
 
-The receiver URL must use HTTP with a numeric loopback address and explicit port. The key file contains 32 bytes encoded as 64 hexadecimal digits. The destination names the key separately so the receiver can select its corresponding secret.
+For HTTP, use a numeric loopback address and explicit port. For HTTPS, supply an explicit PEM trust bundle in `ca_certificate`. The key file contains 32 bytes encoded as 64 hexadecimal digits. The destination names the key separately so the receiver can select its corresponding secret.
 
 ```json
 {"endpoint":"http://127.0.0.1:8082/alerts","key_id":"local-alerts"}
 ```
+
+```json
+{"endpoint":"https://alerts.example.test/marketweft","key_id":"office-alerts","ca_certificate":"receiver-ca.pem"}
+```
+
+A relative trust-bundle path resolves beside the configuration file. The client requires the receiver certificate to chain to the supplied trust anchor and match the hostname or IP in the URL. Certificate rejection produces a terminal `tls-rejected` receipt and sends no HTTP request body.
 
 Supply the event as an explicit JSON file containing data you are authorized to deliver. Use distinct stable event IDs and UTC observation times.
 

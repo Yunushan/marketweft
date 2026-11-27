@@ -131,3 +131,105 @@ async fn an_unconfigured_non_loopback_receiver_is_rejected_before_any_delivery()
         .contains("HTTP loopback IP"));
     assert!(!receipt.exists());
 }
+
+#[tokio::test]
+async fn https_webhook_checks_the_configured_trust_anchor_and_destination_name() {
+    use axum_server::tls_rustls::RustlsConfig;
+    use rcgen::{generate_simple_self_signed, CertifiedKey};
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let CertifiedKey { cert, signing_key } =
+        generate_simple_self_signed(vec!["127.0.0.1".into()]).unwrap();
+    let tls = RustlsConfig::from_pem(
+        cert.pem().into_bytes(),
+        signing_key.serialize_pem().into_bytes(),
+    )
+    .await
+    .unwrap();
+    let requests = Requests::default();
+    let router = Router::new()
+        .route("/alerts", post(receive))
+        .with_state(requests.clone());
+    let server = axum_server::from_tcp_rustls(listener.into_std().unwrap(), tls).unwrap();
+    let service = tokio::spawn(async move {
+        server.serve(router.into_make_service()).await.unwrap();
+    });
+
+    let dir = tempdir().unwrap();
+    let config = dir.path().join("config.json");
+    let event = dir.path().join("event.json");
+    let secret = dir.path().join("key.txt");
+    fs::write(dir.path().join("authority.pem"), cert.pem()).unwrap();
+    let unrelated = generate_simple_self_signed(vec!["127.0.0.1".into()]).unwrap();
+    fs::write(dir.path().join("unrelated.pem"), unrelated.cert.pem()).unwrap();
+    fs::write(
+        &event,
+        json!({
+            "id": "ALERT:HTTPS",
+            "kind": "candlestick",
+            "observed_at": "2026-01-12T14:02:00Z",
+            "data": {"close_ticks": 6000000}
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(&secret, "ab".repeat(32)).unwrap();
+
+    let write_config = |host: &str, ca: &str| {
+        fs::write(
+            &config,
+            json!({
+                "endpoint": format!("https://{host}:{port}/alerts"),
+                "key_id": "trusted-test",
+                "ca_certificate": ca,
+            })
+            .to_string(),
+        )
+        .unwrap()
+    };
+    for (case, host, ca) in [
+        ("untrusted", "127.0.0.1", "unrelated.pem"),
+        ("wrong-name", "localhost", "authority.pem"),
+    ] {
+        write_config(host, ca);
+        let receipt = dir.path().join(format!("{case}.json"));
+        let result = deliver_webhook(&config, &event, &secret, &receipt)
+            .await
+            .unwrap();
+        assert!(!result.delivered());
+        let record: Value = serde_json::from_slice(&fs::read(receipt).unwrap()).unwrap();
+        assert_eq!(record["outcome"], "tls-rejected");
+        assert_eq!(
+            record["attempts"],
+            json!([{"outcome": "tls-rejected", "status": null}])
+        );
+        assert!(requests.lock().unwrap().is_empty());
+    }
+
+    write_config("127.0.0.1", "authority.pem");
+    let receipt = dir.path().join("valid.json");
+    let result = deliver_webhook(&config, &event, &secret, &receipt)
+        .await
+        .unwrap();
+    assert!(result.delivered());
+    let record: Value = serde_json::from_slice(&fs::read(receipt).unwrap()).unwrap();
+    assert_eq!(
+        record["endpoint"],
+        format!("https://127.0.0.1:{port}/alerts")
+    );
+    let captured = requests.lock().unwrap();
+    assert_eq!(captured.len(), 3);
+    let (headers, _, body) = &captured[0];
+    assert_eq!(headers["idempotency-key"], "ALERT:HTTPS");
+    let signature = headers["x-marketweft-signature"]
+        .to_str()
+        .unwrap()
+        .strip_prefix("v1=")
+        .unwrap();
+    let tag = (0..signature.len())
+        .step_by(2)
+        .map(|index| u8::from_str_radix(&signature[index..index + 2], 16).unwrap())
+        .collect::<Vec<_>>();
+    hmac::verify(&hmac::Key::new(hmac::HMAC_SHA256, &[0xab; 32]), body, &tag).unwrap();
+    service.abort();
+}
