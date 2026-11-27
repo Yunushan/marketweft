@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.125.0 · Aroon and Aroon Oscillator
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Fixtures cover the latest tied highs and lows, all observed prefixes, signed endpoints, and direct rounding of the oscillator. Native tests compare rolling extrema with direct window scans. |
+| Browser chart and export | Offline Chromium checks both scales, tied extrema, blank warm-up values, and the exact research CSV. |
+| Workspace | Version 30 stores separate Aroon and Oscillator periods. Version 29 restores its ROC settings. |
+
+[Aroon](chart-workspace.md#aroon-and-aroon-oscillator) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.124.0 · Commodity Channel Index and Rate of Change
 
 | Check | Evidence |

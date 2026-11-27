@@ -26,19 +26,29 @@ export interface BollingerBand {
 
 export type PriceBand = BollingerBand;
 
-function readPriceBands(out: DataView): (PriceBand | null)[] {
+function readOptionalTriples<T>(
+  out: DataView, make: (first: bigint, second: bigint, third: bigint) => T,
+): (T | null)[] {
   return Array.from({ length: out.byteLength / 24 }, (_, index) => {
     const offset = index * 24;
-    const lower = out.getBigInt64(offset, true);
-    return lower === MISSING ? null : {
-      lower, middle: out.getBigInt64(offset + 8, true), upper: out.getBigInt64(offset + 16, true),
-    };
+    const first = out.getBigInt64(offset, true);
+    return first === MISSING ? null : make(first, out.getBigInt64(offset + 8, true), out.getBigInt64(offset + 16, true));
   });
+}
+
+function readPriceBands(out: DataView): (PriceBand | null)[] {
+  return readOptionalTriples(out, (lower, middle, upper) => ({ lower, middle, upper }));
 }
 
 export interface CumulativeVolume {
   onBalance: bigint;
   accumulationDistribution: bigint;
+}
+
+export interface AroonValue {
+  up: bigint;
+  down: bigint;
+  oscillator: bigint;
 }
 
 export interface DirectionalMovement {
@@ -912,6 +922,7 @@ export interface MarketCore {
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
   cumulativeVolume(bars: readonly Bar[]): CumulativeVolume[];
+  aroon(period: number, bars: readonly Bar[]): (AroonValue | null)[];
   commodityChannelIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
@@ -1016,6 +1027,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_donchian_channels(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
   mw_cumulative_volume(): number;
+  mw_aroon(period: number): number;
   mw_commodity_channel_index(period: number): number;
   mw_rate_of_change(period: number): number;
   mw_directional_movement(diPeriod: number, adxPeriod: number): number;
@@ -1085,6 +1097,11 @@ interface MarketExports extends WebAssembly.Exports {
 
 const SCALE = 1_000_000;
 const MISSING = -(1n << 63n);
+
+function validateIndicatorHistory(period: number, length: number): void {
+  if (!validIndicatorPeriod(period) || length > MAX_INDICATOR_PERIOD)
+    throw new Error('Series and indicator period must fit within 100,000 bars.');
+}
 
 function readWideIndicator(out: DataView, length: number): (bigint | null)[] {
   return Array.from({ length }, (_, index) => {
@@ -1433,8 +1450,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
   function observedIndicator(
     calculate: (period: number) => number, period: number, bars: readonly Bar[], label: string,
   ): (bigint | null)[] {
-    if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
-      throw new Error('Series and indicator period must fit within 100,000 bars.');
+    validateIndicatorHistory(period, bars.length);
     putIndicatorBars(bars, label);
     const out = output(calculate(period));
     return Array.from({ length: bars.length }, (_, index) => {
@@ -1809,9 +1825,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     indicator(kind, period, bars) {
       if (kind !== 'sma' && kind !== 'ema' && kind !== 'rsi' && kind !== 'atr') throw new Error('Unknown indicator.');
       if (kind === 'rsi' && !validRsiPeriod(period)) throw new Error('RSI periods must be 2–100,000.');
-      if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD) {
-        throw new Error('Series and indicator period must fit within 100,000 bars.');
-      }
+      validateIndicatorHistory(period, bars.length);
       let out: DataView;
       if (kind === 'atr') {
         putIndicatorBars(bars, 'ATR');
@@ -1826,14 +1840,12 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       });
     },
     bollingerBands(period, bars) {
-      if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
-        throw new Error('Series and indicator period must fit within 100,000 bars.');
+      validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
       return readPriceBands(output(api.mw_bollinger_bands(period)));
     },
     donchianChannels(period, bars) {
-      if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
-        throw new Error('Series and indicator period must fit within 100,000 bars.');
+      validateIndicatorHistory(period, bars.length);
       putIndicatorBars(bars, 'Donchian Channels');
       return readPriceBands(output(api.mw_donchian_channels(period)));
     },
@@ -1852,12 +1864,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         onBalance: signed128(out, index * 32), accumulationDistribution: signed128(out, index * 32 + 16),
       }));
     },
+    aroon(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'Aroon');
+      return readOptionalTriples(output(api.mw_aroon(period)), (up, down, oscillator) => ({ up, down, oscillator }));
+    },
     commodityChannelIndex(period, bars) {
       return observedIndicator(api.mw_commodity_channel_index, period, bars, 'Commodity Channel Index');
     },
     rateOfChange(period, bars) {
-      if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
-        throw new Error('Series and indicator period must fit within 100,000 bars.');
+      validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
       return readWideIndicator(output(api.mw_rate_of_change(period)), bars.length);
     },
@@ -1919,8 +1935,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       }));
     },
     bollingerMeasures(period, bars) {
-      if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
-        throw new Error('Series and indicator period must fit within 100,000 bars.');
+      validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
       const out = output(api.mw_bollinger_measures(period));
       function value(offset: number) {

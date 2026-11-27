@@ -2890,6 +2890,21 @@ pub extern "C" fn mw_cumulative_volume() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_aroon(period: usize) -> u32 {
+    process(|input| {
+        let rows = crate::aroon(period, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 24);
+        for row in rows {
+            let values = row.map_or([i64::MIN; 3], |row| [row.up, row.down, row.oscillator]);
+            for value in values {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_commodity_channel_index(period: usize) -> u32 {
     process(|input| {
         crate::commodity_channel_index(period, &decode_bars(input)?).map(encode_indicator_values)

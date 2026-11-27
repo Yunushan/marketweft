@@ -31,6 +31,8 @@ const FIXED_STUDY_SCALES: Partial<Record<PanelStudy['kind'], FixedStudyScale>> =
   stochastic: STOCHASTIC_SCALE,
   mfi: STOCHASTIC_SCALE,
   dmi: { ticks: [0, 25, 50, 75, 100], guides: [25], format: asPercent },
+  aroon: { ticks: [0, 50, 100], guides: [50], format: asPercent },
+  aroon_oscillator: { ticks: [-100, -50, 0, 50, 100], guides: [0], format: asPercent },
   williams_r: { ticks: [-100, -80, -20, 0], guides: [-80, -20], format: asPercent },
 }
 

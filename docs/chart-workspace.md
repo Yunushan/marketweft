@@ -194,6 +194,14 @@ ROC defaults to 12 changes. It subtracts the close one lookback ago from the cur
 
 The default research CSV columns are `cci_20` and `roc_12`. Values are rounded directly to six decimal places. The plot leaves gaps where output is absent, and the CSV leaves those cells empty. Exact ROC readouts and CSV values can exceed the signed 64-bit tick range.
 
+### Aroon and Aroon Oscillator
+
+Enable **Aroon** or **Aroon Oscillator** in either pane’s indicator settings. Aroon Up and Down share a 0% to 100% scale. The oscillator uses a −100% to 100% scale with a zero reference. Each study defaults to 25 and saves its own period from 1 through 100,000. [TradingView’s Aroon calculation](https://www.tradingview.com/support/solutions/43000501801-aroon-indicator/) · [StockCharts’ Aroon Oscillator calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/aroon-oscillator).
+
+A period of 25 searches the current bar and 25 preceding observed bars. Up tracks the age of the highest high and Down tracks the age of the lowest low. Both use the latest bar when an extreme is tied. Subtract the age from the period, divide by the period and multiply by 100. An extreme on the current bar gives 100%. An extreme at the oldest eligible bar gives 0%. Missing timestamps contribute zero observations.
+
+The oscillator subtracts Down from Up before rounding the result to six decimal places. The chart and CSV leave warm-up values empty. The default research CSV columns are `aroon_up_25`, `aroon_down_25` and `aroon_oscillator_25`.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

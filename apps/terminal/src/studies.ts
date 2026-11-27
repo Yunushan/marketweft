@@ -1,5 +1,5 @@
 import { validIndicatorPeriod } from './market-core'
-import type { Bar, BollingerMeasures, CumulativeVolume, MarketCore, PriceBand } from './market-core'
+import type { AroonValue, Bar, BollingerMeasures, CumulativeVolume, MarketCore, PriceBand } from './market-core'
 import type { ExportOverlay } from './chart-export'
 
 export const STUDIES = {
@@ -23,6 +23,8 @@ export const STUDIES = {
   dmi: { name: 'DMI', label: 'Directional Movement System', minPeriod: 1, defaultPeriod: 14, periodLabel: 'DI', color: '#aaa3f0' },
   cci: { name: 'CCI', label: 'Commodity Channel Index', minPeriod: 1, defaultPeriod: 20, color: '#c5adf1' },
   roc: { name: 'ROC', label: 'Rate of Change', minPeriod: 1, defaultPeriod: 12, color: '#73c3e4' },
+  aroon: { name: 'Aroon', label: 'Aroon', minPeriod: 1, defaultPeriod: 25 },
+  aroon_oscillator: { name: 'Aroon Oscillator', label: 'Aroon Oscillator', minPeriod: 1, defaultPeriod: 25, color: '#98c9ef' },
 } as const
 export type StudyKind = keyof typeof STUDIES
 export const STUDY_KINDS = Object.keys(STUDIES) as StudyKind[]
@@ -109,6 +111,7 @@ function priceBands(kind: BandKind, periods: number[], bands: (PriceBand | null)
 
 export function computeStudies(core: MarketCore, settings: StudySet | undefined, bars: readonly Bar[]): StudyValues[] {
   const measuresByPeriod = new Map<number, BollingerMeasures[]>()
+  const aroonByPeriod = new Map<number, (AroonValue | null)[]>()
   let cumulative: CumulativeVolume[] | undefined
   return STUDY_KINDS.flatMap<StudyValues>(kind => {
     const study = settings?.[kind]
@@ -171,6 +174,20 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       return [{ kind, periods: [period], zeroLine: true, lines: [
         { color: STUDIES[kind].color, series: core.chaikinMoneyFlow(period, bars) },
       ] }]
+    }
+    if (kind === 'aroon' || kind === 'aroon_oscillator') {
+      let rows = aroonByPeriod.get(period)
+      if (!rows) {
+        rows = core.aroon(period, bars)
+        aroonByPeriod.set(period, rows)
+      }
+      const lines = kind === 'aroon' ? [
+        { key: 'up', label: 'Up', color: '#87cb8d', series: rows.map(row => row?.up ?? null) },
+        { key: 'down', label: 'Down', color: '#e39386', series: rows.map(row => row?.down ?? null) },
+      ] : [
+        { color: STUDIES.aroon_oscillator.color, series: rows.map(row => row?.oscillator ?? null) },
+      ]
+      return [{ kind, periods: [period], lines }]
     }
     if (kind === 'cci') {
       return [{ kind, periods: [period], unit: 'index', guides: [-100, 0, 100], lines: [

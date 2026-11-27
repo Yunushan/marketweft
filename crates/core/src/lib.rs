@@ -2,6 +2,7 @@
 
 mod actions;
 mod alerts;
+mod aroon;
 mod atr;
 mod backtest;
 mod bollinger;
@@ -66,6 +67,7 @@ pub use actions::{
 pub use alerts::{
     AlertBook, AlertDirection, AlertNotification, AlertRule, Comparator, Observation,
 };
+pub use aroon::{aroon, AroonValue};
 pub use atr::average_true_range;
 pub use backtest::{
     backtest, backtest_with_formulas, backtest_with_trades, validate_formula_strategy,

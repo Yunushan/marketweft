@@ -1477,3 +1477,22 @@ test('CCI and ROC preserve signed windows, zero denominators and wide ROC throug
   assert.throws(() => core.rateOfChange(0, bars), /100,000/);
   assert.throws(() => core.commodityChannelIndex(3, [bars[0], bars[0]]), /later/);
 });
+
+test('Aroon uses observed ages, latest tied extrema and one rounding of the oscillator', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-aroon.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const point = (up, down, oscillator) => ({ up, down, oscillator });
+  const expected = [
+    null, null, null, point(100_000_000n, 0n, 100_000_000n), point(100_000_000n, 0n, 100_000_000n),
+    point(66_666_667n, 100_000_000n, -33_333_333n), point(33_333_333n, 100_000_000n, -66_666_667n),
+    point(0n, 100_000_000n, -100_000_000n), point(0n, 100_000_000n, -100_000_000n),
+    point(100_000_000n, 100_000_000n, 0n), point(100_000_000n, 66_666_667n, 33_333_333n),
+    point(66_666_667n, 33_333_333n, 33_333_333n),
+  ];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.aroon(3, bars.slice(0, end)), expected.slice(0, end));
+  }
+  assert.deepEqual(core.aroon(2, bars).at(-1), point(50_000_000n, 0n, 50_000_000n));
+  assert.throws(() => core.aroon(0, bars), /100,000/);
+  assert.throws(() => core.aroon(5, [bars[0], bars[0]]), /later/);
+});
