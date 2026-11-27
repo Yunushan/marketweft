@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 from typing import BinaryIO
 
-from . import FinancialMultiples, FinancialSnapshot, FormulaFunction, ResearchEngine, ResearchError, ScreenPrice
+from . import FinancialMultiples, FinancialSnapshot, FormulaFunction, ResearchEngine, ResearchError, ScreenComparisonLeg, ScreenPrice
 from . import (
     _MAX_FINANCIAL_CSV, _MAX_OPTION_CSV, _MAX_OPTION_DIVIDEND_CSV, _MAX_OPTION_ROWS, _OPTION_STATUSES,
 )
@@ -21,6 +21,7 @@ MAX_I64 = (1 << 63) - 1
 MIN_I64 = -(1 << 63)
 TOOL_NAME = "evaluate_historical_formula"
 SCREEN_TOOL_NAME = "screen_universe_as_of"
+RANK_COMPARISON_TOOL_NAME = "compare_universe_ranks_as_of"
 FINANCIAL_TOOL_NAME = "financial_snapshot_as_of"
 OPTION_SNAPSHOT_TOOL_NAME = "option_snapshot_as_of"
 AMERICAN_OPTION_TOOL_NAME = "american_option_valuation_as_of"
@@ -142,6 +143,51 @@ SCREEN_TOOL = {
     "inputSchema": SCREEN_INPUT_SCHEMA,
     "outputSchema": SCREEN_OUTPUT_SCHEMA,
 }
+
+_RANK_TIMES = ("baseline_at", "before_effective_at", "before_known_at", "after_effective_at", "after_known_at")
+RANK_COMPARISON_INPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        **{key: SCREEN_INPUT_SCHEMA["properties"][key] for key in ("membership_csv", "prices_csv", "offset", "limit")},
+        **{key: _UTC_SCHEMA for key in _RANK_TIMES},
+    },
+    "required": ["membership_csv", "prices_csv", *_RANK_TIMES],
+    "additionalProperties": False,
+}
+_RANK_LEG_PROPERTIES = {
+    "status": {"enum": ["member", "removed", "delisted", None]},
+    "change_id": {"type": ["string", "null"]},
+    "effective_at": {"type": ["integer", "null"]},
+    "observed_at": {"type": ["integer", "null"]},
+    **{key: _SCREEN_ROW_PROPERTIES[key] for key in ("rank", "return_units", "baseline", "current")},
+}
+_RANK_LEG_SCHEMA = {
+    "type": "object", "properties": _RANK_LEG_PROPERTIES,
+    "required": list(_RANK_LEG_PROPERTIES), "additionalProperties": False,
+}
+_RANK_ROW_PROPERTIES = {
+    "listing_id": {"type": "string"}, "instrument": {"type": "string"},
+    "before": _RANK_LEG_SCHEMA, "after": _RANK_LEG_SCHEMA,
+    "rank_move": {"type": ["integer", "null"], "minimum": -4999, "maximum": 4999},
+}
+_RANK_OUTPUT_PROPERTIES = {
+    **SCREEN_OUTPUT_SCHEMA["properties"],
+    **{key: _UTC_SCHEMA for key in _RANK_TIMES},
+    "rows": {
+        "type": "array", "maxItems": MAX_ROWS,
+        "items": {"type": "object", "properties": _RANK_ROW_PROPERTIES,
+                  "required": list(_RANK_ROW_PROPERTIES), "additionalProperties": False},
+    },
+}
+RANK_COMPARISON_TOOL = {
+    "name": RANK_COMPARISON_TOOL_NAME,
+    "description": "Compare rank snapshots at two independent effective and known cutoffs. Reuse the same inputs with next_offset for the next page.",
+    "annotations": TOOL["annotations"],
+    "inputSchema": RANK_COMPARISON_INPUT_SCHEMA,
+    "outputSchema": {"type": "object", "properties": _RANK_OUTPUT_PROPERTIES,
+                     "required": list(_RANK_OUTPUT_PROPERTIES), "additionalProperties": False},
+}
+
 
 _FINANCIAL_CSV_SCHEMA = {"type": "string", "minLength": 1, "maxLength": _MAX_FINANCIAL_CSV}
 _IDENTIFIER_SCHEMA = {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,40}$"}
@@ -453,7 +499,7 @@ class ResearchServer:
         if method == "tools/list":
             if params.get("cursor") is not None:
                 raise RequestError(-32602, "The tool list fits on a single page.")
-            return {"tools": [TOOL, SCREEN_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL, AMERICAN_OPTION_TOOL]}
+            return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL, AMERICAN_OPTION_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -461,6 +507,8 @@ class ResearchServer:
                 return self._evaluate(arguments)
             if name == SCREEN_TOOL_NAME:
                 return self._screen(arguments)
+            if name == RANK_COMPARISON_TOOL_NAME:
+                return self._rank_comparison(arguments)
             if name == FINANCIAL_TOOL_NAME:
                 return self._financial(arguments)
             if name == OPTION_SNAPSHOT_TOOL_NAME:
@@ -530,6 +578,41 @@ class ResearchServer:
                     "baseline": _price(row.baseline),
                     "current": _price(row.current),
                 }
+                for row in page
+            ],
+        })
+
+    def _rank_comparison(self, arguments) -> dict:
+        if not isinstance(arguments, dict) or set(arguments) - RANK_COMPARISON_INPUT_SCHEMA["properties"].keys():
+            raise RequestError(-32602, "Supply only the documented rank comparison arguments.")
+        required = RANK_COMPARISON_INPUT_SCHEMA["required"]
+        if not all(isinstance(arguments.get(key), str) and arguments[key] for key in required):
+            raise RequestError(-32602, "Supply both CSVs and the baseline and before and after cutoffs.")
+        offset = _integer(arguments, "offset", 0, 0, 5000)
+        limit = _integer(arguments, "limit", 200, 1, MAX_ROWS)
+        try:
+            report = self._engine.compare_universe_ranks(**{key: arguments[key] for key in required})
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+
+        def leg(value: ScreenComparisonLeg) -> dict:
+            return {
+                "status": value.status, "change_id": value.change_id,
+                "effective_at": value.effective_at, "observed_at": value.observed_at,
+                "rank": value.rank, "return_units": None if value.return_units is None else str(value.return_units),
+                "baseline": _price(value.baseline), "current": _price(value.current),
+            }
+
+        page = report.rows[offset:offset + limit]
+        end = offset + len(page)
+        return _structured({
+            "universe": report.universe,
+            **{key: arguments[key] for key in _RANK_TIMES},
+            "total_rows": len(report.rows), "offset": offset,
+            "next_offset": end if end < len(report.rows) else None,
+            "rows": [
+                {"listing_id": row.listing_id, "instrument": row.instrument, "before": leg(row.before),
+                 "after": leg(row.after), "rank_move": row.rank_move}
                 for row in page
             ],
         })

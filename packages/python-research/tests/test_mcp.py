@@ -67,7 +67,7 @@ class McpTest(unittest.TestCase):
         self.assertEqual(replies[1]["result"]["protocolVersion"], "2025-11-25")
         tools = replies[2]["result"]["tools"]
         self.assertEqual([item["name"] for item in tools],
-                         [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME,
+                         [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.RANK_COMPARISON_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME,
                           mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
@@ -142,6 +142,40 @@ class McpTest(unittest.TestCase):
                          known_at="2025-06-02T14:25:00Z")["result"]["structuredContent"]
         self.assertEqual([row["listing_id"] for row in removed["rows"]], ["BETA-001"])
         self.assertEqual(screen(6, prices_file="local.csv")["error"]["code"], -32602)
+
+    def test_rank_comparison_pages_and_preserves_native_evidence(self):
+        fixtures = ROOT / "crates/core/tests/fixtures"
+        params = {
+            "membership_csv": (fixtures / "synthetic-universe.csv").read_text(encoding="utf-8"),
+            "prices_csv": (fixtures / "synthetic-universe-prices.csv").read_text(encoding="utf-8"),
+            "baseline_at": "2025-06-02T14:00:00Z",
+            "before_effective_at": "2025-06-02T14:10:00Z", "before_known_at": "2025-06-02T14:12:00Z",
+            "after_effective_at": "2025-06-02T14:10:00Z", "after_known_at": "2025-06-02T14:16:00Z",
+        }
+        server = mcp.ResearchServer(ResearchEngine(EXECUTABLE))
+        server.handle(rpc("initialize", 1, INITIALIZE))
+        server.handle(rpc("notifications/initialized"))
+
+        def compare(request_id, **changes):
+            return server.handle(rpc("tools/call", request_id, {
+                "name": mcp.RANK_COMPARISON_TOOL_NAME,
+                "arguments": {**params, **changes},
+            }))
+
+        first = compare(2, limit=1)["result"]["structuredContent"]
+        self.assertEqual(first["next_offset"], 1)
+        self.assertEqual(first["rows"][0]["rank_move"], 1)
+        second = compare(3, offset=1, limit=1)["result"]["structuredContent"]
+        self.assertIsNone(second["next_offset"])
+        beta, = second["rows"]
+        self.assertEqual(beta["before"]["current"]["ticks"], "56000000")
+        self.assertEqual(beta["after"]["current"]["ticks"], "50500000")
+        self.assertEqual(beta["after"]["change_id"], "BETA-JOIN")
+        self.assertEqual(beta["rank_move"], -1)
+        self.assertEqual(second["after_known_at"], params["after_known_at"])
+        self.assertTrue(compare(4, before_known_at="2025-06-02")["result"]["isError"])
+        self.assertEqual(compare(5, prices_path="prices.csv")["error"]["code"], -32602)
+        self.assertEqual(compare(6, offset=2)["result"]["structuredContent"]["rows"], [])
 
     def test_financial_tool_returns_exact_cutoff_evidence_and_rejects_file_paths(self):
         server = mcp.ResearchServer(ResearchEngine(EXECUTABLE))

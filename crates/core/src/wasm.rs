@@ -561,7 +561,6 @@ pub extern "C" fn mw_universe_screen(membership_bytes: usize) -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_compare_universe_ranks(membership_bytes: usize) -> u32 {
-    use std::fmt::Write;
     process(|input| {
         let ([baseline_at, before_effective, before_known, after_effective, after_known], csvs) =
             screen_times(input)?;
@@ -578,48 +577,9 @@ pub extern "C" fn mw_compare_universe_ranks(membership_bytes: usize) -> u32 {
             effective_at: after_effective,
             known_at: after_known,
         };
+        let rows = prices.compare_ranks(baseline_at, before, after)?;
         let mut text = String::new();
-        for row in prices.compare_ranks(baseline_at, before, after)? {
-            write!(
-                &mut text,
-                "{}\t{}",
-                row.listing.listing_id, row.listing.instrument
-            )
-            .unwrap();
-            for leg in [row.before, row.after] {
-                text.push('\t');
-                if let Some(change) = leg.membership {
-                    write!(
-                        &mut text,
-                        "{},{},{},{}",
-                        change.action as u8,
-                        change.change_id,
-                        change.effective_at,
-                        change.observed_at
-                    )
-                    .unwrap();
-                }
-                text.push('\t');
-                if let Some(rank) = leg.rank {
-                    write!(&mut text, "{rank}").unwrap();
-                }
-                text.push('\t');
-                if let Some(value) = leg.return_units {
-                    write!(&mut text, "{value}").unwrap();
-                }
-                for close in [leg.baseline, leg.current] {
-                    text.push('\t');
-                    if let Some(close) = close {
-                        write!(&mut text, "{},{}", close.ticks, close.observed_at).unwrap();
-                    }
-                }
-            }
-            text.push('\t');
-            if let Some(delta) = row.rank_move {
-                write!(&mut text, "{delta}").unwrap();
-            }
-            text.push('\n');
-        }
+        crate::research::append_rank_comparison_rows(&mut text, rows);
         Ok(text.into_bytes())
     })
 }

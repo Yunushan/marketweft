@@ -4,7 +4,7 @@ import type { Bar, FormulaFunction, FormulaResult, MarketCore } from './core.js'
 export type {
   AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
-  OptionUnavailable, OptionUnderlying, QuarterlyValuation, ScreenPrice, ScreenRow, TrailingFourQuarters,
+  OptionUnavailable, OptionUnderlying, QuarterlyValuation, ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff, ScreenPrice, ScreenRow, TrailingFourQuarters,
 } from './core.js'
 
 export const RESEARCH_SDK_VERSION = 1
@@ -15,6 +15,7 @@ export interface MarketResearch {
   parseBars(csv: string): Bar[]
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult
   universeScreen: MarketCore['universeScreen']
+  compareUniverseRanks: MarketCore['compareUniverseRanks']
   financialIndex: MarketCore['financialIndex']
   financialSnapshot: MarketCore['financialSnapshot']
   optionIndex: MarketCore['optionIndex']
@@ -33,6 +34,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     parseBars: core.parseCsv,
     evaluateFormula: core.evaluateFormula,
     universeScreen: core.universeScreen,
+    compareUniverseRanks: core.compareUniverseRanks,
     financialIndex: core.financialIndex,
     financialSnapshot: core.financialSnapshot,
     optionIndex: core.optionIndex,

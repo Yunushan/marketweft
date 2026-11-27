@@ -12,8 +12,8 @@ use crate::screen::MAX_PRICE_BYTES;
 use crate::universe::{valid_id, MAX_MEMBERSHIP_BYTES};
 use crate::{
     parse_csv, parse_dividends, parse_universe, AmericanValuation, AmericanValuationRequest,
-    FinancialBook, Formula, OptionBook, PriceBook, FORMULA_VERSION, MAX_AMERICAN_STEPS,
-    MAX_INPUT_BYTES,
+    FinancialBook, Formula, OptionBook, PriceBook, ScreenComparisonRow, ScreenCutoff,
+    FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_INPUT_BYTES,
 };
 use std::fmt::Write;
 
@@ -21,6 +21,7 @@ pub const PROTOCOL_VERSION: u32 = 1;
 pub const MAX_REQUEST_BYTES: usize =
     MAX_INPUT_BYTES + MAX_FORMULA_LIBRARY_BYTES + MAX_SOURCE_BYTES + 128;
 pub const MAX_SCREEN_REQUEST_BYTES: usize = MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 128;
+pub const MAX_RANK_COMPARISON_REQUEST_BYTES: usize = MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 192;
 pub const MAX_FINANCIAL_REQUEST_BYTES: usize = 2 * MAX_FINANCIAL_CSV_BYTES + 128;
 pub const MAX_OPTION_REQUEST_BYTES: usize = 2 * MAX_OPTION_CSV_BYTES + 128;
 pub const MAX_AMERICAN_OPTION_REQUEST_BYTES: usize =
@@ -320,4 +321,90 @@ pub fn screen_universe_request(bytes: &[u8]) -> Result<String, String> {
         output.push('\n');
     }
     Ok(output)
+}
+
+/// Compare two independently observed effective memberships using the same exact baseline.
+pub fn compare_universe_ranks_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_RANK_COMPARISON_REQUEST_BYTES {
+        return Err("Universe rank comparison exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 rank comparison request.")?;
+    let (header, payload) = request
+        .split_once('\n')
+        .ok_or("Missing rank comparison request header.")?;
+    let fields: Vec<_> = header.split('\t').collect();
+    let ["marketweft-rank-comparison", "1", length, baseline, before_effective, before_known, after_effective, after_known] =
+        fields.as_slice()
+    else {
+        return Err("Invalid rank comparison request or protocol version.".into());
+    };
+    let membership_size = length
+        .parse::<usize>()
+        .ok()
+        .filter(|size| *size <= MAX_MEMBERSHIP_BYTES)
+        .ok_or("Invalid membership CSV length.")?;
+    let time = |value: &str| {
+        exact_utc(value).ok_or("Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+    };
+    let before = ScreenCutoff {
+        effective_at: time(before_effective)?,
+        known_at: time(before_known)?,
+    };
+    let after = ScreenCutoff {
+        effective_at: time(after_effective)?,
+        known_at: time(after_known)?,
+    };
+    let (membership, closes) = payload
+        .split_at_checked(membership_size)
+        .ok_or("Invalid membership CSV boundary.")?;
+    let universe = parse_universe(membership)?;
+    let prices = PriceBook::parse(&universe, closes)?;
+    let rows = prices.compare_ranks(time(baseline)?, before, after)?;
+    let mut output = format!(
+        "marketweft-rank-comparison\t{PROTOCOL_VERSION}\t{}\n",
+        universe.name()
+    );
+    append_rank_comparison_rows(&mut output, rows);
+    Ok(output)
+}
+
+pub(crate) fn append_rank_comparison_rows(text: &mut String, rows: Vec<ScreenComparisonRow<'_>>) {
+    for row in rows {
+        write!(
+            text,
+            "{}\t{}",
+            row.listing.listing_id, row.listing.instrument
+        )
+        .unwrap();
+        for leg in [row.before, row.after] {
+            text.push('\t');
+            if let Some(change) = leg.membership {
+                write!(
+                    text,
+                    "{},{},{},{}",
+                    change.action as u8, change.change_id, change.effective_at, change.observed_at
+                )
+                .unwrap();
+            }
+            text.push('\t');
+            if let Some(rank) = leg.rank {
+                write!(text, "{rank}").unwrap();
+            }
+            text.push('\t');
+            if let Some(value) = leg.return_units {
+                write!(text, "{value}").unwrap();
+            }
+            for close in [leg.baseline, leg.current] {
+                text.push('\t');
+                if let Some(close) = close {
+                    write!(text, "{},{}", close.ticks, close.observed_at).unwrap();
+                }
+            }
+        }
+        text.push('\t');
+        if let Some(delta) = row.rank_move {
+            write!(text, "{delta}").unwrap();
+        }
+        text.push('\n');
+    }
 }

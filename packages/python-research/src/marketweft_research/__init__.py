@@ -300,6 +300,82 @@ def _screen_result(output: bytes) -> ScreenResult:
     return ScreenResult(universe, tuple(rows))
 
 
+@dataclass(frozen=True)
+class ScreenComparisonLeg:
+    status: str | None
+    change_id: str | None
+    effective_at: int | None
+    observed_at: int | None
+    rank: int | None
+    return_units: int | None
+    baseline: ScreenPrice | None
+    current: ScreenPrice | None
+
+
+@dataclass(frozen=True)
+class ScreenComparisonRow:
+    listing_id: str
+    instrument: str
+    before: ScreenComparisonLeg
+    after: ScreenComparisonLeg
+    rank_move: int | None
+
+
+@dataclass(frozen=True)
+class ScreenComparison:
+    universe: str
+    rows: tuple[ScreenComparisonRow, ...]
+
+
+def _rank_comparison_result(output: bytes) -> ScreenComparison:
+    universe, lines = _response(output, "marketweft-rank-comparison")
+    if not _IDENTITY.fullmatch(universe) or len(lines) > 5000:
+        raise ResearchError("Invalid universe identity or row limit in rank comparison response.")
+
+    def close(field: str) -> ScreenPrice | None:
+        parts = field.split(",") if field else ["", ""]
+        if len(parts) != 2:
+            raise ResearchError("Invalid price evidence in rank comparison.")
+        return _price(*parts)
+
+    def decode_leg(fields: list[str]) -> ScreenComparisonLeg:
+        membership, rank, units, baseline, current = fields
+        status = change = effective = observed = None
+        if membership:
+            parts = membership.split(",")
+            states = {"0": "member", "1": "removed", "2": "delisted"}
+            if len(parts) != 4 or not _IDENTITY.fullmatch(parts[1]) or parts[0] not in states:
+                raise ResearchError("Invalid membership evidence in rank comparison.")
+            status = states[parts[0]]
+            change, effective, observed = parts[1], _whole(parts[2]), _whole(parts[3])
+        first, last = close(baseline), close(current)
+        if (bool(rank) != bool(units) or (units and not _WIDE.fullmatch(units))
+                or bool(rank) != (status == "member" and first is not None and last is not None)
+                or (status != "member" and (first is not None or last is not None))):
+            raise ResearchError("Inconsistent rank or close in rank comparison.")
+        rank_value = _whole(rank) if rank else None
+        units_value = int(units) if units else None
+        if (rank_value is not None and not 1 <= rank_value <= 5000
+                or units_value is not None and not -(1 << 127) <= units_value < (1 << 127)):
+            raise ResearchError("Rank or return exceeds the rank comparison range.")
+        return ScreenComparisonLeg(status, change, effective, observed, rank_value, units_value, first, last)
+
+    rows = []
+    for line in lines:
+        fields = line.split("\t")
+        if len(fields) != 13 or not _IDENTITY.fullmatch(fields[0]):
+            raise ResearchError("Invalid row in rank comparison.")
+        before, after = decode_leg(fields[2:7]), decode_leg(fields[7:12])
+        delta = _whole(fields[12]) if fields[12] else None
+        expected = None if before.rank is None or after.rank is None else before.rank - after.rank
+        if delta != expected or (before.status != "member" and after.status != "member"):
+            raise ResearchError("Inconsistent membership or movement in rank comparison.")
+        if rows and fields[0] <= rows[-1].listing_id:
+            raise ResearchError("Rank comparison rows are out of listing ID order.")
+        rows.append(ScreenComparisonRow(fields[0], fields[1], before, after, delta))
+    return ScreenComparison(universe, tuple(rows))
+
+
 def _financial_amount(text: str) -> int:
     if not _WIDE.fullmatch(text):
         raise ResearchError("Invalid fixed-point amount in financial response.")
@@ -531,6 +607,27 @@ class ResearchEngine:
             raise ValueError("Membership and prices CSV exceed the screen input limits.")
         header = "\t".join(("marketweft-screen", "1", str(len(membership)), *times)).encode("ascii") + b"\n"
         return _screen_result(self._invoke(header + membership + prices, "screen"))
+
+    def compare_universe_ranks(
+        self,
+        membership_csv: str,
+        prices_csv: str,
+        *,
+        baseline_at: str,
+        before_effective_at: str,
+        before_known_at: str,
+        after_effective_at: str,
+        after_known_at: str,
+    ) -> ScreenComparison:
+        """Compare independent as-of rank snapshots using the same baseline timestamp."""
+        times = (baseline_at, before_effective_at, before_known_at, after_effective_at, after_known_at)
+        if any(not isinstance(timestamp, str) or not _UTC.fullmatch(timestamp) for timestamp in times):
+            raise ValueError("Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+        membership, prices = membership_csv.encode("utf-8"), prices_csv.encode("utf-8")
+        if len(membership) > 1024 * 1024 or len(prices) > 2 * 1024 * 1024:
+            raise ValueError("Membership and prices CSV exceed the screen input limits.")
+        header = "\t".join(("marketweft-rank-comparison", "1", str(len(membership)), *times)).encode("ascii") + b"\n"
+        return _rank_comparison_result(self._invoke(header + membership + prices, "rank-compare"))
 
     def financial_snapshot(
         self,

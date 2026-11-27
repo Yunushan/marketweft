@@ -63,6 +63,22 @@ test('the TypeScript SDK screens effective members at an independent known cutof
   assert.equal(large.returnUnits, (2_000_000_000_000_000n - 1n) * 1_000_000n)
 })
 
+test('the public SDK preserves both rank snapshots and the revised observation evidence', async () => {
+  const fixture = name => new URL('../../../crates/core/tests/fixtures/synthetic-universe' + name, import.meta.url)
+  const [membership, prices, research] = await Promise.all([
+    readFile(fixture('.csv'), 'utf8'), readFile(fixture('-prices.csv'), 'utf8'), createResearchEngine(wasm),
+  ])
+  const utc = time => '2025-06-02T' + time + 'Z'
+  const effective = utc('14:10:00')
+  const rows = research.compareUniverseRanks(membership, prices, utc('14:00:00'),
+    { effective, known: utc('14:12:00') }, { effective, known: utc('14:16:00') })
+  assert.deepEqual(rows.map(row => [row.listingId, row.before.rank, row.after.rank, row.rankMove]), [
+    ['ALFA-001', 2, 1, 1], ['BETA-001', 1, 2, -1],
+  ])
+  assert.equal(rows[1].before.membership.changeId, 'BETA-JOIN')
+  assert.deepEqual(rows[1].after.current, { ticks: 50500000n, observedAt: Date.parse(utc('14:16:00')) / 1000 })
+})
+
 test('the public TypeScript SDK reads quarterly evidence from its packaged engine', async () => {
   const fixture = name => new URL('../../../crates/core/tests/fixtures/synthetic-financial-' + name + '.csv', import.meta.url)
   const [filings, caps, research] = await Promise.all([
