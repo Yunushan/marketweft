@@ -161,10 +161,10 @@ function draw(
     }
     if (low === high) {
       high = 1
-      if (study.kind === 'macd') low = -1
+      if (study.zeroLine) low = -1
     }
     const ticks = study.kind === 'bb_percent_b' ? [low, 0, 100, high] :
-      study.kind === 'macd' ? [low, 0, high] : [low, (low + high) / 2, 0, high]
+      study.zeroLine ? [low, 0, high] : [low, (low + high) / 2, 0, high]
     const format = study.unit === 'volume' ? volume : study.unit === 'price' ? price : (value: number) => price(value) + '%'
     return { ...study, low, high, ticks: [...new Set(ticks)].sort((a, b) => a - b), format }
   })
@@ -465,7 +465,7 @@ function draw(
       const reference = (panel.kind === 'rsi' && (tick === 30 || tick === 70)) ||
         (panel.kind === 'stochastic' && (tick === 20 || tick === 80)) ||
         (panel.kind === 'williams_r' && (tick === -20 || tick === -80)) ||
-        (panel.kind === 'macd' && tick === 0) ||
+        (panel.zeroLine && tick === 0) ||
         (panel.kind === 'bb_percent_b' && (tick === 0 || tick === 100))
       line(left, level, right, level, reference ? '#3e4c6a' : '#293036')
       ctx.fillStyle = '#93a19e'

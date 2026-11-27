@@ -2,7 +2,7 @@ import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
 import type { Asset, SavedImport } from './workspace'
 import { isSha256, sha256Text } from './sha256'
-import { extraStudyPeriods, hasStudyPeriod, isStudyKind, validStudyPeriod, validStudyPeriodOrder } from './studies'
+import { extraStudyPeriods, hasStudyPeriod, isStudyKind, STUDIES, validStudyPeriod, validStudyPeriodOrder } from './studies'
 import type { StudySet, StudySettings } from './studies'
 import { validProvider, verifyProviderSignature } from './provider-signature'
 
@@ -233,7 +233,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           if (!validStudyPeriod(kind, period)) throw Error('Invalid auxiliary study period.')
           study[key] = period
         }
-        if (!validStudyPeriodOrder(kind, study)) throw Error('The MACD fast period must be shorter than the slow period.')
+        if (!validStudyPeriodOrder(kind, study)) throw Error(`The ${STUDIES[kind].name} fast period must be shorter than the slow period.`)
         studies[kind] = study
       }
       return [pane, studies]

@@ -1395,3 +1395,24 @@ test('cumulative volume keeps both signed totals exact through ties, flat ranges
   }
   assert.throws(() => core.cumulativeVolume([bars[0], bars[0]]), /later/);
 });
+
+test('Chaikin studies distinguish zero reported volume from a defined zero oscillator', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-cumulative-volume.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const flow = [null, 20_000_000n, 27_272_722n, -71_929_814n, -67_346_939n, 0n, -100_000_000n, 66_666_667n];
+  const oscillator = [null, 1_250_000n, 83_333n, -1_347_222n, -449_074n, -149_691n, -49_897n, -16_631n];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.chaikinMoneyFlow(2, bars.slice(0, end)), flow.slice(0, end));
+    assert.deepEqual(core.chaikinOscillator(1, 2, bars.slice(0, end)), oscillator.slice(0, end));
+  }
+  const zero = bars.map(bar => ({ ...bar, volume: 0 }));
+  assert.equal(core.chaikinMoneyFlow(2, zero).at(-1), null);
+  assert.equal(core.chaikinOscillator(1, 2, zero).at(-1), 0n);
+  const large = Array.from({ length: 10_000 }, (_, time) => {
+    const close = -(time + 1) / 1e6;
+    return { time, open: 0, high: 0, low: close, close, volume: 2e9 };
+  });
+  assert.equal(core.chaikinOscillator(1, 10_000, large).at(-1), -9_999_000_000_000_000_000n);
+  assert.equal(core.chaikinMoneyFlow(10_000, large).at(-1), -100_000_000n);
+  assert.throws(() => core.chaikinOscillator(2, 1, bars), /shorter/);
+});

@@ -154,6 +154,16 @@ The Accumulation/Distribution Line includes the first bar. For each bar, subtrac
 
 The research CSV uses `obv` and `adl` columns. Readouts and CSV retain each exact volume millionth for totals beyond the signed 64-bit limit. Exporting the visible range keeps the cumulative values computed from all earlier observed bars.
 
+### Chaikin studies
+
+Enable **Chaikin Money Flow** or **Chaikin Oscillator** in either pane’s indicator settings. The studies share the same per-bar signed volume contribution as the Accumulation/Distribution Line. They each have their own scale and zero line.
+
+Chaikin Money Flow adds the signed contributions over a full window, divides by the total reported volume over the same window and displays the result as a percentage. The default window is 20 observed bars. A window with zero reported volume leaves a gap. A flat bar contributes zero to the numerator and its reported volume to the denominator. [StockCharts’ Chaikin Money Flow calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/chaikin-money-flow-cmf).
+
+The Chaikin Oscillator subtracts the slow EMA of the Accumulation/Distribution Line from the fast EMA. It uses volume units. The default periods are 3 and 10 observed bars. The fast period must be shorter than the slow period. It starts at the first full slow window. Each EMA begins with a full-window average and rounds each value to the nearest volume millionth. [StockCharts’ Chaikin Oscillator calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/chaikin-oscillator).
+
+Each period accepts 1 through 100,000 bars. The default research CSV columns are `chaikin_money_flow_20` and `chaikin_oscillator_3_10`. Undefined values leave empty cells. Both readouts and exports retain exact six-place values.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

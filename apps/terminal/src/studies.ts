@@ -15,6 +15,9 @@ export const STUDIES = {
   macd: { name: 'MACD', label: 'Moving Average Convergence Divergence', minPeriod: 1, defaultPeriod: 12, periodLabel: 'MACD fast', color: '#9abdfd' },
   obv: { name: 'On-Balance Volume', label: 'On-Balance Volume', color: '#79c9b2' },
   adl: { name: 'Accumulation/Distribution Line', label: 'Accumulation/Distribution Line', color: '#e4ac7f' },
+  chaikin_money_flow: { name: 'Chaikin Money Flow', label: 'Chaikin Money Flow', minPeriod: 1, defaultPeriod: 20, color: '#7ed2ca' },
+  chaikin_oscillator: { name: 'Chaikin Oscillator', label: 'Chaikin Oscillator', minPeriod: 1, defaultPeriod: 3,
+    periodLabel: 'Chaikin fast', color: '#d39ce1' },
 } as const
 export type StudyKind = keyof typeof STUDIES
 export const STUDY_KINDS = Object.keys(STUDIES) as StudyKind[]
@@ -24,12 +27,14 @@ export const EXTRA_STUDY_PERIODS = {
   signalPeriod: { label: 'Stochastic %D', defaultPeriod: 3 },
   slowPeriod: { label: 'MACD slow', defaultPeriod: 26 },
   macdSignalPeriod: { label: 'MACD signal', defaultPeriod: 9 },
+  chaikinSlowPeriod: { label: 'Chaikin slow', defaultPeriod: 10 },
 } as const
 type ExtraStudyPeriod = keyof typeof EXTRA_STUDY_PERIODS
 const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPeriod[]>> = {
   keltner: ['atrPeriod'],
   stochastic: ['smoothPeriod', 'signalPeriod'],
   macd: ['slowPeriod', 'macdSignalPeriod'],
+  chaikin_oscillator: ['chaikinSlowPeriod'],
 }
 export function extraStudyPeriods(kind: StudyKind): readonly ExtraStudyPeriod[] {
   return EXTRA_PERIODS_BY_STUDY[kind] ?? []
@@ -55,7 +60,13 @@ export type PanelLine = {
   series: StudyValue[]
   histogram?: { negativeColor: string }
 }
-export type PanelStudy = { kind: Exclude<StudyKind, BandKind>; periods: number[]; unit?: 'price' | 'volume'; lines: PanelLine[] }
+export type PanelStudy = {
+  kind: Exclude<StudyKind, BandKind>
+  periods: number[]
+  unit?: 'price' | 'volume'
+  zeroLine?: boolean
+  lines: PanelLine[]
+}
 export type BandStudy = {
   period: number
   bands: (PriceBand | null)[]
@@ -109,11 +120,22 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       const slow = study.slowPeriod ?? EXTRA_STUDY_PERIODS.slowPeriod.defaultPeriod
       const signal = study.macdSignalPeriod ?? EXTRA_STUDY_PERIODS.macdSignalPeriod.defaultPeriod
       const rows = core.macd(period, slow, signal, bars)
-      return [{ kind, periods: [period, slow, signal], unit: 'price', lines: [
+      return [{ kind, periods: [period, slow, signal], unit: 'price', zeroLine: true, lines: [
         { key: 'line', label: 'Line', color: STUDIES.macd.color, series: rows.map(row => row.line) },
         { key: 'signal', label: 'Signal', color: '#f4c384', series: rows.map(row => row.signal) },
         { key: 'histogram', label: 'Histogram', color: '#458b77', series: rows.map(row => row.histogram),
           histogram: { negativeColor: '#a3687f' } },
+      ] }]
+    }
+    if (kind === 'chaikin_oscillator') {
+      const slow = study.chaikinSlowPeriod ?? EXTRA_STUDY_PERIODS.chaikinSlowPeriod.defaultPeriod
+      return [{ kind, periods: [period, slow], unit: 'volume', zeroLine: true, lines: [
+        { color: STUDIES[kind].color, series: core.chaikinOscillator(period, slow, bars) },
+      ] }]
+    }
+    if (kind === 'chaikin_money_flow') {
+      return [{ kind, periods: [period], zeroLine: true, lines: [
+        { color: STUDIES[kind].color, series: core.chaikinMoneyFlow(period, bars) },
       ] }]
     }
     let series: StudyValue[]
@@ -152,9 +174,9 @@ export function isStudyKind(key: string): key is StudyKind {
   return Object.hasOwn(STUDIES, key)
 }
 export function validStudyPeriodOrder(kind: StudyKind, settings: StudySettings): boolean {
-  return kind !== 'macd' || (
-    settings.period !== undefined && settings.slowPeriod !== undefined && settings.period < settings.slowPeriod
-  )
+  if (kind !== 'macd' && kind !== 'chaikin_oscillator') return true
+  const slow = kind === 'macd' ? settings.slowPeriod : settings.chaikinSlowPeriod
+  return settings.period !== undefined && slow !== undefined && settings.period < slow
 }
 
 export function validStudyPeriod(kind: StudyKind, period: unknown): period is number {

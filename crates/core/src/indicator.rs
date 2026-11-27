@@ -7,8 +7,12 @@ pub enum Average {
 }
 
 /// Round ties away from zero. i128 keeps the running sums and EMA weights exact.
-fn rounded_ratio(n: i128, d: i128) -> i64 {
-    (n.signum() * ((n.abs() + d / 2) / d)) as i64
+fn rounded_ratio(n: i128, d: i128) -> i128 {
+    n.signum() * ((n.abs() + d / 2) / d)
+}
+
+pub(crate) fn advance_ema(previous: i128, current: i128, weight: i128) -> i128 {
+    rounded_ratio(2 * current + (weight - 1) * previous, weight + 1)
 }
 
 /// SMA uses an exact rolling sum. EMA starts at the first full-window SMA and
@@ -32,18 +36,16 @@ pub(crate) fn average_values(kind: Average, period: usize, closes: &[i64]) -> Ve
     }
     let mut sum: i128 = closes[..period].iter().map(|&x| i128::from(x)).sum();
     let weight = period as i128;
-    let mut last = rounded_ratio(sum, weight);
+    let mut last = rounded_ratio(sum, weight) as i64;
     out[period - 1] = Some(last);
     for i in period..closes.len() {
         let current = i128::from(closes[i]);
         last = match kind {
             Average::Simple => {
                 sum += current - i128::from(closes[i - period]);
-                rounded_ratio(sum, weight)
+                rounded_ratio(sum, weight) as i64
             }
-            Average::Exponential => {
-                rounded_ratio(2 * current + (weight - 1) * i128::from(last), weight + 1)
-            }
+            Average::Exponential => advance_ema(i128::from(last), current, weight) as i64,
         };
         out[i] = Some(last);
     }

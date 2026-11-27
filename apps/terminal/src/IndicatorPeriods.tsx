@@ -102,7 +102,7 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
         </label>)}
         <button type="submit" disabled={saving}>Apply {name}</button>
         {error && <p role="alert">{error === 'order' ?
-          'The MACD fast period must be shorter than the slow period.' : kind === 'macd' ?
+          `The ${name} fast period must be shorter than the slow period.` : kind === 'macd' ?
           'Enter whole MACD periods from 1 through 100,000 bars.' : kind === 'keltner' ?
           'Enter whole EMA and ATR periods from 1 through 100,000 bars.' : kind === 'stochastic' ?
           'Enter whole Stochastic periods from 1 through 100,000 bars.' :

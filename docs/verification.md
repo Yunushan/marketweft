@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.121.0 · Chaikin studies
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Exact fixtures compare rolling volume and independent EMAs, flat bars, observed gaps, zero-volume windows, every earlier prefix, and oscillator values beyond 64 bits. |
+| Browser chart and export | Offline Chromium checks the two zero lines, a zero-volume gap in Money Flow, continuous oscillator values and the exact research CSV. |
+| Workspace | Version 26 stores independent periods and rejects an invalid EMA ordering. Version 25 restores its saved volume settings. |
+
+[Chaikin studies](chart-workspace.md#chaikin-studies) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.120.0 · Cumulative volume studies
 
 | Check | Evidence |

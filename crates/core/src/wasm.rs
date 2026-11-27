@@ -2890,6 +2890,24 @@ pub extern "C" fn mw_cumulative_volume() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_chaikin_money_flow(period: usize) -> u32 {
+    process(|input| {
+        crate::chaikin_money_flow(period, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_chaikin_oscillator(fast: usize, slow: usize) -> u32 {
+    process(|input| {
+        let results = crate::chaikin_oscillator(fast, slow, &decode_bars(input)?)?;
+        Ok(results
+            .into_iter()
+            .flat_map(|value| value.unwrap_or(i128::MIN).to_le_bytes())
+            .collect())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_macd(fast: usize, slow: usize, signal: usize) -> u32 {
     process(|input| {
         let values = crate::macd(fast, slow, signal, &indicator_closes(input)?)?;
