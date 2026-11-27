@@ -105,6 +105,23 @@ jobs:
           ).map(row => [row.listingId, row.rank, row.returnUnits])
           assert.deepEqual(rank('2025-06-02T14:10:00Z'), [['ALFA-001', 1, 20000n], ['BETA-001', null, null]])
           assert.deepEqual(rank('2025-06-02T14:12:00Z'), [['BETA-001', 1, 120000n], ['ALFA-001', 2, 20000n]])
+
+          const [underlying, quotes, cash] = await Promise.all([
+            fixture('synthetic-option-underlying.csv'), fixture('synthetic-option-exercise-quotes.csv'),
+            fixture('synthetic-option-cash-dividends.csv'),
+          ])
+          const effective = '2025-04-03T14:00:00Z'
+          const contract = 'APR-AM-C90'
+          assert.equal(research.optionIndex(underlying, quotes).currency, 'USD')
+          assert.ok(!research.optionSnapshot(underlying, quotes, effective, effective, 300).options.some(row => row.id === contract))
+          const observe = known => research.americanOptionCashImplied(underlying, quotes, cash, contract, effective, known, 300, 128)
+          const first = observe('2025-04-03T14:04:00Z')
+          const revised = observe('2025-04-03T14:06:00Z')
+          assert.equal(revised.price.toFixed(6), '16.234568')
+          assert.equal((revised.volatility * 100).toFixed(2), '32.53')
+          assert.deepEqual(first.dividends.map(row => row.amountPerShare), [7000000n])
+          assert.deepEqual(revised.dividends.map(row => row.amountPerShare), [1000000n, 9000000n])
+          assert.deepEqual(observe('2025-04-03T14:04:00Z'), first)
           JS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

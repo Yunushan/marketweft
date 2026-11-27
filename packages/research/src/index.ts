@@ -2,8 +2,9 @@ import { instantiateMarketCore } from './core.js'
 import type { Bar, FormulaFunction, FormulaResult, MarketCore } from './core.js'
 
 export type {
-  Bar, Filing, FinancialIssuer, FinancialSnapshot, FormulaFunction, FormulaResult, QuarterlyValuation, ScreenPrice,
-  ScreenRow, TrailingFourQuarters,
+  AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, Filing, FinancialIssuer, FinancialSnapshot,
+  FormulaFunction, FormulaResult, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
+  OptionUnavailable, OptionUnderlying, QuarterlyValuation, ScreenPrice, ScreenRow, TrailingFourQuarters,
 } from './core.js'
 
 export const RESEARCH_SDK_VERSION = 1
@@ -16,6 +17,12 @@ export interface MarketResearch {
   universeScreen: MarketCore['universeScreen']
   financialIndex: MarketCore['financialIndex']
   financialSnapshot: MarketCore['financialSnapshot']
+  optionIndex: MarketCore['optionIndex']
+  optionSnapshot: MarketCore['optionSnapshot']
+  americanOptionPrice: MarketCore['americanOptionPrice']
+  americanOptionImplied: MarketCore['americanOptionImplied']
+  americanOptionCashPrice: MarketCore['americanOptionCashPrice']
+  americanOptionCashImplied: MarketCore['americanOptionCashImplied']
 }
 
 export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Promise<MarketResearch> {
@@ -28,5 +35,11 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     universeScreen: core.universeScreen,
     financialIndex: core.financialIndex,
     financialSnapshot: core.financialSnapshot,
+    optionIndex: core.optionIndex,
+    optionSnapshot: core.optionSnapshot,
+    americanOptionPrice: core.americanOptionPrice,
+    americanOptionImplied: core.americanOptionImplied,
+    americanOptionCashPrice: core.americanOptionCashPrice,
+    americanOptionCashImplied: core.americanOptionCashImplied,
   }
 }

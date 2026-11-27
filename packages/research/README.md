@@ -2,10 +2,10 @@
 
 The TypeScript SDK evaluates versioned time-series formulas against user-supplied OHLCV. It uses the same checked-in Rust WebAssembly module as the terminal.
 
-Download `marketweft-research-0.4.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+Download `marketweft-research-0.5.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-npm install --offline ./marketweft-research-0.4.0.tgz
+npm install --offline ./marketweft-research-0.5.0.tgz
 ```
 
 ```js
@@ -27,3 +27,24 @@ For point-in-time universe screening, call `universeScreen` with the membership 
 For financial filings, call `financialIndex(filings, caps)` to list issuers and suggested valuation times. Call `financialSnapshot(filings, caps, issuer, valuationAt, knownAt)` with the original CSV strings and exact UTC cutoff strings. The result includes the annual valuation, the selected quarterly vintages and the trailing flow values in `bigint` millionths or `null`. [Financial filings](../../docs/financial-statements.md#quarterly-filings-and-trailing-twelve-months).
 
 The snapshot's `quarterlyValuation` includes trailing P/E, trailing P/S and latest-quarter P/B. A flow multiple is `null` when trailing coverage is unavailable. Consult `trailing.kind` for the coverage reason. Each other value includes either a fixed-point multiple or its calculation status. [Valuation basis](../../docs/financial-statements.md#choose-a-valuation-basis).
+
+
+## Option snapshots and American valuations
+
+Use `optionIndex(underlying, quotes)` to read the instrument, currency and first observation time. Call `optionSnapshot(underlying, quotes, effectiveAt, knownAt, maxAge)` to query local CSV strings at independent UTC cutoffs. The selected quotes retain exact `bigint` amounts and source timestamps. Each option result is either European analytics or an availability status.
+
+```js
+const effective = '2025-04-03T14:00:00Z'
+const known = '2025-04-03T14:06:00Z'
+const underlying = await readFile('./underlying.csv', 'utf8')
+const quotes = await readFile('./option-quotes.csv', 'utf8')
+const cash = await readFile('./cash-dividends.csv', 'utf8')
+const value = research.americanOptionCashImplied(
+  underlying, quotes, cash, 'APR-AM-C90', effective, known, 300, 128,
+)
+if (typeof value !== 'string') {
+  console.log(value.price, value.volatility, value.dividends.map(row => row.amountPerShare))
+}
+```
+
+The last three parameters are the known time, maximum quote age in seconds and lattice step count. Call `americanOptionCashPrice` with an annual volatility fraction before the step count for direct pricing. `americanOptionPrice` and `americanOptionImplied` use the continuous-yield model and omit the cash CSV argument. On the synthetic fixture, the revised reports yield a USD 16.234568 model price, 32.53% implied volatility and exact cash amounts of `1000000n` and `9000000n` per share in millionths. [Option CSV schema and replay cutoffs](../../docs/option-chain.md).

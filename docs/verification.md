@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.96.0 · TypeScript option research
+
+| Check | Evidence |
+| --- | --- |
+| Snapshot replay | The bundled Wasm SDK retains fixed-point bids, checked source times, European analytics and the late American contract cutoff. |
+| Valuation replay | TypeScript reproduces continuous-yield and cash-dividend prices and implied volatility, including exact applied amounts and cancellation. Rewinding restores the first reported amount. |
+| Offline package | The verification workflow packs and installs the SDK into a separate consumer. That consumer reproduces the USD 16.234568 midpoint and 32.53% IV from the bundled engine. |
+
+[TypeScript option research](../packages/research/README.md#option-snapshots-and-american-valuations) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.95.0 · Native American option valuations
 
 | Check | Evidence |

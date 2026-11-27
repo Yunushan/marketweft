@@ -75,3 +75,40 @@ test('the public TypeScript SDK reads quarterly evidence from its packaged engin
   assert.equal(result.trailing.commonNetIncome, null)
   assert.deepEqual(result.quarterlyValuation.priceSales, { kind: 'value', units: 1500000n })
 })
+
+
+test('the TypeScript SDK preserves point-in-time option quotes, analytics and dividend revisions', async () => {
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-option-' + name + '.csv', import.meta.url), 'utf8')
+  const [underlying, quotes, cash, research] = await Promise.all([
+    fixture('underlying'), fixture('exercise-quotes'), fixture('cash-dividends'), createResearchEngine(wasm),
+  ])
+  const iso = time => '2025-04-03T' + time + 'Z'
+  const at = iso('14:00:00')
+  const contract = 'APR-AM-C90'
+  const source = research.optionIndex(underlying, quotes)
+  assert.equal(source.instrument, 'DEMO:OPT')
+  assert.equal(source.currency, 'USD')
+  const before = research.optionSnapshot(underlying, quotes, at, at, 300)
+  assert.equal(before.underlying.spot, 100_000_000n)
+  assert.ok(!before.options.some(row => row.id === contract))
+  const call = before.options.find(row => row.id === 'APR-C100')
+  assert.equal(call.bid, 8_807_321n)
+  assert.equal(call.result.volatility.toFixed(4), '0.2000')
+  const visible = research.optionSnapshot(underlying, quotes, at, iso('14:02:00'), 300)
+  assert.equal(visible.options.find(row => row.id === contract).result, 'american-volatility-required')
+  assert.equal(research.americanOptionPrice(underlying, quotes, contract, at, iso('14:02:00'), 300, .25, 128).toFixed(6), '16.247756')
+  assert.equal(research.americanOptionImplied(underlying, quotes, contract, at, iso('14:03:00'), 300, 128).price.toFixed(6), '16.234568')
+  const price = known => research.americanOptionCashPrice(underlying, quotes, cash, contract, at, iso(known), 300, .25, 128)
+  const implied = known => research.americanOptionCashImplied(underlying, quotes, cash, contract, at, iso(known), 300, 128)
+  assert.equal(price('14:04:00').price.toFixed(6), '14.437394')
+  const initial = implied('14:04:00')
+  const revised = implied('14:06:00')
+  const cancelled = implied('14:07:00')
+  assert.deepEqual(revised.dividends.map(row => [row.id, row.amountPerShare]), [
+    ['EXTRA', 1_000_000n], ['MAIN', 9_000_000n],
+  ])
+  assert.deepEqual(cancelled.dividends.map(row => row.id), ['MAIN'])
+  assert.equal(revised.price.toFixed(6), '16.234568')
+  assert.equal((revised.volatility * 100).toFixed(2), '32.53')
+  assert.deepEqual(implied('14:04:00'), initial)
+})
