@@ -68,12 +68,14 @@ def verify_import(ui, package, activity, fixture):
            "-d", f"file://{REMOTE_FIXTURE}")
 
     ui.tap(ui.find("the terminal CSV action", app_label("Import CSV")))
-    symbol = ui.find("the listing symbol field", lambda node: (
-        node.get("package") == package and node.get("class") == "android.widget.EditText"
-        and labels(node).intersection({"Symbol", "e.g. ABC"})
+    symbol_group = ui.find("the listing symbol field group", lambda node: (
+        node.get("package") == package and any("Symbol" in labels(child) for child in node)
+        and any(child.get("class") == "android.widget.EditText" for child in node)
     ))
+    symbol = next(child for child in symbol_group if child.get("class") == "android.widget.EditText")
     ui.tap(symbol)
     ui.adb("shell", "input", "text", SYMBOL)
+    ui.find("the typed listing symbol", app_label(SYMBOL))
     if b"mInputShown=true" in ui.adb("shell", "dumpsys", "input_method"):
         ui.adb("shell", "input", "keyevent", "KEYCODE_BACK")
     ui.tap(ui.find("the historical CSV field", lambda node: (
