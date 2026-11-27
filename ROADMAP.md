@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.174.0 adds release-tag build provenance for the Intel and Apple Silicon macOS disk images. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.175.0 verifies CSV import through the production macOS app's native file picker on Intel and Apple Silicon. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Delivered · 0.175.0 | Native macOS file picker import (MW-007, MW-010) | Select the authorized CSV in the native file panel and confirm exact OHLCV in the production bundle on both macOS architectures. [macOS native file picker](docs/platforms.md#macos-native-file-picker). |
 | Delivered · 0.174.0 | macOS disk-image build provenance (MW-010, MW-011) | Attest both verified disk images and confirm their digests, embedded source, workflow identity and exact release tag. [macOS disk-image provenance](docs/platforms.md#verify-macos-disk-image-provenance). |
 | Delivered · 0.173.0 | macOS app upgrades (MW-010, MW-011) | Replace the release app from an earlier disk image and verify the original WKWebView profile in packaged test builds on both architectures. [macOS app upgrades](docs/platforms.md#macos-app-upgrades). |
 | Delivered · 0.172.0 | macOS disk images (MW-010, MW-011) | Verify and mount each read-only disk image, copy the application, eject the image and open the copy through Launch Services. [macOS disk images](docs/platforms.md#macos-disk-images). |
@@ -188,5 +189,5 @@
 
 ## Handoff for the next change
 
-Verify importing an authorized local CSV through the production macOS application's native file picker on Intel and Apple Silicon.
+Build the Android app through the shared Tauri entry point and verify that the installed application opens the local terminal in Android System WebView.
 

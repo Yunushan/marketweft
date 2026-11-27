@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.175.0 · macOS production file picker
+
+- The Intel and Apple Silicon jobs verify the release archive checksum, source revision, bundle signature and executable architecture before launching the app with XCUIAutomation.
+- The test opens the native file panel from the visible import form, selects the synthetic CSV and checks the imported chart's exact open, high, low, close and volume.
+- The browser suite verifies that six-place prices and fractional volume remain available in the same accessible readout after reload.
+
+[macOS native file picker](platforms.md#macos-native-file-picker) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.174.0 · macOS disk-image build provenance
 
 - The tagged workflow checks the exact Intel and Apple Silicon images from verified hosted runs, including their checksums, mounted application signatures, embedded source commit and Mach-O architectures.
