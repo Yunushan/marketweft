@@ -214,7 +214,7 @@ jobs:
           node-version: 26.8.2
           cache: npm
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth dbus-x11 xdotool python3-pyatspi at-spi2-core
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth dbus-x11 xdotool python3-pyatspi at-spi2-core webkit2gtk-driver
       - run: npm ci
       - run: npm run build
       - run: cargo build --locked --release -p marketweft-core --bin marketweft-research
@@ -237,7 +237,10 @@ jobs:
       - if: runner.os == 'Linux'
         run: cargo test --locked --manifest-path apps/desktop/Cargo.toml --test glib_variant_iter
       - if: runner.os == 'Linux'
-        run: PATH="/usr/bin:$PATH" sh apps/desktop/tests/smoke-x11.sh apps/desktop/target/debug/marketweft-desktop --import-csv
+        run: PATH="/usr/bin:$PATH" sh apps/desktop/tests/smoke-x11.sh apps/desktop/target/debug/marketweft-desktop
+      - name: Import CSV through the native Linux WebView
+        if: runner.os == 'Linux'
+        run: PATH="/usr/bin:$PATH" xvfb-run -a dbus-run-session -- python3 -B apps/desktop/tests/import_webview.py apps/desktop/target/debug/marketweft-desktop
 
   native-advisories:
     runs-on: ubuntu-24.04

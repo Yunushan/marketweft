@@ -5,15 +5,14 @@
 set -eu
 
 if [ "${1:-}" != --display-ready ]; then
-    if [ "$#" -lt 1 ] || [ "$#" -gt 2 ] || [ ! -x "$1" ] || { [ "$#" -eq 2 ] && [ "$2" != --import-csv ]; }; then
-        echo "Usage: sh smoke-x11.sh PATH_TO_COMPILED_MARKETWEFT_DESKTOP [--import-csv]" >&2
+    if [ "$#" -ne 1 ] || [ ! -x "$1" ]; then
+        echo "Usage: sh smoke-x11.sh PATH_TO_COMPILED_MARKETWEFT_DESKTOP" >&2
         exit 2
     fi
-    exec xvfb-run -a -s '-screen 0 1600x1000x24' dbus-run-session -- sh "$0" --display-ready "$@"
+    exec xvfb-run -a -s '-screen 0 1600x1000x24' dbus-run-session -- sh "$0" --display-ready "$1"
 fi
 
 binary=$2
-shift 2
 test_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 scratch=$(mktemp -d)
 export XDG_CONFIG_HOME="$scratch/config" XDG_DATA_HOME="$scratch/data" XDG_CACHE_HOME="$scratch/cache"
@@ -35,6 +34,6 @@ window=$(timeout 30 xdotool search --sync --onlyvisible --name '^MarketWeft$' | 
 test -n "$window" || { echo 'Timed out waiting for the MarketWeft window.' >&2; exit 1; }
 xdotool getwindowname "$window"
 xdotool getwindowgeometry "$window"
-timeout 85 python3 "$test_dir/check_window.py" "$@"
+timeout 55 python3 "$test_dir/check_window.py"
 kill -0 "$app"
 echo 'Verified the native window, chart, watchlist, and import controls.'
