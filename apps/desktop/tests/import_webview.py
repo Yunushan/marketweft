@@ -118,12 +118,7 @@ def run(binary, workspace=None, phase='import'):
         runtime = root / "runtime"
         runtime.mkdir(mode=0o700)
         fixture = root / "native-verification.csv"
-        fixture.write_text(
-            "time,open,high,low,close,volume\n"
-            "2025-06-02,25,28,24,27,500\n"
-            "2025-06-03,27,30,26,29,800\n",
-            encoding="utf-8",
-        )
+        fixture.write_bytes((Path(__file__).with_name("fixtures") / fixture.name).read_bytes())
         env = dict(
             os.environ, GDK_BACKEND="x11", TAURI_WEBVIEW_AUTOMATION="true",
             WEBKIT_DISABLE_DMABUF_RENDERER="1", XDG_RUNTIME_DIR=str(runtime),

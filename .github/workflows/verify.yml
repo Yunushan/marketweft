@@ -322,6 +322,14 @@ jobs:
             printf '%s Mach-O architecture %s\n' "$binary" "$architecture"
             test "$architecture" = "$MACHINE"
           done
+      - name: Verify CSV import through native WKWebView
+        if: runner.os == 'macOS'
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          log="$RUNNER_TEMP/marketweft-wkwebview.log"
+          cargo run --locked --manifest-path apps/desktop/Cargo.toml --example verify_csv_import | tee "$log"
+          grep -Fx "Verified native WebView CSV import and exact OHLCV." "$log"
       - if: runner.os == 'Linux'
         run: cargo build --locked --release --manifest-path apps/desktop/Cargo.toml
       - name: Verify the native Linux ARM64 host and desktop executable
