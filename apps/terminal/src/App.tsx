@@ -53,6 +53,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   candles: 'Candles',
   line: 'Close line',
   ohlc: 'OHLC bars',
+  'heikin-ashi': 'Heikin-Ashi',
 }
 
 function Dialog({
@@ -760,7 +761,7 @@ export function App({
             <div className="legend" aria-label="Chart legend">
               <span>
                 <i className="candle-key" />
-                OHLCV
+                {ws.chartTypes?.primary === 'heikin-ashi' ? 'Heikin-Ashi · observed volume' : 'OHLCV'}
               </span>
               {ws.sma && (
                 <span>

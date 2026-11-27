@@ -14,9 +14,11 @@ const CHART_TYPES_BACKUP_VERSION = 5
 const OHLC_BARS_BACKUP_VERSION = 6
 const STRUCTURED_GRANT_BACKUP_VERSION = 7
 const VERIFIED_PROVIDER_BACKUP_VERSION = 8
+const HEIKIN_ASHI_BACKUP_VERSION = 9
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
+  if (Object.values(preferences.chartTypes ?? {}).includes('heikin-ashi')) return HEIKIN_ASHI_BACKUP_VERSION
   if (series.some(({ descriptor }) => descriptor.version === 3)) return VERIFIED_PROVIDER_BACKUP_VERSION
   if (series.some(({ descriptor }) => descriptor.version === 2)) return STRUCTURED_GRANT_BACKUP_VERSION
   if (Object.values(preferences.chartTypes ?? {}).includes('ohlc')) return OHLC_BARS_BACKUP_VERSION
@@ -113,7 +115,7 @@ export async function verifyWorkspaceBackup(
     SINGLE_PANE_BACKUP_VERSION, COMPARISON_BACKUP_VERSION, DRAWING_BACKUP_VERSION,
     INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
     STRUCTURED_GRANT_BACKUP_VERSION,
-    VERIFIED_PROVIDER_BACKUP_VERSION,
+    VERIFIED_PROVIDER_BACKUP_VERSION, HEIKIN_ASHI_BACKUP_VERSION,
   ].includes(file.version))
     throw Error('This workspace backup version is unsupported.')
   const manifest = fields(file.manifest, [

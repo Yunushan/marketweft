@@ -792,6 +792,7 @@ export interface MarketCore {
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
+  heikinAshi(bars: readonly Bar[]): Bar[];
   recordedTickBars(instrument: string, csv: string, targetTrades: number, knownAt?: string): TickBar[];
   footprintWindow(instrument: string, csv: string): FootprintWindow;
   recordedFootprint(instrument: string, csv: string, query: FootprintQuery): FootprintBar[];
@@ -874,6 +875,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_output_len(): number;
   mw_instrument(): number;
   mw_parse(): number;
+  mw_heikin_ashi(): number;
   mw_tick_bars(targetTrades: number): number;
   mw_footprint_window(): number;
   mw_trade_footprint(bucketSeconds: number): number;
@@ -1486,6 +1488,12 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         }
       }
       return view;
+    },
+    heikinAshi(bars) {
+      if (bars.length > 100_000) throw new Error('Heikin-Ashi supports up to 100,000 source bars.');
+      const dest = input(bars.length * 48);
+      for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Heikin-Ashi');
+      return decodeBars(output(api.mw_heikin_ashi()));
     },
     aggregateTimeframe(bars, sourceSeconds, targetSeconds) {
       putTimeframeInput(bars, sourceSeconds, targetSeconds);

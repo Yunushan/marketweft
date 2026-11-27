@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.104.0 · Heikin-Ashi chart
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | A shared reference fixes open, high, low and close across intervals with gaps. Native checks cover signed half ticks, input validation and prefix invariance. |
+| Browser chart | The rendered candle body matches the fixture's price geometry, the hover readout distinguishes derived and observed values, and CSV export preserves the observed rows. |
+| Workspace | Mixed Heikin-Ashi and line panes persist after reload. Browser restores both the legacy OHLC backup and the new backup with the original imported CSV. |
+
+[Heikin-Ashi charts](chart-workspace.md#heikin-ashi) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.103.0 · gRPC American valuations
 
 | Check | Evidence |

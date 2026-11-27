@@ -4,7 +4,7 @@ import { Chart } from './Chart'
 import type { TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'timeframe'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'timeframe' | 'displayBars'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -24,6 +24,8 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
   const timeframe = rolled?.sourceBars === asset.bars ? rolled : undefined
   const display = useMemo(() => timeframe ?
     { ...asset, bars: timeframe.buckets.map(entry => entry.bar) } : asset, [asset, timeframe])
+  const displayBars = useMemo(() => chart.type === 'heikin-ashi' ?
+    core.heikinAshi(display.bars) : undefined, [core, chart.type, display.bars])
   const sma = useMemo(() => activeSma && periods ?
     core.indicator('sma', periods.sma, display.bars) : [], [core, activeSma, periods?.sma, display.bars])
   const ema = useMemo(() => activeEma && periods ?
@@ -88,7 +90,7 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
         </form>
       </details>
       <Chart {...chart} key={timeframe?.revision ?? 'source'}
-        asset={display} sma={sma} ema={ema} periods={periods}
+        asset={display} displayBars={displayBars} sma={sma} ema={ema} periods={periods}
         timeframe={timeframe} onTimestamp={onTimestamp} />
     </>
   )

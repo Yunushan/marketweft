@@ -2261,6 +2261,11 @@ pub extern "C" fn mw_parse() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_heikin_ashi() -> u32 {
+    process(|input| Ok(encode_bars(crate::heikin_ashi(&decode_bars(input)?)?)))
+}
+
+#[no_mangle]
 pub extern "C" fn mw_tick_bars(target_trades: u32) -> u32 {
     process(|input| {
         let (identity, payload) = utf8(input)?

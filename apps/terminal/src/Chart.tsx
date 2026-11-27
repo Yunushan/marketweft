@@ -28,6 +28,7 @@ const chartNames: Record<ChartType, string> = {
   candles: 'candlestick',
   line: 'close line',
   ohlc: 'OHLC bar',
+  'heikin-ashi': 'Heikin-Ashi',
 }
 const defaultView = (n: number) => ({ end: n, count: Math.min(n, 60) })
 const clamp = (x: number, min: number, max: number) =>
@@ -346,6 +347,7 @@ export function Chart({
   timeframe,
   ticks,
   observedAt,
+  displayBars,
 }: {
   asset: Asset
   sma: Series
@@ -359,6 +361,7 @@ export function Chart({
   timeframe?: TimeframeView
   ticks?: TickBar[]
   observedAt?: readonly number[]
+  displayBars?: Bar[]
 }) {
   const { bars } = asset,
     n = bars.length
@@ -380,7 +383,8 @@ export function Chart({
   const linkedIndex = linkedTimestamp == null ? null : visibleBarAt(bars, linkedTimestamp, start, view.end)
   const active = pointerIndex ?? linkedIndex
   const readoutIndex = active ?? view.end - 1
-  const b = bars[readoutIndex]
+  const plotted = displayBars ?? bars
+  const b = plotted[readoutIndex]
   const coverage = timeframe?.buckets[readoutIndex]
   const session = timeframe?.mode === 'session' ? timeframe.buckets[readoutIndex] : undefined
   const tick = ticks?.[readoutIndex]
@@ -440,7 +444,7 @@ export function Chart({
           ref.current,
           size.width,
           size.height,
-          bars,
+          plotted,
           view,
           sma,
           ema,
@@ -448,7 +452,7 @@ export function Chart({
           drawing,
           type,
         )
-  }, [bars, view, sma, ema, active, size, drawing, type])
+  }, [plotted, view, sma, ema, active, size, drawing, type])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -503,13 +507,15 @@ export function Chart({
   return (
     <section className="plot" aria-label="Price and volume chart"
       data-crosshair-time={active === null ? undefined : bars[active].time}>
-      <div className="ohlc">
+      <div className="ohlc" role={displayBars ? 'group' : undefined}
+        aria-label={displayBars ? 'Heikin-Ashi prices' : undefined}>
         <time>{timeLabel(b.time)} UTC</time>
         {(['open', 'high', 'low', 'close'] as const).map((k) => (
           <span key={k}>
             <small>{k[0].toUpperCase()}</small> {price(b[k])}
           </span>
         ))}
+        {displayBars && <span><small>Observed close</small> {price(bars[readoutIndex].close)}</span>}
         <span className="ohlc-vol">
           <small>Vol</small> {volume(b.volume)}
         </span>

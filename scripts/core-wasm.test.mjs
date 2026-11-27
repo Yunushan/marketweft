@@ -1114,3 +1114,14 @@ test('large import survives memory growth and preserves extreme six-place ticks'
   assert.equal(core.indicator('sma', n, bars)[n - 1], 1999999999.999989);
   assert.equal(core.parseCsv(csv)[0].close, 10);
 });
+
+test('Heikin-Ashi Wasm matches the fixed-point reference across gaps', async () => {
+  const source = core.parseCsv(await readFile(new URL('../crates/core/tests/fixtures/synthetic-heikin-ashi.csv', import.meta.url), 'utf8'));
+  const derived = core.heikinAshi(source);
+  assert.deepEqual(derived.map(({ open, high, low, close }) => [open, high, low, close]), [
+    [12, 20, 4, 12], [12, 26, 12, 22], [17, 17, 7, 10],
+  ]);
+  assert.deepEqual(derived.map(({ time, volume }) => [time, volume]), source.map(({ time, volume }) => [time, volume]));
+  assert.deepEqual(core.heikinAshi(source.slice(0, 2)), derived.slice(0, 2));
+  assert.throws(() => core.heikinAshi(source.toReversed()), /later than the previous bar/);
+});

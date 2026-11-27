@@ -16,7 +16,7 @@ export type Preferences = {
 }
 
 export type ChartPane = 'primary' | 'comparison'
-export type ChartType = 'candles' | 'line' | 'ohlc'
+export type ChartType = 'candles' | 'line' | 'ohlc' | 'heikin-ashi'
 export type OverlayPeriods = { sma: number; ema: number }
 
 export type ComparisonPreferences = {
@@ -178,7 +178,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       throw Error('Invalid workspace chart types.')
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, type]) =>
-      (pane !== 'primary' && pane !== 'comparison') || (type !== 'line' && type !== 'ohlc'))) {
+      (pane !== 'primary' && pane !== 'comparison') || (type !== 'line' && type !== 'ohlc' && type !== 'heikin-ashi'))) {
       throw Error('Unknown pane or chart type in the workspace.')
     }
     result.chartTypes = Object.fromEntries(entries)

@@ -11,6 +11,23 @@ pub struct Bar {
     pub volume: i64,
 }
 
+pub(crate) fn validate_ohlcv(bar: &Bar, index: usize) -> Result<(), String> {
+    if [bar.open, bar.high, bar.low, bar.close]
+        .iter()
+        .any(|price| !(-MAX_TICKS..=MAX_TICKS).contains(price))
+        || !(0..=MAX_TICKS).contains(&bar.volume)
+        || bar.low > bar.open.min(bar.close)
+        || bar.high < bar.open.max(bar.close)
+    {
+        Err(format!(
+            "Source bar {} has invalid OHLCV values.",
+            index + 1
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 pub(crate) fn decimal(text: &str) -> Option<i64> {
     let ticks = decimal_ticks(text)?;
     (ticks.abs() <= i128::from(MAX_TICKS)).then_some(ticks as i64)

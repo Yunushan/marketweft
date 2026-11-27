@@ -1,4 +1,7 @@
-use crate::{history::valid_second, replay, Bar, Session, MAX_BARS, MAX_TICKS};
+use crate::{
+    history::{valid_second, validate_ohlcv},
+    replay, Bar, Session, MAX_BARS, MAX_TICKS,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TimeframeBar {
@@ -21,23 +24,6 @@ fn validate_durations(source_seconds: u32, target_seconds: u32) -> Result<(), St
         || !target_seconds.is_multiple_of(source_seconds)
     {
         Err("Use a target interval that is a larger whole multiple of the source interval.".into())
-    } else {
-        Ok(())
-    }
-}
-
-fn validate_ohlcv(bar: &Bar, index: usize) -> Result<(), String> {
-    if [bar.open, bar.high, bar.low, bar.close]
-        .iter()
-        .any(|price| !(-MAX_TICKS..=MAX_TICKS).contains(price))
-        || !(0..=MAX_TICKS).contains(&bar.volume)
-        || bar.low > bar.open.min(bar.close)
-        || bar.high < bar.open.max(bar.close)
-    {
-        Err(format!(
-            "Source bar {} has invalid OHLCV values.",
-            index + 1
-        ))
     } else {
         Ok(())
     }
