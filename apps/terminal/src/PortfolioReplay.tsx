@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { MarketCore, PortfolioSnapshot } from './market-core'
+import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff } from './market-core'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoHoldings from '../../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv?raw'
 import demoPrices from '../../../crates/core/tests/fixtures/synthetic-universe-prices.csv?raw'
 import demoTerms from '../../../crates/core/tests/fixtures/synthetic-delisting-terms.csv?raw'
 import demoDividends from '../../../crates/core/tests/fixtures/synthetic-portfolio-dividends.csv?raw'
+import demoSpinOffs from '../../../crates/core/tests/fixtures/synthetic-portfolio-spin-offs.csv?raw'
 
-type Source = { holdings: string; prices: string; terms: string; dividends: string }
+type Source = { holdings: string; prices: string; terms: string; dividends: string; spinOffs: string }
 const states = {
   unobserved: 'Listing unobserved',
   'missing-close': 'Close unavailable',
@@ -22,6 +23,12 @@ const dividendStates = {
   'no-payment': 'No payment',
   receivable: 'Dividend receivable',
   paid: 'Dividend cash',
+}
+const spinOffStates: Record<PortfolioSpinOff['state'], string> = {
+  'unknown-position': 'Entitlement unavailable',
+  'no-distribution': 'No distribution',
+  receivable: 'Shares receivable',
+  distributed: 'Shares distributed',
 }
 const money = (value: bigint) => fixed(value, 6)
 
@@ -38,22 +45,27 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   const [prices, setPrices] = useState<File | null>(null)
   const [terms, setTerms] = useState<File | null>(null)
   const [dividends, setDividends] = useState<File | null>(null)
+  const [spinOffs, setSpinOffs] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const snapshot = useMemo(() => source
     ? core.portfolioAsOf(membership, source.holdings, source.prices, source.terms, effective, known, source.dividends)
     : null, [core, membership, source, effective, known])
+  const distributions = useMemo(() => source?.spinOffs
+    ? core.portfolioSpinOffsAsOf(membership, source.holdings, source.spinOffs, effective, known)
+    : null, [core, membership, source, effective, known])
 
   function open(source: Source) {
     core.portfolioAsOf(membership, source.holdings, source.prices, source.terms, effective, known, source.dividends)
+    if (source.spinOffs) core.portfolioSpinOffsAsOf(membership, source.holdings, source.spinOffs, effective, known)
     setSource(source)
     setError('')
   }
 
-  function startDemo(withIncome = false) {
+  function startDemo(mode?: 'income' | 'spin-offs') {
     try {
       open({ holdings: demoHoldings, prices: demoPrices, terms: demoTerms,
-        dividends: withIncome ? demoDividends : '' })
+        dividends: mode === 'income' ? demoDividends : '', spinOffs: mode === 'spin-offs' ? demoSpinOffs : '' })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio demo.')
     }
@@ -64,12 +76,13 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
     if (!holdings || !prices) return
     setBusy(true)
     try {
-      const [holdingCsv, priceCsv, termCsv, dividendCsv] = await Promise.all([
+      const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv] = await Promise.all([
         readReport(holdings, 2), readReport(prices, 2), terms ? readReport(terms, 1) : '',
-        dividends ? readReport(dividends, 1) : '',
+        dividends ? readReport(dividends, 1) : '', spinOffs ? readReport(spinOffs, 1) : '',
       ])
       if (dividends && !dividendCsv.trim()) throw new Error('Portfolio dividends CSV contains no reports.')
-      open({ holdings: holdingCsv, prices: priceCsv, terms: termCsv, dividends: dividendCsv })
+      if (spinOffs && !spinOffCsv.trim()) throw new Error('Portfolio spin-off CSV contains no reports.')
+      open({ holdings: holdingCsv, prices: priceCsv, terms: termCsv, dividends: dividendCsv, spinOffs: spinOffCsv })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio reports.')
     } finally {
@@ -82,11 +95,12 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
       <div className="replay-heading">
         <div>
           <h2 id="portfolio-title">Portfolio replay</h2>
-          <p>Value dated holdings, delisting proceeds and dividend income at the universe cutoffs.</p>
+          <p>Value dated holdings and review delisting, dividend and spin-off entitlements at the universe cutoffs.</p>
         </div>
         {demo && <div className="replay-controls">
           <button className="outline" onClick={() => startDemo()} disabled={busy}>Load portfolio demo</button>
-          <button className="outline" onClick={() => startDemo(true)} disabled={busy}>Load dividend income demo</button>
+          <button className="outline" onClick={() => startDemo('income')} disabled={busy}>Load dividend income demo</button>
+          <button className="outline" onClick={() => startDemo('spin-offs')} disabled={busy}>Load spin-off demo</button>
         </div>}
       </div>
       <form className="universe-query" onSubmit={load}>
@@ -106,12 +120,37 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <input type="file" accept=".csv,text/csv"
             onChange={event => setDividends(event.target.files?.[0] ?? null)} />
         </label>
+        <label>Portfolio spin-off CSV (optional)
+          <input type="file" accept=".csv,text/csv"
+            onChange={event => setSpinOffs(event.target.files?.[0] ?? null)} />
+        </label>
         <button className="outline" disabled={busy || !holdings || !prices}>Load portfolio reports</button>
       </form>
       {error && <p role="alert" className="warning replay-error">{error}</p>}
       {snapshot && <PortfolioResult snapshot={snapshot} />}
+      {distributions && <SpinOffEntitlements rows={distributions} />}
     </section>
   )
+}
+
+function SpinOffEntitlements({ rows }: { rows: PortfolioSpinOff[] }) {
+  if (!rows.length) return <p>No spin-off entitlements at these cutoffs.</p>
+  return <div className="replay-table-scroll">
+    <table className="universe-table" aria-label="Portfolio spin-off entitlements">
+      <thead><tr><th scope="col">Action</th><th scope="col">Parent listing</th><th scope="col">Child listing</th>
+        <th scope="col">Entitlement (UTC)</th><th scope="col">Distribution (UTC)</th><th scope="col">Terms observed (UTC)</th>
+        <th scope="col">Parent shares</th><th scope="col">Holding observed (UTC)</th><th scope="col">Child shares</th>
+        <th scope="col">State</th></tr></thead>
+      <tbody>{rows.map(row => <tr key={row.id}>
+        <th scope="row">{row.id}</th><td>{row.parent}</td><td>{row.child}</td><td>{utc(row.entitlementAt)}</td>
+        <td>{utc(row.distributionAt)}</td><td>{utc(row.observedAt)}</td><td>{row.entitledParentShares ?? '—'}</td>
+        <td>{row.positionObservedAt === null ? '—' : utc(row.positionObservedAt)}</td>
+        <td>{row.childShares === null ? '—' : row.childShares.denominator === 1
+          ? row.childShares.numerator.toString() : row.childShares.numerator + '/' + row.childShares.denominator}</td>
+        <td>{spinOffStates[row.state]}</td>
+      </tr>)}</tbody>
+    </table>
+  </div>
 }
 
 function PortfolioResult({ snapshot }: { snapshot: PortfolioSnapshot }) {

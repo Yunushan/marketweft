@@ -914,6 +914,22 @@ export interface PortfolioSnapshot {
   }[];
 }
 
+export interface PortfolioSpinOff {
+  id: string;
+  parent: string;
+  child: string;
+  announcedAt: number;
+  entitlementAt: number;
+  distributionAt: number;
+  observedAt: number;
+  rate: { numerator: number; denominator: number };
+  state: 'unknown-position' | 'no-distribution' | 'receivable' | 'distributed';
+  entitledParentShares: number | null;
+  positionEffectiveAt: number | null;
+  positionObservedAt: number | null;
+  childShares: { numerator: bigint; denominator: number } | null;
+}
+
 export type DrawdownPoint = { peakAt: number; peakClose: bigint; percent: bigint };
 
 export type ConfirmedSwing = { pivotAt: number; confirmedAt: number; close: bigint; side: 'high' | 'low' };
@@ -984,6 +1000,8 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string): DelistingValuation;
   portfolioAsOf(membership: string, holdings: string, prices: string, terms: string,
     effectiveAt: string, knownAt: string, dividends?: string): PortfolioSnapshot;
+  portfolioSpinOffsAsOf(membership: string, holdings: string, reports: string,
+    effectiveAt: string, knownAt: string): PortfolioSpinOff[];
   compareUniverseRanks(membership: string, prices: string, baselineAt: string,
     before: ScreenCutoff, after: ScreenCutoff): ScreenComparisonRow[];
   universeScreen(membership: string, prices: string, baselineAt: string,
@@ -1105,6 +1123,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_delisting_as_of(membershipBytes: number, shares: number): number;
   mw_portfolio_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number): number;
   mw_portfolio_income_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number, termsBytes: number): number;
+  mw_portfolio_spin_offs_as_of(membershipBytes: number, holdingsBytes: number): number;
   mw_universe_screen(membershipBytes: number): number;
   mw_compare_universe_ranks(membershipBytes: number): number;
   mw_relative_series(membershipBytes: number): number;
@@ -1443,6 +1462,13 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       throw new Error('Screen times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.');
     }
     textInput([...times, files.join('')].join('\n'));
+  }
+
+  function portfolioInput(effectiveAt: string, knownAt: string, ...files: string[]) {
+    if ([effectiveAt, knownAt].some(time => time.length !== 20 || /[\n\r]/.test(time))) {
+      throw new Error('Use YYYY-MM-DDTHH:MM:SSZ UTC portfolio cutoffs.');
+    }
+    textInput([effectiveAt, knownAt, files.join('')].join('\n'));
   }
 
   function decodeHeatmap(text: string): Heatmap {
@@ -2234,10 +2260,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return value;
     },
     portfolioAsOf(membership, holdings, prices, terms, effectiveAt, knownAt, dividends = '') {
-      if ([effectiveAt, knownAt].some(time => time.length !== 20 || /[\n\r]/.test(time))) {
-        throw new Error('Use YYYY-MM-DDTHH:MM:SSZ UTC portfolio cutoffs.');
-      }
-      textInput([effectiveAt, knownAt, membership + holdings + prices + terms + dividends].join('\n'));
+      portfolioInput(effectiveAt, knownAt, membership, holdings, prices, terms, dividends);
       const widths = [encoder.encode(membership).length, encoder.encode(holdings).length,
         encoder.encode(prices).length] as const;
       const text = decoder.decode(output(dividends
@@ -2281,6 +2304,26 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         }
       }
       return report;
+    },
+    portfolioSpinOffsAsOf(membership, holdings, reports, effectiveAt, knownAt) {
+      portfolioInput(effectiveAt, knownAt, membership, holdings, reports);
+      const text = decoder.decode(output(api.mw_portfolio_spin_offs_as_of(
+        encoder.encode(membership).length, encoder.encode(holdings).length,
+      )));
+      if (!text) return [];
+      const optional = (value: string) => value === '' ? null : Number(value);
+      return text.slice(0, -1).split('\n').map(line => {
+        const [id, parent, child, announced, entitlement, distribution, observed, rateNumerator,
+          rateDenominator, state, parentShares, positionEffective, positionObserved, numerator, denominator] = line.split('\t');
+        return {
+          id, parent, child, announcedAt: Number(announced), entitlementAt: Number(entitlement),
+          distributionAt: Number(distribution), observedAt: Number(observed),
+          rate: { numerator: Number(rateNumerator), denominator: Number(rateDenominator) },
+          state: state as PortfolioSpinOff['state'], entitledParentShares: optional(parentShares),
+          positionEffectiveAt: optional(positionEffective), positionObservedAt: optional(positionObserved),
+          childShares: numerator === '' ? null : { numerator: BigInt(numerator), denominator: Number(denominator) },
+        };
+      });
     },
     compareUniverseRanks(membership, prices, baselineAt, before, after) {
       screenInput([baselineAt, before.effective, before.known, after.effective, after.known], membership, prices);

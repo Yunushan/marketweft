@@ -10,6 +10,31 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('the portfolio spin-off bridge preserves fractional shares and point-in-time evidence', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
+  const [membership, holdings, reports] = await Promise.all([
+    fixture('synthetic-universe.csv'), fixture('synthetic-portfolio-holdings.csv'), fixture('synthetic-portfolio-spin-offs.csv'),
+  ]);
+  const utc = time => '2025-06-02T' + time + 'Z';
+  const at = (effective, known) => core.portfolioSpinOffsAsOf(membership, holdings, reports, utc(effective), utc(known));
+  const beta = (effective, known) => at(effective, known).find(row => row.id === 'BETA-UNIT');
+  assert.deepEqual(at('14:20:00', '14:16:59'), []);
+  assert.deepEqual(beta('14:40:00', '14:49:59').childShares, { numerator: 10n, denominator: 3 });
+  assert.equal(beta('14:40:00', '14:50:00').state, 'receivable');
+  const revised = beta('14:55:00', '14:58:00');
+  assert.equal(revised.state, 'distributed');
+  assert.equal(revised.entitledParentShares, 8);
+  assert.equal(revised.positionObservedAt, Date.parse(utc('14:58:00')) / 1000);
+  assert.deepEqual(revised.childShares, { numerator: 16n, denominator: 3 });
+  assert.equal(beta('14:55:00', '15:02:00').state, 'no-distribution');
+  const query = csv => core.portfolioSpinOffsAsOf(membership, csv, reports, utc('14:20:00'), utc('14:20:00'))[0];
+  const missing = holdings.replace('14:06:00Z,2025-06-02T14:06:00Z,10', '14:20:00Z,2025-06-02T14:20:00Z,10');
+  assert.equal(query(missing).state, 'unknown-position');
+  assert.equal(query(missing).childShares, null);
+  assert.deepEqual(query(holdings.replace('14:06:00Z,10,USD', '14:06:00Z,0,USD')).childShares,
+    { numerator: 0n, denominator: 1 });
+});
+
 test('universe comparison preserves raw observations and both membership sets in Wasm', async () => {
   const path = name => new URL('../crates/core/tests/fixtures/synthetic-universe' + name + '.csv', import.meta.url);
   const [membership, prices] = await Promise.all([readFile(path(''), 'utf8'), readFile(path('-prices'), 'utf8')]);

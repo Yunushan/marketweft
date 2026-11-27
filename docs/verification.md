@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.188.0 · Point-in-time portfolio spin-offs
+
+- Rust and Wasm fixtures distinguish unobserved holdings from reported zero and preserve exact child-share fractions across entitlement, distribution and late holding or terms revisions.
+- The offline browser fixture rewinds a cancellation and verifies both stable listing IDs after ticker reuse alongside existing delisting, dividend and ranking replay.
+
+[Portfolio spin-offs](portfolio-replay.md#portfolio-spin-off-csv).
+
 ## 0.187.0 · Fibonacci fan
 
 - The browser fixture verifies three exact crossing prices on a signed move and projects the rays through a gap in observed timestamps.

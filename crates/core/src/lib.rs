@@ -148,8 +148,9 @@ pub use paper::{
 pub use paper_replay::{parse_paper_config, PaperReplay};
 pub use point_figure::{point_and_figure, PointFigureBox, PointFigureMark};
 pub use portfolio::{
-    PortfolioBook, PortfolioCurrency, PortfolioDividendRow, PortfolioDividendState,
-    PortfolioIncomeCurrency, PortfolioIncomeSnapshot, PortfolioRow, PortfolioSnapshot,
+    portfolio_spin_offs_as_of, ChildShares, PortfolioBook, PortfolioCurrency, PortfolioDividendRow,
+    PortfolioDividendState, PortfolioIncomeCurrency, PortfolioIncomeSnapshot, PortfolioRow,
+    PortfolioSnapshot, PortfolioSpinOffReport, PortfolioSpinOffRow, PortfolioSpinOffState,
     PortfolioState,
 };
 pub use price_momentum::{

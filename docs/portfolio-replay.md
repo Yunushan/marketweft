@@ -1,6 +1,6 @@
 # Point-in-time portfolio replay
 
-Open **Historical replay → Open universe replay** and load membership. In **Portfolio replay**, load a demo or provide holdings and close-price CSVs. Delisting terms and dividend reports are optional. Use the universe effective and knowledge times for the portfolio query.
+Open **Historical replay → Open universe replay** and load membership. In **Portfolio replay**, load a demo or provide holdings and close-price CSVs. Delisting terms, dividend reports and spin-off reports are optional. Use the universe effective and knowledge times for the portfolio query.
 
 | Input | Contract |
 | --- | --- |
@@ -9,6 +9,7 @@ Open **Historical replay → Open universe replay** and load membership. In **Po
 | Closes | A close at the exact effective cutoff, from the latest quote revision observed by the knowledge cutoff. |
 | Delisting terms | Consideration in the reported currency, a payment time when available, and observation times for revisions. |
 | Dividends | Dated terms by stable listing ID, with observed revisions, ex and pay times, distribution currency and amount per share. |
+| Spin-offs | Dated terms connecting a parent and child listing ID, with separate entitlement and distribution times and an exact share ratio. |
 
 Holdings revisions share a listing and effective timestamp and have distinct observation times. A later observation may restate the quantity at that earlier effective time. The replay chooses the latest effective quantity visible at the query cutoffs. An explicit zero removes an ordinary holding from the view. A universe removal leaves an ordinary holding invested. At a known effective delisting, the ledger values the quantity held strictly before the delisting timestamp and preserves its listing ID. A new listing with the same ticker keeps a separate quantity and cash history.
 
@@ -39,3 +40,18 @@ DEMO-BASKET,ALFA-001,ALFA-INCOME,2025-06-02T14:01:00Z,2025-06-02T14:10:00Z,2025-
 Use exact UTC timestamps and at most 1,000 reports in 1 MiB. Revisions share a universe, listing ID and dividend ID and have distinct observation times. Currency is the three-letter uppercase distribution currency. Rates are fixed-point with up to six fractional places. The view reports gross entitlements.
 
 Choose **Load dividend income demo**. At 14:37 UTC the portfolio has 7.50 USD of dividend receivables and a separate 70 USD delisting receivable. At 14:55 the dividend cash totals are 5 USD and 8 EUR. Keeping the effective cutoff fixed and advancing knowledge to 14:58 restates the USD amount to 4. [Dividend fixture](../crates/core/tests/fixtures/synthetic-portfolio-dividends.csv)
+
+## Portfolio spin-off CSV
+
+```csv
+universe,action_id,parent_listing,child_listing,announced_at,entitlement_at,distribution_at,observed_at,numerator,denominator
+DEMO-BASKET,BETA-UNIT,BETA-001,ALFA-001,2025-06-02T14:16:00Z,2025-06-02T14:20:00Z,2025-06-02T14:40:00Z,2025-06-02T14:17:00Z,1,3
+```
+
+Supply at most 1,000 reports in 1 MiB. Use distinct parent and child listing IDs from the supplied universe and a stable action ID for all revisions. Use exact UTC timestamps. Announcement is on or before entitlement and observation. Distribution is on or after entitlement. Each revision has a distinct observation time. The numerator is an integer from 0 to 1,000,000, and the denominator is an integer from 1 to 1,000,000. A zero numerator cancels the action.
+
+At each query the newest report visible by the knowledge cutoff controls the action. The entitlement time must be effective. The parent quantity comes from the latest holding effective strictly before entitlement and known by the knowledge cutoff. A known delisting at entitlement or an explicit zero parent holding gives zero. Absent membership or pre-entitlement holdings appear as **Entitlement unavailable**. Positive child units are **Shares receivable** until the distribution time and **Shares distributed** at and after it.
+
+The table displays child shares as reduced fractions and shows the holding observation used for entitlement. The supplied holdings history remains authoritative for portfolio valuation. Record actual settlement quantities and subsequent trades in the holdings CSV. Cash-in-lieu terms and cost basis remain roadmap work.
+
+Choose **Load spin-off demo**. At effective 14:40 UTC with knowledge 14:49:59, BETA-UNIT shows 10/3 ALFA-001 shares distributed. Advancing knowledge to 14:50 restates that result to 20/3 shares receivable with a distribution time of 14:55. At effective 14:55 and known 14:58, corrected parent holdings yield 16/3 shares distributed. The cancellation becomes visible at known 15:02. BETA-001 and BETA-002 retain their own listing identities even though both use the BETA ticker. [Spin-off fixture](../crates/core/tests/fixtures/synthetic-portfolio-spin-offs.csv)

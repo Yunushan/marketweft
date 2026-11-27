@@ -403,14 +403,7 @@ pub extern "C" fn mw_portfolio_income_as_of(
     })
 }
 
-fn portfolio_report(
-    input: &[u8],
-    membership_bytes: usize,
-    holding_bytes: usize,
-    price_bytes: usize,
-    terms_bytes: Option<usize>,
-) -> Result<Vec<u8>, String> {
-    use std::fmt::Write;
+fn portfolio_input(input: &[u8]) -> Result<(i64, i64, &str), String> {
     let mut parts = utf8(input)?.splitn(3, '\n');
     let mut cutoff = || {
         parts
@@ -420,9 +413,81 @@ fn portfolio_report(
     };
     let effective = cutoff()?;
     let known = cutoff()?;
-    let (membership, input) = parts
-        .next()
-        .and_then(|input| input.split_at_checked(membership_bytes))
+    let body = parts.next().ok_or("Supply portfolio source reports.")?;
+    Ok((effective, known, body))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_portfolio_spin_offs_as_of(
+    membership_bytes: usize,
+    holding_bytes: usize,
+) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let (effective, known, input) = portfolio_input(input)?;
+        let (membership, input) = input
+            .split_at_checked(membership_bytes)
+            .ok_or("Supply a universe membership report.")?;
+        let (holdings, actions) = input
+            .split_at_checked(holding_bytes)
+            .ok_or("Supply portfolio holdings and spin-off reports.")?;
+        let universe = parse_universe(membership)?;
+        let rows =
+            crate::portfolio_spin_offs_as_of(&universe, holdings, actions, effective, known)?;
+        let mut text = String::new();
+        let optional_time =
+            |value: Option<i64>| value.map(|time| time.to_string()).unwrap_or_default();
+        for row in rows {
+            use crate::PortfolioSpinOffState::*;
+            let state = match row.state {
+                UnknownPosition => "unknown-position",
+                NoDistribution => "no-distribution",
+                Receivable => "receivable",
+                Distributed => "distributed",
+            };
+            let report = row.report;
+            let share = row.child_shares;
+            writeln!(
+                text,
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{state}\t{}\t{}\t{}\t{}\t{}",
+                report.id,
+                report.parent_listing,
+                report.child_listing,
+                report.announced_at,
+                report.entitlement_at,
+                report.distribution_at,
+                report.observed_at,
+                report.ratio_numerator,
+                report.ratio_denominator,
+                row.entitled_parent_shares
+                    .map(|shares| shares.to_string())
+                    .unwrap_or_default(),
+                optional_time(row.position_effective_at),
+                optional_time(row.position_observed_at),
+                share
+                    .map(|quantity| quantity.numerator.to_string())
+                    .unwrap_or_default(),
+                share
+                    .map(|quantity| quantity.denominator.to_string())
+                    .unwrap_or_default(),
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+fn portfolio_report(
+    input: &[u8],
+    membership_bytes: usize,
+    holding_bytes: usize,
+    price_bytes: usize,
+    terms_bytes: Option<usize>,
+) -> Result<Vec<u8>, String> {
+    use std::fmt::Write;
+    let (effective, known, input) = portfolio_input(input)?;
+    let (membership, input) = input
+        .split_at_checked(membership_bytes)
         .ok_or("Supply a universe membership report.")?;
     let (holdings, input) = input
         .split_at_checked(holding_bytes)

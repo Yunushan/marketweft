@@ -9,9 +9,15 @@ use std::{
 
 #[path = "portfolio_income.rs"]
 mod income;
+#[path = "portfolio_spinoff.rs"]
+mod spinoff;
 pub(crate) use income::PortfolioIncomeReports;
 pub use income::{
     PortfolioDividendRow, PortfolioDividendState, PortfolioIncomeCurrency, PortfolioIncomeSnapshot,
+};
+pub use spinoff::{
+    portfolio_spin_offs_as_of, ChildShares, PortfolioSpinOffReport, PortfolioSpinOffRow,
+    PortfolioSpinOffState,
 };
 
 const MAX_HOLDING_REPORTS: usize = 10_000;
