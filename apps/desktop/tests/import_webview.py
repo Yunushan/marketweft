@@ -1,4 +1,4 @@
-"""Exercise CSV import in the shipped binary using the loopback WebKit WebDriver."""
+"""Exercise CSV import in the built desktop binary using the native WebDriver."""
 import argparse
 import json
 import os
@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import time
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import ProxyHandler, Request, build_opener
 
 
@@ -17,13 +18,13 @@ class WebView:
         self.http = build_opener(ProxyHandler({}))
         self.session = None
 
-    def call(self, method, path, body=None):
+    def call(self, method, path, body=None, timeout=15):
         request = Request(
             self.origin + path, data=None if body is None else json.dumps(body).encode("utf-8"),
             method=method, headers={"Content-Type": "application/json"},
         )
         try:
-            with self.http.open(request, timeout=15) as result:
+            with self.http.open(request, timeout=timeout) as result:
                 return json.load(result)["value"]
         except HTTPError as error:
             detail = json.load(error)["value"]
@@ -71,33 +72,61 @@ def import_fixture(browser, fixture):
     print("Imported chart:", chart)
 
 
-def verify_saved_workspace(browser):
-    workspace = wait_for(lambda: browser.execute("""
-        const chart = document.querySelector('canvas[aria-label^="NATIVESMOKE interactive close line"]');
-        const selector = document.querySelector('select[aria-label="Primary chart type"]');
-        if (!chart || selector?.value !== 'line' || selector.disabled) return null;
-        const quote = [...chart.closest('section.plot').querySelectorAll('.ohlc > span')]
-            .filter(cell => ['O', 'H', 'L', 'C', 'Vol'].includes(cell.querySelector('small')?.textContent));
-        return Object.fromEntries(quote.map(cell => {
+def read_quote(browser, canvas_selector):
+    return browser.execute("const selector = " + json.dumps(canvas_selector) + ";" + """
+        const chart = document.querySelector(selector);
+        if (!chart) return null;
+        const cells = [...chart.closest('section.plot').querySelectorAll('.ohlc > span')];
+        const quote = cells.flatMap(cell => {
             const label = cell.querySelector('small')?.textContent;
-            return [label, Number(cell.textContent.slice(label?.length).trim().replaceAll(',', ''))];
-        }));
-    """), "the saved close-line chart and its original quote")
-    assert workspace == {"O": 27, "H": 30, "L": 26, "C": 29, "Vol": 800}, workspace
-    print("Verified saved close-line preference and exact imported OHLCV:", workspace)
+            if (!['O', 'H', 'L', 'C', 'Vol'].includes(label)) return [];
+            return [[label, Number(cell.textContent.slice(label.length).trim().replaceAll(',', ''))]];
+        });
+        const values = Object.fromEntries(quote);
+        return Object.keys(values).length === 5 ? values : null;
+    """)
 
 
-def verify(browser, binary, fixture, phase):
+def verify_saved_workspace(browser):
+    wait_for(lambda: browser.execute("""
+        const selector = document.querySelector('select[aria-label="Primary chart type"]');
+        return selector?.value === 'line' && !selector.disabled;
+    """), "the saved close-line preference")
+    quote = verify_quote(browser, "close line")
+    print("Verified saved close-line preference and exact imported OHLCV:", quote)
+
+
+def verify_quote(browser, chart_type):
+    selector = f'canvas[aria-label^="NATIVESMOKE interactive {chart_type}"]'
+    quote = wait_for(lambda: read_quote(browser, selector), "the exact imported chart quote")
+    assert quote == {"O": 27, "H": 30, "L": 26, "C": 29, "Vol": 800}, quote
+    return quote
+
+
+def verify(browser, binary, fixture, phase, edge_profile=None):
     wait_for(lambda: browser.call("GET", "/status").get("ready"), "the native WebDriver")
-    response = browser.call("POST", "/session", {"capabilities": {"alwaysMatch": {
+    capabilities = {
         "webkitgtk:browserOptions": {"binary": str(binary), "args": []},
-    }}})
+    }
+    if edge_profile is not None:
+        capabilities = {
+            "browserName": "webview2",
+            "ms:edgeOptions": {"binary": str(binary), "webviewOptions": {"userDataFolder": str(edge_profile)}},
+        }
+    response = browser.call("POST", "/session", {"capabilities": {"alwaysMatch": capabilities}}, timeout=60)
     browser.session = "/session/" + response["sessionId"]
     try:
         wait_for(lambda: browser.execute("return Boolean(document.querySelector('canvas'))"),
                  "the native starting chart")
+        if edge_profile is not None:
+            origin = urlsplit(browser.execute("return window.location.href"))
+            assert (origin.scheme, origin.hostname) in {("http", "tauri.localhost"), ("https", "tauri.localhost")}, origin
+            version = response["capabilities"]["browserVersion"]
+            assert version, "WebView2 did not report a runtime version."
+            print("Native WebView2 runtime:", version)
         if phase != "reopen":
             import_fixture(browser, fixture)
+            print("Verified exact imported candlestick OHLCV:", verify_quote(browser, "candlestick"))
         if phase == "seed":
             browser.execute("""
                 const kind = document.querySelector('select[aria-label="Primary chart type"]');
@@ -110,28 +139,36 @@ def verify(browser, binary, fixture, phase):
         browser.call("DELETE", browser.session)
 
 
-def run(binary, workspace=None, phase='import'):
+def run(binary, workspace=None, phase='import', executable=None):
     binary = binary.resolve(strict=True)
     with tempfile.TemporaryDirectory(prefix="marketweft-webview-") as directory:
         root = Path(directory)
         profile = root if workspace is None else workspace.resolve(strict=True)
-        runtime = root / "runtime"
-        runtime.mkdir(mode=0o700)
         fixture = root / "native-verification.csv"
         fixture.write_bytes((Path(__file__).with_name("fixtures") / fixture.name).read_bytes())
-        env = dict(
-            os.environ, GDK_BACKEND="x11", TAURI_WEBVIEW_AUTOMATION="true",
-            WEBKIT_DISABLE_DMABUF_RENDERER="1", XDG_RUNTIME_DIR=str(runtime),
-            XDG_CONFIG_HOME=str(profile / "config"), XDG_DATA_HOME=str(profile / "data"),
-            XDG_CACHE_HOME=str(profile / "cache"),
-        )
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             port = listener.getsockname()[1]
-        with subprocess.Popen(["WebKitWebDriver", "--host=127.0.0.1", f"--port={port}"],
-                              env=env) as driver:
+        edge_profile = None
+        if os.name == "nt":
+            edge_profile = profile / "webview2"
+            env = dict(os.environ, WEBVIEW2_USER_DATA_FOLDER=str(edge_profile))
+            driver_root = Path(env["EDGEWEBDRIVER"]) if "EDGEWEBDRIVER" in env else None
+            default = str(driver_root / "msedgedriver.exe") if driver_root else "msedgedriver.exe"
+            command = [executable or default, "--allowed-ips=127.0.0.1", f"--port={port}"]
+        else:
+            runtime = root / "runtime"
+            runtime.mkdir(mode=0o700)
+            env = dict(
+                os.environ, GDK_BACKEND="x11", TAURI_WEBVIEW_AUTOMATION="true",
+                WEBKIT_DISABLE_DMABUF_RENDERER="1", XDG_RUNTIME_DIR=str(runtime),
+                XDG_CONFIG_HOME=str(profile / "config"), XDG_DATA_HOME=str(profile / "data"),
+                XDG_CACHE_HOME=str(profile / "cache"),
+            )
+            command = [executable or "WebKitWebDriver", "--host=127.0.0.1", f"--port={port}"]
+        with subprocess.Popen(command, env=env) as driver:
             try:
-                verify(WebView(port), binary, fixture, phase)
+                verify(WebView(port), binary, fixture, phase, edge_profile)
             finally:
                 driver.terminate()
                 try:
@@ -146,7 +183,8 @@ if __name__ == "__main__":
     parser.add_argument("binary", type=Path)
     parser.add_argument("--workspace", type=Path)
     parser.add_argument("--phase", choices=("import", "seed", "reopen"), default="import")
+    parser.add_argument("--driver", help="path to the native WebDriver executable")
     args = parser.parse_args()
     if args.phase != "import" and args.workspace is None:
         parser.error("--workspace is required to seed or reopen a persistent profile")
-    run(args.binary, args.workspace, args.phase)
+    run(args.binary, args.workspace, args.phase, args.driver)
