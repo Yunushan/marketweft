@@ -56,6 +56,12 @@ def named(nodes, name):
     return next((node for node in nodes if node.name == name), None)
 
 
+def control(nodes, role, label):
+    return next((node for node in nodes if node.getRoleName() == role
+                 and (node.name == label or node.name.startswith(label + " "))
+                 and node.getState().contains(pyatspi.STATE_SHOWING)), None)
+
+
 def click(node):
     # Real pointer input also covers WebKit controls without an AT-SPI action.
     bounds = node.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
@@ -103,8 +109,7 @@ def visible_file_chooser(nodes):
 
 
 def import_csv():
-    # WebKit exposes the label and the text field separately on some AT-SPI versions.
-    symbol = wait_for(lambda nodes: named(nodes, "Symbol"), "the symbol label")
+    symbol = wait_for(lambda nodes: control(nodes, "entry", "Symbol"), "the symbol field")
     click(symbol)
     keyboard("ctrl+a")
     type_text("NATIVESMOKE")
@@ -117,7 +122,7 @@ def import_csv():
             "2025-06-03,27,30,26,29,800\n",
             encoding="utf-8",
         )
-        click(wait_for(lambda nodes: named(nodes, "Historical CSV"), "the CSV file input"))
+        click(wait_for(lambda nodes: control(nodes, "push button", "Historical CSV"), "the CSV file input"))
         wait_for(visible_file_chooser, "the native file chooser")
         keyboard("ctrl+l")
         type_text(str(fixture))
