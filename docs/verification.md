@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.177.0 · Native Android CSV and workspace reload
+
+- The Android 35 x86_64 emulator selects the synthetic CSV from Downloads through the system document picker, then submits the terminal form and compares the chart to the fixture's exact OHLCV.
+- The job stops and reopens the same installed application and verifies the chart through the original Android WebView profile. Both UI hierarchies are retained as CI evidence.
+
+[Android terminal](platforms.md#android-terminal) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.176.0 · Android terminal startup
 
 - The hosted Ubuntu x64 job builds the terminal into an x86_64 Android APK from the shared Tauri Rust entry point and bundled frontend.
