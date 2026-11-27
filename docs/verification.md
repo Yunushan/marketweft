@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.173.0 · macOS app upgrades
+
+- The native macOS jobs mount the pinned baseline and candidate images, launch their release bundles at the same installation path and check that the upgrade preserves a user-created file.
+- Native test bundles from both revisions reopen one isolated WKWebView profile. The tests seed and verify a close-line chart and exact OHLCV on the baseline, then verify them again on the candidate.
+
+[macOS app upgrades](platforms.md#macos-app-upgrades) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.172.0 · macOS disk images
 
 - The native macOS jobs build a compressed read-only disk image from the verified release bundle on Intel and Apple Silicon.
