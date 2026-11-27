@@ -248,3 +248,140 @@ async fn https_webhook_checks_the_configured_trust_anchor_and_destination_name()
     hmac::verify(&hmac::Key::new(hmac::HMAC_SHA256, &[0xab; 32]), body, &tag).unwrap();
     service.abort();
 }
+
+#[tokio::test]
+async fn interrupted_webhook_resume_preserves_identity_and_consumed_attempts() {
+    use marketweft_research_service::resume_webhook;
+    use tokio::sync::Notify;
+    type Receiver = (Requests, Arc<Notify>);
+    async fn hold_first(
+        State((requests, observed)): State<Receiver>,
+        uri: Uri,
+        headers: HeaderMap,
+        body: Bytes,
+    ) -> StatusCode {
+        let first = {
+            let mut requests = requests.lock().unwrap();
+            requests.push((headers, uri, body));
+            requests.len() == 1
+        };
+        if first {
+            observed.notify_one();
+            std::future::pending().await
+        } else {
+            StatusCode::NO_CONTENT
+        }
+    }
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let requests = Requests::default();
+    let observed = Arc::new(Notify::new());
+    let router = Router::new()
+        .route("/alerts", post(hold_first))
+        .with_state((requests.clone(), observed.clone()));
+    let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+
+    let directory = tempdir().unwrap();
+    let config = directory.path().join("config.json");
+    let event = directory.path().join("event.json");
+    let secret = directory.path().join("key.txt");
+    let receipt = directory.path().join("receipt.json");
+    let event_text = json!({
+        "id": "ALERT:RECOVERABLE", "kind": "candlestick",
+        "observed_at": "2026-01-12T14:02:00Z", "data": {"close_ticks": 6000000}
+    })
+    .to_string();
+    fs::write(
+        &config,
+        json!({"endpoint": format!("http://{address}/alerts"), "key_id": "resume-test"})
+            .to_string(),
+    )
+    .unwrap();
+    fs::write(&event, &event_text).unwrap();
+    fs::write(&secret, "ab".repeat(32)).unwrap();
+
+    let paths = (
+        config.clone(),
+        event.clone(),
+        secret.clone(),
+        receipt.clone(),
+    );
+    let sending =
+        tokio::spawn(async move { deliver_webhook(&paths.0, &paths.1, &paths.2, &paths.3).await });
+    tokio::time::timeout(std::time::Duration::from_secs(2), observed.notified())
+        .await
+        .unwrap();
+    let pending: Value = serde_json::from_slice(&fs::read(&receipt).unwrap()).unwrap();
+    assert_eq!(pending["version"], 2);
+    assert_eq!(pending["outcome"], "pending");
+    assert_eq!(
+        pending["attempts"],
+        json!([{"outcome": "pending", "status": null}])
+    );
+    assert!(resume_webhook(&config, &event, &secret, &receipt)
+        .await
+        .err()
+        .unwrap()
+        .to_string()
+        .contains("lock"));
+    sending.abort();
+    assert!(sending.await.err().unwrap().is_cancelled());
+
+    fs::write(&event, event_text.replace("6000000", "6000001")).unwrap();
+    assert!(resume_webhook(&config, &event, &secret, &receipt)
+        .await
+        .err()
+        .unwrap()
+        .to_string()
+        .contains("does not match"));
+    fs::write(&event, event_text).unwrap();
+    assert_eq!(requests.lock().unwrap().len(), 1);
+
+    let resumed = resume_webhook(&config, &event, &secret, &receipt)
+        .await
+        .unwrap();
+    assert!(resumed.delivered());
+    let completed: Value = serde_json::from_slice(&fs::read(&receipt).unwrap()).unwrap();
+    assert_eq!(
+        completed["attempts"],
+        json!([
+            {"outcome": "interrupted", "status": null},
+            {"outcome": "delivered", "status": 204}
+        ])
+    );
+    assert_eq!(pending["delivery_digest"], completed["delivery_digest"]);
+    assert!(resume_webhook(&config, &event, &secret, &receipt)
+        .await
+        .err()
+        .unwrap()
+        .to_string()
+        .contains("Only a pending"));
+
+    let spent = directory.path().join("spent.json");
+    let mut interrupted = pending;
+    interrupted["attempts"] = json!([
+        {"outcome": "timeout", "status": null},
+        {"outcome": "http-error", "status": 503},
+        {"outcome": "pending", "status": null},
+    ]);
+    fs::write(&spent, interrupted.to_string()).unwrap();
+    assert!(!resume_webhook(&config, &event, &secret, &spent)
+        .await
+        .unwrap()
+        .delivered());
+    let exhausted: Value = serde_json::from_slice(&fs::read(&spent).unwrap()).unwrap();
+    assert_eq!(exhausted["outcome"], "interrupted");
+    assert_eq!(exhausted["attempts"][2]["outcome"], "interrupted");
+    let captured = requests.lock().unwrap();
+    assert_eq!(captured.len(), 2);
+    assert_eq!(
+        captured[0].0["idempotency-key"],
+        captured[1].0["idempotency-key"]
+    );
+    assert_eq!(
+        captured[0].0["x-marketweft-signature"],
+        captured[1].0["x-marketweft-signature"]
+    );
+    assert_eq!(captured[0].2, captured[1].2);
+    server.abort();
+}

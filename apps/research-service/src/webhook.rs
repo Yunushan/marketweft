@@ -8,6 +8,7 @@ use rustls::{
     ClientConfig, RootCertStore,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::net::{IpAddr, SocketAddr};
@@ -52,6 +53,7 @@ struct Destination {
     uri: Uri,
     transport: Transport,
     key_id: String,
+    trust_digest: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -69,25 +71,51 @@ struct Envelope<'a> {
     event: &'a Event,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum Outcome {
+    Pending,
+    Delivered,
+    HttpError,
+    TransportError,
+    TlsRejected,
+    Timeout,
+    Interrupted,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct Attempt {
-    outcome: &'static str,
+    outcome: Outcome,
     status: Option<u16>,
 }
 
-#[derive(Serialize)]
+impl Attempt {
+    fn retryable(&self) -> bool {
+        match (self.outcome, self.status) {
+            (Outcome::HttpError, Some(status)) => matches!(status, 408 | 429 | 500..=599),
+            (Outcome::TransportError | Outcome::Timeout | Outcome::Interrupted, None) => true,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebhookReceipt {
     version: u8,
     event_id: String,
     endpoint: String,
     key_id: String,
-    outcome: &'static str,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    delivery_digest: Option<String>,
+    outcome: Outcome,
     attempts: Vec<Attempt>,
 }
 
 impl WebhookReceipt {
     pub fn delivered(&self) -> bool {
-        self.outcome == "delivered"
+        self.outcome == Outcome::Delivered
     }
 }
 
@@ -133,6 +161,7 @@ fn destination(config: ConfigFile, config_path: &Path) -> io::Result<Destination
         )
     };
     let host = host.trim_start_matches('[').trim_end_matches(']');
+    let mut trust_digest = None;
     let transport = match uri.scheme_str() {
         Some("http") => {
             let ip: IpAddr = host.parse().map_err(|_| invalid())?;
@@ -152,6 +181,7 @@ fn destination(config: ConfigFile, config_path: &Path) -> io::Result<Destination
                 .join(certificate);
             let mut roots = RootCertStore::empty();
             let pem = bounded(&root_path, 1024 * 1024)?;
+            trust_digest = Some(format!("{:x}", Sha256::digest(&pem)));
             for certificate in CertificateDer::pem_slice_iter(&pem) {
                 let certificate = certificate.map_err(io::Error::other)?;
                 roots.add(certificate).map_err(io::Error::other)?;
@@ -181,6 +211,7 @@ fn destination(config: ConfigFile, config_path: &Path) -> io::Result<Destination
         uri,
         transport,
         key_id: config.key_id,
+        trust_digest,
     })
 }
 
@@ -298,6 +329,80 @@ pub async fn deliver_webhook(
     key: &Path,
     receipt_path: &Path,
 ) -> io::Result<WebhookReceipt> {
+    run_webhook(config, event, key, receipt_path, false).await
+}
+
+/// Resume a pending receipt using its original event, destination and signing config.
+pub async fn resume_webhook(
+    config: &Path,
+    event: &Path,
+    key: &Path,
+    receipt_path: &Path,
+) -> io::Result<WebhookReceipt> {
+    run_webhook(config, event, key, receipt_path, true).await
+}
+
+fn lock_receipt(path: &Path) -> io::Result<File> {
+    let mut name = path
+        .file_name()
+        .ok_or_else(|| io::Error::other("Use a webhook receipt file path."))?
+        .to_os_string();
+    name.push(".lock");
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path.with_file_name(name))?;
+    lock.try_lock().map_err(|_| {
+        io::Error::other("Could not lock the webhook receipt. Another process may be using it.")
+    })?;
+    Ok(lock)
+}
+
+fn resume_receipt(path: &Path, expected: &WebhookReceipt) -> io::Result<WebhookReceipt> {
+    let mut receipt: WebhookReceipt =
+        serde_json::from_slice(&bounded(path, 16 * 1024)?).map_err(io::Error::other)?;
+    if receipt.version != expected.version
+        || receipt.event_id != expected.event_id
+        || receipt.endpoint != expected.endpoint
+        || receipt.key_id != expected.key_id
+        || receipt.delivery_digest != expected.delivery_digest
+    {
+        return Err(io::Error::other(
+            "The pending receipt does not match this event, destination or signing configuration.",
+        ));
+    }
+    if receipt.outcome != Outcome::Pending {
+        return Err(io::Error::other(
+            "Only a pending webhook receipt can be resumed.",
+        ));
+    }
+    if receipt.attempts.len() > ATTEMPTS {
+        return Err(io::Error::other(
+            "The pending receipt exceeds the attempt budget.",
+        ));
+    }
+    if let Some(last) = receipt.attempts.last_mut() {
+        if last.outcome == Outcome::Pending && last.status.is_none() {
+            last.outcome = Outcome::Interrupted;
+        }
+    }
+    if !receipt.attempts.iter().all(Attempt::retryable) {
+        return Err(io::Error::other(
+            "The pending receipt has inconsistent attempt evidence.",
+        ));
+    }
+    Ok(receipt)
+}
+
+async fn run_webhook(
+    config: &Path,
+    event: &Path,
+    key: &Path,
+    receipt_path: &Path,
+    resume: bool,
+) -> io::Result<WebhookReceipt> {
     let destination = destination(
         serde_json::from_slice(&bounded(config, 4096)?).map_err(io::Error::other)?,
         config,
@@ -325,8 +430,15 @@ pub async fn deliver_webhook(
         use std::fmt::Write as _;
         write!(signature, "{byte:02x}").expect("writing to a string succeeds");
     }
-    let mut receipt = WebhookReceipt {
-        version: 1,
+    let fingerprint = serde_json::to_vec(&(
+        destination.uri.to_string(),
+        &destination.key_id,
+        &destination.trust_digest,
+        &signature,
+    ))
+    .map_err(io::Error::other)?;
+    let receipt = WebhookReceipt {
+        version: 2,
         event_id: event.id,
         endpoint: format!(
             "{}://{}{}",
@@ -335,49 +447,60 @@ pub async fn deliver_webhook(
             destination.uri.path()
         ),
         key_id: destination.key_id.clone(),
-        outcome: "pending",
+        delivery_digest: Some(format!("{:x}", Sha256::digest(&fingerprint))),
+        outcome: Outcome::Pending,
         attempts: Vec::with_capacity(ATTEMPTS),
     };
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(receipt_path)?;
-    receipt_json(&receipt, &mut file)?;
-    file.sync_all()?;
-    drop(file);
-    for attempt in 0..ATTEMPTS {
-        let (outcome, status, retry) = match time::timeout(
+    let _lock = lock_receipt(receipt_path)?;
+    let mut receipt = if resume {
+        let recovered = resume_receipt(receipt_path, &receipt)?;
+        update_receipt(receipt_path, &recovered)?;
+        recovered
+    } else {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(receipt_path)?;
+        receipt_json(&receipt, &mut file)?;
+        file.sync_all()?;
+        receipt
+    };
+    if receipt.attempts.len() == ATTEMPTS {
+        receipt.outcome = receipt
+            .attempts
+            .last()
+            .expect("full attempt history")
+            .outcome;
+        update_receipt(receipt_path, &receipt)?;
+        return Ok(receipt);
+    }
+    while receipt.attempts.len() < ATTEMPTS {
+        receipt.attempts.push(Attempt {
+            outcome: Outcome::Pending,
+            status: None,
+        });
+        update_receipt(receipt_path, &receipt)?;
+        let (outcome, status) = match time::timeout(
             REQUEST_TIMEOUT,
             request(&destination, body.clone(), &receipt.event_id, &signature),
         )
         .await
         {
-            Ok(Ok(status)) if status.is_success() => ("delivered", Some(status.as_u16()), false),
-            Ok(Ok(status)) => (
-                "http-error",
-                Some(status.as_u16()),
-                status.is_server_error()
-                    || matches!(
-                        status,
-                        StatusCode::REQUEST_TIMEOUT | StatusCode::TOO_MANY_REQUESTS
-                    ),
-            ),
-            Ok(Err(RequestFailure::Transport)) => ("transport-error", None, true),
-            Ok(Err(RequestFailure::TlsRejected)) => ("tls-rejected", None, false),
-            Err(_) => ("timeout", None, true),
+            Ok(Ok(status)) if status.is_success() => (Outcome::Delivered, Some(status.as_u16())),
+            Ok(Ok(status)) => (Outcome::HttpError, Some(status.as_u16())),
+            Ok(Err(RequestFailure::Transport)) => (Outcome::TransportError, None),
+            Ok(Err(RequestFailure::TlsRejected)) => (Outcome::TlsRejected, None),
+            Err(_) => (Outcome::Timeout, None),
         };
-        receipt.attempts.push(Attempt { outcome, status });
-        let continue_delivery = retry && attempt + 1 < ATTEMPTS;
-        receipt.outcome = if continue_delivery {
-            "pending"
-        } else {
-            outcome
-        };
+        let attempt = Attempt { outcome, status };
+        let more = attempt.retryable() && receipt.attempts.len() < ATTEMPTS;
+        *receipt.attempts.last_mut().expect("reserved attempt") = attempt;
+        receipt.outcome = if more { Outcome::Pending } else { outcome };
         update_receipt(receipt_path, &receipt)?;
-        if !continue_delivery {
+        if !more {
             break;
         }
-        time::sleep(Duration::from_millis(100 * (attempt as u64 + 1))).await;
+        time::sleep(Duration::from_millis(100 * receipt.attempts.len() as u64)).await;
     }
     Ok(receipt)
 }

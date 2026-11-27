@@ -2,9 +2,9 @@ use axum_server::tls_rustls::RustlsConfig;
 use axum_server::Handle;
 use marketweft_research_service::{
     configured_controlled_research_router, copy_audit_database, deliver_webhook,
-    issue_research_credential, restore_verified_audit_snapshot, revoke_research_credential,
-    verify_audit_snapshot, AuditSummary, ResearchOperations, ResearchShutdown, Tokens,
-    DEFAULT_RESEARCH_SLOTS,
+    issue_research_credential, restore_verified_audit_snapshot, resume_webhook,
+    revoke_research_credential, verify_audit_snapshot, AuditSummary, ResearchOperations,
+    ResearchShutdown, Tokens, DEFAULT_RESEARCH_SLOTS,
 };
 use std::env::{self, VarError};
 use std::future::{pending, Future};
@@ -61,16 +61,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Credential revoked.");
             Ok(())
         }
-        [group, action, config, event, key_file, receipt] if group == "webhook" && action == "deliver" => {
+        [group, action, config, event, key_file, receipt]
+            if group == "webhook" && (action == "deliver" || action == "resume") => {
             let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
-            let receipt = runtime.block_on(deliver_webhook(
-                Path::new(config), Path::new(event), Path::new(key_file), Path::new(receipt),
-            ))?;
+            let arguments = (Path::new(config), Path::new(event), Path::new(key_file), Path::new(receipt));
+            let receipt = runtime.block_on(async {
+                if action == "resume" {
+                    resume_webhook(arguments.0, arguments.1, arguments.2, arguments.3).await
+                } else {
+                    deliver_webhook(arguments.0, arguments.1, arguments.2, arguments.3).await
+                }
+            })?;
             println!("{}", serde_json::to_string(&receipt)?);
             if receipt.delivered() { Ok(()) } else { Err(io::Error::other("The webhook was not delivered. See the receipt.").into()) }
         }
         _ => Err(io::Error::other(
-            "Use audit <backup|restore> <source> <new-destination>, audit restore <snapshot> <new-destination> --sha256 <digest>, audit verify <snapshot>, credential issue <database> <scope> <lifetime-seconds>, credential revoke <database> <credential-id>, or webhook deliver <config> <event> <key-file> <new-receipt>.",
+            "Use audit <backup|restore> <source> <new-destination>, audit restore <snapshot> <new-destination> --sha256 <digest>, audit verify <snapshot>, credential issue <database> <scope> <lifetime-seconds>, credential revoke <database> <credential-id>, or webhook <deliver|resume> <config> <event> <key-file> <receipt>.",
         )
         .into()),
     }

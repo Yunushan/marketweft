@@ -22,7 +22,7 @@ pub use audit_recovery::{
 pub use credentials::{issue_research_credential, revoke_research_credential, IssuedCredential};
 pub use operations::ResearchOperations;
 pub use shutdown::ResearchShutdown;
-pub use webhook::{deliver_webhook, WebhookReceipt};
+pub use webhook::{deliver_webhook, resume_webhook, WebhookReceipt};
 
 use analytics::ResearchPage;
 use audit::{Outcome, Receipt, Trail, Transport};
