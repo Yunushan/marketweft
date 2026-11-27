@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.163.0 · macOS native build verification
+
+| Check | Evidence |
+| --- | --- |
+| Intel and Apple Silicon | The macOS 15 jobs match the runner and machine architecture and independently inspect the desktop and research engine Mach-O binaries. |
+| Python research SDK | Each job exercises the native binary through the Python SDK fixture before publishing its engine artifact. |
+
+[macOS native builds](platforms.md#macos-native-builds) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.162.0 · Ubuntu desktop build provenance
 
 | Check | Evidence |
