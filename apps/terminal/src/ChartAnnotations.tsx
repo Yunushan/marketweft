@@ -14,7 +14,7 @@ type Draft = {
   original?: ChartAnnotation
 }
 
-export type AnnotationPicker = { point: number; accept: (anchor: DrawingEndpoint) => void }
+export type AnnotationPicker = { point: number; sourceTime?: boolean; accept: (anchor: DrawingEndpoint) => void }
 
 function pointFields({ ticks, time }: DrawingEndpoint): PointFields {
   return { price: formatAnnotationAnchor('price', ticks), time: formatAnnotationAnchor('time', time) }
@@ -27,7 +27,8 @@ function pointValue(fields: PointFields): DrawingEndpoint {
 function draftAnnotation(draft: Draft, id: string): ChartAnnotation {
   const { kind, points } = draft
   if (kind === 'price') return { id, kind, ticks: parseAnnotationAnchor(kind, points[0].price) }
-  if (kind === 'time') return { id, kind, time: parseAnnotationAnchor(kind, points[0].time) }
+  if (kind === 'time' || kind === 'anchored-vwap')
+    return { id, kind, time: parseAnnotationAnchor('time', points[0].time) }
   if (kind === 'polyline' || kind === 'triangle') {
     const anchors = points.map(pointValue)
     if (kind === 'triangle') {
@@ -65,7 +66,8 @@ function describeAnnotation(entry: ChartAnnotation): string {
   const name = ANNOTATION_NAMES[entry.kind] + ' '
   switch (entry.kind) {
     case 'price': return name + formatAnnotationAnchor('price', entry.ticks)
-    case 'time': return name + formatAnnotationAnchor('time', entry.time)
+    case 'time':
+    case 'anchored-vwap': return name + formatAnnotationAnchor('time', entry.time)
     case 'price-range':
     case 'time-range': {
       const coordinate = rangeCoordinate(entry.kind)
@@ -91,13 +93,14 @@ function describeAnnotation(entry: ChartAnnotation): string {
 }
 
 export function ChartAnnotations({
-  entries, busy, picking, setPicker, defaults, save,
+  entries, busy, picking, setPicker, defaults, vwapDefaultTime, save,
 }: {
   entries: readonly ChartAnnotation[]
   busy: boolean
   picking: number | null
   setPicker: (picker: AnnotationPicker | null) => void
   defaults: { prior: DrawingEndpoint; start: DrawingEndpoint; end: DrawingEndpoint }
+  vwapDefaultTime: number
   save: (before: ChartAnnotation | undefined, after: ChartAnnotation | undefined) => Promise<void>
 }) {
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -110,8 +113,9 @@ export function ChartAnnotations({
       (original && 'points' in original ? original.points : [defaults.prior, defaults.start, defaults.end]).map(pointFields) :
       hasTwoPoints(kind) || kind === 'price-range' || kind === 'time-range' ?
         [pointFields(defaults.start), pointFields(defaults.end)] : [pointFields(defaults.end)]
+    if (kind === 'anchored-vwap') points[0].time = formatAnnotationAnchor('time', vwapDefaultTime)
     if (original?.kind === 'price') points[0].price = formatAnnotationAnchor('price', original.ticks)
-    if (original?.kind === 'time') points[0].time = formatAnnotationAnchor('time', original.time)
+    if (original?.kind === 'time' || original?.kind === 'anchored-vwap') points[0].time = formatAnnotationAnchor('time', original.time)
     if (original?.kind === 'price-range' || original?.kind === 'time-range') {
       const coordinate = rangeCoordinate(original.kind)
       points[0][coordinate] = formatAnnotationAnchor(coordinate, original.lower)
@@ -143,7 +147,7 @@ export function ChartAnnotations({
 
   function pick(point: number) {
     if (!draft || picking === point) { setPicker(null); return }
-    setPicker({ point, accept(anchor) {
+    setPicker({ point, sourceTime: draft.kind === 'anchored-vwap', accept(anchor) {
       setError('')
       setDraft(current => current && {
         ...current, points: current.points.map((value, index) => index === point ? pointFields(anchor) : value),
@@ -166,8 +170,8 @@ export function ChartAnnotations({
     const label = vertex ? 'Point ' + (point + 1) :
       twoPoints ? point === 0 ? 'Start' : 'End' : ANNOTATION_NAMES[kind]
     const pickLabel = vertex || twoPoints ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
-    const coordinates: readonly AnnotationCoordinate[] = kind === 'price' || kind === 'time' ?
-      [kind] : range ? [rangeCoordinate(kind)] : ['time', 'price']
+    const coordinates: readonly AnnotationCoordinate[] = kind === 'price' || kind === 'time' || kind === 'anchored-vwap' ?
+      [kind === 'price' ? 'price' : 'time'] : range ? [rangeCoordinate(kind)] : ['time', 'price']
     return <fieldset key={point}>
       <legend>{label}</legend>
       {coordinates.map(coordinate => <label key={coordinate}>{coordinate === 'price' ? 'Price' : 'Time (UTC)'}

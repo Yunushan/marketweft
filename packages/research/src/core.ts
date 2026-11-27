@@ -906,6 +906,8 @@ export type DrawdownPoint = { peakAt: number; peakClose: bigint; percent: bigint
 
 export type ConfirmedSwing = { pivotAt: number; confirmedAt: number; close: bigint; side: 'high' | 'low' };
 
+export type AnchoredVwapPoint = { price: bigint; cumulativeVolume: bigint };
+
 export interface MarketCore {
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
   instrument(venue: string, symbol: string): string;
@@ -936,6 +938,7 @@ export interface MarketCore {
   commodityChannelIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   closeChanges(intervalSeconds: number, bars: readonly Bar[]): (bigint | null)[];
   rebasedPercentChanges(anchorAt: number, bars: readonly Bar[]): (bigint | null)[];
+  anchoredVwap(anchorAt: number, bars: readonly Bar[]): (AnchoredVwapPoint | null)[];
   observedDrawdown(bars: readonly Bar[]): (DrawdownPoint | null)[];
   confirmedCloseSwings(left: number, right: number, intervalSeconds: number, bars: readonly Bar[]): (ConfirmedSwing | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1047,6 +1050,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_close_changes(intervalSeconds: number): number;
   mw_rebased_percent_changes(anchorAt: bigint): number;
   mw_observed_drawdown(): number;
+  mw_anchored_vwap(anchorAt: bigint): number;
   mw_confirmed_close_swings(left: number, right: number, intervalSeconds: number): number;
   mw_rate_of_change(period: number): number;
   mw_directional_movement(diPeriod: number, adxPeriod: number): number;
@@ -1932,6 +1936,17 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           close: out.getBigInt64(start + 16, true),
           side: direction > 0n ? 'high' : 'low',
         };
+      });
+    },
+    anchoredVwap(anchorAt, bars) {
+      if (!Number.isSafeInteger(anchorAt) || bars.length > 100_000)
+        throw new Error('Anchored VWAP requires a whole UTC second and up to 100,000 bars.');
+      putIndicatorBars(bars, 'Anchored VWAP');
+      const out = output(api.mw_anchored_vwap(BigInt(anchorAt)));
+      return Array.from({ length: bars.length }, (_, index) => {
+        const start = index * 24;
+        const price = out.getBigInt64(start, true);
+        return price === MISSING ? null : { price, cumulativeVolume: signed128(out, start + 8) };
       });
     },
     observedDrawdown(bars) {

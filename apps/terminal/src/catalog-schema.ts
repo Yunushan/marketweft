@@ -211,7 +211,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
         const kind = entry && typeof entry === 'object' && Object.hasOwn(entry, 'kind') ?
           (entry as { kind: unknown }).kind : undefined
         const coordinateFields = {
-          price: ['ticks'], time: ['time'], ray: ['start'], trend: ['start', 'end'],
+          price: ['ticks'], time: ['time'], 'anchored-vwap': ['time'], ray: ['start'], trend: ['start', 'end'],
           rectangle: ['start', 'end'], channel: ['start', 'end', 'offsetTicks'],
           polyline: ['points'], fibonacci: ['start', 'end'], ellipse: ['start', 'end'], triangle: ['points'], note: ['start', 'text'], arrow: ['start', 'end'],
           'price-range': ['lower', 'upper'], 'time-range': ['lower', 'upper'],
@@ -229,8 +229,8 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           if (!validAnnotationAnchor(type, entry.ticks)) throw Error('Invalid chart annotation price.')
           return { id, kind: type, ticks: entry.ticks }
         }
-        if (type === 'time') {
-          if (!validAnnotationAnchor(type, entry.time)) throw Error('Invalid chart annotation time.')
+        if (type === 'time' || type === 'anchored-vwap') {
+          if (!validAnnotationAnchor('time', entry.time)) throw Error('Invalid chart annotation time.')
           return { id, kind: type, time: entry.time }
         }
         if (type === 'polyline' || type === 'triangle') {

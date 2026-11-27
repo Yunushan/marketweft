@@ -172,6 +172,14 @@ Choose **New price range** and enter or pick two signed prices. The band highlig
 
 The chart clips both bands to the visible price plot. When a time boundary falls between observations, the chart interpolates its position. The two ranges can overlap and can be edited independently. Version 37 backups preserve their exact coordinates. [Backup format](workspace-backup.md)
 
+## Anchored VWAP
+
+Choose **New anchored vwap** in **Chart drawings**. Use **Pick on chart** or enter the exact UTC time of a source bar and save the drawing. The same instrument shares the saved anchor across panes. Picking a rolled bucket uses its first observed source bar.
+
+From the anchor onward, the drawing weights each source bar's typical price, (high + low + close) ÷ 3, by its observed volume. The calculation accumulates before rounding to millionths. Values start at the first positive cumulative volume. A zero-volume bar adds no weight. Each rolled bucket shows the value through its last observed source bar, including the UTC time of that source bar in the readout.
+
+The analysis CSV uses the drawing ID to identify columns for the anchor, last observation, calculated price and exact cumulative volume. Chart CSV export applies the source redistribution grant and expiry. A version 46 backup stores the source timestamp and ID. The drawing recalculates from the restored bars.
+
 ## Moving-average periods
 
 Open **Indicators** to configure the primary chart. When the comparison pane is open, the same dialog provides a separate pair of period fields for it. Each field accepts a whole period from 1 to 100,000 bars. The default periods are 20 bars for SMA and 9 bars for EMA. Each overlay can be enabled independently.

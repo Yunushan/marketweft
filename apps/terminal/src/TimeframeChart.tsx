@@ -7,12 +7,12 @@ import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, DE
 import type { SwingSettings } from './catalog-schema'
 import { fixed, parsePriceSize } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
-import type { CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
-import type { MarketCore } from './market-core'
+import type { AnchoredVwapSeries, CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { Bar, MarketCore } from './market-core'
 import { computeStudies, studyOverlays } from './studies'
 import type { StudySet } from './studies'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings' | 'anchoredVwaps' | 'vwapSourceTimes'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -189,6 +189,18 @@ function SwingCutoff({ cutoff, apply }: { cutoff?: number; apply: (cutoff?: numb
   </form>
 }
 
+function timeframeSourceWindows(source: readonly Bar[], timeframe: TimeframeView) {
+  let next = 0
+  return timeframe.buckets.map((bucket, index) => {
+    const start = bucket.bar.time
+    const end = timeframe.mode === 'session' ? timeframe.buckets[index].closeTime : start + timeframe.targetSeconds
+    while (next < source.length && source[next].time < start) next++
+    const first = next
+    while (next < source.length && source[next].time < end) next++
+    return { first, last: next - 1 }
+  })
+}
+
 export function TimeframeChart({ core, activeSma, activeEma, studySettings, asset, periods, onTimestamp,
   renkoTicks = DEFAULT_RENKO_TICKS, kagiTicks = DEFAULT_KAGI_TICKS, pointFigureTicks = DEFAULT_POINT_FIGURE_TICKS,
   baselineTicks = 0, priceSizeSaving, onBaselineTicks, onRenkoTicks, onKagiTicks, onPointFigureTicks,
@@ -302,6 +314,27 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       return { series: { ...config, values: [] }, error: cause instanceof Error ? cause.message : 'Could not calculate swings.' }
     }
   }, [core, type, swingSeconds, swingLeft, swingRight, cutoff, display.bars, timeframe])
+  const drawingTools = type === 'close-change' || type === 'rebased-percent' || type === 'drawdown' ?
+    undefined : chart.drawingTools
+  const annotations = drawingTools?.annotations
+  const sourceWindows = useMemo(() => timeframe ? timeframeSourceWindows(asset.bars, timeframe) : undefined,
+    [asset.bars, timeframe])
+  const vwapSourceTimes = useMemo(() => sourceWindows?.map(({ first }) => asset.bars[first].time),
+    [sourceWindows, asset.bars])
+  const sourceLength = sourceWindows ? (sourceWindows.at(-1)?.last ?? -1) + 1 : display.bars.length
+  const sourceBars = useMemo(() => sourceLength === asset.bars.length ? asset.bars : asset.bars.slice(0, sourceLength),
+    [asset.bars, sourceLength])
+  const anchoredVwaps = useMemo<AnchoredVwapSeries[]>(() => annotations?.flatMap(annotation => {
+    if (annotation.kind !== 'anchored-vwap') return []
+    const values = core.anchoredVwap(annotation.time, sourceBars)
+    const pointAt = (index: number) => {
+      const value = values[index]
+      return value ? { ...value, observedAt: sourceBars[index].time } : null
+    }
+    return [{ id: annotation.id, anchorAt: annotation.time,
+      values: sourceWindows ? sourceWindows.map(({ last }) => pointAt(last)) :
+        values.map((_, index) => pointAt(index)) }]
+  }) ?? [], [core, annotations, sourceBars, sourceWindows])
   const sizeTicks = type === 'renko' ? renkoTicks : type === 'kagi' ? kagiTicks : pointFigureTicks
   const applySize = type === 'renko' ? onRenkoTicks : type === 'kagi' ? onKagiTicks : onPointFigureTicks
   const isSized = type === 'renko' || type === 'kagi' || type === 'point-and-figure'
@@ -436,7 +469,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
             type === 'point-and-figure' ? 'No source close has moved far enough to fill a box at this size.' :
             'No source close has moved beyond the first close to form a line.'}</p>}
         {chart.exportOptions && <ChartExport asset={display} visible={{ start: 0, end: display.bars.length }}
-          metadata={chart.exportOptions.metadata} timeframe={timeframe}
+          metadata={chart.exportOptions.metadata} timeframe={timeframe} anchoredVwaps={anchoredVwaps}
           overlays={[
             ...(periods ? [
               { name: 'sma_' + periods.sma, series: sma },
@@ -449,8 +482,12 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6} baselineTicks={baselineTicks}
         closeChanges={changes.series} bandSeconds={type === 'high-low-band' ? changeInterval : undefined}
         rebasedReturns={rebased.series} drawdowns={drawdown.series} swings={swing.series}
-        drawingTools={type === 'close-change' || type === 'rebased-percent' || type === 'drawdown' ?
-          undefined : chart.drawingTools}
+        anchoredVwaps={anchoredVwaps} vwapSourceTimes={vwapSourceTimes}
+        drawingTools={drawingTools && { ...drawingTools, async saveAnnotation(before, after) {
+          if (after?.kind === 'anchored-vwap' && !sourceBars.some(bar => bar.time === after.time))
+            throw Error('Choose the exact UTC time of an observed source bar.')
+          await drawingTools.saveAnnotation(before, after)
+        } }}
         sma={sma} ema={ema} periods={periods} studies={studies}
         timeframe={timeframe} onTimestamp={onTimestamp} />}
     </>

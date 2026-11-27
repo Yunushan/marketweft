@@ -2981,6 +2981,22 @@ pub extern "C" fn mw_confirmed_close_swings(
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_anchored_vwap(anchor_at: i64) -> u32 {
+    process(|input| {
+        let results = crate::anchored_vwap(anchor_at, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(results.len() * 24);
+        for row in results {
+            let (price, volume) = row.map_or((i64::MIN, 0), |point| {
+                (point.price, point.cumulative_volume)
+            });
+            bytes.extend_from_slice(&price.to_le_bytes());
+            bytes.extend_from_slice(&volume.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
 fn encode_wide_indicator_values(values: Vec<Option<i128>>) -> Vec<u8> {
     values
         .into_iter()

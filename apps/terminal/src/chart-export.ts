@@ -1,7 +1,7 @@
 import type { SeriesMetadata } from './catalog-schema'
 import { sourcePermissionRestriction } from './catalog-schema'
 import { fixed } from './fixed-point'
-import type { ConfirmedSwing, DrawdownPoint, SessionTimeframeBar, TimeframeBar } from './market-core'
+import type { AnchoredVwapPoint, ConfirmedSwing, DrawdownPoint, SessionTimeframeBar, TimeframeBar } from './market-core'
 import type { Asset } from './workspace'
 
 export type BarRange = { start: number; end: number }
@@ -11,6 +11,7 @@ export type RebasedReturnSeries = { anchorAt?: number; baseClose?: number; value
 export type DrawdownSeries = readonly (DrawdownPoint | null)[]
 export type SwingSeries = { left: number; right: number; seconds: number; cutoff?: number;
   values: readonly (ConfirmedSwing | null)[] }
+export type AnchoredVwapSeries = { id: string; anchorAt: number; values: readonly ((AnchoredVwapPoint & { observedAt: number }) | null)[] }
 export type TimeframeView = { sourceSeconds: number; targetSeconds: number } & (
   { mode: 'utc'; buckets: TimeframeBar[] } |
   { mode: 'session'; buckets: SessionTimeframeBar[]; calendarName: string }
@@ -29,7 +30,7 @@ export function chartCsv(
   asset: Asset,
   range: BarRange,
   metadata: SeriesMetadata | undefined,
-  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries; swings?: SwingSeries } | undefined,
+  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries; swings?: SwingSeries; anchoredVwaps?: readonly AnchoredVwapSeries[] } | undefined,
 ) {
   const restriction = sourcePermissionRestriction(metadata?.sourceRights, 'redistribution')
   if (restriction === 'permission')
@@ -55,6 +56,10 @@ export function chartCsv(
     if (analysis.swings)
       fields.push('swing_left_bars', 'swing_right_bars', 'swing_interval_seconds', 'swing_known_through',
         'swing_pivot_at', 'swing_confirmed_at', 'swing_pivot_close', 'swing_side')
+    for (const line of analysis.anchoredVwaps ?? []) {
+      const prefix = 'anchored_vwap_' + line.id
+      fields.push(prefix + '_anchor_at', prefix + '_observed_at', prefix + '_price', prefix + '_cumulative_volume')
+    }
     fields.push(...analysis.overlays.map(item => item.name))
     provenance = ',' + [
       asset.venue,
@@ -107,6 +112,10 @@ export function chartCsv(
         const pivot = values[index]
         row += ',' + [left, right, seconds, cutoff ?? '', ...(pivot ?
           [pivot.pivotAt, pivot.confirmedAt, fixed(pivot.close, 6), pivot.side] : ['', '', '', ''])].join(',')
+      }
+      for (const line of analysis.anchoredVwaps ?? []) {
+        const value = line.values[index]
+        row += ',' + (value ? [line.anchorAt, value.observedAt, fixed(value.price, 6), fixed(value.cumulativeVolume, 6)].join(',') : ',,,')
       }
       for (const { series } of analysis.overlays) {
         const value = series[index]

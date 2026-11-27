@@ -2,6 +2,7 @@
 
 mod actions;
 mod alerts;
+mod anchored_vwap;
 mod aroon;
 mod atr;
 mod backtest;
@@ -70,6 +71,7 @@ pub use actions::{
 pub use alerts::{
     AlertBook, AlertDirection, AlertNotification, AlertRule, Comparator, Observation,
 };
+pub use anchored_vwap::{anchored_vwap, AnchoredVwapPoint};
 pub use aroon::{aroon, AroonValue};
 pub use atr::average_true_range;
 pub use backtest::{

@@ -10,6 +10,25 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('anchored VWAP preserves signed typical prices and wide cumulative volume in Wasm', () => {
+  const anchor = 1735689600;
+  const bars = core.parseCsv(['time,open,high,low,close,volume',
+    [anchor - 60, 100, 100, 100, 100, 9], [anchor, 0, 0, 0, 0, 0], [anchor + 60, 11, 14, 5, 11, 2],
+    [anchor + 120, -4, 8, -7, -4, 1], [anchor + 180, 20, 20, 20, 20, 0],
+    [anchor + 240, 7, 7, 7, 7, 3],
+  ].map(row => typeof row === 'string' ? row : row.join(',')).join('\n'));
+  const point = (price, cumulativeVolume) => ({ price, cumulativeVolume });
+  const expected = [null, null, point(10000000n, 2000000n), point(6333333n, 3000000n),
+    point(6333333n, 3000000n), point(6666667n, 6000000n)];
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.anchoredVwap(anchor, bars.slice(0, end)), expected.slice(0, end));
+  assert.deepEqual(core.anchoredVwap(anchor + 1, bars), Array(bars.length).fill(null));
+  const heavy = Array.from({ length: 5000 }, (_, index) => ({
+    time: anchor + index, open: -2e9, high: -2e9, low: -2e9, close: -2e9, volume: 2e9,
+  }));
+  assert.deepEqual(core.anchoredVwap(anchor, heavy).at(-1), point(-2000000000000000n, 10000000000000000000n));
+});
+
 test('close swings preserve the confirmation time, earliest tie and exact source close in Wasm', () => {
   const from = 1735689600;
   const observations = [[0, '0'], [1, '0.000005'], [2, '0.000005'], [3, '0'], [4, '-1'],

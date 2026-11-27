@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.147.0 · Anchored VWAP drawing
+
+| Check | Evidence |
+| --- | --- |
+| Rust and WebAssembly | The fixtures verify exact signed typical prices, the observed prefix, no weight on zero-volume bars and cumulative volume above signed 64-bit range. |
+| Chromium chart and CSV | Linked panes share an exact anchor. The rolled pane uses the last observed source timestamp and preserves the original weights. CSV keeps the precise fields and rejects a restricted redistribution grant. |
+| Workspace backup | Browser tests restore the drawing alongside the unmodified histories and also restore an earlier workspace without the drawing. |
+
+[Anchored VWAP](chart-workspace.md#anchored-vwap) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.146.0 · Confirmed close swings
 
 | Check | Evidence |

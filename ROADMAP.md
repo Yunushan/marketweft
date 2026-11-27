@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.146.0 adds confirmed close swings with per-pane cutoffs and exact pivot evidence. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.147.0 adds anchored VWAP drawings using exact source weights. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Delivered · 0.147.0 | Anchored VWAP drawing (MW-014) | Verify a source-bar anchor, exact cumulative weighting, zero volume, linked panes, rolled buckets, rights-aware export and version 46 restoration. [Anchored VWAP](docs/chart-workspace.md#anchored-vwap). |
 | Delivered · 0.146.0 | Confirmed close swings (MW-012) | Verify point-in-time markers, first ties, gaps, confirming bucket closure, exact CSV and version 45 restoration. [Confirmed close swings](docs/chart-workspace.md#confirmed-close-swings). |
 | Delivered · 0.145.0 | Peak-to-trough drawdown (MW-012) | Verify running peaks, exact observed prefixes, recoveries, incomplete buckets, offscreen peak provenance and version 44 restoration. [Drawdown chart](docs/chart-workspace.md#peak-to-trough-drawdown). |
 | Delivered · 0.144.0 | Rebased percent-change chart (MW-012) | Verify signed exact returns, independent UTC anchors, zero and missing bases, linked panes and version 43 restoration. [Rebased percent change](docs/chart-workspace.md#rebased-percent-change). |
@@ -160,5 +161,5 @@
 
 ## Handoff for the next change
 
-Add an anchored volume-weighted average price drawing. Verify exact cumulative weighting, zero volume, linked pane projection, rights-aware export and workspace restoration.
+Add a three-anchor pitchfork drawing. Verify the midpoint, median line, parallel rails, signed coordinates and restoration through different pane ranges.
 

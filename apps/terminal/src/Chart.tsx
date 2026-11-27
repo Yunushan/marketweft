@@ -13,7 +13,7 @@ import type { KagiLayout } from './kagi-chart'
 import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
 import type { PointFigureLayout } from './point-figure-chart'
 import { ChartExport } from './ChartExport'
-import type { CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { AnchoredVwapSeries, CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
@@ -668,6 +668,9 @@ function draw(
         if (price < low || price > high) continue
         const level = y(price)
         line(left, level, right, level, '#e4b96a')
+      } else if (annotation.kind === 'anchored-vwap') {
+        // These data-derived drawings share the price-line projection.
+        continue
       } else if (annotation.kind === 'time') {
         const column = markerColumn(markerTimeline, annotation.time)
         if (column === null || column < start - 0.5 || column > view.end - 0.5) continue
@@ -946,6 +949,8 @@ export function Chart({
   rebasedReturns,
   drawdowns,
   swings,
+  anchoredVwaps,
+  vwapSourceTimes,
   bandSeconds,
   timeframe,
   ticks,
@@ -973,6 +978,8 @@ export function Chart({
   rebasedReturns?: RebasedReturnSeries
   drawdowns?: DrawdownSeries
   swings?: SwingSeries
+  anchoredVwaps?: readonly AnchoredVwapSeries[]
+  vwapSourceTimes?: readonly number[]
   bandSeconds?: number
   timeframe?: TimeframeView
   ticks?: TickBar[]
@@ -1003,9 +1010,14 @@ export function Chart({
     sourceIndices.map(index => ema[index]) : ema, [sourceIndices, ema])
   const panels = useMemo(() => studies.filter(study => !isPriceStudy(study)), [studies])
   const priceStudies = useMemo(() => studies.filter(isPriceStudy), [studies])
-  const plottedPriceLines = useMemo(() => priceStudies.flatMap(study => study.lines.map(line => ({
-    color: line.color, series: projectStudyLine(line.series, sourceIndices),
-  }))), [sourceIndices, priceStudies])
+  const plottedPriceLines = useMemo(() => [
+    ...priceStudies.flatMap(study => study.lines.map(line => ({
+      color: line.color, series: projectStudyLine(line.series, sourceIndices),
+    }))),
+    ...(anchoredVwaps ?? []).map(line => ({
+      color: '#73d4db', series: projectStudyLine(line.values.map(point => point?.price ?? null), sourceIndices),
+    })),
+  ], [sourceIndices, priceStudies, anchoredVwaps])
   const plottedStudies = useMemo<PlottedStudy[]>(() => panels.map(study => ({
     ...study,
     lines: study.lines.map(line => ({
@@ -1034,7 +1046,7 @@ export function Chart({
   const start = view.end - view.count
   const observationsByTime = kagi?.byTime ?? pointFigure?.byTime
   const annotations = drawingTools?.annotations ?? EMPTY_ANNOTATIONS
-  const needsTimeline = annotations.some(annotation => annotation.kind !== 'price' && annotation.kind !== 'price-range')
+  const needsTimeline = annotations.some(annotation => annotation.kind !== 'price' && annotation.kind !== 'price-range' && annotation.kind !== 'anchored-vwap')
   const markerTimeline = useMemo(() => {
     if (!needsTimeline) return []
     const columns = new Map<number, number>()
@@ -1245,7 +1257,9 @@ export function Chart({
     if (index === null || y < bounds.top || y > bounds.bottom) return
     const ticks = clamp(priceTicksAt(y, bounds), -MAX_CHART_PRICE_TICKS, MAX_CHART_PRICE_TICKS)
     const observed = observationAt(index, ticks)
-    picker.accept({ ticks, time: observed?.sourceTime ?? bars[index].time })
+    const sourceIndex = observed?.sourceIndex ?? sourceIndices?.[index] ?? index
+    const original = picker.sourceTime ? vwapSourceTimes?.[sourceIndex] : undefined
+    picker.accept({ ticks, time: original ?? observed?.sourceTime ?? bars[index].time })
     setAnnotationPicker(null)
   }
   return (
@@ -1329,6 +1343,15 @@ export function Chart({
           {' · '}Capture sequence {volumeBar.firstSequence.toString()}–{volumeBar.lastSequence.toString()}
         </span>}
       </div>
+      {anchoredVwaps?.map(line => {
+        const point = line.values[sourceIndex]
+        return <div key={line.id} className="ohlc chart-overlay-values" role="group" aria-label="Anchored VWAP values">
+          <span><small>Anchored VWAP</small> {point ? fixed(point.price, 6) : 'Missing'}</span>
+          <span><small>Anchor</small> {formatAnnotationAnchor('time', line.anchorAt)}</span>
+          {point && <span><small>Cumulative volume</small> {fixed(point.cumulativeVolume, 6)}</span>}
+          {point && point.observedAt !== time && <span><small>Observed through</small> {timeLabel(point.observedAt)} UTC</span>}
+        </div>
+      })}
       {periods && (
         <div className="ohlc chart-overlay-values" role={indicatorValues ? 'group' : undefined}
           aria-label={indicatorValues ? 'Moving average values' : undefined}>
@@ -1507,12 +1530,13 @@ export function Chart({
               start: { ticks: Math.round(prior.close * 1e6), time: prior.time },
               end: { ticks: Math.round(asset.bars[sourceIndex].close * 1e6), time },
             }}
+            vwapDefaultTime={vwapSourceTimes?.[sourceIndex] ?? time}
             save={drawingTools.saveAnnotation} />
         </div>
       )}
       {exportOptions && (
         <ChartExport asset={asset} visible={{ start: sourceStart, end: sourceEnd }} metadata={exportOptions.metadata}
-          timeframe={timeframe} closeChanges={closeChanges} rebasedReturns={rebasedReturns} drawdowns={drawdowns} swings={swings}
+          timeframe={timeframe} closeChanges={closeChanges} rebasedReturns={rebasedReturns} drawdowns={drawdowns} swings={swings} anchoredVwaps={anchoredVwaps}
           overlays={[
             ...(periods ? [
               { name: 'sma_' + periods.sma, series: sma },

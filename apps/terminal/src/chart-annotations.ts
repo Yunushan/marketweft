@@ -6,6 +6,7 @@ type TrianglePoints = [DrawingEndpoint, DrawingEndpoint, DrawingEndpoint]
 export type AnnotationCoordinate = 'price' | 'time'
 export type ChartAnnotation = { id: string } & (
   { kind: 'price'; ticks: number } | { kind: 'time'; time: number } |
+  { kind: 'anchored-vwap'; time: number } |
   { kind: 'ray'; start: DrawingEndpoint } |
   { kind: 'trend'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'rectangle'; start: DrawingEndpoint; end: DrawingEndpoint } |
@@ -28,6 +29,7 @@ export const EMPTY_ANNOTATIONS: readonly ChartAnnotation[] = []
 export const ANNOTATION_NAMES = {
   price: 'Price line',
   time: 'Time marker',
+  'anchored-vwap': 'Anchored VWAP',
   ray: 'Horizontal ray',
   trend: 'Trend line',
   rectangle: 'Rectangle',
@@ -49,7 +51,9 @@ export function sameEndpoint(first: DrawingEndpoint, second: DrawingEndpoint): b
 export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation): boolean {
   switch (first.kind) {
     case 'price': return second.kind === 'price' && first.ticks === second.ticks
-    case 'time': return second.kind === 'time' && first.time === second.time
+    case 'time':
+    case 'anchored-vwap':
+      return second.kind === first.kind && first.time === second.time
     case 'ray': return second.kind === 'ray' && sameEndpoint(first.start, second.start)
     case 'price-range':
     case 'time-range':
