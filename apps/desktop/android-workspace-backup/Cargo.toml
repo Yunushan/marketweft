@@ -1,0 +1,14 @@
+[package]
+name = "tauri-plugin-workspace-backup"
+version = "0.1.0"
+edition = "2021"
+license = "0BSD"
+publish = false
+links = "tauri-plugin-workspace-backup"
+description = "Android document-picker export for MarketWeft workspace backups"
+
+[dependencies]
+tauri = { version = "2", default-features = false }
+
+[build-dependencies]
+tauri-plugin = { version = "=2.7.4", features = ["build"] }

@@ -1,6 +1,6 @@
 {
   "name": "@marketweft/terminal",
-  "version": "0.182.0",
+  "version": "0.183.0",
   "private": true,
   "type": "module",
   "license": "0BSD",
@@ -11,6 +11,7 @@
     "test": "tsc --noEmit && vite build && playwright test"
   },
   "dependencies": {
+    "@tauri-apps/api": "2.12.5",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

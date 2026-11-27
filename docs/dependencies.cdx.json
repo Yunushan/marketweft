@@ -6,7 +6,7 @@
     "component": {
       "type": "application",
       "name": "MarketWeft",
-      "version": "0.182.0"
+      "version": "0.183.0"
     }
   },
   "components": [
@@ -9848,6 +9848,30 @@
     },
     {
       "type": "library",
+      "name": "tauri-plugin",
+      "version": "2.7.4",
+      "bom-ref": "pkg:cargo/tauri-plugin@2.7.4",
+      "purl": "pkg:cargo/tauri-plugin@2.7.4",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6c18076d9b04211cb4899387aab97497e8edd0d02cd21710623afcdde27145d1"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "desktop"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "tauri-runtime-wry",
       "version": "2.12.5",
       "bom-ref": "pkg:cargo/tauri-runtime-wry@2.12.5",
@@ -13847,6 +13871,30 @@
         {
           "name": "marketweft:dependency-group",
           "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/api",
+      "version": "2.12.5",
+      "bom-ref": "pkg:npm/%40tauri-apps/api@2.12.5",
+      "purl": "pkg:npm/%40tauri-apps/api@2.12.5",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "1bd40832de5fcc40fe692e108552b7c351d62caa4b2301ff327a42afdcf5ba01841e74b63919aaacb91cd2e00b3a344ae2a5c9cbee188b0f0b0e5fca89c0b51e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-runtime"
         }
       ]
     },

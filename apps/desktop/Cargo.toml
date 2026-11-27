@@ -1,6 +1,6 @@
 [package]
 name = "marketweft-desktop"
-version = "0.182.0"
+version = "0.183.0"
 edition = "2021"
 license = "0BSD"
 publish = false
@@ -18,6 +18,9 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+tauri-plugin-workspace-backup = { path = "android-workspace-backup" }
 
 [features]
 default = ["custom-protocol"]

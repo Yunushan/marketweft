@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.183.0 · Android workspace backup
+
+- The installed APK opens Android's system document picker to save the workspace. The emulator checks cancellation and then saves to Downloads with the original fixture bytes and selected instrument.
+- The test reinstalls the exact same APK and confirms that the fresh catalog opens on its sample chart. It selects the backup through the system picker, verifies its checksums and restores the original saved chart.
+- The test relaunches the app and checks the exact original OHLCV again. The evidence includes the exported fixture backup and the restored accessibility hierarchy.
+
+[Android terminal](platforms.md#android-terminal) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.182.0 · In-place Android emulator upgrade
 
 - CI downloads the verified 0.177.0 Android APK from the successful workflow for its exact source commit and checks its source revision and ABI.

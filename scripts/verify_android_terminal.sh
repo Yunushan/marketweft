@@ -80,6 +80,8 @@ for _ in {1..15}; do
         python3 -B scripts/verify_android_terminal.py hierarchy reports/android-terminal.xml "$package" >"$work/hierarchy.log" 2>&1; then
         python3 -B scripts/verify_android_csv.py "$serial" "$package" "$activity" \
             apps/desktop/tests/fixtures/native-verification.csv reports/android-import-latest.xml
+        python3 -B scripts/verify_android_workspace_backup.py "$serial" "$package" "$activity" "$apk" \
+            apps/desktop/tests/fixtures/native-verification.csv reports/android-backup
         if [[ $# == 3 ]]; then
             python3 -B scripts/verify_android_terminal.py apk "$1" "$3"
             python3 -B scripts/verify_android_upgrade.py "$serial" "$package" "$activity" "$sdk_tools" \

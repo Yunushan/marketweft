@@ -57,6 +57,40 @@ async function openBackup(page) {
     .click()
 }
 
+test('Android backup export waits for the native save result and preserves the complete manifest', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__MARKETWEFT_ANDROID_WORKSPACE_BACKUP__ = true
+    window.androidBackupCalls = []
+    window.__TAURI_INTERNALS__ = {
+      invoke(command, args) {
+        window.androidBackupCalls.push({ command, args })
+        return Promise.resolve({ saved: window.androidBackupCalls.length > 1 })
+      },
+    }
+  })
+  const downloads = []
+  page.on('download', event => downloads.push(event))
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'NVDA', exact: true })).toBeVisible()
+  await openBackup(page)
+  const exportButton = page.getByRole('button', { name: 'Export workspace', exact: true })
+  await exportButton.click()
+  await expect(page.getByText('Workspace backup export cancelled.', { exact: true })).toBeVisible()
+  await exportButton.click()
+  await expect(page.getByText('Workspace backup saved.', { exact: true })).toBeVisible()
+  const calls = await page.evaluate(() => window.androidBackupCalls)
+  expect(calls).toHaveLength(2)
+  for (const { command, args } of calls) {
+    expect(command).toBe('plugin:workspace-backup|save')
+    expect(args.filename).toMatch(/^marketweft-workspace-\d{4}-\d{2}-\d{2}\.marketweft\.json$/)
+    const backup = JSON.parse(args.contents)
+    expect(backup.format).toBe('marketweft-workspace')
+    expect(backup.manifest.preferences.selected).toBe('NASDAQ:NVDA')
+    expect(digest(backup.manifest)).toBe(backup.sha256)
+  }
+  expect(downloads).toHaveLength(0)
+})
+
 test('records declared source permissions and restores the exact grant into a clean catalog', async ({
   page, browser, baseURL,
 }) => {

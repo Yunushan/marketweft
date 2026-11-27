@@ -75,6 +75,18 @@ class AndroidUI:
         self.adb("shell", "input", "tap", (left + right) // 2, y)
 
 
+def select_downloads(ui):
+    destination = ui.find("the native document picker", lambda node: (
+        is_document_picker(node) and bool(labels(node).intersection({"Show roots", "Downloads"}))
+    ))
+    if "Show roots" in labels(destination):
+        ui.tap(destination)
+        destination = ui.find("the Downloads root", lambda node: (
+            is_document_picker(node) and "Downloads" in labels(node)
+        ))
+    ui.tap(destination)
+
+
 def verify_import(ui, package, activity, fixture):
     def app_label(label):
         return lambda node: node.get("package") == package and label in labels(node)
@@ -106,15 +118,7 @@ def verify_import(ui, package, activity, fixture):
     ui.tap(ui.find("the historical CSV field", lambda node: (
         node.get("package") == package and any("Historical CSV file" in label for label in labels(node))
     )))
-    destination = ui.find("the native document picker", lambda node: (
-        is_document_picker(node) and bool(labels(node).intersection({"Show roots", "Downloads"}))
-    ))
-    if "Show roots" in labels(destination):
-        ui.tap(destination)
-        destination = ui.find("the Downloads root", lambda node: (
-            is_document_picker(node) and "Downloads" in labels(node)
-        ))
-    ui.tap(destination)
+    select_downloads(ui)
     ui.tap(ui.find("the authorized CSV in Downloads", lambda node: (
         is_document_picker(node) and Path(REMOTE_FIXTURE).name in labels(node)
     )))

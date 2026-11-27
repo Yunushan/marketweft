@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.182.0 · 0BSD**
+**0.183.0 · 0BSD**
 
 **Language dem for dis guide**
 
@@ -15,14 +15,14 @@
 
 MarketWeft na research terminal wey dey work for your own device. Analyst, developer and operator fit load OHLCV file wey dem get right to use, see candle and volume, calculate SMA and EMA with fixed decimal, and save watchlist, instrument and indicator for IndexedDB. E fit work offline after e cache the files. The price and volume wey follow am na synthetic, so provider account no dey needed.
 
-MarketWeft 0.182.0 test upgrade wey dem install over di app for Android emulator and check di saved chart and document for airplane mode. MarketWeft 0.7.0 fit rank universe members by how price change, using reports wey don reach by the query time. Replay for trading session cover stock split, cash dividend, who dey inside and which listing dem don remove for exchange. The repo get TypeScript observer wey only read separate trading-bot service and Tauri wrapper wey still dey test. Provider feeds, orders, signed installers and hosting for many users dey roadmap.
+MarketWeft 0.183.0 export workspace backup through Android system save dialog and test how di backup restore after fresh install. MarketWeft 0.7.0 fit rank universe members by how price change, using reports wey don reach by the query time. Replay for trading session cover stock split, cash dividend, who dey inside and which listing dem don remove for exchange. The repo get TypeScript observer wey only read separate trading-bot service and Tauri wrapper wey still dey test. Provider feeds, orders, signed installers and hosting for many users dey roadmap.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
 <!-- section:02 -->
 ## Start the portable terminal
 
-Download browser-terminal-attempt-N from GitHub verification wey pass. Extract MarketWeft-browser-0.182.0.zip, leave dist/ beside serve-terminal.mjs and run the command inside that folder. Open http://127.0.0.1:4173/ for current browser wey get WebAssembly, Canvas, BigInt and IndexedDB. Use Node.js 22.12 or newer. You no need install npm for the ZIP. Wait for Offline ready before you off network.
+Download browser-terminal-attempt-N from GitHub verification wey pass. Extract MarketWeft-browser-0.183.0.zip, leave dist/ beside serve-terminal.mjs and run the command inside that folder. Open http://127.0.0.1:4173/ for current browser wey get WebAssembly, Canvas, BigInt and IndexedDB. Use Node.js 22.12 or newer. You no need install npm for the ZIP. Wait for Offline ready before you off network.
 
 ```sh
 node serve-terminal.mjs

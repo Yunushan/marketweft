@@ -34,13 +34,20 @@ export function WorkspaceBackup({
     try {
       const text = await exportWorkspace(await catalog.read(), samples)
       const name = 'marketweft-workspace-' + new Date().toISOString().slice(0, 10) + '.marketweft.json'
+      const android = window as Window & { __MARKETWEFT_ANDROID_WORKSPACE_BACKUP__?: boolean }
+      if (android.__MARKETWEFT_ANDROID_WORKSPACE_BACKUP__) {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const { saved } = await invoke<{ saved: boolean }>('plugin:workspace-backup|save', { filename: name, contents: text })
+        setMessage(saved ? 'Workspace backup saved.' : 'Workspace backup export cancelled.')
+        return
+      }
       downloadFile(name, new Blob([text], { type: 'application/json' }))
       setMessage('Workspace backup prepared for download.')
     } catch (cause) {
       setError(
         cause instanceof Error
           ? cause.message
-          : 'Could not export the workspace.',
+          : typeof cause === 'string' ? cause : 'Could not export the workspace.',
       )
     } finally {
       setBusy(null)

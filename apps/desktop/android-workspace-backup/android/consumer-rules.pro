@@ -1,0 +1,2 @@
+-keep class org.marketweft.workspacebackup.WorkspaceBackupPlugin { *; }
+-keep class org.marketweft.workspacebackup.WorkspaceBackupArgs { *; }
