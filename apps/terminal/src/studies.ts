@@ -1,5 +1,5 @@
 import { validIndicatorPeriod } from './market-core'
-import type { Bar, BollingerMeasures, MarketCore, PriceBand } from './market-core'
+import type { Bar, BollingerMeasures, CumulativeVolume, MarketCore, PriceBand } from './market-core'
 import type { ExportOverlay } from './chart-export'
 
 export const STUDIES = {
@@ -13,6 +13,8 @@ export const STUDIES = {
   stochastic: { name: 'Stochastic Oscillator', label: 'Stochastic Oscillator', minPeriod: 1, defaultPeriod: 14, periodLabel: 'Stochastic lookback', color: '#a6c9f8' },
   williams_r: { name: 'Williams %R', label: 'Williams %R', minPeriod: 1, defaultPeriod: 14, color: '#ceaeec' },
   macd: { name: 'MACD', label: 'Moving Average Convergence Divergence', minPeriod: 1, defaultPeriod: 12, periodLabel: 'MACD fast', color: '#9abdfd' },
+  obv: { name: 'On-Balance Volume', label: 'On-Balance Volume', color: '#79c9b2' },
+  adl: { name: 'Accumulation/Distribution Line', label: 'Accumulation/Distribution Line', color: '#e4ac7f' },
 } as const
 export type StudyKind = keyof typeof STUDIES
 export const STUDY_KINDS = Object.keys(STUDIES) as StudyKind[]
@@ -32,9 +34,14 @@ const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPerio
 export function extraStudyPeriods(kind: StudyKind): readonly ExtraStudyPeriod[] {
   return EXTRA_PERIODS_BY_STUDY[kind] ?? []
 }
-export type StudySettings = { enabled: boolean; period: number } & Partial<Record<ExtraStudyPeriod, number>>
+export type StudySettings = { enabled: boolean; period?: number } & Partial<Record<ExtraStudyPeriod, number>>
+export function hasStudyPeriod(kind: StudyKind): boolean {
+  return 'defaultPeriod' in STUDIES[kind]
+}
 export function defaultStudySettings(kind: StudyKind): StudySettings {
-  const settings: StudySettings = { enabled: false, period: STUDIES[kind].defaultPeriod }
+  const description = STUDIES[kind]
+  const settings: StudySettings = { enabled: false }
+  if ('defaultPeriod' in description) settings.period = description.defaultPeriod
   for (const key of extraStudyPeriods(kind)) settings[key] = EXTRA_STUDY_PERIODS[key].defaultPeriod
   return settings
 }
@@ -48,7 +55,7 @@ export type PanelLine = {
   series: StudyValue[]
   histogram?: { negativeColor: string }
 }
-export type PanelStudy = { kind: Exclude<StudyKind, BandKind>; periods: number[]; lines: PanelLine[] }
+export type PanelStudy = { kind: Exclude<StudyKind, BandKind>; periods: number[]; unit?: 'price' | 'volume'; lines: PanelLine[] }
 export type BandStudy = {
   period: number
   bands: (PriceBand | null)[]
@@ -71,10 +78,18 @@ export function isBandStudy(study: StudyValues): study is BandStudy {
 
 export function computeStudies(core: MarketCore, settings: StudySet | undefined, bars: readonly Bar[]): StudyValues[] {
   const measuresByPeriod = new Map<number, BollingerMeasures[]>()
+  let cumulative: CumulativeVolume[] | undefined
   return STUDY_KINDS.flatMap<StudyValues>(kind => {
     const study = settings?.[kind]
     if (!study?.enabled) return []
-    const { period } = study
+    if (kind === 'obv' || kind === 'adl') {
+      cumulative ??= core.cumulativeVolume(bars)
+      const key = kind === 'obv' ? 'onBalance' : 'accumulationDistribution'
+      return [{ kind, periods: [], unit: 'volume', lines: [
+        { color: STUDIES[kind].color, series: cumulative.map(row => row[key]) },
+      ] }]
+    }
+    const { period = STUDIES[kind].defaultPeriod } = study
     if (kind === 'bb') return [{ kind, period, bands: core.bollingerBands(period, bars) }]
     if (kind === 'donchian') return [{ kind, period, bands: core.donchianChannels(period, bars) }]
     if (kind === 'keltner') {
@@ -94,7 +109,7 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       const slow = study.slowPeriod ?? EXTRA_STUDY_PERIODS.slowPeriod.defaultPeriod
       const signal = study.macdSignalPeriod ?? EXTRA_STUDY_PERIODS.macdSignalPeriod.defaultPeriod
       const rows = core.macd(period, slow, signal, bars)
-      return [{ kind, periods: [period, slow, signal], lines: [
+      return [{ kind, periods: [period, slow, signal], unit: 'price', lines: [
         { key: 'line', label: 'Line', color: STUDIES.macd.color, series: rows.map(row => row.line) },
         { key: 'signal', label: 'Signal', color: '#f4c384', series: rows.map(row => row.signal) },
         { key: 'histogram', label: 'Histogram', color: '#458b77', series: rows.map(row => row.histogram),
@@ -115,7 +130,9 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     } else {
       series = core.indicator(kind, period, bars)
     }
-    return [{ kind, periods: [period], lines: [{ color: STUDIES[kind].color, series }] }]
+    return [{ kind, periods: [period], ...(kind === 'atr' && { unit: 'price' }),
+      lines: [{ color: STUDIES[kind].color, series }],
+    }]
   })
 }
 
@@ -135,9 +152,12 @@ export function isStudyKind(key: string): key is StudyKind {
   return Object.hasOwn(STUDIES, key)
 }
 export function validStudyPeriodOrder(kind: StudyKind, settings: StudySettings): boolean {
-  return kind !== 'macd' || (settings.slowPeriod !== undefined && settings.period < settings.slowPeriod)
+  return kind !== 'macd' || (
+    settings.period !== undefined && settings.slowPeriod !== undefined && settings.period < settings.slowPeriod
+  )
 }
 
 export function validStudyPeriod(kind: StudyKind, period: unknown): period is number {
-  return validIndicatorPeriod(period) && period >= STUDIES[kind].minPeriod
+  const description = STUDIES[kind]
+  return 'minPeriod' in description && validIndicatorPeriod(period) && period >= description.minPeriod
 }

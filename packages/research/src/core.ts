@@ -36,6 +36,11 @@ function readPriceBands(out: DataView): (PriceBand | null)[] {
   });
 }
 
+export interface CumulativeVolume {
+  onBalance: bigint;
+  accumulationDistribution: bigint;
+}
+
 export interface MacdValue {
   line: bigint | null;
   signal: bigint | null;
@@ -900,6 +905,7 @@ export interface MarketCore {
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
+  cumulativeVolume(bars: readonly Bar[]): CumulativeVolume[];
   macd(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
   williamsPercentR(period: number, bars: readonly Bar[]): (bigint | null)[];
   stochasticOscillator(lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
@@ -996,6 +1002,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_bollinger_bands(period: number): number;
   mw_donchian_channels(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
+  mw_cumulative_volume(): number;
   mw_macd(fast: number, slow: number, signal: number): number;
   mw_williams_percent_r(period: number): number;
   mw_stochastic_oscillator(lookback: number, smoothing: number, signal: number): number;
@@ -1058,6 +1065,10 @@ interface MarketExports extends WebAssembly.Exports {
 
 const SCALE = 1_000_000;
 const MISSING = -(1n << 63n);
+
+function signed128(out: DataView, offset: number): bigint {
+  return (out.getBigInt64(offset + 8, true) << 64n) | out.getBigUint64(offset, true);
+}
 const LIMIT = 8 * 1024 * 1024;
 const LEGACY_SPLIT_BYTES = 32;
 const SPLIT_ID_BYTES = 40;
@@ -1792,6 +1803,15 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       putIndicatorBars(bars, 'Keltner Channels');
       return readPriceBands(output(api.mw_keltner_channels(emaPeriod, atrPeriod)));
     },
+    cumulativeVolume(bars) {
+      if (bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Cumulative volume supports up to 100,000 observed bars.');
+      putIndicatorBars(bars, 'Cumulative volume');
+      const out = output(api.mw_cumulative_volume());
+      return Array.from({ length: bars.length }, (_, index) => ({
+        onBalance: signed128(out, index * 32), accumulationDistribution: signed128(out, index * 32 + 16),
+      }));
+    },
     macd(fast, slow, signal, bars) {
       if (![fast, slow, signal].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)
         throw new Error('Series and indicator periods must fit within 100,000 bars.');
@@ -1834,7 +1854,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       putIndicatorCloses(bars);
       const out = output(api.mw_bollinger_measures(period));
       function value(offset: number) {
-        const ticks = (out.getBigInt64(offset + 8, true) << 64n) | out.getBigUint64(offset, true);
+        const ticks = signed128(out, offset);
         return ticks === -(1n << 127n) ? null : ticks;
       }
       return Array.from({ length: bars.length }, (_, index) => ({

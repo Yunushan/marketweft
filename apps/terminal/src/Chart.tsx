@@ -165,7 +165,7 @@ function draw(
     }
     const ticks = study.kind === 'bb_percent_b' ? [low, 0, 100, high] :
       study.kind === 'macd' ? [low, 0, high] : [low, (low + high) / 2, 0, high]
-    const format = study.kind === 'atr' || study.kind === 'macd' ? price : (value: number) => price(value) + '%'
+    const format = study.unit === 'volume' ? volume : study.unit === 'price' ? price : (value: number) => price(value) + '%'
     return { ...study, low, high, ticks: [...new Set(ticks)].sort((a, b) => a - b), format }
   })
   const studyLabels = studyPanels.flatMap(panel => panel.ticks.map(panel.format))
@@ -893,16 +893,16 @@ export function Chart({
           })}
         </div>
       )}
-      {panels.map(({ kind, periods, lines }, index) => {
+      {panels.map(({ kind, periods, lines, unit }, index) => {
         const { name, label } = STUDIES[kind]
-        const heading = name + ' ' + periods.join('/')
+        const heading = periods.length ? name + ' ' + periods.join('/') : name
         return <div key={kind} className="ohlc chart-overlay-values" role="group" aria-label={label}>
           {lines.length > 1 && <span><small>{heading}</small></span>}
           {lines.map((line, lineIndex) => {
             const value = studyValues[index][lineIndex]
             return <span key={line.key ?? kind}><small>{line.label ?? heading}</small> {
               value == null ? '—' : typeof value === 'bigint' ?
-                fixed(value, 6) + (kind === 'macd' ? '' : '%') : fixed(BigInt(Math.round(value * 1e6)), 6)
+                fixed(value, 6) + (unit ? '' : '%') : fixed(BigInt(Math.round(value * 1e6)), 6)
             }</span>
           })}
         </div>

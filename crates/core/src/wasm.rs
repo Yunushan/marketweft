@@ -2877,6 +2877,19 @@ pub extern "C" fn mw_keltner_channels(ema_period: usize, atr_period: usize) -> u
 }
 
 #[no_mangle]
+pub extern "C" fn mw_cumulative_volume() -> u32 {
+    process(|input| {
+        let rows = crate::cumulative_volume(&decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 32);
+        for row in rows {
+            bytes.extend_from_slice(&row.on_balance.to_le_bytes());
+            bytes.extend_from_slice(&row.accumulation_distribution.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_macd(fast: usize, slow: usize, signal: usize) -> u32 {
     process(|input| {
         let values = crate::macd(fast, slow, signal, &indicator_closes(input)?)?;

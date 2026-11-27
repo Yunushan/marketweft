@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.120.0 · Cumulative volume studies
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Fixtures verify close ties, flat bars, zero and fractional volume, skipped timestamps, signed half-tick rounding and both signs beyond the signed 64-bit range. |
+| Browser chart and export | Offline Chromium verifies two independent volume scales, values from earlier observed bars, every fixture CSV cell, and the final millionth beyond the signed 64-bit range. |
+| Workspace | Version 25 saves the per-pane toggles for both studies. Version 24 restores its previous MACD settings. |
+
+[Cumulative volume studies](chart-workspace.md#cumulative-volume-studies) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.119.0 · MACD
 
 | Check | Evidence |

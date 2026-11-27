@@ -50,9 +50,10 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
   onApply: (settings: StudySettings) => void
 }) {
   const study = STUDIES[kind]
-  const { name, minPeriod } = study
+  const { name } = study
+  const minPeriod = 'minPeriod' in study ? study.minPeriod : undefined
   const [enabled, setEnabled] = useState(settings.enabled)
-  const [period, setPeriod] = useState(String(settings.period))
+  const [period, setPeriod] = useState(settings.period === undefined ? '' : String(settings.period))
   const extraPeriods = extraStudyPeriods(kind)
   const [extraValues, setExtraValues] = useState(() => Object.fromEntries(extraPeriods.map(key =>
     [key, String(settings[key] ?? EXTRA_STUDY_PERIODS[key].defaultPeriod)],
@@ -61,12 +62,15 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
   return (
     <form className="indicator-periods" aria-label={label} onSubmit={event => {
       event.preventDefault()
-      const bars = Number(period)
-      if (!/^\d+$/.test(period.trim()) || !validStudyPeriod(kind, bars)) {
-        setError('period')
-        return
+      const next: StudySettings = { enabled }
+      if (minPeriod !== undefined) {
+        const bars = Number(period)
+        if (!/^\d+$/.test(period.trim()) || !validStudyPeriod(kind, bars)) {
+          setError('period')
+          return
+        }
+        next.period = bars
       }
-      const next: StudySettings = { enabled, period: bars }
       for (const key of extraPeriods) {
         const value = extraValues[key]
         const parsed = Number(value)
@@ -88,10 +92,10 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
           <input type="checkbox" checked={enabled} disabled={saving}
             onChange={event => setEnabled(event.target.checked)} />
         </label>
-        <label>{'periodLabel' in study ? study.periodLabel : name} period (bars)
+        {minPeriod !== undefined && <label>{'periodLabel' in study ? study.periodLabel : name} period (bars)
           <input type="text" inputMode="numeric" value={period} disabled={saving}
             onChange={event => { setPeriod(event.target.value); setError(null) }} />
-        </label>
+        </label>}
         {extraPeriods.map(key => <label key={key}>{EXTRA_STUDY_PERIODS[key].label} period (bars)
           <input type="text" inputMode="numeric" value={extraValues[key]} disabled={saving}
             onChange={event => { setExtraValues({ ...extraValues, [key]: event.target.value }); setError(null) }} />

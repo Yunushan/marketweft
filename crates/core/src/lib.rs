@@ -9,6 +9,7 @@ mod bollinger_measures;
 mod chart_movement;
 mod cross_section;
 mod cross_section_liquidity;
+mod cumulative_volume;
 mod delisting;
 mod depth;
 mod dividend;
@@ -79,6 +80,7 @@ pub use cross_section::{
     CrossSectionScore, CrossSectionWalkConfig, RankingDecision,
 };
 pub use cross_section_liquidity::{LiquidityTape, ReplayLiquidity};
+pub use cumulative_volume::{cumulative_volume, CumulativeVolume};
 pub use delisting::{
     parse_delistings, CashOffer, DelistingBook, DelistingCashPosting, DelistingState,
     DelistingTerms, DelistingValuation, ReferenceClose,

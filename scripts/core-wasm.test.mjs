@@ -1370,3 +1370,28 @@ test('MACD exposes exact signed price distances through each close and signal wa
   assert.throws(() => core.macd(2, 2, 1, bars), /shorter/);
   assert.throws(() => core.macd(1, 2, 0, bars), /100,000/);
 });
+
+test('cumulative volume keeps both signed totals exact through ties, flat ranges and large histories', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-cumulative-volume.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const row = (onBalance, accumulationDistribution) => ({ onBalance, accumulationDistribution });
+  const expected = [
+    row(0n, 0n), row(2_500_000n, 2_500_000n), row(2_500_000n, 1_500_000n),
+    row(-1_625_000n, -2_625_000n), row(375_000n, -2_625_000n), row(375_000n, -2_625_000n),
+    row(374_999n, -2_625_001n), row(375_004n, -2_624_996n),
+  ];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.cumulativeVolume(bars.slice(0, end)), expected.slice(0, end));
+  }
+  for (const direction of [1, -1]) {
+    const wide = Array.from({ length: 4_621 }, (_, time) => {
+      const close = direction * (time + 1) / 1e6;
+      return { time, open: 0, high: Math.max(close, 0), low: Math.min(close, 0), close,
+        volume: time === 4_620 ? 0.000001 : 2e9 };
+    });
+    const sign = BigInt(direction);
+    assert.deepEqual(core.cumulativeVolume(wide).at(-1),
+      row(sign * 9_238_000_000_000_000_001n, sign * 9_240_000_000_000_000_001n));
+  }
+  assert.throws(() => core.cumulativeVolume([bars[0], bars[0]]), /later/);
+});

@@ -144,6 +144,16 @@ Each pane saves separate fast, slow and signal periods. The defaults are 12, 26 
 
 The three series share a price-difference scale. With the default periods, the research CSV uses `macd_line_12_26_9`, `macd_signal_12_26_9` and `macd_histogram_12_26_9`. Warm-up cells stay empty.
 
+### Cumulative volume studies
+
+Enable **On-Balance Volume** or **Accumulation/Distribution Line** in either pane’s indicator settings. Each has its own signed volume scale. Both start from the first bar of the selected source history or timeframe, and both use the reported volume from each observed bar. Missing timestamps contribute zero observations. Each pane has an on/off control for each study.
+
+On-Balance Volume starts at zero on the first observed close. It adds volume when the current close exceeds the previous observed close, subtracts volume when the close falls, and stays unchanged on equal closes. [StockCharts’ On-Balance Volume calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/on-balance-volume-obv).
+
+The Accumulation/Distribution Line includes the first bar. For each bar, subtract the distance from the close to the high from the distance from the low to the close. Divide by the bar’s high-low range and multiply by its volume. Flat ranges contribute zero. Each contribution rounds to the nearest volume millionth with half ticks away from zero before adding to the running total. [StockCharts’ Accumulation/Distribution Line calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/accumulation-distribution-line).
+
+The research CSV uses `obv` and `adl` columns. Readouts and CSV retain each exact volume millionth for totals beyond the signed 64-bit limit. Exporting the visible range keeps the cumulative values computed from all earlier observed bars.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

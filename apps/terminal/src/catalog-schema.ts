@@ -2,7 +2,7 @@ import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
 import type { Asset, SavedImport } from './workspace'
 import { isSha256, sha256Text } from './sha256'
-import { extraStudyPeriods, isStudyKind, validStudyPeriod, validStudyPeriodOrder } from './studies'
+import { extraStudyPeriods, hasStudyPeriod, isStudyKind, validStudyPeriod, validStudyPeriodOrder } from './studies'
 import type { StudySet, StudySettings } from './studies'
 import { validProvider, verifyProviderSignature } from './provider-signature'
 
@@ -220,10 +220,14 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       for (const [kind, entry] of entries) {
         if (!isStudyKind(kind)) throw Error('Unknown configured study.')
         const periods = extraStudyPeriods(kind)
-        fields(entry, ['enabled', 'period', ...periods], 'pane study settings')
-        if (typeof entry.enabled !== 'boolean' || !validStudyPeriod(kind, entry.period))
-          throw Error('Invalid enabled setting or period for the configured study.')
-        const study: StudySettings = { enabled: entry.enabled, period: entry.period }
+        const needsPeriod = hasStudyPeriod(kind)
+        fields(entry, ['enabled', ...(needsPeriod ? ['period'] : []), ...periods], 'pane study settings')
+        if (typeof entry.enabled !== 'boolean') throw Error('Invalid enabled setting for the configured study.')
+        const study: StudySettings = { enabled: entry.enabled }
+        if (needsPeriod) {
+          if (!validStudyPeriod(kind, entry.period)) throw Error('Invalid period for the configured study.')
+          study.period = entry.period
+        }
         for (const key of periods) {
           const period = entry[key]
           if (!validStudyPeriod(kind, period)) throw Error('Invalid auxiliary study period.')
