@@ -81,6 +81,8 @@ test('Heikin-Ashi plots the fixed-point bars and keeps observed exports and mixe
   await page.getByRole('button', { name: 'Compare charts' }).click()
   const otherType = page.getByLabel('Comparison chart type')
   await otherType.selectOption('line')
+  await expect(otherType).toBeEnabled()
+  await expect(otherType).toHaveValue('line')
   await page.reload()
   await expect(primaryType).toHaveValue('heikin-ashi')
   await expect(otherType).toHaveValue('line')
