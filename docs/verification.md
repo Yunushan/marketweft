@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.178.0 · iPhone and iPad simulator startup
+
+- The hosted Apple Silicon job builds the same Tauri terminal as an ARM64 Simulator app and records its source and dependency notices in the bundle.
+- Fresh iPhone 16 and iPad (A16) profiles install and launch that exact app. XCTest verifies the bundled WebView import action and the exact NVDA OHLCV on each profile.
+- The job uploads the tested simulator app, checksum and both XCTest result bundles.
+
+[iOS and iPadOS Simulator](platforms.md#ios-and-ipados-simulator) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.177.0 · Native Android CSV and workspace reload
 
 - The Android 35 x86_64 emulator selects the synthetic CSV from Downloads through the system document picker, then submits the terminal form and compares the chart to the fixture's exact OHLCV.
