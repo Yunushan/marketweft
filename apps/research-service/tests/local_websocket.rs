@@ -186,6 +186,96 @@ async fn streams_ranked_universe_pages_at_independent_knowledge_cutoffs() {
 }
 
 #[tokio::test]
+async fn rank_comparison_resumes_with_the_same_evidence_as_rest() {
+    let server = ResearchProcess::start(Settings::default());
+    let route = "/v1/universe/rank-comparison/stream";
+    assert_http_error(
+        server.connect(route, None, None).await,
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_http_error(
+        server.connect(route, Some(FORMULA_TOKEN), None).await,
+        StatusCode::FORBIDDEN,
+    );
+    let router = research_router(
+        "127.0.0.1:4174".parse().unwrap(),
+        Tokens::new(None, Some(SCREEN_TOKEN)).unwrap(),
+    )
+    .unwrap();
+    let rest = |query: Value| {
+        let router = router.clone();
+        async move {
+            let request = Request::post("/v1/universe/rank-comparison")
+                .header("host", "127.0.0.1:4174")
+                .header("authorization", format!("Bearer {SCREEN_TOKEN}"))
+                .header("content-type", "application/json")
+                .body(Body::from(query.to_string()))
+                .unwrap();
+            let response = router.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        }
+    };
+    let mut query = json!({
+        "membership_csv": MEMBERSHIP, "prices_csv": PRICES,
+        "baseline_at": "2025-06-02T14:00:00Z",
+        "before_effective_at": "2025-06-02T14:10:00Z", "before_known_at": "2025-06-02T14:10:00Z",
+        "after_effective_at": "2025-06-02T14:45:00Z", "after_known_at": "2025-06-02T14:45:00Z",
+        "limit": 1,
+    });
+    let mut rejected = server
+        .connect(route, Some(SCREEN_TOKEN), None)
+        .await
+        .unwrap();
+    send(&mut rejected, json!({"limit": 1001})).await;
+    let error = frame(&mut rejected).await;
+    assert_eq!(error["type"], "error");
+    assert_eq!(error["status"], 400);
+    assert!(matches!(next(&mut rejected).await, Message::Close(_)));
+
+    let mut first = server
+        .connect(route, Some(SCREEN_TOKEN), None)
+        .await
+        .unwrap();
+    send(&mut first, query.clone()).await;
+    let alfa = frame(&mut first).await;
+    assert_eq!(alfa["type"], "page");
+    assert_eq!(alfa["page"], rest(query.clone()).await);
+    assert_eq!(alfa["page"]["next_offset"], 1);
+    assert_eq!(alfa["page"]["rows"][0]["after"]["status"], "removed");
+    drop(first);
+
+    let mut resumed = server
+        .connect(route, Some(SCREEN_TOKEN), None)
+        .await
+        .unwrap();
+    query["offset"] = alfa["page"]["next_offset"].clone();
+    send(&mut resumed, query.clone()).await;
+    let beta = frame(&mut resumed).await;
+    assert_eq!(beta["type"], "page");
+    assert_eq!(beta["page"], rest(query.clone()).await);
+    assert_eq!(beta["page"]["rows"][0]["listing_id"], "BETA-001");
+    assert_eq!(beta["page"]["rows"][0]["before"]["current"], Value::Null);
+    assert_eq!(beta["page"]["rows"][0]["after"]["status"], "delisted");
+    query["offset"] = beta["page"]["next_offset"].clone();
+    let relisted = frame(&mut resumed).await;
+    assert_eq!(relisted["type"], "page");
+    assert_eq!(relisted["page"], rest(query).await);
+    assert_eq!(relisted["page"]["rows"][0]["listing_id"], "BETA-002");
+    assert_eq!(
+        relisted["page"]["rows"][0]["after"]["current"]["ticks"],
+        "75000000"
+    );
+    assert_eq!(
+        relisted["page"]["rows"][0]["after"]["baseline"],
+        Value::Null
+    );
+    assert_eq!(relisted["page"]["next_offset"], Value::Null);
+    assert!(matches!(next(&mut resumed).await, Message::Close(_)));
+}
+
+#[tokio::test]
 async fn invalid_query_returns_one_error_frame_and_closes() {
     let server = ResearchProcess::start(Settings::default());
     let mut client = server

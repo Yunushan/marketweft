@@ -485,6 +485,10 @@ fn route_authority(
         .route("/v1/options/american/valuation", post(american_option))
         .route("/v1/formula/stream", get(websocket::formula))
         .route("/v1/universe/screen/stream", get(websocket::screen))
+        .route(
+            "/v1/universe/rank-comparison/stream",
+            get(websocket::rank_comparison),
+        )
         .with_state(state)
         .merge(grpc_routes)
 }

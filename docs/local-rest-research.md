@@ -44,6 +44,12 @@ Keep the `next_offset` from the last fully received and accepted page. If the co
 
 Send the query within five seconds. The message limit is 16 MiB and delivery has a 30-second deadline after the query arrives.
 
+### Stream rank comparisons
+
+Connect to `/v1/universe/rank-comparison/stream` on the configured WebSocket listener with the same screen credential used for REST. Use `wss` on the TLS listener and provide its exact origin if your client sends an Origin header. After upgrade, send the same JSON body as the [REST rank comparison](#compare-universe-ranks) in one text message.
+
+The service computes both rankings once and sends a `type: "page"` message for each page in listing ID order. Its `page` object matches REST, including exact prices and both membership observations. Reconnect with the same query and the last received `next_offset` as `offset` to continue after a disconnect. If a query is invalid, the server sends an error frame and closes the connection. You can reconnect with corrected fields.
+
 ## gRPC research
 
 Use a Protobuf client over HTTP/2 at the printed service address. The default loopback listener uses plaintext HTTP/2. Generate the client from `apps/research-service/proto/research.proto` in the repository or `proto/research.proto` in the Linux archive.

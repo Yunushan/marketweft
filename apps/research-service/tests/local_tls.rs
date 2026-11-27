@@ -62,6 +62,7 @@ async fn validates_the_peer_and_uses_managed_credentials_for_tls_research() {
     fs::write(&certificate, cert.pem()).unwrap();
     fs::write(&key, signing_key.serialize_pem()).unwrap();
     let issued = issue_research_credential(&database, "formula", 300).unwrap();
+    let screen = issue_research_credential(&database, "screen", 300).unwrap();
 
     let server = ResearchProcess::start(Settings {
         credentials: Some(&database),
@@ -133,39 +134,62 @@ async fn validates_the_peer_and_uses_managed_credentials_for_tls_research() {
     );
 
     let authority = server.origin.strip_prefix("https://").unwrap();
-    let rpc = timeout(IO_DEADLINE, async {
-        let socket = TcpStream::connect(authority).await.unwrap();
-        let tls = connector
-            .connect(ServerName::try_from("127.0.0.1").unwrap(), socket)
+    let websocket = |path: &str, token: &str, query: serde_json::Value| {
+        let connector = connector.clone();
+        let origin = server.origin.clone();
+        let address = format!("wss://{authority}{path}");
+        let authorization = format!("Bearer {token}");
+        async move {
+            let reply = timeout(IO_DEADLINE, async {
+                let socket = TcpStream::connect(authority).await.unwrap();
+                let tls = connector
+                    .connect(ServerName::try_from("127.0.0.1").unwrap(), socket)
+                    .await
+                    .unwrap();
+                let mut upgrade = address.into_client_request().unwrap();
+                upgrade
+                    .headers_mut()
+                    .insert("origin", origin.parse().unwrap());
+                upgrade
+                    .headers_mut()
+                    .insert("authorization", authorization.parse().unwrap());
+                let (mut client, _) = client_async(upgrade, tls).await.unwrap();
+                client
+                    .send(Message::Text(query.to_string().into()))
+                    .await
+                    .unwrap();
+                client.next().await.unwrap().unwrap()
+            })
             .await
             .unwrap();
-        let mut upgrade = format!("wss://{authority}/v1/formula/stream")
-            .into_client_request()
-            .unwrap();
-        upgrade
-            .headers_mut()
-            .insert("origin", server.origin.parse().unwrap());
-        upgrade.headers_mut().insert(
-            "authorization",
-            format!("Bearer {}", issued.token).parse().unwrap(),
-        );
-        let (mut client, _) = client_async(upgrade, tls).await.unwrap();
-        client
-            .send(Message::Text(
-                json!({
-                    "formula": "close + 0.000001", "history_csv": HISTORY, "limit": 1,
-                })
-                .to_string()
-                .into(),
-            ))
-            .await
-            .unwrap();
-        client.next().await.unwrap().unwrap()
-    })
-    .await
-    .unwrap();
-    let frame: serde_json::Value = serde_json::from_str(rpc.to_text().unwrap()).unwrap();
-    assert_eq!(frame["page"]["rows"][0]["value_ticks"], "10000001");
+            serde_json::from_str::<serde_json::Value>(reply.to_text().unwrap()).unwrap()
+        }
+    };
+    let formula = websocket(
+        "/v1/formula/stream",
+        &issued.token,
+        json!({"formula": "close + 0.000001", "history_csv": HISTORY, "limit": 1}),
+    )
+    .await;
+    assert_eq!(formula["page"]["rows"][0]["value_ticks"], "10000001");
+
+    let comparison = websocket(
+        "/v1/universe/rank-comparison/stream",
+        &screen.token,
+        json!({
+            "membership_csv": include_str!("../../../crates/core/tests/fixtures/synthetic-universe.csv"),
+            "prices_csv": include_str!("../../../crates/core/tests/fixtures/synthetic-universe-prices.csv"),
+            "baseline_at": "2025-06-02T14:00:00Z",
+            "before_effective_at": "2025-06-02T14:10:00Z", "before_known_at": "2025-06-02T14:12:00Z",
+            "after_effective_at": "2025-06-02T14:10:00Z", "after_known_at": "2025-06-02T14:16:00Z",
+            "offset": 1, "limit": 1,
+        }),
+    ).await;
+    assert_eq!(comparison["type"], "page");
+    let beta = &comparison["page"]["rows"][0];
+    assert_eq!(beta["listing_id"], "BETA-001");
+    assert_eq!(beta["before"]["current"]["ticks"], "56000000");
+    assert_eq!(beta["after"]["current"]["ticks"], "50500000");
 }
 
 #[test]

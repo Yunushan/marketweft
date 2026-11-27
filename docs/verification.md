@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.154.0 · Resumable rank comparison stream
+
+| Check | Evidence |
+| --- | --- |
+| WebSocket process | Integration tests compare every stream page with REST, resume from the selected offset, reject an incorrect scope and reconnect after a rejected query. Rows distinguish missing closes, delisting and a reused ticker. |
+| TLS and managed credentials | The TLS test uses a managed screen credential and checks the original and revised close ticks from an authenticated WebSocket page. |
+
+[Rank comparison stream](local-rest-research.md#stream-rank-comparisons) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.153.0 · Private REST rank comparison
 
 | Check | Evidence |
