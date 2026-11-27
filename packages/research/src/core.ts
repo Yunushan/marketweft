@@ -930,6 +930,15 @@ export interface PortfolioSpinOff {
   childShares: { numerator: bigint; denominator: number } | null;
 }
 
+export interface PortfolioSpinOffCash {
+  id: string;
+  child: string;
+  fractionalShares: { numerator: bigint; denominator: number } | null;
+  state: 'unknown-position' | 'missing-terms' | 'no-payment' | 'receivable' | 'paid';
+  terms: { currency: string; payAt: number; observedAt: number; rate: bigint } | null;
+  amount: bigint | null;
+}
+
 export type DrawdownPoint = { peakAt: number; peakClose: bigint; percent: bigint };
 
 export type ConfirmedSwing = { pivotAt: number; confirmedAt: number; close: bigint; side: 'high' | 'low' };
@@ -1002,6 +1011,8 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string, dividends?: string): PortfolioSnapshot;
   portfolioSpinOffsAsOf(membership: string, holdings: string, reports: string,
     effectiveAt: string, knownAt: string): PortfolioSpinOff[];
+  portfolioSpinOffCashAsOf(membership: string, holdings: string, reports: string, cashTerms: string,
+    effectiveAt: string, knownAt: string): PortfolioSpinOffCash[];
   compareUniverseRanks(membership: string, prices: string, baselineAt: string,
     before: ScreenCutoff, after: ScreenCutoff): ScreenComparisonRow[];
   universeScreen(membership: string, prices: string, baselineAt: string,
@@ -1124,6 +1135,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number): number;
   mw_portfolio_income_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number, termsBytes: number): number;
   mw_portfolio_spin_offs_as_of(membershipBytes: number, holdingsBytes: number): number;
+  mw_portfolio_spin_off_cash_as_of(membershipBytes: number, holdingsBytes: number, actionBytes: number): number;
   mw_universe_screen(membershipBytes: number): number;
   mw_compare_universe_ranks(membershipBytes: number): number;
   mw_relative_series(membershipBytes: number): number;
@@ -2322,6 +2334,23 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           state: state as PortfolioSpinOff['state'], entitledParentShares: optional(parentShares),
           positionEffectiveAt: optional(positionEffective), positionObservedAt: optional(positionObserved),
           childShares: numerator === '' ? null : { numerator: BigInt(numerator), denominator: Number(denominator) },
+        };
+      });
+    },
+    portfolioSpinOffCashAsOf(membership, holdings, reports, cashTerms, effectiveAt, knownAt) {
+      portfolioInput(effectiveAt, knownAt, membership, holdings, reports, cashTerms);
+      const text = decoder.decode(output(api.mw_portfolio_spin_off_cash_as_of(
+        encoder.encode(membership).length, encoder.encode(holdings).length, encoder.encode(reports).length,
+      )));
+      if (!text) return [];
+      return text.slice(0, -1).split('\n').map(line => {
+        const [id, child, state, fraction, currency, pay, observed, rate, amount] = line.split('\t');
+        const [numerator, denominator] = fraction.split('/');
+        return {
+          id, child, state: state as PortfolioSpinOffCash['state'],
+          fractionalShares: fraction ? { numerator: BigInt(numerator), denominator: Number(denominator) } : null,
+          terms: currency ? { currency, payAt: Number(pay), observedAt: Number(observed), rate: BigInt(rate) } : null,
+          amount: amount === '' ? null : BigInt(amount),
         };
       });
     },

@@ -1,10 +1,12 @@
 use marketweft_core::{
-    parse_exact_utc, parse_universe, portfolio_spin_offs_as_of, ChildShares, PortfolioSpinOffState,
+    parse_exact_utc, parse_universe, portfolio_spin_off_cash_as_of, portfolio_spin_offs_as_of,
+    ChildShares, PortfolioSpinOffState, SpinOffCashState,
 };
 
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-universe.csv");
 const HOLDINGS: &str = include_str!("fixtures/synthetic-portfolio-holdings.csv");
 const REPORTS: &str = include_str!("fixtures/synthetic-portfolio-spin-offs.csv");
+const CASH_TERMS: &str = include_str!("fixtures/synthetic-spin-off-cash-terms.csv");
 
 fn time(value: &str) -> i64 {
     parse_exact_utc(&format!("2025-06-02T{value}Z")).unwrap()
@@ -128,4 +130,118 @@ fn rejects_wrong_listings_duplicate_revisions_and_invalid_fraction() {
     assert!(query(&REPORTS.replacen("14:50:00Z", "14:17:00Z", 1))
         .contains("duplicate observation times"));
     assert!(query(&REPORTS.replacen("Z,1,3", "Z,1,0", 1)).contains("denominator"));
+}
+
+#[test]
+fn cash_uses_only_the_fraction_and_both_settlement_dates() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let select = |effective, known| {
+        portfolio_spin_off_cash_as_of(
+            &universe,
+            HOLDINGS,
+            REPORTS,
+            CASH_TERMS,
+            time(effective),
+            time(known),
+        )
+        .unwrap()
+        .into_iter()
+        .find(|row| row.id == "BETA-UNIT")
+        .unwrap()
+    };
+    let missing = select("14:25:00", "14:23:59");
+    assert_eq!(
+        (missing.state, missing.amount),
+        (SpinOffCashState::MissingTerms, None)
+    );
+    assert_eq!(
+        missing.fractional_shares,
+        Some(ChildShares {
+            numerator: 1,
+            denominator: 3
+        })
+    );
+    let early = select("14:47:59", "14:48:00");
+    assert_eq!(
+        (early.state, early.amount),
+        (SpinOffCashState::Receivable, Some(1_000_000))
+    );
+    assert_eq!(select("14:48:00", "14:48:00").state, SpinOffCashState::Paid);
+    let revised = select("14:52:00", "14:52:00");
+    assert_eq!(revised.terms.unwrap().currency, "EUR");
+    assert_eq!(
+        revised.fractional_shares,
+        Some(ChildShares {
+            numerator: 2,
+            denominator: 3
+        })
+    );
+    assert_eq!(
+        (revised.state, revised.amount),
+        (SpinOffCashState::Receivable, Some(4_000_000))
+    );
+    assert_eq!(select("14:55:00", "14:55:00").state, SpinOffCashState::Paid);
+    assert_eq!(select("14:55:00", "14:58:00").amount, Some(2_000_000));
+    let rate_cancelled = select("14:55:00", "14:59:00");
+    assert_eq!(
+        (rate_cancelled.state, rate_cancelled.amount),
+        (SpinOffCashState::NoPayment, Some(0))
+    );
+    assert_eq!(
+        rate_cancelled.fractional_shares,
+        Some(ChildShares {
+            numerator: 1,
+            denominator: 3
+        })
+    );
+    let rounded = select("14:55:00", "15:00:00");
+    assert_eq!(
+        (rounded.state, rounded.amount),
+        (SpinOffCashState::Paid, Some(1))
+    );
+    assert_eq!(rounded.terms.unwrap().currency, "GBP");
+    assert_eq!(
+        select("14:55:00", "15:02:00").state,
+        SpinOffCashState::NoPayment
+    );
+    assert_eq!(select("14:47:59", "14:48:00"), early);
+}
+
+#[test]
+fn cash_terms_require_a_known_action_and_distinct_valid_reports() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let validate = |csv: &str| {
+        portfolio_spin_off_cash_as_of(
+            &universe,
+            HOLDINGS,
+            REPORTS,
+            csv,
+            time("14:55:00"),
+            time("14:58:00"),
+        )
+    };
+    let rows = validate(CASH_TERMS).unwrap();
+    let whole_shares = rows.iter().find(|row| row.id == "ALFA-UNIT").unwrap();
+    assert_eq!(whole_shares.state, SpinOffCashState::NoPayment);
+    assert_eq!(whole_shares.amount, Some(0));
+    for (fixture, error) in [
+        (
+            CASH_TERMS.replacen("BETA-UNIT", "NO-SUCH-ACTION", 1),
+            "action ID",
+        ),
+        (
+            CASH_TERMS.replacen("14:51:00Z", "14:24:00Z", 1),
+            "distinct observation",
+        ),
+        (
+            CASH_TERMS.replacen(",USD,3", ",USD,-3", 1),
+            "nonnegative cash rate",
+        ),
+        (
+            CASH_TERMS.replacen(",USD,3", ",usd,3", 1),
+            "uppercase currency",
+        ),
+    ] {
+        assert!(validate(&fixture).unwrap_err().contains(error));
+    }
 }

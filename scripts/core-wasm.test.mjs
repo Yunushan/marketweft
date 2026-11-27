@@ -10,6 +10,32 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('spin-off cash in lieu preserves exact fractional settlements and revisions in Wasm', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
+  const [membership, holdings, reports, terms] = await Promise.all([
+    fixture('synthetic-universe.csv'), fixture('synthetic-portfolio-holdings.csv'),
+    fixture('synthetic-portfolio-spin-offs.csv'), fixture('synthetic-spin-off-cash-terms.csv'),
+  ]);
+  const time = label => '2025-06-02T' + label + 'Z';
+  const at = (effective, known) => core.portfolioSpinOffCashAsOf(membership, holdings, reports, terms,
+    time(effective), time(known));
+  const cash = (effective, known) => at(effective, known).find(row => row.id === 'BETA-UNIT');
+  assert.equal(cash('14:25:00', '14:23:59').state, 'missing-terms');
+  assert.equal(cash('14:48:00', '14:48:00').amount, 1000000n);
+  const revised = cash('14:52:00', '14:52:00');
+  assert.equal(revised.state, 'receivable');
+  assert.equal(revised.terms.currency, 'EUR');
+  assert.deepEqual(revised.fractionalShares, { numerator: 2n, denominator: 3 });
+  assert.equal(revised.amount, 4000000n);
+  assert.equal(cash('14:55:00', '14:58:00').amount, 2000000n);
+  const wholeShares = at('14:55:00', '14:58:00').find(row => row.id === 'ALFA-UNIT');
+  assert.equal(wholeShares.state, 'no-payment');
+  assert.equal(wholeShares.amount, 0n);
+  assert.equal(cash('14:55:00', '14:59:00').state, 'no-payment');
+  assert.equal(cash('14:55:00', '15:00:00').amount, 1n);
+  assert.equal(cash('14:55:00', '15:02:00').amount, 0n);
+});
+
 test('the portfolio spin-off bridge preserves fractional shares and point-in-time evidence', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, reports] = await Promise.all([

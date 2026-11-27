@@ -200,6 +200,46 @@ test('offline portfolio spin-offs preserve exact fractions through revisions and
   expect(await catalogContents(page)).toEqual(saved)
 })
 
+test('offline spin-off cash in lieu follows the fractional remainder and observed payment terms', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  const saved = await catalogContents(page)
+  await context.setOffline(true)
+  await open(page)
+  await page.getByRole('button', { name: 'Start universe demo' }).click()
+  const panel = page.getByRole('region', { name: 'Portfolio replay' })
+  await panel.getByRole('button', { name: 'Load spin-off demo' }).click()
+  const cash = panel.getByRole('table', { name: 'Portfolio spin-off cash in lieu' })
+  const beta = cash.getByRole('row', { name: /^BETA-UNIT/ })
+  const through = async (effective, known = effective) => {
+    await page.getByLabel('Effective time (UTC)').fill(utc(effective))
+    await page.getByLabel('Known time (UTC)').fill(utc(known))
+    await page.getByRole('button', { name: 'Run as-of query' }).click()
+  }
+  await through('14:25:00', '14:23:59')
+  await expect(beta).toContainText('Payment terms unavailable')
+  await through('14:48:00')
+  await expect(beta.getByRole('cell', { name: '1/3', exact: true })).toBeVisible()
+  await expect(beta.getByRole('cell', { name: '1 USD', exact: true })).toBeVisible()
+  await expect(beta).toContainText('Cash paid')
+  await through('14:52:00')
+  await expect(beta.getByRole('cell', { name: '2/3', exact: true })).toBeVisible()
+  await expect(beta.getByRole('cell', { name: '4 EUR', exact: true })).toBeVisible()
+  await expect(beta).toContainText('Cash receivable')
+  await through('14:55:00', '14:58:00')
+  await expect(beta.getByRole('cell', { name: '2 EUR', exact: true })).toBeVisible()
+  await expect(beta).toContainText('Cash paid')
+  await expect(cash.getByRole('row', { name: /^ALFA-UNIT/ })).toContainText('No payment')
+  await through('14:55:00', '15:00:00')
+  await expect(beta.getByRole('cell', { name: '0.000001 GBP', exact: true })).toBeVisible()
+  await through('14:55:00', '15:02:00')
+  await expect(beta).toContainText('No payment')
+  await through('14:48:00')
+  await expect(beta.getByRole('cell', { name: '1 USD', exact: true })).toBeVisible()
+  expect(await catalogContents(page)).toEqual(saved)
+})
+
 test('offline universe replay shows every addition, removal and delisting cutoff', async ({
   page,
   context,

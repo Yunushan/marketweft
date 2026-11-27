@@ -1,10 +1,15 @@
 use super::parse_holdings;
-use crate::{history::exact_utc, universe::valid_id, UniverseAction, UniverseBook};
+use crate::{
+    history::{decimal, exact_utc},
+    universe::valid_id,
+    UniverseAction, UniverseBook, MAX_TICKS,
+};
 use std::{collections::BTreeMap, ops::Bound::Excluded};
 
 const HEADER: &str = "universe,action_id,parent_listing,child_listing,announced_at,entitlement_at,distribution_at,observed_at,numerator,denominator";
 const MAX_REPORTS: usize = 1_000;
 const MAX_RATIO: u32 = 1_000_000;
+const CASH_HEADER: &str = "universe,action_id,pay_at,observed_at,currency,amount_per_child_share";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PortfolioSpinOffReport {
@@ -56,6 +61,33 @@ pub struct PortfolioSpinOffRow {
     pub position_effective_at: Option<i64>,
     pub position_observed_at: Option<i64>,
     pub child_shares: Option<ChildShares>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SpinOffCashTerms {
+    pub pay_at: i64,
+    pub observed_at: i64,
+    pub currency: String,
+    pub amount_per_child_share: i64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SpinOffCashState {
+    UnknownPosition,
+    MissingTerms,
+    NoPayment,
+    Receivable,
+    Paid,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SpinOffCashRow {
+    pub id: String,
+    pub child_listing: String,
+    pub fractional_shares: Option<ChildShares>,
+    pub state: SpinOffCashState,
+    pub terms: Option<SpinOffCashTerms>,
+    pub amount: Option<i128>,
 }
 
 fn parse_reports(
@@ -170,6 +202,22 @@ pub fn portfolio_spin_offs_as_of(
 ) -> Result<Vec<PortfolioSpinOffRow>, String> {
     let holdings = parse_holdings(universe, holdings)?;
     let reports = parse_reports(universe, actions)?;
+    Ok(spin_off_rows(
+        universe,
+        &holdings,
+        &reports,
+        effective_at,
+        known_at,
+    ))
+}
+
+fn spin_off_rows(
+    universe: &UniverseBook,
+    holdings: &BTreeMap<String, super::PositionSeries>,
+    reports: &[PortfolioSpinOffReport],
+    effective_at: i64,
+    known_at: i64,
+) -> Vec<PortfolioSpinOffRow> {
     let mut parent_books = BTreeMap::new();
     let mut rows = Vec::new();
     for revisions in reports.chunk_by(|a, b| a.id == b.id) {
@@ -223,5 +271,143 @@ pub fn portfolio_spin_offs_as_of(
             child_shares,
         });
     }
-    Ok(rows)
+    rows
+}
+
+fn parse_cash_terms<'a>(
+    universe: &UniverseBook,
+    reports: &'a [PortfolioSpinOffReport],
+    csv: &str,
+) -> Result<BTreeMap<&'a str, BTreeMap<i64, SpinOffCashTerms>>, String> {
+    if csv.len() > 1024 * 1024 {
+        return Err("Spin-off cash terms CSV exceeds 1 MiB.".into());
+    }
+    let mut lines = csv
+        .trim_start_matches('\u{feff}')
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.trim().is_empty());
+    if lines.next().map(|(_, line)| line.trim()) != Some(CASH_HEADER) {
+        return Err(format!(
+            "Expected spin-off cash terms header {CASH_HEADER}."
+        ));
+    }
+    let ids: std::collections::BTreeSet<_> =
+        reports.iter().map(|report| report.id.as_str()).collect();
+    let mut terms = BTreeMap::<_, BTreeMap<_, _>>::new();
+    for (index, (line, record)) in lines.enumerate() {
+        let error = |reason: &str| format!("Spin-off cash terms line {}: {reason}", line + 1);
+        if index == MAX_REPORTS {
+            return Err(error("Supply at most 1,000 cash terms reports."));
+        }
+        let mut fields = record.splitn(7, ',').map(str::trim);
+        let [Some(scope), Some(id), Some(pay), Some(observed), Some(currency), Some(rate), None] =
+            std::array::from_fn(|_| fields.next())
+        else {
+            return Err(error("Expected exactly six fields."));
+        };
+        let id = ids
+            .get(id)
+            .copied()
+            .filter(|_| scope == universe.name())
+            .ok_or_else(|| {
+                error("Use an action ID from the supplied universe and spin-off reports.")
+            })?;
+        let [Some(pay_at), Some(observed_at)] = [pay, observed].map(exact_utc) else {
+            return Err(error("Use exact UTC timestamps."));
+        };
+        if currency.len() != 3 || !currency.bytes().all(|byte| byte.is_ascii_uppercase()) {
+            return Err(error("Use a three-letter uppercase currency."));
+        }
+        let amount_per_child_share = decimal(rate)
+            .filter(|amount| (0..=MAX_TICKS).contains(amount))
+            .ok_or_else(|| error("Use a nonnegative cash rate with up to six decimal places."))?;
+        if terms
+            .entry(id)
+            .or_default()
+            .insert(
+                observed_at,
+                SpinOffCashTerms {
+                    pay_at,
+                    observed_at,
+                    currency: currency.into(),
+                    amount_per_child_share,
+                },
+            )
+            .is_some()
+        {
+            return Err(error(
+                "Each action's cash terms need distinct observation times.",
+            ));
+        }
+    }
+    if terms.is_empty() {
+        return Err("Spin-off cash terms CSV contains no reports.".into());
+    }
+    Ok(terms)
+}
+
+/// Settle only the fractional remainder of a stock distribution. A positive claim
+/// becomes paid when both the distribution and cash payment dates are effective.
+pub fn portfolio_spin_off_cash_as_of(
+    universe: &UniverseBook,
+    holdings: &str,
+    actions: &str,
+    cash_terms: &str,
+    effective_at: i64,
+    known_at: i64,
+) -> Result<Vec<SpinOffCashRow>, String> {
+    let holdings = parse_holdings(universe, holdings)?;
+    let reports = parse_reports(universe, actions)?;
+    let terms = parse_cash_terms(universe, &reports, cash_terms)?;
+    Ok(
+        spin_off_rows(universe, &holdings, &reports, effective_at, known_at)
+            .into_iter()
+            .map(|row| {
+                let terms = terms.get(row.report.id.as_str()).and_then(|revisions| {
+                    revisions
+                        .range(..=known_at)
+                        .next_back()
+                        .map(|(_, terms)| terms)
+                });
+                let fractional_shares = row.child_shares.map(|quantity| ChildShares {
+                    numerator: quantity.numerator % u64::from(quantity.denominator),
+                    denominator: quantity.denominator,
+                });
+                let (state, amount) = match (fractional_shares, terms) {
+                    (Some(ChildShares { numerator: 0, .. }), _)
+                    | (
+                        _,
+                        Some(SpinOffCashTerms {
+                            amount_per_child_share: 0,
+                            ..
+                        }),
+                    ) => (SpinOffCashState::NoPayment, Some(0)),
+                    (None, _) => (SpinOffCashState::UnknownPosition, None),
+                    (Some(_), None) => (SpinOffCashState::MissingTerms, None),
+                    (Some(fraction), Some(terms)) => {
+                        let numerator = i128::from(fraction.numerator)
+                            * i128::from(terms.amount_per_child_share);
+                        let denominator = i128::from(fraction.denominator);
+                        let amount = (numerator + denominator / 2) / denominator;
+                        let state = if row.report.distribution_at.max(terms.pay_at) <= effective_at
+                        {
+                            SpinOffCashState::Paid
+                        } else {
+                            SpinOffCashState::Receivable
+                        };
+                        (state, Some(amount))
+                    }
+                };
+                SpinOffCashRow {
+                    id: row.report.id,
+                    child_listing: row.report.child_listing,
+                    fractional_shares,
+                    state,
+                    terms: terms.cloned(),
+                    amount,
+                }
+            })
+            .collect(),
+    )
 }

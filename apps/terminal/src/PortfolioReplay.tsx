@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff } from './market-core'
+import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffCash } from './market-core'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoHoldings from '../../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv?raw'
@@ -8,8 +8,9 @@ import demoPrices from '../../../crates/core/tests/fixtures/synthetic-universe-p
 import demoTerms from '../../../crates/core/tests/fixtures/synthetic-delisting-terms.csv?raw'
 import demoDividends from '../../../crates/core/tests/fixtures/synthetic-portfolio-dividends.csv?raw'
 import demoSpinOffs from '../../../crates/core/tests/fixtures/synthetic-portfolio-spin-offs.csv?raw'
+import demoCashTerms from '../../../crates/core/tests/fixtures/synthetic-spin-off-cash-terms.csv?raw'
 
-type Source = { holdings: string; prices: string; terms: string; dividends: string; spinOffs: string }
+type Source = { holdings: string; prices: string; terms: string; dividends: string; spinOffs: string; cashTerms: string }
 const states = {
   unobserved: 'Listing unobserved',
   'missing-close': 'Close unavailable',
@@ -30,7 +31,19 @@ const spinOffStates: Record<PortfolioSpinOff['state'], string> = {
   receivable: 'Shares receivable',
   distributed: 'Shares distributed',
 }
+const spinOffCashStates: Record<PortfolioSpinOffCash['state'], string> = {
+  'unknown-position': 'Entitlement unavailable',
+  'missing-terms': 'Payment terms unavailable',
+  'no-payment': 'No payment',
+  receivable: 'Cash receivable',
+  paid: 'Cash paid',
+}
 const money = (value: bigint) => fixed(value, 6)
+
+function shareText(shares: PortfolioSpinOff['childShares']) {
+  if (shares === null) return '—'
+  return shares.denominator === 1 ? shares.numerator.toString() : shares.numerator + '/' + shares.denominator
+}
 
 async function readReport(file: File, max: number) {
   if (file.size > max * 1024 * 1024) throw new Error(file.name + ' exceeds ' + max + ' MiB.')
@@ -46,6 +59,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   const [terms, setTerms] = useState<File | null>(null)
   const [dividends, setDividends] = useState<File | null>(null)
   const [spinOffs, setSpinOffs] = useState<File | null>(null)
+  const [cashTerms, setCashTerms] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const snapshot = useMemo(() => source
@@ -54,10 +68,14 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   const distributions = useMemo(() => source?.spinOffs
     ? core.portfolioSpinOffsAsOf(membership, source.holdings, source.spinOffs, effective, known)
     : null, [core, membership, source, effective, known])
+  const settlements = useMemo(() => source?.cashTerms
+    ? core.portfolioSpinOffCashAsOf(membership, source.holdings, source.spinOffs, source.cashTerms, effective, known)
+    : null, [core, membership, source, effective, known])
 
   function open(source: Source) {
     core.portfolioAsOf(membership, source.holdings, source.prices, source.terms, effective, known, source.dividends)
     if (source.spinOffs) core.portfolioSpinOffsAsOf(membership, source.holdings, source.spinOffs, effective, known)
+    if (source.cashTerms) core.portfolioSpinOffCashAsOf(membership, source.holdings, source.spinOffs, source.cashTerms, effective, known)
     setSource(source)
     setError('')
   }
@@ -65,7 +83,8 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   function startDemo(mode?: 'income' | 'spin-offs') {
     try {
       open({ holdings: demoHoldings, prices: demoPrices, terms: demoTerms,
-        dividends: mode === 'income' ? demoDividends : '', spinOffs: mode === 'spin-offs' ? demoSpinOffs : '' })
+        dividends: mode === 'income' ? demoDividends : '', spinOffs: mode === 'spin-offs' ? demoSpinOffs : '',
+        cashTerms: mode === 'spin-offs' ? demoCashTerms : '' })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio demo.')
     }
@@ -76,13 +95,17 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
     if (!holdings || !prices) return
     setBusy(true)
     try {
-      const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv] = await Promise.all([
+      const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv, cashTermsCsv] = await Promise.all([
         readReport(holdings, 2), readReport(prices, 2), terms ? readReport(terms, 1) : '',
         dividends ? readReport(dividends, 1) : '', spinOffs ? readReport(spinOffs, 1) : '',
+        cashTerms ? readReport(cashTerms, 1) : '',
       ])
       if (dividends && !dividendCsv.trim()) throw new Error('Portfolio dividends CSV contains no reports.')
       if (spinOffs && !spinOffCsv.trim()) throw new Error('Portfolio spin-off CSV contains no reports.')
-      open({ holdings: holdingCsv, prices: priceCsv, terms: termCsv, dividends: dividendCsv, spinOffs: spinOffCsv })
+      if (cashTerms && !cashTermsCsv.trim()) throw new Error('Spin-off cash terms CSV contains no reports.')
+      if (cashTerms && !spinOffCsv) throw new Error('Supply spin-off reports with the cash terms.')
+      open({ holdings: holdingCsv, prices: priceCsv, terms: termCsv, dividends: dividendCsv,
+        spinOffs: spinOffCsv, cashTerms: cashTermsCsv })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio reports.')
     } finally {
@@ -124,11 +147,16 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <input type="file" accept=".csv,text/csv"
             onChange={event => setSpinOffs(event.target.files?.[0] ?? null)} />
         </label>
+        <label>Spin-off cash terms CSV (optional)
+          <input type="file" accept=".csv,text/csv"
+            onChange={event => setCashTerms(event.target.files?.[0] ?? null)} />
+        </label>
         <button className="outline" disabled={busy || !holdings || !prices}>Load portfolio reports</button>
       </form>
       {error && <p role="alert" className="warning replay-error">{error}</p>}
       {snapshot && <PortfolioResult snapshot={snapshot} />}
       {distributions && <SpinOffEntitlements rows={distributions} />}
+      {settlements && settlements.length > 0 && <SpinOffSettlements rows={settlements} />}
     </section>
   )
 }
@@ -145,9 +173,26 @@ function SpinOffEntitlements({ rows }: { rows: PortfolioSpinOff[] }) {
         <th scope="row">{row.id}</th><td>{row.parent}</td><td>{row.child}</td><td>{utc(row.entitlementAt)}</td>
         <td>{utc(row.distributionAt)}</td><td>{utc(row.observedAt)}</td><td>{row.entitledParentShares ?? '—'}</td>
         <td>{row.positionObservedAt === null ? '—' : utc(row.positionObservedAt)}</td>
-        <td>{row.childShares === null ? '—' : row.childShares.denominator === 1
-          ? row.childShares.numerator.toString() : row.childShares.numerator + '/' + row.childShares.denominator}</td>
+        <td>{shareText(row.childShares)}</td>
         <td>{spinOffStates[row.state]}</td>
+      </tr>)}</tbody>
+    </table>
+  </div>
+}
+
+function SpinOffSettlements({ rows }: { rows: PortfolioSpinOffCash[] }) {
+  return <div className="replay-table-scroll">
+    <table className="universe-table" aria-label="Portfolio spin-off cash in lieu">
+      <thead><tr><th scope="col">Action</th><th scope="col">Child listing</th><th scope="col">Fractional shares</th>
+        <th scope="col">Pay date (UTC)</th><th scope="col">Terms observed (UTC)</th><th scope="col">Cash per share</th>
+        <th scope="col">State</th><th scope="col">Amount</th></tr></thead>
+      <tbody>{rows.map(row => <tr key={row.id}>
+        <th scope="row">{row.id}</th><td>{row.child}</td><td>{shareText(row.fractionalShares)}</td>
+        <td>{row.terms === null ? '—' : utc(row.terms.payAt)}</td>
+        <td>{row.terms === null ? '—' : utc(row.terms.observedAt)}</td>
+        <td>{row.terms === null ? '—' : money(row.terms.rate) + ' ' + row.terms.currency}</td>
+        <td>{spinOffCashStates[row.state]}</td>
+        <td>{row.amount === null ? '—' : [money(row.amount), row.terms?.currency].filter(Boolean).join(' ')}</td>
       </tr>)}</tbody>
     </table>
   </div>

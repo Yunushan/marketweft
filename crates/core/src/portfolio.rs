@@ -16,8 +16,8 @@ pub use income::{
     PortfolioDividendRow, PortfolioDividendState, PortfolioIncomeCurrency, PortfolioIncomeSnapshot,
 };
 pub use spinoff::{
-    portfolio_spin_offs_as_of, ChildShares, PortfolioSpinOffReport, PortfolioSpinOffRow,
-    PortfolioSpinOffState,
+    portfolio_spin_off_cash_as_of, portfolio_spin_offs_as_of, ChildShares, PortfolioSpinOffReport,
+    PortfolioSpinOffRow, PortfolioSpinOffState, SpinOffCashRow, SpinOffCashState, SpinOffCashTerms,
 };
 
 const MAX_HOLDING_REPORTS: usize = 10_000;

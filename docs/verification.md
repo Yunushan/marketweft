@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.189.0 · Spin-off cash in lieu
+
+- Rust and Wasm fixtures verify the fractional remainder, both settlement dates, currency and rate revisions, whole-share zero settlement, single rounding and cancellation.
+- The offline browser fixture compares unavailable terms, receivable and paid amounts across independent cutoffs, then rewinds to the original price and currency.
+
+[Spin-off cash in lieu](portfolio-replay.md#spin-off-cash-in-lieu-csv).
+
 ## 0.188.0 · Point-in-time portfolio spin-offs
 
 - Rust and Wasm fixtures distinguish unobserved holdings from reported zero and preserve exact child-share fractions across entitlement, distribution and late holding or terms revisions.
