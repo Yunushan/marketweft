@@ -169,7 +169,8 @@ pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats
 pub use screen::{
     ListingRiskPoint, ListingRiskQuery, PortfolioScenarioConfig, PortfolioScenarioPath,
     PortfolioScenarioReport, PriceBook, PriceObservation, RelativeLegPoint, RelativePoint,
-    ScenarioAllocation, ScenarioCoverage, ScreenRow,
+    ScenarioAllocation, ScenarioCoverage, ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
+    ScreenRow,
 };
 pub use sector::{Classification, Heatmap, HeatmapListing, SectorGroup};
 pub use stochastic::{stochastic_oscillator, StochasticValue};

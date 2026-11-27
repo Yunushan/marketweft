@@ -37,3 +37,11 @@ DEMO-BASKET,BETA-001,2025-06-02T14:10:00Z,2025-06-02T14:12:00Z,56
 3. Rank descending by `(target / baseline − 1) × 100`. Compare the exact ratios with integer cross-products. Exact ties share rank and leave a gap before the next rank. Listing ID orders ties and unranked rows. Display percentages round to four decimal places with halfway values away from zero. The screen shows each selected close and when it became known.
 
 Screening is local and available offline after the app installs its asset cache. Membership reports and close prices stay in the current replay view. Use the sector heatmap below the screen to add dated classifications, coverage and attribution for the same listings. [Relative returns](relative-returns.md) · [Sector heatmap](sector-heatmap.md) · [Architecture decision](adr/0007-point-in-time-screen.md).
+
+## Compare ranks at two cutoffs
+
+Open **Compare ranks at two cutoffs** after loading the price reports. Enter a separate effective time and known time for **Before** and **After**, or copy the current replay pair into either side. Both sides use the selected screen baseline. Each rank calculation uses the reports known at its own cutoff, including revisions to the baseline close.
+
+The table joins the active listings from both sides by listing ID. It shows additions, retained members, removals and delistings. An unranked member displays which exact close is missing. Places gained is the before rank minus the after rank, and appears only when a listing is ranked on both sides. A reused ticker keeps separate rows for its listing IDs.
+
+Download the comparison CSV for both cutoffs, exact close prices, their observation times, and the effective and known timestamps of the selected membership change. Results are ordered by listing ID. The prior comparison remains available after a malformed query. Changing the baseline or either source requires a new comparison.

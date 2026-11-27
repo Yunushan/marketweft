@@ -5,6 +5,7 @@ import { utc } from './workspace'
 import { fixed } from './fixed-point'
 import { SectorHeatmap } from './SectorHeatmap'
 import { RelativeReturns } from './RelativeReturns'
+import { RankComparison } from './RankComparison'
 import { JointScenarios } from './JointScenarios'
 import demoPrices from '../../../crates/core/tests/fixtures/synthetic-universe-prices.csv?raw'
 
@@ -167,6 +168,8 @@ export function UniverseScreen({
       {(report?.error || error) && (
         <p className="warning" role="alert">{report?.error || error}</p>
       )}
+      {prices && <RankComparison core={core} membership={membership} membershipSource={membershipSource}
+        prices={prices.csv} priceSource={prices.source} baseline={baseline} effective={effective} known={known} />}
       {prices && <RelativeReturns core={core} membership={membership} membershipSource={membershipSource}
         prices={prices.csv} priceSource={prices.source} listings={listings} firstCutoff={firstCutoff}
         effective={effective} known={known} />}

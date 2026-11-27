@@ -402,6 +402,13 @@ export interface ScreenRow {
   current: ScreenPrice | null;
 }
 
+export type ScreenCutoff = { effective: string; known: string };
+export type ScreenComparisonLeg = Pick<ScreenRow, 'rank' | 'returnUnits' | 'baseline' | 'current'> & {
+  membership: { state: (typeof universeStatuses)[number]; changeId: string; effectiveAt: number; observedAt: number } | null;
+};
+export type ScreenComparisonRow = { listingId: string; instrument: string;
+  before: ScreenComparisonLeg; after: ScreenComparisonLeg; rankMove: number | null };
+
 export interface HeatmapListing {
   listingId: string;
   instrument: string;
@@ -972,6 +979,8 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string): DelistingValuation;
   portfolioAsOf(membership: string, holdings: string, prices: string, terms: string,
     effectiveAt: string, knownAt: string, dividends?: string): PortfolioSnapshot;
+  compareUniverseRanks(membership: string, prices: string, baselineAt: string,
+    before: ScreenCutoff, after: ScreenCutoff): ScreenComparisonRow[];
   universeScreen(membership: string, prices: string, baselineAt: string,
     effectiveAt: string, knownAt: string): ScreenRow[];
   relativeSeries(membership: string, prices: string, leftId: string, rightId: string,
@@ -1090,6 +1099,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number): number;
   mw_portfolio_income_as_of(membershipBytes: number, holdingsBytes: number, priceBytes: number, termsBytes: number): number;
   mw_universe_screen(membershipBytes: number): number;
+  mw_compare_universe_ranks(membershipBytes: number): number;
   mw_relative_series(membershipBytes: number): number;
   mw_listing_risk(membershipBytes: number, intervalSeconds: number, windowPeriods: number, volatilityPeriods: number): number;
   mw_portfolio_scenarios(membershipBytes: number): number;
@@ -2233,6 +2243,27 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         }
       }
       return report;
+    },
+    compareUniverseRanks(membership, prices, baselineAt, before, after) {
+      screenInput([baselineAt, before.effective, before.known, after.effective, after.known], membership, prices);
+      const text = decoder.decode(output(api.mw_compare_universe_ranks(encoder.encode(membership).length)));
+      if (!text) return [];
+      const leg = ([change, rank, value, baseline, current]: string[]): ScreenComparisonLeg => {
+        const [state, changeId, effective, observed] = change.split(',');
+        return {
+          membership: change ? { state: universeStatuses[Number(state)], changeId,
+            effectiveAt: Number(effective), observedAt: Number(observed) } : null,
+          rank: rank === '' ? null : Number(rank),
+          returnUnits: value === '' ? null : BigInt(value),
+          baseline: decodeScreenPrice(baseline),
+          current: decodeScreenPrice(current),
+        };
+      };
+      return text.slice(0, -1).split('\n').map(line => {
+        const fields = line.split('\t');
+        return { listingId: fields[0], instrument: fields[1], before: leg(fields.slice(2, 7)),
+          after: leg(fields.slice(7, 12)), rankMove: fields[12] === '' ? null : Number(fields[12]) };
+      });
     },
     universeScreen(membership, prices, baselineAt, effectiveAt, knownAt) {
       screenInput([baselineAt, effectiveAt, knownAt], membership, prices);

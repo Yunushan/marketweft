@@ -332,6 +332,10 @@ main {
   flex-wrap: wrap;
   gap: 12px;
 }
+.rank-comparison fieldset {
+  flex: 1 1 13.75rem;
+  min-inline-size: 0;
+}
 .universe-query label {
   flex: 1 1 220px;
   min-width: 0;

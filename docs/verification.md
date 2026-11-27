@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.151.0 · Point-in-time rank comparison
+
+| Check | Evidence |
+| --- | --- |
+| Snapshot parity | Rust and Wasm fixtures verify an addition before its target close, an independently known price revision, delayed membership removal and separate identities after ticker reuse. |
+| Offline screen and CSV | Chromium verifies rank movement and missing prices, audits the exact close and membership report timestamps, and keeps the last result after an invalid cutoff. |
+| Workspace data | Changing the baseline invalidates the old comparison and the local catalog stays intact. |
+
+[Rank comparison](universe-screen.md#compare-ranks-at-two-cutoffs) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.150.0 · Regression channel
 
 | Check | Evidence |

@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.150.0 adds an anchored regression channel fitted to actual observed closes. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.151.0 adds offline universe rank comparisons with independent effective and known cutoffs. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Delivered · 0.151.0 | Point-in-time rank comparison (MW-018) | Verify additions, missing closes, independent revisions, removals, delistings, ticker reuse and retained membership and price evidence. [Rank comparison](docs/universe-screen.md#compare-ranks-at-two-cutoffs). |
 | Delivered · 0.150.0 | Anchored regression channel (MW-014) | Verify exact observed windows, gaps, flat values, maximum residuals, cutoff behavior, rollups and version 49 restoration. [Regression channel](docs/chart-workspace.md#regression-channel). |
 | Delivered · 0.149.0 | Risk/reward drawing (MW-014) | Verify signed long and short levels, exact distances and ratios, invalid controls, pane projection and version 48 restoration. [Risk/reward drawing](docs/chart-workspace.md#riskreward-drawing). |
 | Delivered · 0.148.0 | Three-anchor pitchfork (MW-014) | Verify the midpoint across irregular observation times, parallel rails, signed controls, pan, zoom and version 47 restoration. [Pitchfork](docs/chart-workspace.md#pitchfork). |
@@ -164,5 +165,5 @@
 
 ## Handoff for the next change
 
-Add an as-of universe rank comparison across two independent effective and known cutoffs. Verify added and removed listings, newly ranked and missing prices, rank movement and exact export evidence.
+Expose universe rank comparisons through the public TypeScript research SDK and the read-only MCP service. Verify parity with the offline screen, exact evidence, pagination and independent cutoffs.
 

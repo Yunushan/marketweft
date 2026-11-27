@@ -10,6 +10,29 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('universe comparison preserves raw observations and both membership sets in Wasm', async () => {
+  const path = name => new URL('../crates/core/tests/fixtures/synthetic-universe' + name + '.csv', import.meta.url);
+  const [membership, prices] = await Promise.all([readFile(path(''), 'utf8'), readFile(path('-prices'), 'utf8')]);
+  const utc = minute => '2025-06-02T14:' + minute + 'Z';
+  const cutoff = (effective, known) => ({ effective: utc(effective), known: utc(known) });
+  const compare = (before, after) => core.compareUniverseRanks(membership, prices, utc('00:00'), before, after);
+  const early = compare(cutoff('05:00', '05:00'), cutoff('10:00', '11:59'));
+  assert.equal(early[1].before.membership, null);
+  assert.equal(early[1].after.membership.changeId, 'BETA-JOIN');
+  assert.equal(early[1].after.current, null);
+  assert.equal(early[1].after.baseline.ticks, 50000000n);
+  const revised = compare(cutoff('10:00', '12:00'), cutoff('10:00', '16:00'));
+  assert.deepEqual(revised.map(row => row.rankMove), [1, -1]);
+  assert.equal(revised[1].before.returnUnits, 120000n);
+  assert.equal(revised[1].after.returnUnits, 10000n);
+  assert.equal(revised[1].before.current.observedAt, Date.parse(utc('12:00')) / 1000);
+  const delist = compare(cutoff('20:00', '25:00'), cutoff('45:00', '45:00'));
+  assert.deepEqual(delist.map(row => row.listingId), ['BETA-001', 'BETA-002']);
+  assert.equal(delist[0].after.membership.state, 'delisted');
+  assert.equal(delist[1].after.baseline, null);
+  assert.equal(delist[1].after.current.ticks, 75000000n);
+});
+
 test('the regression channel fits exact observed anchors and ignores the number of missing intervals', () => {
   const from = 1735689600;
   const source = [[0, 900], [60, 1], [180, 3], [240, 2], [480, 6], [600, -300]];

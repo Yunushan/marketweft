@@ -43,6 +43,30 @@ pub struct ScreenRow<'a> {
     pub return_units: Option<i128>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ScreenCutoff {
+    pub effective_at: i64,
+    pub known_at: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScreenComparisonLeg<'a> {
+    pub membership: Option<&'a UniverseChange>,
+    pub rank: Option<usize>,
+    pub return_units: Option<i128>,
+    pub baseline: Option<PriceObservation>,
+    pub current: Option<PriceObservation>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScreenComparisonRow<'a> {
+    pub listing: &'a UniverseChange,
+    pub before: ScreenComparisonLeg<'a>,
+    pub after: ScreenComparisonLeg<'a>,
+    /// Positive means that an active listing's rank improved.
+    pub rank_move: Option<i64>,
+}
+
 impl<'a> PriceBook<'a> {
     pub fn parse(universe: &'a UniverseBook, csv: &str) -> Result<Self, String> {
         if csv.len() > MAX_PRICE_BYTES {
@@ -174,6 +198,69 @@ impl<'a> PriceBook<'a> {
             previous = Some((current, base));
         }
         Ok(rows)
+    }
+
+    /// Join the two active sets by stable listing ID, retaining the known membership evidence.
+    pub fn compare_ranks(
+        &self,
+        baseline_at: i64,
+        before: ScreenCutoff,
+        after: ScreenCutoff,
+    ) -> Result<Vec<ScreenComparisonRow<'a>>, String> {
+        fn states(book: &UniverseBook, cutoff: ScreenCutoff) -> BTreeMap<&str, &UniverseChange> {
+            book.as_of(cutoff.effective_at, cutoff.known_at)
+                .into_iter()
+                .map(|change| (change.listing_id.as_str(), change))
+                .collect()
+        }
+
+        fn leg<'a>(
+            membership: Option<&'a UniverseChange>,
+            row: Option<ScreenRow<'a>>,
+        ) -> ScreenComparisonLeg<'a> {
+            let row = row.as_ref();
+            ScreenComparisonLeg {
+                membership,
+                rank: row.and_then(|row| row.rank),
+                return_units: row.and_then(|row| row.return_units),
+                baseline: row.and_then(|row| row.baseline),
+                current: row.and_then(|row| row.current),
+            }
+        }
+
+        let before_states = states(self.universe, before);
+        let after_states = states(self.universe, after);
+        let mut rows = BTreeMap::new();
+        for row in self.screen(baseline_at, before.effective_at, before.known_at)? {
+            let id = row.listing.listing_id.as_str();
+            rows.entry(id).or_insert((None, None)).0 = Some(row);
+        }
+        for row in self.screen(baseline_at, after.effective_at, after.known_at)? {
+            let id = row.listing.listing_id.as_str();
+            rows.entry(id).or_insert((None, None)).1 = Some(row);
+        }
+        Ok(rows
+            .into_iter()
+            .map(|(id, (before, after))| {
+                let listing = after
+                    .as_ref()
+                    .or(before.as_ref())
+                    .expect("a comparison row is a member of at least one side")
+                    .listing;
+                let before = leg(before_states.get(id).copied(), before);
+                let after = leg(after_states.get(id).copied(), after);
+                let rank_move = before
+                    .rank
+                    .zip(after.rank)
+                    .map(|(from, to)| from as i64 - to as i64);
+                ScreenComparisonRow {
+                    listing,
+                    before,
+                    after,
+                    rank_move,
+                }
+            })
+            .collect())
     }
 }
 
