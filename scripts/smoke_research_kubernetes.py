@@ -10,7 +10,7 @@ import tempfile
 import uuid
 
 from package_research_oci import ROOT, docker
-from smoke_research_compose import AUDIT, CREDENTIALS, PEER, PYTHON
+from smoke_research_compose import AUDIT, CREDENTIALS, PEER, PYTHON, RECOVERED_RECEIPTS, SNAPSHOT_RECEIPTS
 
 
 LAYOUT = ROOT / "apps/research-service/deploy/kubernetes"
@@ -150,12 +150,12 @@ def exercise(archive, temporary):
         kube("rollout", "restart", DEPLOYMENT)
         wait_for_research()
         client("after restart")
-        audit("backup", "audit", "snapshot", 6)
-        audit("restore", "snapshot", "recovered", 6)
+        audit("backup", "audit", "snapshot", SNAPSHOT_RECEIPTS)
+        audit("restore", "snapshot", "recovered", SNAPSHOT_RECEIPTS)
         kube("set", "env", DEPLOYMENT, f"MARKETWEFT_RESEARCH_AUDIT_DB={AUDIT}/recovered.sqlite")
         wait_for_research()
         client("with the restored ledger")
-        audit("backup", "recovered", "reopened", 9)
+        audit("backup", "recovered", "reopened", RECOVERED_RECEIPTS)
     except (subprocess.CalledProcessError, AssertionError):
         for resources in (("get", "pods,service,endpointslices", "-o", "wide"),
                           ("logs", DEPLOYMENT, "--tail=15")):
@@ -175,6 +175,6 @@ if __name__ == "__main__":
     try:
         with tempfile.TemporaryDirectory(prefix="marketweft-kind-") as directory:
             exercise(Path(sys.argv[1]).resolve(strict=True), Path(directory))
-        print("Verified Kubernetes startup, restart, six recovered receipts and three new receipts.")
+        print("Verified Kubernetes startup, restart and receipt continuity after restore.")
     except subprocess.CalledProcessError as error:
         raise SystemExit(error.stderr.decode(errors="replace").strip() or str(error)) from error
