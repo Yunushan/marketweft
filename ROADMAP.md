@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.108.0 adds Point and Figure from observed closes with fixed-size boxes and three-box reversals. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.109.0 adds range bars from observed trades with independent primary and comparison size settings. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -111,6 +111,7 @@
 | Delivered · 0.106.0 | Three Line Break chart (MW-012) | Verify exact one-tick continuation and reversal, ignored threshold touches, preserved UTC source mapping and independent mixed-pane restore. [Three Line Break](docs/chart-workspace.md#three-line-break). |
 | Delivered · 0.107.0 | Kagi chart (MW-012) | Verify exact-size reversals, strict line-weight changes at earlier turning prices, UTC readout and independent pane restore. [Kagi charts](docs/chart-workspace.md#kagi). |
 | Delivered · 0.108.0 | Point and Figure chart (MW-012) | Verify exact X/O sequences, an inclusive three-box reversal, UTC source close inspection and pane restore. [Point and Figure](docs/chart-workspace.md#point-and-figure). |
+| Delivered · 0.109.0 | Recorded range bars (MW-012, MW-019) | Verify gap overshoot, exact observation cutoff, volume conservation, CSV provenance and saved sizes for both panes. [Recorded range bars](docs/chart-workspace.md#recorded-range-bars). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -122,5 +123,5 @@
 
 ## Handoff for the next change
 
-Add a distinct range bar chart from completed price ranges. Verify exact signed boundaries, gaps across multiple ranges, source timestamps and independent pane restore.
+Add recorded volume bars from observed trades. Verify exact size boundaries, deterministic treatment of a print spanning bars, observation time and independent pane settings.
 

@@ -14,7 +14,6 @@ import type { MarketCore, MeasuredDrawing } from './market-core'
 import { DEFAULT_INDICATOR_PERIODS } from './market-core'
 import { Spark } from './Chart'
 import { TimeframeChart } from './TimeframeChart'
-import { TickBarsResearch } from './TickBarsResearch'
 import { DepthResearch } from './DepthResearch'
 import { FootprintResearch } from './FootprintResearch'
 import { IndicatorPeriods } from './IndicatorPeriods'
@@ -41,6 +40,15 @@ import { MAX_PROVIDER_VERIFICATION_BYTES } from './provider-signature'
 
 declare const __MARKETWEFT_IMPORT_POLICY__: ImportPolicy
 const importPolicy = __MARKETWEFT_IMPORT_POLICY__
+const researchLoading = <p role="status">Loading research…</p>
+const TickBarsResearch = lazy(async () => {
+  const module = await import('./TickBarsResearch')
+  return { default: module.TickBarsResearch }
+})
+const RangeBarsResearch = lazy(async () => {
+  const module = await import('./TickBarsResearch')
+  return { default: module.RangeBarsResearch }
+})
 const FormulaResearch = lazy(async () => {
   const module = await import('./FormulaResearch')
   return { default: module.FormulaResearch }
@@ -398,10 +406,13 @@ export function App({
   const [saved, setSaved] = useState(initial)
   const [replaying, setReplaying] = useState(false)
   const [marketResearch, setMarketResearch] = useState<
-    'tick-bars' | 'depth' | 'footprint' | 'formula' | 'provider-revisions' | null
+    'tick-bars' | 'range-bars' | 'depth' | 'footprint' | 'formula' | 'provider-revisions' | null
   >(null)
   const replayButton = useRef<HTMLButtonElement>(null)
   const tickResearchButton = useRef<HTMLButtonElement>(null)
+  const [rangePane, setRangePane] = useState<ChartPane>('primary')
+  const rangeResearchButton = useRef<HTMLButtonElement>(null)
+  const comparisonRangeButton = useRef<HTMLButtonElement>(null)
   const depthResearchButton = useRef<HTMLButtonElement>(null)
   const footprintResearchButton = useRef<HTMLButtonElement>(null)
   const formulaResearchButton = useRef<HTMLButtonElement>(null)
@@ -417,13 +428,14 @@ export function App({
   useEffect(() => {
     if (!marketResearch && restoreResearchFocus.current) {
       const button = {
-        'tick-bars': tickResearchButton, depth: depthResearchButton, footprint: footprintResearchButton,
+        'tick-bars': tickResearchButton, 'range-bars': rangePane === 'primary' ? rangeResearchButton : comparisonRangeButton,
+        depth: depthResearchButton, footprint: footprintResearchButton,
         formula: formulaResearchButton, 'provider-revisions': providerResearchButton,
       }[restoreResearchFocus.current]
       restoreResearchFocus.current = null
       button.current?.focus()
     }
-  }, [marketResearch])
+  }, [marketResearch, rangePane])
   const [pendingPrefs, setPendingPrefs] = useState<{
     revision: number
     prefs: Preferences
@@ -634,14 +646,28 @@ export function App({
   const span = last.high - last.low,
     position = span === 0 ? 50 : ((last.close - last.low) / span) * 100
   if (marketResearch) {
-    const Research = { 'tick-bars': TickBarsResearch, depth: DepthResearch, footprint: FootprintResearch,
-      formula: FormulaResearch, 'provider-revisions': ProviderRevisionResearch }[marketResearch]
-    return <Suspense fallback={<p role="status">Loading research…</p>}>
-    <Research key={asset.id} core={core} asset={asset} sourceLabel={descriptor?.source ?? source}
-      sourceRights={sourceRights} policy={importPolicy} close={() => {
+    const closeResearch = () => {
       restoreResearchFocus.current = marketResearch
       setMarketResearch(null)
-    }} />
+    }
+    if (marketResearch === 'range-bars') {
+      const series = rangePane === 'primary' ? asset : other
+      if (!series) return <main className="replay-page">
+        <p role="status">The comparison instrument is unavailable.</p>
+        <button className="outline" onClick={closeResearch}>Return to workspace</button>
+      </main>
+      return <Suspense fallback={researchLoading}>
+        <RangeBarsResearch key={series.id} core={core} asset={series} close={closeResearch}
+          savedRangeTicks={saved.preferences.rangeTicks?.[rangePane]} saveRangeTicks={ticks =>
+            commit(() => catalog.savePreferences(saved.revision, { ...saved.preferences,
+              rangeTicks: { ...saved.preferences.rangeTicks, [rangePane]: ticks } }))} />
+      </Suspense>
+    }
+    const Research = { 'tick-bars': TickBarsResearch, depth: DepthResearch, footprint: FootprintResearch,
+      formula: FormulaResearch, 'provider-revisions': ProviderRevisionResearch }[marketResearch]
+    return <Suspense fallback={researchLoading}>
+    <Research key={asset.id} core={core} asset={asset} sourceLabel={descriptor?.source ?? source}
+      sourceRights={sourceRights} policy={importPolicy} close={closeResearch} />
     </Suspense>
   }
   if (replaying) {
@@ -701,6 +727,8 @@ export function App({
             </button>
             <button ref={tickResearchButton} className="outline" disabled={saving}
               onClick={() => setMarketResearch('tick-bars')}>Recorded tick bars</button>
+            <button ref={rangeResearchButton} className="outline" disabled={saving}
+              onClick={() => { setRangePane('primary'); setMarketResearch('range-bars') }}>Recorded range bars</button>
             <button ref={depthResearchButton} className="outline" disabled={saving}
               onClick={() => setMarketResearch('depth')}>Recorded market depth</button>
             <button ref={footprintResearchButton} className="outline" disabled={saving}
@@ -842,6 +870,8 @@ export function App({
               </section>
               {comparison && other && (
                 <section aria-label="Comparison chart pane">
+                  <button ref={comparisonRangeButton} className="outline" disabled={saving}
+                    onClick={() => { setRangePane('comparison'); setMarketResearch('range-bars') }}>Comparison range bars</button>
                   <TimeframeChart key={`${other.id}:${other.bars.length}`} asset={other}
                     core={core} activeSma={comparison.sma} activeEma={comparison.ema}
                     linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined}

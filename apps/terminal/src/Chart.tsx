@@ -12,7 +12,7 @@ import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, TickBar } from './market-core'
+import type { Bar, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, TickBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 type View = { end: number; count: number }
@@ -426,6 +426,7 @@ export function Chart({
   type = 'candles',
   timeframe,
   ticks,
+  ranges,
   observedAt,
   displayBars,
   priceMovements,
@@ -444,6 +445,7 @@ export function Chart({
   type?: ChartType
   timeframe?: TimeframeView
   ticks?: TickBar[]
+  ranges?: RangeBar[]
   observedAt?: readonly number[]
   displayBars?: Bar[]
   priceMovements?: PriceMovement[]
@@ -509,6 +511,7 @@ export function Chart({
   const coverage = timeframe?.buckets[sourceIndex]
   const session = timeframe?.mode === 'session' ? timeframe.buckets[sourceIndex] : undefined
   const tick = ticks?.[sourceIndex]
+  const range = ranges?.[sourceIndex]
   const observation = observedAt?.[sourceIndex]
   const indicatorValues = sma.length > 0 || ema.length > 0
   function stopEditing() {
@@ -689,6 +692,12 @@ export function Chart({
           {tick.observedTrades}/{tick.targetTrades} trades · {tick.observedTrades < tick.targetTrades ? 'Provisional' : 'Complete'}
           {' · '}Observed through {timeLabel(tick.availableAt)} UTC
           {' · '}Capture sequence {tick.firstSequence.toString()}–{tick.lastSequence.toString()}
+        </span>}
+        {range && <span className="timeframe-coverage">
+          Range {fixed(range.observedRangeTicks, 6)} / {fixed(range.targetRangeTicks, 6)}
+          {' · '}{range.complete ? 'Complete' : 'Provisional'} · {range.observedTrades} trades
+          {' · '}Observed through {timeLabel(range.availableAt)} UTC
+          {' · '}Capture sequence {range.firstSequence.toString()}–{range.lastSequence.toString()}
         </span>}
       </div>
       {periods && (

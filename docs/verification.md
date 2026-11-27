@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.109.0 · Recorded range bars
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | The shared trade fixture closes at its exact threshold, keeps a delayed gap print and preserves all completed bars when knowledge advances. Total trade count and volume reconcile. |
+| Browser chart and export | Offline Chromium checks provisional and completed bars immediately before and at a cutoff, exports the exact gap overshoot and retains the accepted result after invalid input. |
+| Workspace | Primary and comparison range sizes persist independently. The old workspace and the new settings backup both restore. |
+
+[Recorded range bars](chart-workspace.md#recorded-range-bars) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.108.0 · Point and Figure chart
 
 | Check | Evidence |

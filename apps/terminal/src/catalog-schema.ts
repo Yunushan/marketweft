@@ -16,6 +16,7 @@ export type Preferences = {
   renkoTicks?: Partial<Record<ChartPane, number>>
   kagiTicks?: Partial<Record<ChartPane, number>>
   pointFigureTicks?: Partial<Record<ChartPane, number>>
+  rangeTicks?: Partial<Record<ChartPane, number>>
 }
 
 export type ChartPane = 'primary' | 'comparison'
@@ -122,7 +123,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   if (value && typeof value === 'object' && Object.hasOwn(value, 'drawings')) keys.push('drawings')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'overlayPeriods')) keys.push('overlayPeriods')
   if (value && typeof value === 'object' && Object.hasOwn(value, 'chartTypes')) keys.push('chartTypes')
-  const tickSettings = ['renkoTicks', 'kagiTicks', 'pointFigureTicks'] as const
+  const tickSettings = ['renkoTicks', 'kagiTicks', 'pointFigureTicks', 'rangeTicks'] as const
   for (const key of tickSettings) {
     if (value && typeof value === 'object' && Object.hasOwn(value, key)) keys.push(key)
   }

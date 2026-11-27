@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chart } from './Chart'
 import { quoteText } from './chart-export'
+import { MAX_CHART_PRICE_TICKS } from './catalog-schema'
 import { downloadFile } from './download'
-import { fixed } from './fixed-point'
+import { fixed, parsePriceSize } from './fixed-point'
 import { Mark } from './Icons'
-import type { MarketCore, TickBar } from './market-core'
+import type { MarketCore, RangeBar, TickBar } from './market-core'
 import type { Asset } from './workspace'
 
-type TickView = { bars: TickBar[]; version: number; fileName: string; cutoff: string }
+type BarView = { version: number; fileName: string; cutoff: string } &
+  ({ mode: 'tick'; bars: TickBar[] } | { mode: 'range'; bars: RangeBar[] })
+
+type Props = { core: MarketCore; asset: Asset; close: () => void }
+type RangeSettings = { savedRangeTicks?: number; saveRangeTicks?: (ticks: number) => Promise<void> }
 
 function tickCsv(instrument: string, bars: TickBar[]) {
   const header = 'instrument,first_observed_utc,available_utc,first_sequence,last_sequence,observed_trades,target_trades,open,high,low,close,volume'
@@ -19,11 +24,29 @@ function tickCsv(instrument: string, bars: TickBar[]) {
   return [header, ...rows].join('\r\n') + '\r\n'
 }
 
-export function TickBarsResearch({ core, asset, close }: { core: MarketCore; asset: Asset; close: () => void }) {
+function rangeCsv(instrument: string, bars: RangeBar[]) {
+  const header = 'instrument,first_observed_utc,available_utc,first_sequence,last_sequence,observed_trades,target_range,observed_range,complete,open,high,low,close,volume'
+  const id = quoteText(instrument)
+  const rows = bars.map(({ bar, availableAt, firstSequence, lastSequence, observedTrades, targetRangeTicks, observedRangeTicks, complete }) => [
+    id, bar.time, availableAt, firstSequence, lastSequence, observedTrades,
+    fixed(targetRangeTicks, 6), fixed(observedRangeTicks, 6), complete,
+    ...[bar.open, bar.high, bar.low, bar.close, bar.volume].map(value => fixed(BigInt(Math.round(value * 1e6)), 6)),
+  ].join(','))
+  return [header, ...rows].join('\r\n') + '\r\n'
+}
+
+export function RangeBarsResearch(props: Props & RangeSettings) {
+  return <TickBarsResearch {...props} range />
+}
+
+export function TickBarsResearch({ core, asset, close, range = false, savedRangeTicks, saveRangeTicks }:
+  Props & RangeSettings & { range?: boolean }) {
+  const mode = range ? 'range' : 'tick'
   const [file, setFile] = useState<File | null>(null)
-  const [count, setCount] = useState('10')
+  const [size, setSize] = useState(range ? fixed(BigInt(savedRangeTicks ?? 1_000_000), 6) : '10')
+  const [remembered, setRemembered] = useState(false)
   const [cutoff, setCutoff] = useState('')
-  const [view, setView] = useState<TickView | null>(null)
+  const [view, setView] = useState<BarView | null>(null)
   const [problem, setProblem] = useState('')
   const [busy, setBusy] = useState(false)
   const version = useRef(0)
@@ -31,26 +54,56 @@ export function TickBarsResearch({ core, asset, close }: { core: MarketCore; ass
   useEffect(() => title.current?.focus(), [])
   const chartAsset = useMemo(() => view ? { ...asset, bars: view.bars.map(entry => entry.bar) } : asset, [asset, view])
 
-  async function apply() {
-    if (!file || busy) return
+  function rangeSize() {
+    const ticks = parsePriceSize(size)
+    if (ticks === null || ticks <= 0n || ticks > MAX_CHART_PRICE_TICKS)
+      throw new Error('Use a positive six-place price range.')
+    return ticks
+  }
+
+  async function remember() {
+    if (!saveRangeTicks || busy) return
     setBusy(true)
     setProblem('')
+    setRemembered(false)
     try {
-      if (!/^\d+$/.test(count.trim())) throw new Error('Enter a whole number of trades per bar.')
-      if (file.size > 8 * 1024 * 1024) throw new Error('Trade CSV exceeds 8 MiB.')
-      const knownAt = cutoff.trim()
-      const bars = core.recordedTickBars(asset.id, await file.text(), Number(count), knownAt)
-      setView({ bars, version: ++version.current, fileName: file.name, cutoff: knownAt })
+      await saveRangeTicks(Number(rangeSize()))
+      setRemembered(true)
     } catch (cause) {
-      setProblem(cause instanceof Error ? cause.message : 'Could not build tick bars.')
+      setProblem(cause instanceof Error ? cause.message : 'Could not save the range size.')
     } finally {
       setBusy(false)
     }
   }
 
-  function exportBars(bars: TickBar[]) {
+  async function apply() {
+    if (!file || busy) return
+    setBusy(true)
+    setProblem('')
+    try {
+      if (file.size > 8 * 1024 * 1024) throw new Error('Trade CSV exceeds 8 MiB.')
+      const knownAt = cutoff.trim()
+      const csv = await file.text()
+      const source = { fileName: file.name, cutoff: knownAt }
+      if (range) {
+        const bars = core.recordedRangeBars(asset.id, csv, rangeSize(), knownAt)
+        setView({ ...source, mode: 'range', version: ++version.current, bars })
+      } else {
+        if (!/^\d+$/.test(size.trim())) throw new Error('Enter a whole number of trades per bar.')
+        const bars = core.recordedTickBars(asset.id, csv, Number(size), knownAt)
+        setView({ ...source, mode: 'tick', version: ++version.current, bars })
+      }
+    } catch (cause) {
+      setProblem(cause instanceof Error ? cause.message : 'Could not build ' + mode + ' bars.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function exportBars(result: BarView) {
     const instrument = (asset.venue + '-' + asset.symbol).replace(/[^A-Za-z0-9_-]/g, '_')
-    downloadFile(instrument + '-tick-bars.csv', new Blob([tickCsv(asset.id, bars)], { type: 'text/csv;charset=utf-8' }))
+    const csv = result.mode === 'range' ? rangeCsv(asset.id, result.bars) : tickCsv(asset.id, result.bars)
+    downloadFile(instrument + '-' + result.mode + '-bars.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }))
   }
 
   return (
@@ -60,7 +113,7 @@ export function TickBarsResearch({ core, asset, close }: { core: MarketCore; ass
         <button className="outline" onClick={close}>Return to workspace</button>
       </header>
       <main className="replay-page">
-        <div className="page-head"><h1 ref={title} tabIndex={-1}>Recorded tick bars</h1></div>
+        <div className="page-head"><h1 ref={title} tabIndex={-1}>Recorded {mode} bars</h1></div>
         <section className="side-card replay-panel">
           <h2>{asset.id}</h2>
           <form aria-label="Recorded trades" onSubmit={event => { event.preventDefault(); void apply() }}>
@@ -69,26 +122,32 @@ export function TickBarsResearch({ core, asset, close }: { core: MarketCore; ass
                 <input type="file" accept=".csv,text/csv" onChange={event => setFile(event.target.files?.[0] ?? null)}
                   disabled={busy} />
               </label>
-              <label>Trades per bar
-                <input inputMode="numeric" value={count} onChange={event => setCount(event.target.value)}
+              <label>{range ? 'Price range (price units)' : 'Trades per bar'}
+                <input inputMode={range ? 'decimal' : 'numeric'} value={size}
+                  onChange={event => { setSize(event.target.value); setRemembered(false) }}
                   disabled={busy} />
               </label>
               <label>Known through (UTC, optional)
                 <input value={cutoff} onChange={event => setCutoff(event.target.value)} disabled={busy}
                   placeholder="YYYY-MM-DDTHH:MM:SSZ" />
               </label>
-              <button className="primary" type="submit" disabled={!file || busy}>Build tick bars</button>
+              <button className="primary" type="submit" disabled={!file || busy}>Build {mode} bars</button>
+              {saveRangeTicks && <button type="button" className="outline" disabled={busy}
+                onClick={() => void remember()}>Save range size for this pane</button>}
             </div>
           </form>
           <p>Use the CSV columns instrument, executed_at, observed_at, sequence, price and size.</p>
+          {range && <p>A recorded trade completes the bar when its price brings the high-to-low range to the chosen size or above.</p>}
+          {remembered && <p role="status">Range size saved for this pane.</p>}
           {problem && <p role="alert">{problem}</p>}
         </section>
         {view && (view.bars.length > 0 ? (
-          <section className="chart-card" aria-label="Tick bar chart">
+          <section className="chart-card" aria-label={range ? 'Range bar chart' : 'Tick bar chart'}>
             <p className="replay-panel">Source {view.fileName} · {view.cutoff ? 'Known through ' + view.cutoff : 'All recorded trades'}</p>
-            <Chart key={view.version} asset={chartAsset} sma={[]} ema={[]} ticks={view.bars} />
+            <Chart key={view.version} asset={chartAsset} sma={[]} ema={[]}
+              ticks={view.mode === 'tick' ? view.bars : undefined} ranges={view.mode === 'range' ? view.bars : undefined} />
             <div className="replay-controls">
-              <button className="outline" onClick={() => exportBars(view.bars)}>Download tick bars</button>
+              <button className="outline" onClick={() => exportBars(view)}>Download {mode} bars</button>
             </div>
           </section>
         ) : <p role="status">No trades were observed by the selected cutoff.</p>)}

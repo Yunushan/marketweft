@@ -1187,3 +1187,20 @@ test('point and figure maps exact X and O boxes to the close that formed them', 
   assert.deepEqual(core.pointAndFigure(bars.slice(0, 5), 2_000_000n), boxes.slice(0, 4));
   assert.throws(() => core.pointAndFigure(bars, 1n), /Increase the box size/);
 });
+test('recorded range bars reveal only observed trades and preserve gaps without artificial fills', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-range-bars.csv', import.meta.url), 'utf8');
+  assert.deepEqual(core.recordedRangeBars('LOCAL:RANGE', csv, 2_000_000n, '9'), []);
+  const early = core.recordedRangeBars('LOCAL:RANGE', csv, 2_000_000n, '10');
+  assert.equal(early[0].observedRangeTicks, 1_999_999n);
+  assert.equal(early[0].complete, false);
+  const final = core.recordedRangeBars('LOCAL:RANGE', csv, 2_000_000n);
+  assert.deepEqual(final.map(row => [row.observedRangeTicks, row.complete, row.availableAt]), [
+    [2_000_000n, true, 11], [8_000_000n, true, 14], [2_000_000n, true, 17], [0n, false, 18],
+  ]);
+  assert.deepEqual(final[1], {
+    bar: { time: 12, open: 0, high: 8, low: 0, close: 8, volume: 2.25 },
+    availableAt: 14, firstSequence: 9_007_199_254_740_996n,
+    lastSequence: 9_007_199_254_740_997n, observedTrades: 2, complete: true,
+    targetRangeTicks: 2_000_000n, observedRangeTicks: 8_000_000n,
+  });
+});

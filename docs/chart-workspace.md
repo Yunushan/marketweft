@@ -80,6 +80,14 @@ Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's
 
 **Bars, provenance and enabled indicators** includes instrument identity, source, interval, usage grant and adjustment policy. Each enabled moving average adds a column such as `sma_20` or `ema_9`. Calculations use the instrument's full history through each exported bar, so the visible-range export preserves values calculated before the visible boundary. Cells stay empty while the indicator has too few closes. A leading apostrophe escapes formula-like provenance text. The research format can be used in analysis tools.
 
+## Recorded range bars
+
+Open **Recorded range bars** for the primary instrument or **Comparison range bars** under the comparison chart. Select a [recorded trade CSV](recorded-tick-bars.md) and set a positive price range with up to six decimal places. The optional observation cutoff includes trades seen at that UTC second. The tool consumes capture sequence in order, including late-reported trades once they are observed.
+
+Each bar closes when a recorded trade makes its high-to-low range reach or exceed the selected size. A gap that overshoots the threshold stays in the bar that it completes. Each captured trade contributes once to volume. The final bar is provisional if its range is still below the threshold. This mode displays the exact prints through a gap. [Range chart variants](https://www.sierrachart.com/index.php?page=doc/ChartSettings.html).
+
+Hover a bar to inspect its target and actual range, completion state, observation time and exact capture sequences. Download the same fields alongside OHLCV. **Save range size for this pane** stores a reusable starting size and includes it in workspace backup. Select the trade file each time you open the tool.
+
 ## Recorded trades
 
 The **Recorded tick bars** tool builds an independent chart from captured trades using an observation cutoff and trade count. [Recorded tick bars](recorded-tick-bars.md)

@@ -3,7 +3,7 @@ import type { ComponentProps } from 'react'
 import { Chart } from './Chart'
 import { ChartExport } from './ChartExport'
 import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, MAX_CHART_PRICE_TICKS } from './catalog-schema'
-import { fixed } from './fixed-point'
+import { fixed, parsePriceSize } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
 import type { TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
@@ -28,13 +28,11 @@ function PriceSize({ ticks, saving, apply, type }: {
   const [error, setError] = useState('')
   return <form className="chart-export price-size-control" aria-label={type === 'renko' ? 'Renko brick settings' : type === 'kagi' ? 'Kagi reversal settings' : 'Point and Figure box settings'} onSubmit={event => {
     event.preventDefault()
-    const value = String(new FormData(event.currentTarget).get('size')).trim()
-    const parts = /^(\d+)(?:\.(\d{1,6}))?$/.exec(value)
-    if (!parts) {
+    const ticks = parsePriceSize(String(new FormData(event.currentTarget).get('size')))
+    if (ticks === null) {
       setError('Enter a positive ' + label.toLowerCase() + ' with up to six decimal places.')
       return
     }
-    const ticks = BigInt(parts[1]) * 1_000_000n + BigInt((parts[2] ?? '').padEnd(6, '0'))
     if (ticks <= 0n || ticks > MAX_CHART_PRICE_TICKS) {
       setError(label + ' must be between 0.000001 and 2,000,000,000.')
       return

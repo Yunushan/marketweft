@@ -2334,22 +2334,26 @@ pub extern "C" fn mw_point_and_figure(box_ticks: i64) -> u32 {
     })
 }
 
+fn trade_bar_input(input: &[u8]) -> Result<(Instrument, Option<i64>, &str), String> {
+    let (identity, payload) = utf8(input)?
+        .split_once('\n')
+        .ok_or("Missing trade input.")?;
+    let (venue, symbol) = identity
+        .split_once(':')
+        .ok_or("Missing trade instrument.")?;
+    let (cutoff, csv) = payload.split_once('\n').ok_or("Missing trade CSV.")?;
+    let cutoff = if cutoff.is_empty() {
+        None
+    } else {
+        Some(crate::history::timestamp(cutoff).ok_or("Use a UTC observation cutoff.")?)
+    };
+    Ok((Instrument::new(venue, symbol)?, cutoff, csv))
+}
+
 #[no_mangle]
 pub extern "C" fn mw_tick_bars(target_trades: u32) -> u32 {
     process(|input| {
-        let (identity, payload) = utf8(input)?
-            .split_once('\n')
-            .ok_or("Missing trade input.")?;
-        let (venue, symbol) = identity
-            .split_once(':')
-            .ok_or("Missing trade instrument.")?;
-        let (cutoff, csv) = payload.split_once('\n').ok_or("Missing trade CSV.")?;
-        let cutoff = if cutoff.is_empty() {
-            None
-        } else {
-            Some(crate::history::timestamp(cutoff).ok_or("Use a UTC observation cutoff.")?)
-        };
-        let instrument = Instrument::new(venue, symbol)?;
+        let (instrument, cutoff, csv) = trade_bar_input(input)?;
         let rolled = crate::TradeTape::parse(csv, &instrument)?.bars(target_trades, cutoff)?;
         let mut bytes = Vec::with_capacity(80 * rolled.len());
         for entry in rolled {
@@ -2359,6 +2363,27 @@ pub extern "C" fn mw_tick_bars(target_trades: u32) -> u32 {
             bytes.extend_from_slice(&entry.last_sequence.to_le_bytes());
             bytes.extend_from_slice(&entry.observed_trades.to_le_bytes());
             bytes.extend_from_slice(&entry.target_trades.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_range_bars(target_range: i64) -> u32 {
+    process(|input| {
+        let (instrument, cutoff, csv) = trade_bar_input(input)?;
+        let rolled = crate::TradeTape::parse_execution(csv, &instrument)?
+            .range_bars(target_range, cutoff)?;
+        let mut bytes = Vec::with_capacity(96 * rolled.len());
+        for entry in rolled {
+            push_bar(&mut bytes, entry.bar);
+            bytes.extend_from_slice(&entry.available_at.to_le_bytes());
+            bytes.extend_from_slice(&entry.first_sequence.to_le_bytes());
+            bytes.extend_from_slice(&entry.last_sequence.to_le_bytes());
+            bytes.extend_from_slice(&entry.observed_trades.to_le_bytes());
+            bytes.extend_from_slice(&u32::from(entry.complete()).to_le_bytes());
+            bytes.extend_from_slice(&entry.target_range.to_le_bytes());
+            bytes.extend_from_slice(&entry.observed_range().to_le_bytes());
         }
         Ok(bytes)
     })

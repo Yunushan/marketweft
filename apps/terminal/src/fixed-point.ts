@@ -8,3 +8,9 @@ export function fixed(value: bigint, places: number): string {
 export function tickPrice(ticks: bigint) {
   return Number(ticks) / 1e6
 }
+
+export function parsePriceSize(value: string): bigint | null {
+  const parts = /^(\d+)(?:\.(\d{1,6}))?$/.exec(value.trim())
+  if (!parts) return null
+  return BigInt(parts[1]) * 1_000_000n + BigInt((parts[2] ?? '').padEnd(6, '0'))
+}
