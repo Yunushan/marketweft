@@ -53,8 +53,22 @@ test "$("${device[@]}" shell getprop ro.product.cpu.abi | tr -d '\r')" = x86_64
 
 "${device[@]}" shell input keyevent KEYCODE_WAKEUP
 "${device[@]}" shell wm dismiss-keyguard
-"${device[@]}" shell cmd connectivity airplane-mode enable
+# Turn Wi-Fi off first so airplane mode cannot preserve an enabled Wi-Fi override.
 "${device[@]}" shell svc wifi disable
 "${device[@]}" shell svc data disable
+wifi_deadline=$((SECONDS + 15))
+while :; do
+    wifi=$("${device[@]}" shell settings get global wifi_on | tr -d '\r')
+    if [[ "$wifi" == 0 || "$wifi" == 3 ]]; then
+        break
+    fi
+    if (( SECONDS >= wifi_deadline )); then
+        printf 'The emulator could not disable Wi-Fi. Observed wifi_on=%s.\n' "$wifi" >&2
+        exit 1
+    fi
+    "${device[@]}" shell svc wifi disable
+    sleep 1
+done
+"${device[@]}" shell cmd connectivity airplane-mode enable
 bash scripts/verify_android_on_device.sh "$serial" x86_64 "$apk" reports "$@"
 (cd reports && sha256sum "$name" >"$name.sha256")
