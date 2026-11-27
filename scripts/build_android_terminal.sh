@@ -15,7 +15,7 @@ export TAURI_FRONTEND_PATH="$repository"
 npm run tauri -- android init --ci --skip-targets-install
 python3 -B scripts/stage_native_application_notices.py \
     apps/desktop/gen/android/app/src/main/assets/marketweft-notices x86_64-linux-android
-CARGO_NET_OFFLINE=true npm run tauri -- android build --ci --debug --apk --split-per-abi --target x86_64
+bash scripts/build_android_apk_with_retry.sh x86_64
 git diff --exit-code -- apps/desktop/Cargo.lock
 
 mapfile -d '' -t packages < <(find apps/desktop/gen/android/app/build/outputs/apk -name '*-debug.apk' -type f -print0)
