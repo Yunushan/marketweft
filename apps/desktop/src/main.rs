@@ -1,4 +1,7 @@
-#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(windows, not(debug_assertions), not(feature = "native-smoke")),
+    windows_subsystem = "windows"
+)]
 
 #[cfg(feature = "native-smoke")]
 mod native_smoke;

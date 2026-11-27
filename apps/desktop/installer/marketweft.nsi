@@ -7,7 +7,7 @@ CRCCheck force
 !include "payload.nsh"
 
 Name "MarketWeft"
-OutFile "marketweft-desktop-x64.exe"
+OutFile "marketweft-desktop-installer.exe"
 Icon "icon.ico"
 InstallDir "$LOCALAPPDATA\MarketWeft"
 RequestExecutionLevel user
