@@ -271,7 +271,7 @@ function ImportForm({
         <input
           key={String(providerFixture)}
           type="file"
-          aria-label={providerFixture ? 'Provider history JSON file' : 'Historical CSV file'}
+          aria-label={providerFixture ? 'Provider history JSON' : 'Historical CSV file'}
           required
           accept={providerFixture ? '.json,application/json' : '.csv,text/csv'}
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
