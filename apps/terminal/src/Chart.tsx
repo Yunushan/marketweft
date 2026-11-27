@@ -60,6 +60,7 @@ const UP = '#68d7b1',
   CLOSE_LINE = '#55b5ee'
 const chartNames: Record<ChartType, string> = {
   candles: 'candlestick',
+  'volume-candles': 'volume-weighted candlestick',
   line: 'close line',
   area: 'close area',
   'step-line': 'step line',
@@ -169,6 +170,7 @@ function draw(
   ctx.scale(dpr, dpr)
   const baseline = type === 'baseline' ? baselineTicks / 1e6 : undefined
   const histogram = type === 'close-change'
+  const volumeWeighted = type === 'volume-candles'
   const closeTrace = type === 'line' || type === 'area' || type === 'step-line' || baseline !== undefined
   const isPriceMovement = type === 'renko' || type === 'three-line-break'
   const closeBased = isPriceMovement || kagi !== undefined || pointFigure !== undefined
@@ -405,8 +407,9 @@ function draw(
       if (type === 'ohlc') {
         line(axis - w / 2, open, axis, open, col)
         line(axis, close, axis + w / 2, close, col)
-      } else {
-        ctx.fillRect(axis - w / 2, Math.min(open, close), w,
+      } else if (!volumeWeighted || b.volume > 0) {
+        const bodyWidth = volumeWeighted ? w * (b.volume / maxVol) : w
+        ctx.fillRect(axis - bodyWidth / 2, Math.min(open, close), bodyWidth,
           Math.max(1.2, Math.abs(open - close)))
       }
     }

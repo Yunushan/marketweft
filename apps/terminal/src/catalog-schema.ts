@@ -31,7 +31,7 @@ export type Preferences = {
 }
 
 export type ChartPane = 'primary' | 'comparison'
-export type ChartType = 'candles' | 'line' | 'area' | 'step-line' | 'baseline' | 'close-change' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
+export type ChartType = 'candles' | 'volume-candles' | 'line' | 'area' | 'step-line' | 'baseline' | 'close-change' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
 const MAX_CLOSE_CHANGE_SECONDS = 0xffff_ffff
 export const DEFAULT_RENKO_TICKS = 1_000_000
 export const DEFAULT_KAGI_TICKS = 1_000_000
@@ -327,7 +327,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       throw Error('Invalid workspace chart types.')
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, type]) =>
-      (pane !== 'primary' && pane !== 'comparison') || (type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'baseline' && type !== 'close-change' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
+      (pane !== 'primary' && pane !== 'comparison') || (type !== 'volume-candles' && type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'baseline' && type !== 'close-change' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
         type !== 'three-line-break' && type !== 'kagi' && type !== 'point-and-figure'))) {
       throw Error('Unknown pane or chart type in the workspace.')
     }

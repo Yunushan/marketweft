@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.142.0 · Volume-weighted candles
+
+| Check | Evidence |
+| --- | --- |
+| Chromium chart | A fixture with volumes 1, 2, 0 and 4 verifies quarter-width, half-width and full-width candle bodies. The zero-volume bar retains its wick. All four wick coordinates match standard candlesticks. |
+| Workspace backup | Chromium restores both an earlier version 40 workspace and a version 41 workspace with independent pane chart types. The source history is identical in both backups. |
+
+[Volume-weighted candles](chart-workspace.md#volume-weighted-candles) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.141.0 · Close-change histogram
 
 | Check | Evidence |

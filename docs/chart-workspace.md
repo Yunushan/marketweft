@@ -36,6 +36,12 @@ Set **Close-change interval (seconds)** separately in each pane. Built-in sample
 
 Version 40 backups preserve the chart selection and any explicitly saved interval. Choose **Bars, provenance and enabled indicators** in **Export CSV** for the interval, previous close time, previous close and signed change. The CSV leaves the three change fields empty for missing values. The OHLCV reimport CSV continues to contain observed bars.
 
+### Volume-weighted candles
+
+Choose **Volume-weighted candles** to make each body width proportional to the displayed bar's volume relative to the largest visible volume. Candle bodies stay centered on the original wick. The open and close still define the height. A bar with zero volume keeps its high-low wick.
+
+When several bars share a display column, the group uses the standard OHLC aggregation and the sum of the underlying volumes. Pan and zoom recalculate widths for the visible range. Crosshairs, annotations, overlays and CSV exports use the original price and time coordinates. Version 41 backups preserve the choice independently for both panes.
+
 ### Heikin-Ashi
 
 Each pane can display Heikin-Ashi candles independently. The first derived open is the midpoint of the first observed open and close. Subsequent opens are the midpoint of the previous derived open and close. The derived close averages the current observed open, high, low and close. The derived high and low enclose both the observed extremes and the derived body. Prices use signed millionths and round halfway values away from zero at each step. [Dan Valcu’s original calculation](https://c.mql5.com/forextsd/forum/118/using_the_heikin_ashi_technique_d_valcu.pdf).
