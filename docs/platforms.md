@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.173.0
+# Platform support · MarketWeft 0.174.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
@@ -69,6 +69,20 @@ The hosted test mounts the image read-only and checks the Applications shortcut.
 The matrix verifies upgrades from the [0.172.0 disk images](https://github.com/Yunushan/marketweft/actions/runs/46007400230). The test launches the prior and candidate release bundles in the same isolated Applications path. Separate packaged test builds share an isolated WKWebView profile and confirm that the chosen close-line chart and exact imported OHLCV reopen after replacement. The test also checks a user-created file beside the app.
 
 The baseline download checks the original workflow, full source revision and artifact digest. If the archive has expired, CI builds the disk image from the pinned revision.
+
+### Verify macOS disk-image provenance
+
+On a release tag, the hosted workflow verifies each disk image's checksum, embedded source revision, app signature and Mach-O architecture. It then attests both disk images. Download `macos-desktop-signed-attempt-N` from the successful tag run and use the provided bundle to verify the image. Apple Developer ID signing and notarization remain separate release gates. [GitHub attestation verification](https://cli.github.com/manual/gh_attestation_verify).
+
+```sh
+gh attestation verify MarketWeft-desktop-0.174.0-macos-arm64.dmg \
+  --repo Yunushan/marketweft \
+  --signer-workflow Yunushan/marketweft/.github/workflows/verify.yml \
+  --deny-self-hosted-runners \
+  --source-digest "$(git rev-list -n 1 v0.174.0)" \
+  --source-ref refs/tags/v0.174.0 \
+  --bundle marketweft-macos-desktop.intoto.jsonl
+```
 
 ## Linux native verification
 

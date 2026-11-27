@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.174.0 · macOS disk-image build provenance
+
+- The tagged workflow checks the exact Intel and Apple Silicon images from verified hosted runs, including their checksums, mounted application signatures, embedded source commit and Mach-O architectures.
+- The workflow attests both images and checks each against the GitHub-hosted signer workflow, full source commit and release tag.
+
+[macOS disk-image provenance](platforms.md#verify-macos-disk-image-provenance) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.173.0 · macOS app upgrades
 
 - The native macOS jobs mount the pinned baseline and candidate images, launch their release bundles at the same installation path and check that the upgrade preserves a user-created file.
