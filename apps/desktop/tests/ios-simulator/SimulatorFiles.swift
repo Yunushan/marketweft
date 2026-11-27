@@ -55,7 +55,8 @@ func chooseSimulatorFile(in app: XCUIApplication, input: String, folders: [Strin
     file.tap()
 
     let locations = ["On My iPhone", "On My iPad"]
-    let pickerControls = ["Browse", "Recents", "Locations"] + locations + folders
+    let folderControls = folders + folders.map { "\($0), Actions Menu" }
+    let pickerControls = ["Browse", "Recents", "Locations"] + locations + folderControls
     let picker = app.descendants(matching: .any)
         .matching(NSPredicate(format: "label IN %@", pickerControls)).firstMatch
     let chooseFiles = app.buttons["Choose Files"].firstMatch
@@ -64,6 +65,34 @@ func chooseSimulatorFile(in app: XCUIApplication, input: String, folders: [Strin
     XCTAssertTrue(openingControl.waitForExistence(timeout: 25), app.debugDescription)
     if chooseFiles.exists && chooseFiles.isHittable { chooseFiles.tap() }
     XCTAssertTrue(picker.waitForExistence(timeout: 25), app.debugDescription)
+
+    let entries = app.collectionViews["File View"].cells
+    let baseName = (filename as NSString).deletingPathExtension
+    let fileExtension = (filename as NSString).pathExtension
+    let identifiers = [filename, "\(baseName), \(fileExtension)", "\(filename), \(fileExtension)"]
+    let document = entries.matching(NSPredicate(format: "identifier IN %@", identifiers)).firstMatch
+    let openFolder = folders.last.map { app.navigationBars.buttons["\($0), Actions Menu"].firstMatch }
+    // Files may reopen directly in the folder that supplied the last import.
+    if openFolder?.waitForExistence(timeout: 2) != true || !document.waitForExistence(timeout: 2) {
+        navigateSimulatorFiles(in: app, locations: locations, folders: folders, entries: entries)
+    }
+    XCTAssertTrue(document.waitForExistence(timeout: 20), app.debugDescription)
+    tapFilesCell(document)
+    let confirm = app.navigationBars.buttons["Open"].firstMatch
+    if confirm.waitForExistence(timeout: 2), confirm.isHittable { confirm.tap() }
+    // WebKit can clip the visible filename in narrow file controls after the picker closes.
+    let visibleFilenamePrefix = String(baseName.prefix(12))
+    let selectedFile = web.buttons.matching(NSPredicate(
+        format: "label BEGINSWITH %@ AND (value CONTAINS[c] %@ OR value BEGINSWITH[c] %@)",
+        input, baseName, visibleFilenamePrefix
+    )).firstMatch
+    XCTAssertTrue(selectedFile.waitForExistence(timeout: 15), app.debugDescription)
+}
+
+@MainActor
+private func navigateSimulatorFiles(
+    in app: XCUIApplication, locations: [String], folders: [String], entries: XCUIElementQuery
+) {
     let browse = app.buttons["Browse"].firstMatch
     if browse.exists && browse.isHittable { browse.tap() }
     let local = NSPredicate(format: "label IN %@", locations)
@@ -81,7 +110,6 @@ func chooseSimulatorFile(in app: XCUIApplication, input: String, folders: [Strin
         XCTAssertTrue(location.waitForExistence(timeout: 15), app.debugDescription)
         location.tap()
     }
-    let entries = app.collectionViews["File View"].cells
     for (index, folder) in folders.enumerated() {
         let entry = entries.matching(NSPredicate(
             format: "identifier == %@ OR label == %@ OR label BEGINSWITH %@",
@@ -95,22 +123,6 @@ func chooseSimulatorFile(in app: XCUIApplication, input: String, folders: [Strin
         XCTAssertTrue(entry.waitForExistence(timeout: 20), "Missing Files folder \(folder). \(app.debugDescription)")
         tapFilesCell(entry)
     }
-    let baseName = (filename as NSString).deletingPathExtension
-    let fileExtension = (filename as NSString).pathExtension
-    let identifiers = [filename, "\(baseName), \(fileExtension)", "\(filename), \(fileExtension)"]
-    let document = entries
-        .matching(NSPredicate(format: "identifier IN %@", identifiers)).firstMatch
-    XCTAssertTrue(document.waitForExistence(timeout: 20), app.debugDescription)
-    tapFilesCell(document)
-    let confirm = app.navigationBars.buttons["Open"].firstMatch
-    if confirm.waitForExistence(timeout: 2), confirm.isHittable { confirm.tap() }
-    // WebKit can clip the visible filename in narrow file controls after the picker closes.
-    let visibleFilenamePrefix = String(baseName.prefix(12))
-    let selectedFile = web.buttons.matching(NSPredicate(
-        format: "label BEGINSWITH %@ AND (value CONTAINS[c] %@ OR value BEGINSWITH[c] %@)",
-        input, baseName, visibleFilenamePrefix
-    )).firstMatch
-    XCTAssertTrue(selectedFile.waitForExistence(timeout: 15), app.debugDescription)
 }
 
 @MainActor
