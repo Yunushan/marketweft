@@ -180,6 +180,12 @@ From the anchor onward, the drawing weights each source bar's typical price, (hi
 
 The analysis CSV uses the drawing ID to identify columns for the anchor, last observation, calculated price and exact cumulative volume. Chart CSV export applies the source redistribution grant and expiry. A version 46 backup stores the source timestamp and ID. The drawing recalculates from the restored bars.
 
+## Pitchfork
+
+Choose **New pitchfork** in **Chart drawings**. Set an origin and two rail anchors by entering UTC times and signed prices or by picking three chart points. The three anchors must enclose an area. The median ray starts at the origin and passes through the midpoint of the rail anchors. The midpoint averages their UTC timestamps and prices before projection, so gaps between observations preserve the intended time.
+
+The two outer rays start at their own anchors and run parallel to the median in the chart. Each pane clips the three rays to its visible price plot. Pan and zoom preserve the saved anchors. A version 47 backup retains the three points in order and restores earlier drawings alongside them.
+
 ## Moving-average periods
 
 Open **Indicators** to configure the primary chart. When the comparison pane is open, the same dialog provides a separate pair of period fields for it. Each field accepts a whole period from 1 to 100,000 bars. The default periods are 20 bars for SMA and 9 bars for EMA. Each overlay can be enabled independently.

@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.148.0 · Three-anchor pitchfork
+
+| Check | Evidence |
+| --- | --- |
+| Chromium drawing | The median passes through the exact time and price midpoint across an irregular timestamp gap. Rail slopes agree before and after pan and zoom. Collinear controls are rejected. |
+| Workspace backup | Version 47 restores three signed data points and draws the three rays after reload. Version 46 restores an earlier workspace with an anchored VWAP drawing. The comparison viewport stays independent. |
+
+[Pitchfork](chart-workspace.md#pitchfork) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.147.0 · Anchored VWAP drawing
 
 | Check | Evidence |
