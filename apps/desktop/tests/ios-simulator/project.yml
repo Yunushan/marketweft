@@ -1,0 +1,25 @@
+name: MarketWeftSimulatorTests
+options:
+  deploymentTarget:
+    iOS: "18.0"
+targets:
+  MarketWeftSimulatorTests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - SimulatorStartupTests.swift
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: org.marketweft.terminal.SimulatorTests
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+schemes:
+  MarketWeftSimulatorTests:
+    build:
+      targets:
+        MarketWeftSimulatorTests: [test]
+    test:
+      targets:
+        - name: MarketWeftSimulatorTests
+          parallelizable: false

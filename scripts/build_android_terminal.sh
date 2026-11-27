@@ -13,7 +13,8 @@ export TAURI_APP_PATH="$repository/apps/desktop"
 export TAURI_FRONTEND_PATH="$repository"
 # Generate the Gradle project from the pinned CLI and the checked-in Tauri configuration.
 npm run tauri -- android init --ci --skip-targets-install
-python3 -B scripts/package_android_notices.py
+python3 -B scripts/stage_native_application_notices.py \
+    apps/desktop/gen/android/app/src/main/assets/marketweft-notices x86_64-linux-android
 CARGO_NET_OFFLINE=true npm run tauri -- android build --ci --debug --apk --split-per-abi --target x86_64
 git diff --exit-code -- apps/desktop/Cargo.lock
 
