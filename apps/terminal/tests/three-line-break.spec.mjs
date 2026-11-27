@@ -15,7 +15,10 @@ test('Three Line Break skips touches, plots strict reversals and restores mixed 
     }
     proto.fillRect = function (x, y, width, height) {
       if (isTarget(this) && (this.fillStyle === '#68d7b1' || this.fillStyle === '#ec817e')) {
-        window.lineBreakX.push({ x: x + width / 2, color: this.fillStyle })
+        const { width: canvasWidth } = this.canvas.getBoundingClientRect()
+        if (x + width < canvasWidth - 1) {
+          window.lineBreakX.push({ x: x + width / 2, color: this.fillStyle })
+        }
       }
       return fillRect.call(this, x, y, width, height)
     }
@@ -39,15 +42,20 @@ test('Three Line Break skips touches, plots strict reversals and restores mixed 
   await expect(primary.getByTestId('viewport')).toHaveText('1–14 of 14')
   await expect(readout).toContainText('Close 111.000001')
   await expect(primary.getByLabel('Brick size (price units)')).toHaveCount(0)
-  await expect.poll(() => page.evaluate(() => window.lineBreakX.length)).toBe(15)
-  const marks = await page.evaluate(() => window.lineBreakX)
+  await plot.scrollIntoViewIfNeeded()
+  await expect.poll(() => page.evaluate(() => window.lineBreakX.length)).toBe(14)
   for (const [index, color, source, open, close] of [
     [0, '#68d7b1', '1970-01-03', '100', '102'],
     [4, '#ec817e', '1970-01-10', '106', '101.999999'],
     [7, '#68d7b1', '1970-01-15', '101', '106.000001'],
   ]) {
-    expect(marks[index].color).toBe(color)
-    await plot.hover({ position: { x: marks[index].x, y: 50 } })
+    const { x, y, actualColor } = await plot.evaluate((canvas, index) => {
+      const { left, top } = canvas.getBoundingClientRect()
+      const mark = window.lineBreakX[index]
+      return { x: left + mark.x, y: top + 50, actualColor: mark.color }
+    }, index)
+    expect(actualColor).toBe(color)
+    await page.mouse.move(x, y)
     await expect(readout).toContainText(source)
     await expect(readout).toContainText('Open ' + open)
     await expect(readout).toContainText('Close ' + close)
