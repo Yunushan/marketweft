@@ -2389,6 +2389,28 @@ pub extern "C" fn mw_range_bars(target_range: i64) -> u32 {
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_volume_bars(target_volume: i64) -> u32 {
+    process(|input| {
+        let (instrument, cutoff, csv) = trade_bar_input(input)?;
+        let rolled = crate::TradeTape::parse_execution(csv, &instrument)?
+            .volume_bars(target_volume, cutoff)?;
+        let mut bytes = Vec::with_capacity(104 * rolled.len());
+        for entry in rolled {
+            push_bar(&mut bytes, entry.bar);
+            bytes.extend_from_slice(&entry.available_at.to_le_bytes());
+            bytes.extend_from_slice(&entry.first_sequence.to_le_bytes());
+            bytes.extend_from_slice(&entry.last_sequence.to_le_bytes());
+            bytes.extend_from_slice(&entry.contributing_trades.to_le_bytes());
+            bytes.extend_from_slice(&u32::from(entry.complete()).to_le_bytes());
+            bytes.extend_from_slice(&entry.target_volume.to_le_bytes());
+            bytes.extend_from_slice(&entry.first_contribution.to_le_bytes());
+            bytes.extend_from_slice(&entry.last_contribution.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
 fn recorded_source(input: &[u8]) -> Result<(Instrument, &str), String> {
     let (id, rest) = utf8(input)?
         .split_once('\n')

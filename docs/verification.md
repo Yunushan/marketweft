@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.110.0 · Recorded volume bars
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | The shared trade fixture fills a bar with one final millionth from a print. A later print fills several bars at one UTC timestamp, contributing exactly its recorded volume. Completed rows are stable at later cutoffs. |
+| Browser chart and export | Offline Chromium checks the provisional and completed counts and exact allocated volumes and capture sequences in the CSV. Invalid sizes preserve the last accepted result. |
+| Workspace | Primary and comparison volume targets restore independently. The prior range-settings backup still restores. |
+
+[Recorded volume bars](chart-workspace.md#recorded-volume-bars) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.109.0 · Recorded range bars
 
 | Check | Evidence |

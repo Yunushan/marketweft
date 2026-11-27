@@ -20,9 +20,11 @@ const LINE_BREAK_BACKUP_VERSION = 11
 const KAGI_BACKUP_VERSION = 12
 const POINT_FIGURE_BACKUP_VERSION = 13
 const RANGE_SIZE_BACKUP_VERSION = 14
+const VOLUME_SIZE_BACKUP_VERSION = 15
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
+  if (preferences.volumeTicks) return VOLUME_SIZE_BACKUP_VERSION
   if (preferences.rangeTicks) return RANGE_SIZE_BACKUP_VERSION
   if (preferences.pointFigureTicks || Object.values(preferences.chartTypes ?? {}).includes('point-and-figure')) return POINT_FIGURE_BACKUP_VERSION
   if (preferences.kagiTicks || Object.values(preferences.chartTypes ?? {}).includes('kagi')) return KAGI_BACKUP_VERSION
@@ -126,7 +128,7 @@ export async function verifyWorkspaceBackup(
     INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
     STRUCTURED_GRANT_BACKUP_VERSION,
     VERIFIED_PROVIDER_BACKUP_VERSION, HEIKIN_ASHI_BACKUP_VERSION, RENKO_BACKUP_VERSION, LINE_BREAK_BACKUP_VERSION, KAGI_BACKUP_VERSION,
-    POINT_FIGURE_BACKUP_VERSION, RANGE_SIZE_BACKUP_VERSION,
+    POINT_FIGURE_BACKUP_VERSION, RANGE_SIZE_BACKUP_VERSION, VOLUME_SIZE_BACKUP_VERSION,
   ].includes(file.version))
     throw Error('This workspace backup version is unsupported.')
   const manifest = fields(file.manifest, [

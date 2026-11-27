@@ -12,7 +12,7 @@ import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, TickBar } from './market-core'
+import type { Bar, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, TickBar, VolumeBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 type View = { end: number; count: number }
@@ -427,6 +427,7 @@ export function Chart({
   timeframe,
   ticks,
   ranges,
+  volumes,
   observedAt,
   displayBars,
   priceMovements,
@@ -446,6 +447,7 @@ export function Chart({
   timeframe?: TimeframeView
   ticks?: TickBar[]
   ranges?: RangeBar[]
+  volumes?: VolumeBar[]
   observedAt?: readonly number[]
   displayBars?: Bar[]
   priceMovements?: PriceMovement[]
@@ -512,6 +514,7 @@ export function Chart({
   const session = timeframe?.mode === 'session' ? timeframe.buckets[sourceIndex] : undefined
   const tick = ticks?.[sourceIndex]
   const range = ranges?.[sourceIndex]
+  const volumeBar = volumes?.[sourceIndex]
   const observation = observedAt?.[sourceIndex]
   const indicatorValues = sma.length > 0 || ema.length > 0
   function stopEditing() {
@@ -698,6 +701,12 @@ export function Chart({
           {' · '}{range.complete ? 'Complete' : 'Provisional'} · {range.observedTrades} trades
           {' · '}Observed through {timeLabel(range.availableAt)} UTC
           {' · '}Capture sequence {range.firstSequence.toString()}–{range.lastSequence.toString()}
+        </span>}
+        {volumeBar && <span className="timeframe-coverage">
+          Volume {fixed(volumeBar.volumeTicks, 6)} / {fixed(volumeBar.targetVolumeTicks, 6)}
+          {' · '}{volumeBar.complete ? 'Complete' : 'Provisional'} · {volumeBar.contributingTrades} contributing trades
+          {' · '}Observed through {timeLabel(volumeBar.availableAt)} UTC
+          {' · '}Capture sequence {volumeBar.firstSequence.toString()}–{volumeBar.lastSequence.toString()}
         </span>}
       </div>
       {periods && (

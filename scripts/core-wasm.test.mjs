@@ -1204,3 +1204,28 @@ test('recorded range bars reveal only observed trades and preserve gaps without 
     targetRangeTicks: 2_000_000n, observedRangeTicks: 8_000_000n,
   });
 });
+
+test('recorded volume bars keep exact split contributions and cutoff evidence', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-volume-bars.csv', import.meta.url), 'utf8');
+  const bars = cutoff => core.recordedVolumeBars('LOCAL:VOLUME', csv, 2_500_000n, cutoff);
+  assert.deepEqual(bars('9'), []);
+  assert.equal(bars('10')[0].volumeTicks, 2_499_999n);
+  assert.equal(bars('10')[0].complete, false);
+  const exact = bars('11');
+  assert.equal(exact[0].lastContributionTicks, 1n);
+  assert.equal(exact[0].lastSequence, exact[1].firstSequence);
+  assert.equal(exact[1].firstContributionTicks, 500_000n);
+  const split = bars('14');
+  assert.deepEqual(split.map(bar => [bar.volumeTicks, bar.complete, bar.availableAt]), [
+    [2_500_000n, true, 11], [2_500_000n, true, 14], [2_500_000n, true, 14], [1_500_000n, false, 14],
+  ]);
+  assert.deepEqual(split[2], {
+    bar: { time: 14, open: 8, high: 8, low: 8, close: 8, volume: 2.5 },
+    availableAt: 14, firstSequence: 9_007_199_254_740_996n, lastSequence: 9_007_199_254_740_996n,
+    contributingTrades: 1, complete: true, volumeTicks: 2_500_000n, targetVolumeTicks: 2_500_000n,
+    firstContributionTicks: 2_500_000n, lastContributionTicks: 2_500_000n,
+  });
+  assert.deepEqual(bars().slice(0, 3), split.slice(0, 3));
+  assert.equal(bars().reduce((sum, bar) => sum + bar.volumeTicks, 0n), 10_750_000n);
+  assert.throws(() => core.recordedVolumeBars('LOCAL:VOLUME', csv, 1n), /100,000/);
+});

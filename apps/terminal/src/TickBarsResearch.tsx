@@ -5,14 +5,14 @@ import { MAX_CHART_PRICE_TICKS } from './catalog-schema'
 import { downloadFile } from './download'
 import { fixed, parsePriceSize } from './fixed-point'
 import { Mark } from './Icons'
-import type { MarketCore, RangeBar, TickBar } from './market-core'
+import type { MarketCore, RangeBar, TickBar, VolumeBar } from './market-core'
 import type { Asset } from './workspace'
 
-type BarView = { version: number; fileName: string; cutoff: string } &
-  ({ mode: 'tick'; bars: TickBar[] } | { mode: 'range'; bars: RangeBar[] })
-
+type Bars =
+  { mode: 'tick'; bars: TickBar[] } | { mode: 'range'; bars: RangeBar[] } | { mode: 'volume'; bars: VolumeBar[] }
+type BarView = { version: number; fileName: string; cutoff: string } & Bars
 type Props = { core: MarketCore; asset: Asset; close: () => void }
-type RangeSettings = { savedRangeTicks?: number; saveRangeTicks?: (ticks: number) => Promise<void> }
+type SizeSettings = { savedSizeTicks?: number; saveSizeTicks?: (ticks: number) => Promise<void> }
 
 function tickCsv(instrument: string, bars: TickBar[]) {
   const header = 'instrument,first_observed_utc,available_utc,first_sequence,last_sequence,observed_trades,target_trades,open,high,low,close,volume'
@@ -35,15 +35,33 @@ function rangeCsv(instrument: string, bars: RangeBar[]) {
   return [header, ...rows].join('\r\n') + '\r\n'
 }
 
-export function RangeBarsResearch(props: Props & RangeSettings) {
-  return <TickBarsResearch {...props} range />
+function volumeCsv(instrument: string, bars: VolumeBar[]) {
+  const header = 'instrument,first_observed_utc,available_utc,first_sequence,last_sequence,contributing_trades,first_contribution,last_contribution,target_volume,complete,open,high,low,close,volume'
+  const id = quoteText(instrument)
+  const rows = bars.map(({ bar, availableAt, firstSequence, lastSequence, contributingTrades,
+    firstContributionTicks, lastContributionTicks, targetVolumeTicks, complete, volumeTicks }) => [
+    id, bar.time, availableAt, firstSequence, lastSequence, contributingTrades,
+    fixed(firstContributionTicks, 6), fixed(lastContributionTicks, 6), fixed(targetVolumeTicks, 6), complete,
+    ...[bar.open, bar.high, bar.low, bar.close].map(value => fixed(BigInt(Math.round(value * 1e6)), 6)),
+    fixed(volumeTicks, 6),
+  ].join(','))
+  return [header, ...rows].join('\r\n') + '\r\n'
 }
 
-export function TickBarsResearch({ core, asset, close, range = false, savedRangeTicks, saveRangeTicks }:
-  Props & RangeSettings & { range?: boolean }) {
-  const mode = range ? 'range' : 'tick'
+export function RangeBarsResearch(props: Props & SizeSettings) {
+  return <TickBarsResearch {...props} mode="range" />
+}
+
+export function VolumeBarsResearch(props: Props & SizeSettings) {
+  return <TickBarsResearch {...props} mode="volume" />
+}
+
+export function TickBarsResearch({ core, asset, close, mode = 'tick', savedSizeTicks, saveSizeTicks }:
+  Props & SizeSettings & { mode?: Bars['mode'] }) {
   const [file, setFile] = useState<File | null>(null)
-  const [size, setSize] = useState(range ? fixed(BigInt(savedRangeTicks ?? 1_000_000), 6) : '10')
+  const [size, setSize] = useState(mode === 'tick' ? '10' :
+    fixed(BigInt(savedSizeTicks ?? (mode === 'volume' ? 100_000_000 : 1_000_000)), 6))
+  const sizeName = mode === 'volume' ? 'Volume target' : 'Range size'
   const [remembered, setRemembered] = useState(false)
   const [cutoff, setCutoff] = useState('')
   const [view, setView] = useState<BarView | null>(null)
@@ -54,23 +72,23 @@ export function TickBarsResearch({ core, asset, close, range = false, savedRange
   useEffect(() => title.current?.focus(), [])
   const chartAsset = useMemo(() => view ? { ...asset, bars: view.bars.map(entry => entry.bar) } : asset, [asset, view])
 
-  function rangeSize() {
+  function sizeTicks() {
     const ticks = parsePriceSize(size)
     if (ticks === null || ticks <= 0n || ticks > MAX_CHART_PRICE_TICKS)
-      throw new Error('Use a positive six-place price range.')
+      throw new Error(mode === 'volume' ? 'Use a positive six-place target volume.' : 'Use a positive six-place price range.')
     return ticks
   }
 
   async function remember() {
-    if (!saveRangeTicks || busy) return
+    if (!saveSizeTicks || busy) return
     setBusy(true)
     setProblem('')
     setRemembered(false)
     try {
-      await saveRangeTicks(Number(rangeSize()))
+      await saveSizeTicks(Number(sizeTicks()))
       setRemembered(true)
     } catch (cause) {
-      setProblem(cause instanceof Error ? cause.message : 'Could not save the range size.')
+      setProblem(cause instanceof Error ? cause.message : 'Could not save the selected size.')
     } finally {
       setBusy(false)
     }
@@ -85,14 +103,16 @@ export function TickBarsResearch({ core, asset, close, range = false, savedRange
       const knownAt = cutoff.trim()
       const csv = await file.text()
       const source = { fileName: file.name, cutoff: knownAt }
-      if (range) {
-        const bars = core.recordedRangeBars(asset.id, csv, rangeSize(), knownAt)
-        setView({ ...source, mode: 'range', version: ++version.current, bars })
-      } else {
-        if (!/^\d+$/.test(size.trim())) throw new Error('Enter a whole number of trades per bar.')
-        const bars = core.recordedTickBars(asset.id, csv, Number(size), knownAt)
-        setView({ ...source, mode: 'tick', version: ++version.current, bars })
+      let result: Bars
+      switch (mode) {
+        case 'tick':
+          if (!/^\d+$/.test(size.trim())) throw new Error('Enter a whole number of trades per bar.')
+          result = { mode, bars: core.recordedTickBars(asset.id, csv, Number(size), knownAt) }
+          break
+        case 'range': result = { mode, bars: core.recordedRangeBars(asset.id, csv, sizeTicks(), knownAt) }; break
+        case 'volume': result = { mode, bars: core.recordedVolumeBars(asset.id, csv, sizeTicks(), knownAt) }; break
       }
+      setView({ ...source, ...result, version: ++version.current })
     } catch (cause) {
       setProblem(cause instanceof Error ? cause.message : 'Could not build ' + mode + ' bars.')
     } finally {
@@ -102,7 +122,8 @@ export function TickBarsResearch({ core, asset, close, range = false, savedRange
 
   function exportBars(result: BarView) {
     const instrument = (asset.venue + '-' + asset.symbol).replace(/[^A-Za-z0-9_-]/g, '_')
-    const csv = result.mode === 'range' ? rangeCsv(asset.id, result.bars) : tickCsv(asset.id, result.bars)
+    const csv = result.mode === 'range' ? rangeCsv(asset.id, result.bars) :
+      result.mode === 'volume' ? volumeCsv(asset.id, result.bars) : tickCsv(asset.id, result.bars)
     downloadFile(instrument + '-' + result.mode + '-bars.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }))
   }
 
@@ -122,8 +143,8 @@ export function TickBarsResearch({ core, asset, close, range = false, savedRange
                 <input type="file" accept=".csv,text/csv" onChange={event => setFile(event.target.files?.[0] ?? null)}
                   disabled={busy} />
               </label>
-              <label>{range ? 'Price range (price units)' : 'Trades per bar'}
-                <input inputMode={range ? 'decimal' : 'numeric'} value={size}
+              <label>{mode === 'range' ? 'Price range (price units)' : mode === 'volume' ? 'Volume per bar' : 'Trades per bar'}
+                <input inputMode={mode === 'tick' ? 'numeric' : 'decimal'} value={size}
                   onChange={event => { setSize(event.target.value); setRemembered(false) }}
                   disabled={busy} />
               </label>
@@ -132,20 +153,22 @@ export function TickBarsResearch({ core, asset, close, range = false, savedRange
                   placeholder="YYYY-MM-DDTHH:MM:SSZ" />
               </label>
               <button className="primary" type="submit" disabled={!file || busy}>Build {mode} bars</button>
-              {saveRangeTicks && <button type="button" className="outline" disabled={busy}
-                onClick={() => void remember()}>Save range size for this pane</button>}
+              {saveSizeTicks && <button type="button" className="outline" disabled={busy}
+                onClick={() => void remember()}>Save {sizeName.toLowerCase()} for this pane</button>}
             </div>
           </form>
           <p>Use the CSV columns instrument, executed_at, observed_at, sequence, price and size.</p>
-          {range && <p>A recorded trade completes the bar when its price brings the high-to-low range to the chosen size or above.</p>}
-          {remembered && <p role="status">Range size saved for this pane.</p>}
+          {mode === 'range' && <p>A recorded trade completes the bar when its price brings the high-to-low range to the chosen size or above.</p>}
+          {mode === 'volume' && <p>A trade can contribute to multiple bars when its size crosses a volume boundary.</p>}
+          {remembered && <p role="status">{sizeName} saved for this pane.</p>}
           {problem && <p role="alert">{problem}</p>}
         </section>
         {view && (view.bars.length > 0 ? (
-          <section className="chart-card" aria-label={range ? 'Range bar chart' : 'Tick bar chart'}>
+          <section className="chart-card" aria-label={mode === 'range' ? 'Range bar chart' : mode === 'volume' ? 'Volume bar chart' : 'Tick bar chart'}>
             <p className="replay-panel">Source {view.fileName} · {view.cutoff ? 'Known through ' + view.cutoff : 'All recorded trades'}</p>
             <Chart key={view.version} asset={chartAsset} sma={[]} ema={[]}
-              ticks={view.mode === 'tick' ? view.bars : undefined} ranges={view.mode === 'range' ? view.bars : undefined} />
+              ticks={view.mode === 'tick' ? view.bars : undefined} ranges={view.mode === 'range' ? view.bars : undefined}
+              volumes={view.mode === 'volume' ? view.bars : undefined} />
             <div className="replay-controls">
               <button className="outline" onClick={() => exportBars(view)}>Download {mode} bars</button>
             </div>

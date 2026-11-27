@@ -88,6 +88,14 @@ Each bar closes when a recorded trade makes its high-to-low range reach or excee
 
 Hover a bar to inspect its target and actual range, completion state, observation time and exact capture sequences. Download the same fields alongside OHLCV. **Save range size for this pane** stores a reusable starting size and includes it in workspace backup. Select the trade file each time you open the tool.
 
+## Recorded volume bars
+
+Open **Recorded volume bars** for the primary instrument or **Comparison volume bars** under the comparison chart. Select a [recorded trade CSV](recorded-tick-bars.md), enter a positive volume target with up to six decimal places and optionally set an inclusive UTC observation cutoff.
+
+A completed bar contains exactly the entered volume. When a trade crosses the boundary, its remaining volume starts the next bar at that trade's price. Each portion keeps the original capture sequence and observation timestamp. A large trade can fill several bars that share a timestamp. The final bar is provisional while its volume is below target. [Constant-volume bar construction](https://www.sierrachart.com/index.php?page=doc/ChartSettings.html).
+
+Hover a bar to inspect its volume, status, date and capture sequences. The CSV also reports the volume contributed by the first and last trades and the number of contributing trades in each bar. One capture sequence can contribute to multiple bars. **Save volume target for this pane** saves the setting in the workspace backup. Select the trade file when you reopen the tool.
+
 ## Recorded trades
 
 The **Recorded tick bars** tool builds an independent chart from captured trades using an observation cutoff and trade count. [Recorded tick bars](recorded-tick-bars.md)
