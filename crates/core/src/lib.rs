@@ -148,11 +148,12 @@ pub use paper::{
 pub use paper_replay::{parse_paper_config, PaperReplay};
 pub use point_figure::{point_and_figure, PointFigureBox, PointFigureMark};
 pub use portfolio::{
-    portfolio_spin_off_cash_as_of, portfolio_spin_offs_as_of, ChildShares, PortfolioBook,
-    PortfolioCurrency, PortfolioDividendRow, PortfolioDividendState, PortfolioIncomeCurrency,
-    PortfolioIncomeSnapshot, PortfolioRow, PortfolioSnapshot, PortfolioSpinOffReport,
-    PortfolioSpinOffRow, PortfolioSpinOffState, PortfolioState, SpinOffCashRow, SpinOffCashState,
-    SpinOffCashTerms,
+    portfolio_spin_off_basis_as_of, portfolio_spin_off_cash_as_of, portfolio_spin_offs_as_of,
+    ChildShares, PortfolioBook, PortfolioCurrency, PortfolioDividendRow, PortfolioDividendState,
+    PortfolioIncomeCurrency, PortfolioIncomeSnapshot, PortfolioRow, PortfolioSnapshot,
+    PortfolioSpinOffReport, PortfolioSpinOffRow, PortfolioSpinOffState, PortfolioState,
+    SpinOffBasisAllocation, SpinOffBasisRow, SpinOffBasisState, SpinOffBasisTerms, SpinOffCashRow,
+    SpinOffCashState, SpinOffCashTerms,
 };
 pub use price_momentum::{
     commodity_channel_index, observed_drawdown, rate_of_change, rebased_percent_changes,

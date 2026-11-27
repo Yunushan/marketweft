@@ -245,3 +245,136 @@ fn cash_terms_require_a_known_action_and_distinct_valid_reports() {
         assert!(validate(&fixture).unwrap_err().contains(error));
     }
 }
+
+const BASIS_TERMS: &str = include_str!("fixtures/synthetic-spin-off-basis-terms.csv");
+
+#[test]
+fn spin_off_basis_conserves_original_amount_with_revised_terms_and_distribution() {
+    use marketweft_core::{portfolio_spin_off_basis_as_of, SpinOffBasisState};
+    let book = parse_universe(MEMBERSHIP).unwrap();
+    let rows = |effective, known| {
+        portfolio_spin_off_basis_as_of(
+            &book,
+            HOLDINGS,
+            REPORTS,
+            BASIS_TERMS,
+            time(effective),
+            time(known),
+        )
+        .unwrap()
+    };
+    let beta = |effective, known| {
+        rows(effective, known)
+            .into_iter()
+            .find(|row| row.id == "BETA-UNIT")
+            .unwrap()
+    };
+    let unavailable = beta("14:40:00", "14:27:59");
+    assert_eq!(unavailable.state, SpinOffBasisState::MissingTerms);
+    assert!(unavailable.terms.is_none());
+    assert!(unavailable.allocation.is_none());
+    let awaiting = beta("14:39:59", "14:40:00");
+    assert_eq!(awaiting.state, SpinOffBasisState::AwaitingDistribution);
+    assert!(awaiting.allocation.is_none());
+
+    let before = beta("14:40:00", "14:49:59");
+    assert_eq!(before.state, SpinOffBasisState::Allocated);
+    assert_eq!(
+        (
+            before.parent_listing.as_str(),
+            before.child_listing.as_str()
+        ),
+        ("BETA-001", "ALFA-001")
+    );
+    let first_terms = before.terms.unwrap();
+    assert_eq!(
+        (first_terms.currency.as_str(), first_terms.observed_at),
+        ("USD", time("14:28:00"))
+    );
+    let first_allocation = before.allocation.unwrap();
+    assert_eq!(first_allocation.retained_parent_basis, 750_000_003);
+    assert_eq!(first_allocation.child_basis, 250_000_001);
+
+    let postponed = beta("14:52:00", "14:52:00");
+    assert_eq!(postponed.distribution_at, time("14:55:00"));
+    assert_eq!(postponed.state, SpinOffBasisState::AwaitingDistribution);
+    assert_eq!(postponed.terms.unwrap().currency, "EUR");
+    let later = beta("14:55:00", "14:58:00");
+    assert_eq!(later.state, SpinOffBasisState::Allocated);
+    let terms = later.terms.unwrap();
+    let allocation = later.allocation.unwrap();
+    assert_eq!(allocation.child_basis, 300_000_001);
+    assert_eq!(allocation.retained_parent_basis, 900_000_001);
+    assert_eq!(
+        allocation.child_basis + allocation.retained_parent_basis,
+        terms.original_parent_basis
+    );
+
+    let other = rows("14:55:00", "14:58:00")
+        .into_iter()
+        .find(|row| row.id == "ALFA-UNIT")
+        .unwrap();
+    assert_eq!(other.child_listing, "BETA-002");
+    assert_eq!(other.state, SpinOffBasisState::MissingTerms);
+    let canceled = beta("14:55:00", "15:02:00");
+    assert_eq!(canceled.state, SpinOffBasisState::NoDistribution);
+    assert!(canceled.allocation.is_none());
+    assert_eq!(
+        beta("14:40:00", "14:49:59").allocation.unwrap(),
+        first_allocation
+    );
+}
+
+#[test]
+fn spin_off_basis_validates_source_and_keeps_missing_holdings_distinct() {
+    use marketweft_core::{portfolio_spin_off_basis_as_of, SpinOffBasisState};
+    let book = parse_universe(MEMBERSHIP).unwrap();
+    let query = |holdings: &str, basis: &str| {
+        portfolio_spin_off_basis_as_of(
+            &book,
+            holdings,
+            REPORTS,
+            basis,
+            time("14:55:00"),
+            time("14:58:00"),
+        )
+    };
+    let without_beta = HOLDINGS
+        .lines()
+        .filter(|row| !row.starts_with("DEMO-BASKET,BETA-001,"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let unknown = query(&without_beta, BASIS_TERMS)
+        .unwrap()
+        .into_iter()
+        .find(|row| row.id == "BETA-UNIT")
+        .unwrap();
+    assert_eq!(unknown.state, SpinOffBasisState::UnknownPosition);
+    assert!(unknown.terms.is_some());
+    assert!(unknown.allocation.is_none());
+
+    for (before, after, message) in [
+        ("BETA-UNIT", "Unknown", "action ID"),
+        ("USD", "usd", "uppercase currency"),
+        ("1000.000004", "-1", "original parent basis"),
+        ("0.25", "1.000001", "child basis fraction"),
+        ("14:28:00Z", "14:51:00Z", "distinct observation times"),
+    ] {
+        let invalid = BASIS_TERMS.replacen(before, after, 1);
+        assert!(
+            query(HOLDINGS, &invalid).unwrap_err().contains(message),
+            "{message}"
+        );
+    }
+    for (fraction, expected) in [("0", 0), ("1", 1_200_000_002)] {
+        let boundary = BASIS_TERMS.replace("0.25", fraction);
+        let beta = query(HOLDINGS, &boundary)
+            .unwrap()
+            .into_iter()
+            .find(|row| row.id == "BETA-UNIT")
+            .unwrap();
+        let allocation = beta.allocation.unwrap();
+        assert_eq!(allocation.child_basis, expected);
+        assert_eq!(allocation.retained_parent_basis + expected, 1_200_000_002);
+    }
+}

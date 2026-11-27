@@ -589,6 +589,24 @@ fn portfolio_report(
     Ok(text.into_bytes())
 }
 
+fn spin_off_term_inputs(
+    input: &str,
+    membership_bytes: usize,
+    holding_bytes: usize,
+    action_bytes: usize,
+) -> Result<(&str, &str, &str, &str), &'static str> {
+    let (membership, input) = input
+        .split_at_checked(membership_bytes)
+        .ok_or("Supply a universe membership report.")?;
+    let (holdings, input) = input
+        .split_at_checked(holding_bytes)
+        .ok_or("Supply portfolio holdings.")?;
+    let (actions, terms) = input
+        .split_at_checked(action_bytes)
+        .ok_or("Supply the spin-off reports and their terms.")?;
+    Ok((membership, holdings, actions, terms))
+}
+
 #[no_mangle]
 pub extern "C" fn mw_portfolio_spin_off_cash_as_of(
     membership_bytes: usize,
@@ -598,15 +616,8 @@ pub extern "C" fn mw_portfolio_spin_off_cash_as_of(
     use std::fmt::Write;
     process(|input| {
         let (effective, known, input) = portfolio_input(input)?;
-        let (membership, input) = input
-            .split_at_checked(membership_bytes)
-            .ok_or("Supply a universe membership report.")?;
-        let (holdings, input) = input
-            .split_at_checked(holding_bytes)
-            .ok_or("Supply portfolio holdings.")?;
-        let (actions, terms) = input
-            .split_at_checked(action_bytes)
-            .ok_or("Supply spin-off and cash terms reports.")?;
+        let (membership, holdings, actions, terms) =
+            spin_off_term_inputs(input, membership_bytes, holding_bytes, action_bytes)?;
         let universe = parse_universe(membership)?;
         let rows = crate::portfolio_spin_off_cash_as_of(
             &universe, holdings, actions, terms, effective, known,
@@ -646,6 +657,58 @@ pub extern "C" fn mw_portfolio_spin_off_cash_as_of(
                 row.amount
                     .map(|amount| amount.to_string())
                     .unwrap_or_default(),
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_portfolio_spin_off_basis_as_of(
+    membership_bytes: usize,
+    holding_bytes: usize,
+    action_bytes: usize,
+) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let (effective, known, input) = portfolio_input(input)?;
+        let (membership, holdings, actions, terms) =
+            spin_off_term_inputs(input, membership_bytes, holding_bytes, action_bytes)?;
+        let universe = parse_universe(membership)?;
+        let rows = crate::portfolio_spin_off_basis_as_of(
+            &universe, holdings, actions, terms, effective, known,
+        )?;
+        let mut text = String::new();
+        let number = |value: Option<i64>| value.map(|n| n.to_string()).unwrap_or_default();
+        for row in rows {
+            use crate::SpinOffBasisState::*;
+            let state = match row.state {
+                UnknownPosition => "unknown-position",
+                MissingTerms => "missing-terms",
+                NoDistribution => "no-distribution",
+                AwaitingDistribution => "awaiting-distribution",
+                Allocated => "allocated",
+            };
+            let terms = row.terms.as_ref();
+            writeln!(
+                text,
+                "{}\t{}\t{}\t{}\t{state}\t{}\t{}\t{}\t{}\t{}\t{}",
+                row.id,
+                row.parent_listing,
+                row.child_listing,
+                row.distribution_at,
+                terms
+                    .map(|terms| terms.currency.as_str())
+                    .unwrap_or_default(),
+                number(terms.map(|terms| terms.observed_at)),
+                number(terms.map(|terms| terms.original_parent_basis)),
+                number(terms.map(|terms| terms.child_basis_fraction)),
+                number(
+                    row.allocation
+                        .map(|allocation| allocation.retained_parent_basis)
+                ),
+                number(row.allocation.map(|allocation| allocation.child_basis)),
             )
             .unwrap();
         }

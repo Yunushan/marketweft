@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffCash } from './market-core'
+import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash } from './market-core'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoHoldings from '../../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv?raw'
@@ -9,8 +9,9 @@ import demoTerms from '../../../crates/core/tests/fixtures/synthetic-delisting-t
 import demoDividends from '../../../crates/core/tests/fixtures/synthetic-portfolio-dividends.csv?raw'
 import demoSpinOffs from '../../../crates/core/tests/fixtures/synthetic-portfolio-spin-offs.csv?raw'
 import demoCashTerms from '../../../crates/core/tests/fixtures/synthetic-spin-off-cash-terms.csv?raw'
+import demoBasisTerms from '../../../crates/core/tests/fixtures/synthetic-spin-off-basis-terms.csv?raw'
 
-type Source = { holdings: string; prices: string; terms: string; dividends: string; spinOffs: string; cashTerms: string }
+type Source = { holdings: string; prices: string; terms: string; dividends: string; spinOffs: string; cashTerms: string; basisTerms: string }
 const states = {
   unobserved: 'Listing unobserved',
   'missing-close': 'Close unavailable',
@@ -38,6 +39,13 @@ const spinOffCashStates: Record<PortfolioSpinOffCash['state'], string> = {
   receivable: 'Cash receivable',
   paid: 'Cash paid',
 }
+const spinOffBasisStates: Record<PortfolioSpinOffBasis['state'], string> = {
+  'unknown-position': 'Entitlement unavailable',
+  'missing-terms': 'Basis terms unavailable',
+  'no-distribution': 'No distribution',
+  'awaiting-distribution': 'Awaiting distribution',
+  allocated: 'Basis allocated',
+}
 const money = (value: bigint) => fixed(value, 6)
 
 function shareText(shares: PortfolioSpinOff['childShares']) {
@@ -60,6 +68,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   const [dividends, setDividends] = useState<File | null>(null)
   const [spinOffs, setSpinOffs] = useState<File | null>(null)
   const [cashTerms, setCashTerms] = useState<File | null>(null)
+  const [basisTerms, setBasisTerms] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const snapshot = useMemo(() => source
@@ -72,10 +81,15 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
     ? core.portfolioSpinOffCashAsOf(membership, source.holdings, source.spinOffs, source.cashTerms, effective, known)
     : null, [core, membership, source, effective, known])
 
+  const allocations = useMemo(() => source?.basisTerms
+    ? core.portfolioSpinOffBasisAsOf(membership, source.holdings, source.spinOffs, source.basisTerms, effective, known)
+    : null, [core, membership, source, effective, known])
+
   function open(source: Source) {
     core.portfolioAsOf(membership, source.holdings, source.prices, source.terms, effective, known, source.dividends)
     if (source.spinOffs) core.portfolioSpinOffsAsOf(membership, source.holdings, source.spinOffs, effective, known)
     if (source.cashTerms) core.portfolioSpinOffCashAsOf(membership, source.holdings, source.spinOffs, source.cashTerms, effective, known)
+    if (source.basisTerms) core.portfolioSpinOffBasisAsOf(membership, source.holdings, source.spinOffs, source.basisTerms, effective, known)
     setSource(source)
     setError('')
   }
@@ -84,7 +98,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
     try {
       open({ holdings: demoHoldings, prices: demoPrices, terms: demoTerms,
         dividends: mode === 'income' ? demoDividends : '', spinOffs: mode === 'spin-offs' ? demoSpinOffs : '',
-        cashTerms: mode === 'spin-offs' ? demoCashTerms : '' })
+        cashTerms: mode === 'spin-offs' ? demoCashTerms : '', basisTerms: mode === 'spin-offs' ? demoBasisTerms : '' })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio demo.')
     }
@@ -95,17 +109,19 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
     if (!holdings || !prices) return
     setBusy(true)
     try {
-      const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv, cashTermsCsv] = await Promise.all([
+      const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv, cashTermsCsv, basisTermsCsv] = await Promise.all([
         readReport(holdings, 2), readReport(prices, 2), terms ? readReport(terms, 1) : '',
         dividends ? readReport(dividends, 1) : '', spinOffs ? readReport(spinOffs, 1) : '',
-        cashTerms ? readReport(cashTerms, 1) : '',
+        cashTerms ? readReport(cashTerms, 1) : '', basisTerms ? readReport(basisTerms, 1) : '',
       ])
       if (dividends && !dividendCsv.trim()) throw new Error('Portfolio dividends CSV contains no reports.')
       if (spinOffs && !spinOffCsv.trim()) throw new Error('Portfolio spin-off CSV contains no reports.')
       if (cashTerms && !cashTermsCsv.trim()) throw new Error('Spin-off cash terms CSV contains no reports.')
       if (cashTerms && !spinOffCsv) throw new Error('Supply spin-off reports with the cash terms.')
+      if (basisTerms && !basisTermsCsv.trim()) throw new Error('Spin-off basis terms CSV contains no reports.')
+      if (basisTerms && !spinOffCsv) throw new Error('Supply spin-off reports with the basis terms.')
       open({ holdings: holdingCsv, prices: priceCsv, terms: termCsv, dividends: dividendCsv,
-        spinOffs: spinOffCsv, cashTerms: cashTermsCsv })
+        spinOffs: spinOffCsv, cashTerms: cashTermsCsv, basisTerms: basisTermsCsv })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio reports.')
     } finally {
@@ -151,12 +167,17 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <input type="file" accept=".csv,text/csv"
             onChange={event => setCashTerms(event.target.files?.[0] ?? null)} />
         </label>
+        <label>Spin-off basis terms CSV (optional)
+          <input type="file" accept=".csv,text/csv"
+            onChange={event => setBasisTerms(event.target.files?.[0] ?? null)} />
+        </label>
         <button className="outline" disabled={busy || !holdings || !prices}>Load portfolio reports</button>
       </form>
       {error && <p role="alert" className="warning replay-error">{error}</p>}
       {snapshot && <PortfolioResult snapshot={snapshot} />}
       {distributions && <SpinOffEntitlements rows={distributions} />}
       {settlements && settlements.length > 0 && <SpinOffSettlements rows={settlements} />}
+      {allocations && allocations.length > 0 && <SpinOffBasisAllocations rows={allocations} />}
     </section>
   )
 }
@@ -193,6 +214,26 @@ function SpinOffSettlements({ rows }: { rows: PortfolioSpinOffCash[] }) {
         <td>{row.terms === null ? '—' : money(row.terms.rate) + ' ' + row.terms.currency}</td>
         <td>{spinOffCashStates[row.state]}</td>
         <td>{row.amount === null ? '—' : [money(row.amount), row.terms?.currency].filter(Boolean).join(' ')}</td>
+      </tr>)}</tbody>
+    </table>
+  </div>
+}
+
+function SpinOffBasisAllocations({ rows }: { rows: PortfolioSpinOffBasis[] }) {
+  return <div className="replay-table-scroll">
+    <table className="universe-table" aria-label="Portfolio spin-off basis allocation">
+      <thead><tr><th scope="col">Action</th><th scope="col">Parent listing</th><th scope="col">Child listing</th>
+        <th scope="col">Distribution (UTC)</th><th scope="col">Terms observed (UTC)</th>
+        <th scope="col">Original basis</th><th scope="col">Child allocation</th>
+        <th scope="col">State</th><th scope="col">Retained parent basis</th><th scope="col">Child basis</th></tr></thead>
+      <tbody>{rows.map(row => <tr key={row.id}>
+        <th scope="row">{row.id}</th><td>{row.parent}</td><td>{row.child}</td><td>{utc(row.distributionAt)}</td>
+        <td>{row.terms ? utc(row.terms.observedAt) : '—'}</td>
+        <td>{row.terms ? money(row.terms.originalParentBasis) + ' ' + row.terms.currency : '—'}</td>
+        <td>{row.terms ? money(row.terms.childBasisFraction * 100n) + '%' : '—'}</td>
+        <td>{spinOffBasisStates[row.state]}</td>
+        <td>{row.allocation && row.terms ? money(row.allocation.retainedParentBasis) + ' ' + row.terms.currency : '—'}</td>
+        <td>{row.allocation && row.terms ? money(row.allocation.childBasis) + ' ' + row.terms.currency : '—'}</td>
       </tr>)}</tbody>
     </table>
   </div>

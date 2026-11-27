@@ -1,6 +1,6 @@
 # Point-in-time portfolio replay
 
-Open **Historical replay → Open universe replay** and load membership. In **Portfolio replay**, load a demo or provide holdings and close-price CSVs. Delisting terms, dividends, spin-offs and spin-off cash terms are optional. Use the universe effective and knowledge times for the portfolio query.
+Open **Historical replay → Open universe replay** and load membership. In **Portfolio replay**, load a demo or provide holdings and close-price CSVs. Delisting terms, dividends, spin-offs, spin-off cash terms and spin-off basis terms are optional. Use the universe effective and knowledge times for the portfolio query.
 
 | Input | Contract |
 | --- | --- |
@@ -11,6 +11,7 @@ Open **Historical replay → Open universe replay** and load membership. In **Po
 | Dividends | Dated terms by stable listing ID, with observed revisions, ex and pay times, distribution currency and amount per share. |
 | Spin-offs | Dated terms connecting a parent and child listing ID, with separate entitlement and distribution times and an exact share ratio. |
 | Spin-off cash terms | A cash rate per child share, currency, payment date and observation time for the spin-off action ID. |
+| Spin-off basis terms | Original total parent basis, currency, child allocation fraction and observation time for the spin-off action ID. |
 
 Holdings revisions share a listing and effective timestamp and have distinct observation times. A later observation may restate the quantity at that earlier effective time. The replay chooses the latest effective quantity visible at the query cutoffs. An explicit zero removes an ordinary holding from the view. A universe removal leaves an ordinary holding invested. At a known effective delisting, the ledger values the quantity held strictly before the delisting timestamp and preserves its listing ID. A new listing with the same ticker keeps a separate quantity and cash history.
 
@@ -53,7 +54,7 @@ Supply at most 1,000 reports in 1 MiB. Use distinct parent and child listing IDs
 
 At each query the newest report visible by the knowledge cutoff controls the action. The entitlement time must be effective. The parent quantity comes from the latest holding effective strictly before entitlement and known by the knowledge cutoff. A known delisting at entitlement or an explicit zero parent holding gives zero. Absent membership or pre-entitlement holdings appear as **Entitlement unavailable**. Positive child units are **Shares receivable** until the distribution time and **Shares distributed** at and after it.
 
-The table displays child shares as reduced fractions and shows the holding observation used for entitlement. The supplied holdings history remains authoritative for portfolio valuation. Record actual settlement quantities and subsequent trades in the holdings CSV. Cost-basis allocation remains roadmap work.
+The table displays child shares as reduced fractions and shows the holding observation used for entitlement. The supplied holdings history remains authoritative for portfolio valuation. Record actual settlement quantities and subsequent trades in the holdings CSV. Supply basis terms to replay the reported allocation of the original position basis.
 
 Choose **Load spin-off demo**. At effective 14:40 UTC with knowledge 14:49:59, BETA-UNIT shows 10/3 ALFA-001 shares distributed. Advancing knowledge to 14:50 restates that result to 20/3 shares receivable with a distribution time of 14:55. At effective 14:55 and known 14:58, corrected parent holdings yield 16/3 shares distributed. The cancellation becomes visible at known 15:02. BETA-001 and BETA-002 retain their own listing identities even though both use the BETA ticker. [Spin-off fixture](../crates/core/tests/fixtures/synthetic-portfolio-spin-offs.csv)
 
@@ -69,3 +70,16 @@ Load cash terms alongside the corresponding spin-off reports. Use exact UTC time
 The cash amount is the fractional remainder of the gross child entitlement multiplied by the latest rate known at the query cutoff. The engine rounds the amount once to the nearest millionth of the reported currency, with ties rounded up. A positive fractional claim becomes paid once both the distribution time and the pay date are effective. Missing terms and missing holdings each have their own state.
 
 In the spin-off demo, the original 10/3 shares yield 1 USD of cash at 14:48 UTC. A subsequent rate and distribution revision makes 4 EUR receivable at 14:52. At effective 14:55 and known 14:58, the holding correction yields 2 EUR paid. Rewinding the knowledge cutoff recovers the original rate and amount. [Cash terms fixture](../crates/core/tests/fixtures/synthetic-spin-off-cash-terms.csv)
+
+## Spin-off basis terms CSV
+
+```csv
+universe,action_id,observed_at,currency,original_parent_basis,child_basis_fraction
+DEMO-BASKET,BETA-UNIT,2025-06-02T14:28:00Z,USD,1000.000004,0.25
+```
+
+Load this CSV with the corresponding spin-off reports. Enter the original total basis of the parent holding used for entitlement, a nonnegative decimal up to 2,000,000,000 in the reported currency. Enter the fraction assigned to the gross child entitlement from 0 through 1. Both decimals can have up to six places. Each revision keeps the same action ID and specifies a distinct UTC observation time. Use three uppercase currency letters. Supply at most 1,000 reports in 1 MiB.
+
+The latest observed terms apply to the latest known distribution once it becomes effective. The engine rounds the child basis once to the nearest millionth, with ties rounded up, and takes its exact difference from the original to get the retained parent basis. Missing holdings, unavailable terms, pending distributions and canceled distributions have explicit states. The child basis covers the gross child entitlement. Lot-level allocation and gain or loss on fractional settlement remain roadmap work.
+
+In **Load spin-off demo**, the BETA-UNIT distribution at effective 14:40 UTC and known 14:49:59 allocates 250.000001 USD to ALFA-001 and leaves 750.000003 USD with BETA-001. At effective and known 14:52, the later terms are visible in EUR and the revised distribution is still pending. At effective 14:55 and known 14:58 the allocation is 300.000001 EUR to the child and 900.000001 EUR to the parent. The 15:02 cancellation removes both allocations. [Basis fixture](../crates/core/tests/fixtures/synthetic-spin-off-basis-terms.csv)

@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.190.0 · Point-in-time spin-off cost basis
+
+- The compiled Wasm fixture verifies exact USD and EUR allocations, timing revisions, half-millionth rounding, cancellation and rewind. Each allocation preserves every millionth of the reported total.
+- The offline browser fixture verifies the parent and child amounts through independent cutoffs and distinguishes delayed terms from a pending distribution.
+
+[Spin-off cost basis](portfolio-replay.md#spin-off-basis-terms-csv).
+
 ## 0.189.0 · Spin-off cash in lieu
 
 - Rust and Wasm fixtures verify the fractional remainder, both settlement dates, currency and rate revisions, whole-share zero settlement, single rounding and cancellation.

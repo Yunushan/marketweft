@@ -10,6 +10,29 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('spin-off basis allocations retain every millionth across cutoff revisions in Wasm', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
+  const [membership, holdings, reports, terms] = await Promise.all([
+    fixture('synthetic-universe.csv'), fixture('synthetic-portfolio-holdings.csv'),
+    fixture('synthetic-portfolio-spin-offs.csv'), fixture('synthetic-spin-off-basis-terms.csv'),
+  ]);
+  const time = label => '2025-06-02T' + label + 'Z';
+  const beta = (effective, known) => core.portfolioSpinOffBasisAsOf(membership, holdings, reports, terms,
+    time(effective), time(known)).find(row => row.id === 'BETA-UNIT');
+  assert.equal(beta('14:40:00', '14:27:59').state, 'missing-terms');
+  assert.equal(beta('14:52:00', '14:52:00').state, 'awaiting-distribution');
+  const first = beta('14:40:00', '14:49:59');
+  assert.equal(first.terms.currency, 'USD');
+  assert.deepEqual(first.allocation, { retainedParentBasis: 750000003n, childBasis: 250000001n });
+  const revised = beta('14:55:00', '14:58:00');
+  assert.equal(revised.terms.currency, 'EUR');
+  assert.equal(revised.terms.childBasisFraction, 250000n);
+  assert.deepEqual(revised.allocation, { retainedParentBasis: 900000001n, childBasis: 300000001n });
+  assert.equal(revised.allocation.retainedParentBasis + revised.allocation.childBasis, revised.terms.originalParentBasis);
+  assert.equal(beta('14:55:00', '15:02:00').allocation, null);
+  assert.deepEqual(beta('14:40:00', '14:49:59'), first);
+});
+
 test('spin-off cash in lieu preserves exact fractional settlements and revisions in Wasm', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, reports, terms] = await Promise.all([
