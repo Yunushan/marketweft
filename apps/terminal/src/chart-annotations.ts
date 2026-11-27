@@ -2,6 +2,7 @@ import { fixed, MAX_CHART_PRICE_TICKS, parsePriceSize } from './fixed-point'
 import type { DrawingEndpoint } from './market-core'
 import { utc } from './workspace'
 
+type TrianglePoints = [DrawingEndpoint, DrawingEndpoint, DrawingEndpoint]
 export type AnnotationCoordinate = 'price' | 'time'
 export type ChartAnnotation = { id: string } & (
   { kind: 'price'; ticks: number } | { kind: 'time'; time: number } |
@@ -10,7 +11,9 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'rectangle'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'channel'; start: DrawingEndpoint; end: DrawingEndpoint; offsetTicks: number } |
   { kind: 'polyline'; points: DrawingEndpoint[] } |
-  { kind: 'fibonacci'; start: DrawingEndpoint; end: DrawingEndpoint }
+  { kind: 'fibonacci'; start: DrawingEndpoint; end: DrawingEndpoint } |
+  { kind: 'ellipse'; start: DrawingEndpoint; end: DrawingEndpoint } |
+  { kind: 'triangle'; points: TrianglePoints }
 )
 type TwoPointAnnotation = Extract<ChartAnnotation, { end: DrawingEndpoint }>
 export type AnnotationKind = ChartAnnotation['kind']
@@ -27,6 +30,8 @@ export const ANNOTATION_NAMES = {
   channel: 'Parallel channel',
   polyline: 'Polyline',
   fibonacci: 'Fibonacci retracement',
+  ellipse: 'Ellipse',
+  triangle: 'Triangle',
 } as const
 
 export function sameEndpoint(first: DrawingEndpoint, second: DrawingEndpoint): boolean {
@@ -40,10 +45,12 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'ray': return second.kind === 'ray' && sameEndpoint(first.start, second.start)
     case 'trend':
     case 'rectangle':
+    case 'ellipse':
     case 'fibonacci':
       return second.kind === first.kind && sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
     case 'polyline':
-      return second.kind === 'polyline' && first.points.length === second.points.length &&
+    case 'triangle':
+      return second.kind === first.kind && first.points.length === second.points.length &&
         first.points.every((point, index) => sameEndpoint(point, second.points[index]))
     case 'channel':
       return second.kind === 'channel' && first.offsetTicks === second.offsetTicks &&
@@ -52,7 +59,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
 }
 
 export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
-  return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci'
+  return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci' || kind === 'ellipse'
 }
 
 export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void {
@@ -61,6 +68,8 @@ export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void
     throw Error('A trend line must have two different points.')
   if (kind === 'rectangle' && (start.time === end.time || start.ticks === end.ticks))
     throw Error('A rectangle needs two different times and two different prices.')
+  if (kind === 'ellipse' && (start.time === end.time || start.ticks === end.ticks))
+    throw Error('An ellipse needs two different times and two different prices.')
   if (kind === 'fibonacci' && (start.time === end.time || start.ticks === end.ticks))
     throw Error('A Fibonacci retracement needs two different times and two different prices.')
   if (kind === 'channel') {
@@ -76,6 +85,14 @@ export function validatePolyline(points: readonly DrawingEndpoint[]): void {
   if (points.length < 3) throw Error('A polyline needs at least three points.')
   if (points.some((point, index) => index > 0 && sameEndpoint(points[index - 1], point)))
     throw Error('Consecutive polyline points must differ.')
+}
+
+export function validateTriangle(points: DrawingEndpoint[]): asserts points is TrianglePoints {
+  if (points.length !== 3) throw Error('A triangle needs exactly three points.')
+  const [origin, second, third] = points
+  const firstProduct = BigInt(second.time - origin.time) * BigInt(third.ticks - origin.ticks)
+  const secondProduct = BigInt(third.time - origin.time) * BigInt(second.ticks - origin.ticks)
+  if (firstProduct === secondProduct) throw Error('Triangle points must enclose a nonzero area.')
 }
 
 const RETRACEMENT_LEVELS = [

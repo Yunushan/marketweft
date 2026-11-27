@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.129.0 adds editable polylines and Fibonacci retracements. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.130.0 adds editable chart ellipses and three-point triangles. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -132,9 +132,10 @@
 | Delivered · 0.127.0 | Horizontal rays and trend lines (MW-014) | Verify forward-only rays, exact UTC and price endpoints, chart picking, zoom projection and version 31 and 32 backups. [Horizontal rays and trend lines](docs/chart-workspace.md#horizontal-rays-and-trend-lines). |
 | Delivered · 0.128.0 | Chart rectangles and parallel channels (MW-014) | Verify opposite-corner placement, the signed offset of both channel endpoints, zero-area validation and exact version 33 restore. [Rectangles and parallel channels](docs/chart-workspace.md#rectangles-and-parallel-channels). |
 | Delivered · 0.129.0 | Polylines and Fibonacci retracements (MW-014) | Verify point order, exact signed retracement levels, chart picks and version 34 restore. [Polylines and Fibonacci retracements](docs/chart-workspace.md#polylines-and-fibonacci-retracements). |
+| Delivered · 0.130.0 | Chart ellipses and triangles (MW-014) | Verify ellipse bounds, ordered vertices, rejection of zero-area shapes and version 35 restore. [Ellipses and triangles](docs/chart-workspace.md#ellipses-and-triangles). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
-| P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Add editable ellipses and three-point triangles. Validate new chart types against fixtures and restore exact settings after migrations. |
+| P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Add editable chart notes and directional arrows. Validate new chart types against fixtures and restore exact settings after migrations. |
 | P1 | Simulation and research (MW-020, MW-021, MW-025) | Broaden reproducible strategy signals, portfolio-level optimization and execution inputs. |
 | P2 | Strategy language and extension model (MW-015, MW-016, MW-028) | Support isolated executable plugins and independent formula SDK conformance. Verify schema compatibility across SDKs and extend the read-only MCP research tools. |
 | P2 | Fundamental and event-driven research (MW-023, MW-026, MW-027) | Expose options analytics through native research interfaces. Add explicit webhook configuration, authenticated delivery, bounded retry, delivery receipts and authorized data sources. |

@@ -96,6 +96,12 @@ Choose **New Fibonacci retracement** to enter or pick the start and end of a pri
 
 The workspace keeps the exact anchors and point order. Version 34 backups store these tools and restore all earlier drawing formats. [Backup format](workspace-backup.md)
 
+## Ellipses and triangles
+
+Choose **New ellipse** and enter or pick two opposite corners of its bounding box. The ellipse accepts either corner first and requires different UTC times and prices.
+
+Choose **New triangle** and enter or pick three corners in UTC and signed prices. The points must enclose an area in time and price coordinates. The chart joins the vertices and fills the enclosed area. Both shapes follow the visible plot and chart type, and they retain exact coordinates in version 35 backups. [Backup format](workspace-backup.md)
+
 ## Moving-average periods
 
 Open **Indicators** to configure the primary chart. When the comparison pane is open, the same dialog provides a separate pair of period fields for it. Each field accepts a whole period from 1 to 100,000 bars. The default periods are 20 bars for SMA and 9 bars for EMA. Each overlay can be enabled independently.

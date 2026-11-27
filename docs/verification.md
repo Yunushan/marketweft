@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.130.0 · Ellipses and triangles
+
+| Check | Evidence |
+| --- | --- |
+| Browser chart | Chromium checks opposite corners in reverse order, an interpolated UTC vertex, exact ellipse bounds, and collinear point rejection. |
+| Workspace backup | Chromium checks version 35 coordinates, rejection of a rehashed collinear triangle, version 31 restoration, and reload. |
+
+[Ellipses and triangles](chart-workspace.md#ellipses-and-triangles) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.129.0 · Polylines and Fibonacci retracements
 
 | Check | Evidence |

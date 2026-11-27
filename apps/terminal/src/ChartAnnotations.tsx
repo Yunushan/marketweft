@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, validateAnnotationGeometry, validatePolyline,
+  ANNOTATION_NAMES, formatAnnotationAnchor, hasTwoPoints, parseAnnotationAnchor, validateAnnotationGeometry, validatePolyline, validateTriangle,
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint } from './market-core'
@@ -27,8 +27,12 @@ function draftAnnotation(draft: Draft, id: string): ChartAnnotation {
   const { kind, points } = draft
   if (kind === 'price') return { id, kind, ticks: parseAnnotationAnchor(kind, points[0].price) }
   if (kind === 'time') return { id, kind, time: parseAnnotationAnchor(kind, points[0].time) }
-  if (kind === 'polyline') {
+  if (kind === 'polyline' || kind === 'triangle') {
     const anchors = points.map(pointValue)
+    if (kind === 'triangle') {
+      validateTriangle(anchors)
+      return { id, kind, points: anchors }
+    }
     validatePolyline(anchors)
     return { id, kind, points: anchors }
   }
@@ -56,8 +60,11 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'polyline':
       return name + entry.points.length + ' points, ' +
         describePoint(entry.points[0]) + ' to ' + describePoint(entry.points[entry.points.length - 1])
+    case 'triangle':
+      return name + entry.points.map(describePoint).join(', ')
     case 'trend':
     case 'rectangle':
+    case 'ellipse':
     case 'fibonacci':
       return name + describePoint(entry.start) + ' to ' + describePoint(entry.end)
     case 'channel':
@@ -82,8 +89,8 @@ export function ChartAnnotations({
   function edit(kind: AnnotationKind, original?: ChartAnnotation) {
     setPicker(null)
     setError('')
-    const points = kind === 'polyline' ?
-      (original?.kind === 'polyline' ? original.points : [defaults.prior, defaults.start, defaults.end]).map(pointFields) :
+    const points = kind === 'polyline' || kind === 'triangle' ?
+      (original && 'points' in original ? original.points : [defaults.prior, defaults.start, defaults.end]).map(pointFields) :
       hasTwoPoints(kind) ? [pointFields(defaults.start), pointFields(defaults.end)] : [pointFields(defaults.end)]
     if (original?.kind === 'price') points[0].price = formatAnnotationAnchor('price', original.ticks)
     if (original?.kind === 'time') points[0].time = formatAnnotationAnchor('time', original.time)
@@ -128,10 +135,10 @@ export function ChartAnnotations({
   }
 
   function pointEditor(point: number, current: Draft) {
-    const polyline = current.kind === 'polyline'
-    const label = polyline ? 'Point ' + (point + 1) :
+    const vertex = current.kind === 'polyline' || current.kind === 'triangle'
+    const label = vertex ? 'Point ' + (point + 1) :
       hasTwoPoints(current.kind) ? point === 0 ? 'Start' : 'End' : ANNOTATION_NAMES[current.kind]
-    const pickLabel = polyline || hasTwoPoints(current.kind) ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
+    const pickLabel = vertex || hasTwoPoints(current.kind) ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
     const coordinates: readonly AnnotationCoordinate[] = current.kind === 'price' || current.kind === 'time' ?
       [current.kind] : ['time', 'price']
     return <fieldset key={point}>
@@ -148,7 +155,7 @@ export function ChartAnnotations({
       <button type="button" aria-pressed={picking === point} disabled={busy} onClick={() => pick(point)}>
         {pickLabel}
       </button>
-      {polyline && current.points.length > 3 && <button type="button" disabled={busy}
+      {current.kind === 'polyline' && current.points.length > 3 && <button type="button" disabled={busy}
         onClick={() => changePoints(current.points.filter((_, index) => index !== point))}>
         Remove {label.toLowerCase()}
       </button>}

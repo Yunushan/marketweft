@@ -32,14 +32,14 @@ async function restore(page, backup) {
 async function traceDrawings(page) {
   await page.addInitScript(() => {
     const proto = CanvasRenderingContext2D.prototype
-    const { scale, beginPath, moveTo, lineTo, stroke, strokeRect, fillText } = proto
+    const { scale, beginPath, moveTo, lineTo, stroke, strokeRect, fillText, ellipse } = proto
     const paths = new WeakMap()
     const primary = ctx => ctx.canvas.getAttribute('aria-label')?.startsWith('ANNOTATIONS interactive') &&
       ctx.canvas.closest('[aria-label="Primary chart pane"]')
     proto.scale = function (...args) {
       if (primary(this)) window.chartMarks = {
         prices: [], times: [], rays: [], trends: [], rectangles: [], channels: [],
-        polylines: [], retracements: [], labels: [], grid: [],
+        polylines: [], retracements: [], ellipses: [], triangles: [], labels: [], grid: [],
       }
       return scale.apply(this, args)
     }
@@ -57,6 +57,10 @@ async function traceDrawings(page) {
       if (primary(this) && this.strokeStyle === '#7eb4e2') window.chartMarks.rectangles.push(box)
       return strokeRect.apply(this, box)
     }
+    proto.ellipse = function (...args) {
+      if (primary(this) && this.strokeStyle === '#77c0a2') window.chartMarks.ellipses.push(args)
+      return ellipse.apply(this, args)
+    }
     proto.fillText = function (value, ...coords) {
       if (primary(this) && this.fillStyle === '#cbbce8') window.chartMarks.labels.push(value)
       return fillText.call(this, value, ...coords)
@@ -70,6 +74,7 @@ async function traceDrawings(page) {
         if (this.strokeStyle === '#ee9dbd') window.chartMarks.trends.push(path)
         if (this.strokeStyle === '#c3a662') window.chartMarks.channels.push(path)
         if (this.strokeStyle === '#9aaef0') window.chartMarks.polylines.push(path)
+        if (this.strokeStyle === '#b99969') window.chartMarks.triangles.push(path)
         if (this.strokeStyle === '#cbbce8') window.chartMarks.retracements.push(path)
         if (this.strokeStyle === '#293036' && path.length === 2) window.chartMarks.grid.push(path)
       }
@@ -467,4 +472,80 @@ test('polylines preserve point order and Fibonacci levels round exact signed pri
   await page.reload()
   await expect(tools(left).getByText(polylineText, { exact: true })).toBeVisible()
   await expect(tools(left).getByText(fibText, { exact: true })).toBeVisible()
+})
+
+test('ellipse bounds and noncollinear triangle vertices project and restore exactly', async ({ page }) => {
+  await traceDrawings(page)
+  const trace = () => page.evaluate(() => window.chartMarks)
+  const csv = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-directional.csv', import.meta.url), 'utf8')
+  await page.goto('/')
+  await openImport(page, 'ANNOTATIONS', csv)
+  await submitImport(page, 'ANNOTATIONS')
+  const left = pane(page)
+  const first = '2026-01-01T09:02:00Z'
+  const middle = '2026-01-01T09:04:00Z'
+  const last = '2026-01-01T09:06:00Z'
+  for (const time of [first, middle, last]) await add(left, 'Time marker', time)
+  for (const price of ['-5', '5']) await add(left, 'Price line', price)
+  const legacy = await downloadWorkspace(page)
+
+  async function setPoint(form, group, time, price) {
+    const point = form.getByRole('group', { name: group, exact: true })
+    await point.getByRole('textbox', { name: 'Time (UTC)' }).fill(time)
+    await point.getByRole('textbox', { name: 'Price' }).fill(price)
+  }
+
+  await tools(left).getByRole('button', { name: 'New ellipse' }).click()
+  const ellipse = editor(left, 'Ellipse')
+  await setPoint(ellipse, 'Start', last, '5')
+  await setPoint(ellipse, 'End', first, '5')
+  await ellipse.getByRole('button', { name: 'Save ellipse' }).click()
+  await expect(ellipse.getByRole('alert')).toContainText('two different prices')
+  await setPoint(ellipse, 'End', first, '-5')
+  await ellipse.getByRole('button', { name: 'Save ellipse' }).click()
+  const ellipseText = 'Ellipse 5 at ' + last + ' to -5 at ' + first
+  await expect(tools(left).getByText(ellipseText, { exact: true })).toBeVisible()
+  const marks = await trace()
+  const [x1, xMid, x2] = marks.times.map(path => path[0][0])
+  const [lower, upper] = marks.prices.map(path => path[0][1])
+  expect(marks.ellipses).toEqual([[(x1 + x2) / 2, (upper + lower) / 2, (x2 - x1) / 2, (lower - upper) / 2, 0, 0, 2 * Math.PI]])
+
+  await tools(left).getByRole('button', { name: 'New triangle' }).click()
+  const triangle = editor(left, 'Triangle')
+  await setPoint(triangle, 'Point 1', first, '-8')
+  await setPoint(triangle, 'Point 2', middle, '0')
+  await setPoint(triangle, 'Point 3', last, '8')
+  await triangle.getByRole('button', { name: 'Save triangle' }).click()
+  await expect(triangle.getByRole('alert')).toContainText('nonzero area')
+  await setPoint(triangle, 'Point 2', middle, '-2.000001')
+  await triangle.getByRole('button', { name: 'Save triangle' }).click()
+  const triangleText = 'Triangle -8 at ' + first + ', -2.000001 at ' + middle + ', 8 at ' + last
+  await expect(tools(left).getByText(triangleText, { exact: true })).toBeVisible()
+  expect((await trace()).triangles[0].map(([x]) => x)).toEqual([x1, xMid, x2])
+
+  const backup = await downloadWorkspace(page)
+  expect(backup.version).toBe(35)
+  const entries = backup.manifest.preferences.annotations['LOCAL:ANNOTATIONS']
+  const seconds = value => Date.parse(value) / 1000
+  expect(entries.slice(-2).map(({ id, ...entry }) => entry)).toEqual([
+    { kind: 'ellipse', start: { time: seconds(last), ticks: 5000000 }, end: { time: seconds(first), ticks: -5000000 } },
+    { kind: 'triangle', points: [
+      { time: seconds(first), ticks: -8000000 }, { time: seconds(middle), ticks: -2000001 }, { time: seconds(last), ticks: 8000000 },
+    ] },
+  ])
+  const invalid = structuredClone(backup)
+  invalid.manifest.preferences.annotations['LOCAL:ANNOTATIONS'].at(-1).points[1].ticks = 0
+  invalid.sha256 = createHash('sha256').update(canonical(invalid.manifest)).digest('hex')
+  await page.getByRole('button', { name: 'Workspace backup', exact: true }).click()
+  await selectBackup(page, invalid)
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('nonzero area')
+  await page.keyboard.press('Escape')
+
+  expect(legacy.version).toBe(31)
+  await restore(page, legacy)
+  await expect(tools(left).getByRole('listitem')).toHaveCount(5)
+  await restore(page, backup)
+  await page.reload()
+  await expect(tools(left).getByText(ellipseText, { exact: true })).toBeVisible()
+  await expect(tools(left).getByText(triangleText, { exact: true })).toBeVisible()
 })

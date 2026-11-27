@@ -1,5 +1,5 @@
 import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core'
-import { validAnnotationAnchor, validateAnnotationGeometry, validatePolyline } from './chart-annotations'
+import { validAnnotationAnchor, validateAnnotationGeometry, validatePolyline, validateTriangle } from './chart-annotations'
 import type { ChartAnnotation } from './chart-annotations'
 import { MAX_CHART_PRICE_TICKS } from './fixed-point'
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
@@ -199,7 +199,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
         const coordinateFields = {
           price: ['ticks'], time: ['time'], ray: ['start'], trend: ['start', 'end'],
           rectangle: ['start', 'end'], channel: ['start', 'end', 'offsetTicks'],
-          polyline: ['points'], fibonacci: ['start', 'end'],
+          polyline: ['points'], fibonacci: ['start', 'end'], ellipse: ['start', 'end'], triangle: ['points'],
         }
         if (typeof kind !== 'string' || !Object.hasOwn(coordinateFields, kind))
           throw Error('Invalid chart annotation type.')
@@ -218,9 +218,13 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           if (!validAnnotationAnchor(type, entry.time)) throw Error('Invalid chart annotation time.')
           return { id, kind: type, time: entry.time }
         }
-        if (type === 'polyline') {
-          if (!Array.isArray(entry.points)) throw Error('Invalid chart polyline points.')
+        if (type === 'polyline' || type === 'triangle') {
+          if (!Array.isArray(entry.points)) throw Error('Invalid chart annotation points.')
           const points = Array.from(entry.points, annotationEndpoint)
+          if (type === 'triangle') {
+            validateTriangle(points)
+            return { id, kind: type, points }
+          }
           validatePolyline(points)
           return { id, kind: type, points }
         }

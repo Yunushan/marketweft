@@ -479,6 +479,18 @@ function draw(
           }
         }
         ctx.stroke()
+      } else if (annotation.kind === 'triangle') {
+        const [first, second, third] = annotation.points.map(point => markerColumn(markerTimeline, point.time))
+        if (first === null || second === null || third === null) continue
+        ctx.fillStyle = 'rgba(185, 153, 105, 0.15)'
+        ctx.strokeStyle = '#b99969'
+        ctx.beginPath()
+        ctx.moveTo(x(first), y(annotation.points[0].ticks / 1e6))
+        ctx.lineTo(x(second), y(annotation.points[1].ticks / 1e6))
+        ctx.lineTo(x(third), y(annotation.points[2].ticks / 1e6))
+        ctx.closePath()
+        ctx.fill()
+        ctx.stroke()
       } else {
         const from = markerColumn(markerTimeline, annotation.start.time)
         const level = y(annotation.start.ticks / 1e6)
@@ -499,6 +511,14 @@ function draw(
             ctx.fillRect(...box)
             ctx.strokeStyle = '#7eb4e2'
             ctx.strokeRect(...box)
+          } else if (annotation.kind === 'ellipse') {
+            ctx.fillStyle = 'rgba(119, 192, 162, 0.15)'
+            ctx.strokeStyle = '#77c0a2'
+            ctx.beginPath()
+            ctx.ellipse((x1 + x2) / 2, (level + y2) / 2, Math.abs(x1 - x2) / 2, Math.abs(level - y2) / 2,
+              0, 0, 2 * Math.PI)
+            ctx.fill()
+            ctx.stroke()
           } else if (annotation.kind === 'fibonacci') {
             const first = Math.min(x1, x2)
             const last = Math.max(x1, x2)
