@@ -420,7 +420,7 @@ export function validChartIntervalSeconds(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 && value <= MAX_CHART_INTERVAL_SECONDS
 }
 
-function sourceRights(value: unknown): SourceRights {
+export function sourceRights(value: unknown): SourceRights {
   const keys: string[] = [...SOURCE_RIGHTS]
   if (value && typeof value === 'object' && Object.hasOwn(value, 'expiresOn')) keys.push('expiresOn')
   fields(value, keys, 'structured usage grant')

@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.200.0 · 0BSD**
+**0.201.0 · 0BSD**
 
 **ドキュメントの言語**
 
@@ -15,14 +15,14 @@
 
 MarketWeft はアナリスト、開発者、運用者向けのローカル優先の調査端末です。利用権がある OHLCV を開き、ローソク足と出来高を表示し、固定小数点で SMA と EMA を計算します。ウォッチリスト、選択銘柄、指標を IndexedDB に保存します。資材のキャッシュ後はオフラインで使えます。同梱の価格と出来高は合成データです。プロバイダーの口座は不要です。
 
-MarketWeft 0.200.0 は、2つの基準時点で資本の払戻しを比較し、現金、未収金、取得原価の正確な変化を通貨ごとに表示します。 MarketWeft 0.7.0 は、照会時点で利用可能な情報に基づき、価格リターンでユニバースを順位付けします。取引セッション単位のリプレイは、株式分割、現金配当、構成銘柄の変更、上場廃止に対応します。独立した trading-bot サービスの読み取り専用 TypeScript オブザーバーと、実験的な Tauri ラッパーも含まれます。データ配信、注文、署名済みインストーラー、マルチユーザー運用はロードマップに残っています。
+MarketWeft 0.201.0 は、記録済みおよび現在のデータ使用許諾に従って、しきい値と移動平均のアラート証拠をエクスポートします。 MarketWeft 0.7.0 は、照会時点で利用可能な情報に基づき、価格リターンでユニバースを順位付けします。取引セッション単位のリプレイは、株式分割、現金配当、構成銘柄の変更、上場廃止に対応します。独立した trading-bot サービスの読み取り専用 TypeScript オブザーバーと、実験的な Tauri ラッパーも含まれます。データ配信、注文、署名済みインストーラー、マルチユーザー運用はロードマップに残っています。
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Capital return comparison](../portfolio-capital-returns.md#compare-two-cutoffs)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Crossing alert export](../replay-alerts.md#export-crossing-alerts)
 
 <!-- section:02 -->
 ## ポータブル端末を起動
 
-成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.200.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
+成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.201.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
 
 ```sh
 node serve-terminal.mjs

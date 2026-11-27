@@ -113,6 +113,44 @@ async fn webhook_signs_exact_bytes_and_retries_transient_statuses_with_a_stable_
 }
 
 #[tokio::test]
+async fn a_browser_crossing_event_reaches_a_loopback_receiver_with_exact_evidence() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let requests = Requests::default();
+    let router = Router::new()
+        .route("/alerts", post(receive))
+        .with_state(requests.clone());
+    let server = tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+    let dir = tempdir().unwrap();
+    let config = dir.path().join("config.json");
+    let event = dir.path().join("crossing.json");
+    let secret = dir.path().join("key.txt");
+    let receipt = dir.path().join("receipt.json");
+    let document = include_str!("fixtures/crossing-webhook-event.json");
+    fs::write(
+        &config,
+        json!({"endpoint": format!("http://{address}/alerts"), "key_id": "test-key"}).to_string(),
+    )
+    .unwrap();
+    fs::write(&event, document).unwrap();
+    fs::write(&secret, "ab".repeat(32)).unwrap();
+
+    assert!(deliver_webhook(&config, &event, &secret, &receipt)
+        .await
+        .unwrap()
+        .delivered());
+    let captured = requests.lock().unwrap();
+    let (headers, _, body) = captured.last().unwrap();
+    assert_eq!(headers["idempotency-key"], "crossing:MEAN:R1:O2C");
+    let event: Value = serde_json::from_str(document).unwrap();
+    let envelope: Value = serde_json::from_slice(body).unwrap();
+    assert_eq!(envelope, json!({"version": 1, "event": event}));
+    server.abort();
+}
+
+#[tokio::test]
 async fn an_unconfigured_non_loopback_receiver_is_rejected_before_any_delivery() {
     let dir = tempdir().unwrap();
     let config = dir.path().join("config.json");

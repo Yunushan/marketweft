@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.201.0 · Rights-aware crossing alert export
+
+- Offline Chromium verifies that a threshold or moving-average alert exports its exact rule and observation evidence. The moving-average download matches the fixture sent by the native loopback webhook test.
+- Chromium verifies digest mismatch rejection, migration of an existing inbox, preserved deduplication, grant withdrawal from another tab, atomic storage rejection, stale revision rejection, UTC expiry and the restriction captured when the alert was saved.
+- The local 0.200.0 to 0.201.0 offline upgrade preserved a legacy crossing and downloaded the matching new event after loading the grant bundled in the archive.
+
+[Crossing alert export](replay-alerts.md#export-crossing-alerts)
+
 ## 0.200.0 · Capital return comparison
 
 - Rust verifies the transfer from receivable to cash at the payment cutoff, stable action matching, separate reversal and addition under a currency revision, and changes when either side lacks a known holding or basis.

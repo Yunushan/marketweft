@@ -166,8 +166,9 @@ option-underlying.csv and option-quotes.csv. Inspect the late quotes,
 unavailable observations, Greeks and implied volatility surface.
 
 Open Replay alerts under Historical replay and Start alert demo, or load
-alert-rules.csv and alert-observations.csv. Save the full replay to the
-local inbox twice to verify that each crossing is delivered once.
+alert-rules.csv and alert-observations.csv with alert-observation-grant.json.
+Save the full replay to the local inbox and open Show evidence to download
+a threshold or moving-average webhook event.
 
 Open Paper ledger under Historical replay and Start paper demo, or load
 paper-events.csv. Step through reserves, partial fills, fees and the halt.
@@ -262,6 +263,18 @@ def main():
         files[f"option-{kind}.csv"] = (fixture / f"synthetic-option-{kind}.csv").read_bytes()
     for kind in ("rules", "observations"):
         files[f"alert-{kind}.csv"] = (fixture / f"synthetic-alert-{kind}.csv").read_bytes()
+    files["alert-observation-grant.json"] = (json.dumps({
+        "format": "marketweft-observation-grant",
+        "version": 1,
+        "provider": "marketweft.demo",
+        "grant": "synthetic-alert-observations",
+        "observation_sha256": hashlib.sha256(files["alert-observations.csv"]).hexdigest(),
+        "revision": 1,
+        "rights": {
+            "display": "granted", "storage": "granted",
+            "automatedUse": "granted", "redistribution": "granted",
+        },
+    }, indent=2) + "\n").encode("utf-8")
     files["paper-events.csv"] = (fixture / "synthetic-paper-events.csv").read_bytes()
     for kind in ("sessions", "bars", "trades"):
         files[f"backtest-{kind}.csv"] = (fixture / f"synthetic-backtest-{kind}.csv").read_bytes()

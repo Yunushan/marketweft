@@ -46,3 +46,31 @@ Operators can use the standalone service's [signed webhook delivery command](loc
 In **Replay alerts → Alert inbox**, open a saved candlestick alert's **Show evidence** section and choose **Download webhook event**. The JSON contains the stable alert ID, the first UTC observation time, the rule revision, and the exact raw candle evidence. The file can be passed directly to the [signed webhook delivery command](local-webhook-delivery.md).
 
 Imported data must have explicit redistribution permission in both the grant recorded with the alert and the current matching catalog history. A later restriction or expiry blocks download. A replacement history with the same instrument ID cannot authorize the earlier alert. Older records without recorded provenance remain readable. The built-in synthetic demo records can be exported.
+
+## Export crossing alerts
+
+Save a threshold or moving-average crossing in the inbox, then open **Show evidence → Download webhook event**. The event includes the rule revision, both observation IDs and values, exact comparator numerators and counts, the crossing direction, and the triggering observation time. The delivery ID uses the rule, revision and triggering observation IDs with colon separators. The payload also includes the original inbox ID. The JSON follows the [signed webhook sender's event contract](local-webhook-delivery.md).
+
+The built-in synthetic demo supports export immediately. For an observation CSV supplied by a provider, attach **Alert observation grant JSON** with the terms that apply to the exact file. The example below uses a placeholder digest. The portable archive includes a working synthetic example named `alert-observation-grant.json`.
+
+~~~json
+{
+  "format": "marketweft-observation-grant",
+  "version": 1,
+  "provider": "demo-data",
+  "grant": "observations-2025-04",
+  "observation_sha256": "<lowercase SHA-256 of the exact observation CSV bytes>",
+  "revision": 1,
+  "rights": {
+    "display": "granted",
+    "storage": "granted",
+    "automatedUse": "granted",
+    "redistribution": "granted",
+    "expiresOn": "2027-04-30"
+  }
+}
+~~~
+
+Use a positive integer revision for each revision of the same provider, grant reference and file digest. Rights accept `granted`, `restricted` or `unconfirmed`. The optional expiry includes the specified UTC day. MarketWeft verifies the exact observation bytes, including line endings and any byte-order mark. It requires display and automated-use permission for replay, plus storage permission when saving.
+
+Use **Manage observation source grant** in the inbox to apply a newer grant or a withdrawal for the same provider, grant reference and digest. A lower or conflicting revision is rejected. Export requires redistribution permission in both the grant captured when the alert was saved and the current matching grant. A crossing saved from an unaccompanied CSV or an earlier inbox version remains available for local inspection.

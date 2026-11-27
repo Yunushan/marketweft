@@ -1,0 +1,35 @@
+{
+  "id": "crossing:MEAN:R1:O2C",
+  "kind": "sma-crossing",
+  "observed_at": "2025-04-03T14:03:00Z",
+  "data": {
+    "alert_id": "MEAN/R1/O2C",
+    "rule": {
+      "id": "MEAN",
+      "revision": "R1",
+      "series": "DEMO.CLOSE",
+      "effectiveAt": 1743688800,
+      "observedAt": 1743688800,
+      "kind": "sma",
+      "operand": "3",
+      "direction": "either"
+    },
+    "direction": "below",
+    "previous": {
+      "id": "O2",
+      "measuredAt": 1743688920,
+      "observedAt": 1743688920,
+      "ticks": "6000000",
+      "comparisonNumerator": "15000000",
+      "comparisonCount": 3
+    },
+    "current": {
+      "id": "O2C",
+      "measuredAt": 1743688920,
+      "observedAt": 1743688980,
+      "ticks": "3000000",
+      "comparisonNumerator": "12000000",
+      "comparisonCount": 3
+    }
+  }
+}

@@ -1,24 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { AlertCrossing, MarketCore } from './market-core'
-import { readAlertInbox, saveAlerts } from './alert-inbox'
+import { readAlertInbox, readObservationGrant, saveAlerts, updateObservationGrant } from './alert-inbox'
 import type { AlertInboxRecord } from './alert-inbox'
 import type { History } from './catalog-schema'
 import { downloadFile } from './download'
+import { crossingAlertEvent, readObservationGrantFile, requireObservationAccess } from './crossing-alert-export'
+import type { CrossingAlertSource, ObservationGrant } from './crossing-alert-export'
 import { patternAlertEvent } from './pattern-alert-export'
 import { patternNames, type PatternAlert } from './pattern-alert'
 import { Mark } from './Icons'
 import { fixed } from './fixed-point'
+import { sha256Bytes } from './sha256'
 import { utc } from './workspace'
 import demoRules from '../../../crates/core/tests/fixtures/synthetic-alert-rules.csv?raw'
 import demoObservations from '../../../crates/core/tests/fixtures/synthetic-alert-observations.csv?raw'
 
 type Query = { effective: string; known: string }
-type Source = { rules: string; observations: string; title: string; demo: boolean }
+type Source = { rules: string; observations: string; title: string; demo: boolean; proof?: CrossingAlertSource }
+
+function requireReplayAccess(grant: ObservationGrant, current: ObservationGrant | undefined) {
+  requireObservationAccess(grant, current, 'display')
+  requireObservationAccess(grant, current, 'automatedUse')
+}
 
 function PatternAlertRow({ row, download, exporting }: {
   row: PatternAlert
-  download?: (alert: PatternAlert) => void
+  download?: (alert: AlertInboxRecord) => void
   exporting?: boolean
 }) {
   return (
@@ -55,7 +63,7 @@ function PatternAlertRow({ row, download, exporting }: {
 function AlertTable({ title, rows, download, exporting }: {
   title: string
   rows: AlertInboxRecord[]
-  download?: (alert: PatternAlert) => void
+  download?: (alert: AlertInboxRecord) => void
   exporting?: boolean
 }) {
   return (
@@ -88,6 +96,9 @@ function AlertTable({ title, rows, download, exporting }: {
                       </div>
                     ))}
                   </dl>
+                  {download && row.source && <button className="outline" disabled={exporting} onClick={() => download(row)}>
+                    Download webhook event
+                  </button>}
                 </details>
               </td>
             </tr>
@@ -108,6 +119,10 @@ export function AlertReplay({ core, close, readHistory }: {
   const [preview, setPreview] = useState<(Query & { alerts: AlertCrossing[] }) | null>(null)
   const [rulesFile, setRulesFile] = useState<File | null>(null)
   const [observationsFile, setObservationsFile] = useState<File | null>(null)
+  const [observationGrantFile, setObservationGrantFile] = useState<File | null>(null)
+  const [grantUpdateFile, setGrantUpdateFile] = useState<File | null>(null)
+  const [updatingGrant, setUpdatingGrant] = useState(false)
+  const [grantStatus, setGrantStatus] = useState('')
   const [inbox, setInbox] = useState<{ total: number; recent: AlertInboxRecord[] }>({ total: 0, recent: [] })
   const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -117,17 +132,37 @@ export function AlertReplay({ core, close, readHistory }: {
   const [inboxError, setInboxError] = useState('')
   const heading = useRef<HTMLHeadingElement>(null)
 
-  async function download(alert: PatternAlert) {
-    if (exporting) return
+  async function download(alert: AlertInboxRecord) {
+    if (exporting || updatingGrant) return
     setExporting(true)
     setInboxError('')
     try {
-      const event = await patternAlertEvent(alert, readHistory)
-      downloadFile('marketweft-candlestick-event.json', new Blob([event], { type: 'application/json' }))
+      const event = 'type' in alert
+        ? await patternAlertEvent(alert, readHistory)
+        : await crossingAlertEvent(alert, readObservationGrant)
+      const filename = 'type' in alert ? 'marketweft-candlestick-event.json' : 'marketweft-crossing-event.json'
+      downloadFile(filename, new Blob([event], { type: 'application/json' }))
     } catch (cause) {
       setInboxError(cause instanceof Error ? cause.message : 'Could not export the webhook event.')
     } finally {
       setExporting(false)
+    }
+  }
+
+  async function applyGrant(event: FormEvent) {
+    event.preventDefault()
+    if (!grantUpdateFile || updatingGrant || exporting) return
+    setUpdatingGrant(true)
+    setGrantStatus('')
+    setInboxError('')
+    try {
+      const grant = await readObservationGrantFile(grantUpdateFile)
+      await updateObservationGrant(grant)
+      setGrantStatus('Observation source grant updated.')
+    } catch (cause) {
+      setInboxError(cause instanceof Error ? cause.message : 'Could not update the observation source grant.')
+    } finally {
+      setUpdatingGrant(false)
     }
   }
 
@@ -154,9 +189,9 @@ export function AlertReplay({ core, close, readHistory }: {
     setError('')
   }
 
-  function start(rules: string, observations: string, title: string, demo = false) {
+  function start(rules: string, observations: string, title: string, demo = false, proof?: CrossingAlertSource) {
     const lastObserved = core.alertIndex(rules, observations)
-    const inputs = { rules, observations, title, demo }
+    const inputs = { rules, observations, title, demo, proof }
     const at = demo ? '2025-04-03T14:00:00Z' : utc(lastObserved)
     run(inputs, { effective: at, known: at })
     setSource(inputs)
@@ -164,7 +199,7 @@ export function AlertReplay({ core, close, readHistory }: {
 
   function startDemo() {
     try {
-      start(demoRules, demoObservations, 'Synthetic alert rules and observations', true)
+      start(demoRules, demoObservations, 'Synthetic alert rules and observations', true, { kind: 'fixture' })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the alert demo.')
     }
@@ -176,12 +211,24 @@ export function AlertReplay({ core, close, readHistory }: {
     setBusy(true)
     setError('')
     try {
-      const read = async (file: File) => {
+      const read = (file: File) => {
         if (file.size > 1024 * 1024) throw new Error('Each alert CSV must fit within 1 MiB.')
-        return new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer())
+        return file.arrayBuffer()
       }
-      const [rules, observations] = await Promise.all([read(rulesFile), read(observationsFile)])
-      start(rules, observations, rulesFile.name + ' · ' + observationsFile.name)
+      const [ruleBytes, observationBytes] = await Promise.all([read(rulesFile), read(observationsFile)])
+      const decoder = new TextDecoder('utf-8', { fatal: true })
+      const rules = decoder.decode(ruleBytes)
+      const observations = decoder.decode(observationBytes)
+      let proof: CrossingAlertSource | undefined
+      if (observationGrantFile) {
+        const grant = await readObservationGrantFile(observationGrantFile)
+        if (await sha256Bytes(observationBytes) !== grant.digest)
+          throw Error('The observation CSV does not match the source grant SHA-256.')
+        requireReplayAccess(grant, grant)
+        await updateObservationGrant(grant)
+        proof = { kind: 'observations', grant }
+      }
+      start(rules, observations, rulesFile.name + ' · ' + observationsFile.name, false, proof)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load alert reports.')
     } finally {
@@ -189,12 +236,19 @@ export function AlertReplay({ core, close, readHistory }: {
     }
   }
 
-  function submit(query: Query) {
-    if (!source) return
+  async function submit(query: Query) {
+    if (!source || busy) return
+    setBusy(true)
     try {
+      if (source.proof?.kind === 'observations') {
+        const { grant } = source.proof
+        requireReplayAccess(grant, await readObservationGrant(grant))
+      }
       run(source, query)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not replay alert rules.')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -204,7 +258,8 @@ export function AlertReplay({ core, close, readHistory }: {
     setInboxError('')
     setSaved('')
     try {
-      const inserted = await saveAlerts(preview.alerts)
+      const proof = source?.proof
+      const inserted = await saveAlerts(proof ? preview.alerts.map(alert => ({ ...alert, source: proof })) : preview.alerts)
       setSaved(inserted + (inserted === 1 ? ' new alert saved.' : ' new alerts saved.'))
       await refresh()
     } catch (cause) {
@@ -239,6 +294,10 @@ export function AlertReplay({ core, close, readHistory }: {
                 <input type="file" accept=".csv,text/csv" required disabled={busy}
                   onChange={event => setObservationsFile(event.target.files?.[0] ?? null)} />
               </label>
+              <label>Alert observation grant JSON (optional)
+                <input type="file" accept=".json,application/json" disabled={busy}
+                  onChange={event => setObservationGrantFile(event.target.files?.[0] ?? null)} />
+              </label>
               <button className="primary" disabled={busy || !rulesFile || !observationsFile}>Load alert data</button>
             </form>
           </div>
@@ -246,17 +305,18 @@ export function AlertReplay({ core, close, readHistory }: {
           <section className="side-card replay-panel replay-results" aria-labelledby="alert-preview">
             <div className="replay-heading">
               <div><h2 id="alert-preview">Alert preview</h2><p>{source.title}</p></div>
-              <button className="outline" disabled={saving} onClick={() => {
+              <button className="outline" disabled={saving || busy} onClick={() => {
                 setSource(null)
                 setPreview(null)
                 setRulesFile(null)
                 setObservationsFile(null)
+                setObservationGrantFile(null)
                 setError('')
                 setSaved('')
                 heading.current?.focus()
               }}>Change alert data</button>
             </div>
-            <form className="universe-query" onSubmit={event => { event.preventDefault(); submit(draft) }}>
+            <form className="universe-query" onSubmit={event => { event.preventDefault(); void submit(draft) }}>
               <label>Effective time (UTC)
                 <input required value={draft.effective} spellCheck={false} autoComplete="off"
                   onChange={event => setDraft({ ...draft, effective: event.target.value })} />
@@ -265,7 +325,7 @@ export function AlertReplay({ core, close, readHistory }: {
                 <input required value={draft.known} spellCheck={false} autoComplete="off"
                   onChange={event => setDraft({ ...draft, known: event.target.value })} />
               </label>
-              <button className="primary" disabled={saving}>Run alert replay</button>
+              <button className="primary" disabled={saving || busy}>Run alert replay</button>
             </form>
             {source.demo && (
               <div className="replay-controls">
@@ -275,15 +335,15 @@ export function AlertReplay({ core, close, readHistory }: {
                   ['Full alert replay', '14:08:00'],
                 ].map(([label, time]) => {
                   const at = '2025-04-03T' + time + 'Z'
-                  return <button className="outline" disabled={saving} key={time}
-                    onClick={() => submit({ effective: at, known: at })}>{label}</button>
+                  return <button className="outline" disabled={saving || busy} key={time}
+                    onClick={() => void submit({ effective: at, known: at })}>{label}</button>
                 })}
               </div>
             )}
             <p role="status">{preview.alerts.length} crossings · Effective {preview.effective} · Known {preview.known}</p>
             {preview.alerts.length > 100 && <p>Showing the first 100 crossings. Saving includes the full replay.</p>}
             {preview.alerts.length > 0 && <AlertTable title="Alert preview" rows={preview.alerts.slice(0, 100)} />}
-            <button className="primary" disabled={saving || !preview.alerts.length} onClick={() => void save()}>
+            <button className="primary" disabled={saving || busy || !preview.alerts.length} onClick={() => void save()}>
               Save to alert inbox
             </button>
           </section>
@@ -296,8 +356,19 @@ export function AlertReplay({ core, close, readHistory }: {
           </div>
           {saved && <p role="status">{saved}</p>}
           {inboxError && <p className="warning" role="alert">{inboxError}</p>}
+          <details className="research-details">
+            <summary>Manage observation source grant</summary>
+            <form className="universe-query" onSubmit={applyGrant}>
+              <label>Current observation grant JSON
+                <input type="file" accept=".json,application/json" disabled={updatingGrant}
+                  onChange={event => setGrantUpdateFile(event.target.files?.[0] ?? null)} />
+              </label>
+              <button className="outline" disabled={!grantUpdateFile || updatingGrant || exporting}>Apply observation grant</button>
+            </form>
+            {grantStatus && <p role="status">{grantStatus}</p>}
+          </details>
           {inbox.total > inbox.recent.length && <p>Showing the 100 most recent alerts.</p>}
-          {inbox.recent.length > 0 && <AlertTable title="Saved alerts" rows={inbox.recent} download={alert => void download(alert)} exporting={exporting} />}
+          {inbox.recent.length > 0 && <AlertTable title="Saved alerts" rows={inbox.recent} download={alert => void download(alert)} exporting={exporting || updatingGrant} />}
         </section>
       </main>
     </>

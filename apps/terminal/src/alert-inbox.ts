@@ -1,19 +1,25 @@
-import type { AlertCrossing } from './market-core'
+import { observationGrantKey, requireObservationAccess } from './crossing-alert-export'
+import type { CrossingAlert, ObservationGrant } from './crossing-alert-export'
 import type { PatternAlert } from './pattern-alert'
 
-export type AlertInboxRecord = AlertCrossing | PatternAlert
+export type AlertInboxRecord = CrossingAlert | PatternAlert
 
 const DB_NAME = 'marketweft.alert-inbox'
 const STORE = 'notifications'
+const GRANTS = 'observation-grants'
 const RECENT_LIMIT = 100
 
 function openInbox(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1)
+    const request = indexedDB.open(DB_NAME, 2)
     let blocked = false
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore(STORE, { keyPath: 'id' })
-        .createIndex('observed', 'current.observedAt')
+    request.onupgradeneeded = event => {
+      if (event.oldVersion < 1) {
+        request.result.createObjectStore(STORE, { keyPath: 'id' })
+          .createIndex('observed', 'current.observedAt')
+      }
+      if (event.oldVersion < 2)
+        request.result.createObjectStore(GRANTS, { keyPath: ['provider', 'grant', 'digest'] })
     }
     request.onsuccess = () => {
       if (blocked) request.result.close()
@@ -31,7 +37,6 @@ function openInbox(): Promise<IDBDatabase> {
 }
 
 function evidence(record: AlertInboxRecord) {
-  if (!('type' in record)) return record
   const { source: _source, ...original } = record
   return original
 }
@@ -63,13 +68,33 @@ async function writeAlerts(distinct: ReadonlyMap<string, AlertInboxRecord>): Pro
   const db = await openInbox()
   try {
     return await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite', { durability: 'strict' })
+      const tx = db.transaction([STORE, GRANTS], 'readwrite', { durability: 'strict' })
       const store = tx.objectStore(STORE)
+      const grants = tx.objectStore(GRANTS)
       let inserted = 0
       let conflict: Error | null = null
       tx.oncomplete = () => resolve(inserted)
       tx.onabort = () => reject(conflict ?? tx.error ?? new DOMException('The alert batch was interrupted.', 'AbortError'))
+      const checked = new Set<string>()
       for (const record of distinct.values()) {
+        if (!('type' in record) && record.source?.kind === 'observations') {
+          const grant = record.source.grant
+          const key = observationGrantKey(grant)
+          const revision = JSON.stringify([...key, grant.revision])
+          if (!checked.has(revision)) {
+            checked.add(revision)
+            const status = grants.get(key) as IDBRequest<ObservationGrant | undefined>
+            status.onsuccess = () => {
+              try {
+                requireObservationAccess(grant, status.result, 'automatedUse')
+                requireObservationAccess(grant, status.result, 'storage')
+              } catch (cause) {
+                conflict = cause instanceof Error ? cause : Error('Could not verify observation storage permission.')
+                tx.abort()
+              }
+            }
+          }
+        }
         const lookup = store.get(record.id) as IDBRequest<AlertInboxRecord | undefined>
         lookup.onsuccess = () => {
           if (lookup.result === undefined) {
@@ -80,6 +105,46 @@ async function writeAlerts(distinct: ReadonlyMap<string, AlertInboxRecord>): Pro
           }
         }
       }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+export async function updateObservationGrant(grant: ObservationGrant): Promise<void> {
+  const db = await openInbox()
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(GRANTS, 'readwrite', { durability: 'strict' })
+      const grants = tx.objectStore(GRANTS)
+      const lookup = grants.get(observationGrantKey(grant)) as IDBRequest<ObservationGrant | undefined>
+      let conflict: Error | null = null
+      tx.oncomplete = () => resolve()
+      tx.onabort = () => reject(conflict ?? tx.error ?? Error('Could not update the observation source grant.'))
+      lookup.onsuccess = () => {
+        const current = lookup.result
+        if (current && grant.revision <= current.revision) {
+          if (grant.revision === current.revision && JSON.stringify(grant.rights) === JSON.stringify(current.rights)) return
+          conflict = Error('The observation grant revision is stale or conflicts with the current revision.')
+          tx.abort()
+          return
+        }
+        grants.put(grant)
+      }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+export async function readObservationGrant(grant: ObservationGrant): Promise<ObservationGrant | undefined> {
+  const db = await openInbox()
+  try {
+    return await new Promise((resolve, reject) => {
+      const lookup = db.transaction(GRANTS, 'readonly').objectStore(GRANTS)
+        .get(observationGrantKey(grant)) as IDBRequest<ObservationGrant | undefined>
+      lookup.onsuccess = () => resolve(lookup.result)
+      lookup.onerror = () => reject(lookup.error ?? Error('Could not read the observation source grant.'))
     })
   } finally {
     db.close()
