@@ -209,6 +209,7 @@ def main():
     files["universe-membership.csv"] = (fixture / "synthetic-universe.csv").read_bytes()
     files["delisting-terms.csv"] = (fixture / "synthetic-delisting-terms.csv").read_bytes()
     files["portfolio-holdings.csv"] = (fixture / "synthetic-portfolio-holdings.csv").read_bytes()
+    files["successor-shares.csv"] = (fixture / "synthetic-successor-shares.csv").read_bytes()
     files["portfolio-dividends.csv"] = (fixture / "synthetic-portfolio-dividends.csv").read_bytes()
     files["split-revisions.csv"] = (fixture / "synthetic-split-revisions.csv").read_bytes()
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()

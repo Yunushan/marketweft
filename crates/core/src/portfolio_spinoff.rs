@@ -1,4 +1,4 @@
-use super::parse_holdings;
+use super::{parse_holdings, MAX_SHARE_RATIO};
 use crate::{
     history::{decimal, exact_utc},
     universe::valid_id,
@@ -11,7 +11,6 @@ use std::{
 
 const HEADER: &str = "universe,action_id,parent_listing,child_listing,announced_at,entitlement_at,distribution_at,observed_at,numerator,denominator";
 const MAX_REPORTS: usize = 1_000;
-const MAX_RATIO: u32 = 1_000_000;
 const CASH_HEADER: &str = "universe,action_id,pay_at,observed_at,currency,amount_per_child_share";
 const BASIS_HEADER: &str =
     "universe,action_id,observed_at,currency,original_parent_basis,child_basis_fraction";
@@ -36,7 +35,7 @@ pub struct ChildShares {
 }
 
 impl ChildShares {
-    fn from_rate(parent_shares: u32, numerator: u32, denominator: u32) -> Self {
+    pub(super) fn from_rate(parent_shares: u32, numerator: u32, denominator: u32) -> Self {
         let numerator = u64::from(parent_shares) * u64::from(numerator);
         let mut divisor = denominator;
         let mut remainder = (numerator % u64::from(denominator)) as u32;
@@ -185,7 +184,7 @@ fn parse_reports(
                 .all(|byte| byte.is_ascii_digit())
                 .then(|| text.parse::<u32>().ok())
                 .flatten()
-                .filter(|&value| value <= MAX_RATIO)
+                .filter(|&value| value <= MAX_SHARE_RATIO)
         };
         let (Some(ratio_numerator), Some(ratio_denominator)) = (
             ratio(numerator),

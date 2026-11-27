@@ -418,6 +418,66 @@ fn portfolio_input(input: &[u8]) -> Result<(i64, i64, &str), String> {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_portfolio_successor_shares_as_of(
+    membership_bytes: usize,
+    holding_bytes: usize,
+) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let (effective, known, input) = portfolio_input(input)?;
+        let (membership, input) = input
+            .split_at_checked(membership_bytes)
+            .ok_or("Supply a universe membership report.")?;
+        let (holdings, terms) = input
+            .split_at_checked(holding_bytes)
+            .ok_or("Supply portfolio holdings and successor share terms.")?;
+        let universe = parse_universe(membership)?;
+        let rows =
+            crate::portfolio_successor_shares_as_of(&universe, holdings, terms, effective, known)?;
+        let mut text = String::new();
+        let optional_time =
+            |value: Option<i64>| value.map(|time| time.to_string()).unwrap_or_default();
+        for row in rows {
+            use crate::SuccessorShareState::*;
+            let state = match row.state {
+                MissingTerms => "missing-terms",
+                UnknownPosition => "unknown-position",
+                NoDistribution => "no-distribution",
+                Receivable => "receivable",
+                Delivered => "delivered",
+            };
+            let terms = row.terms.as_ref();
+            let rate = terms.map(|term| format!("{}/{}", term.numerator, term.denominator));
+            let amount = row
+                .successor_shares
+                .map(|shares| format!("{}/{}", shares.numerator, shares.denominator));
+            writeln!(
+                text,
+                "{}\t{}\t{}\t{}\t{state}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                row.delisting.listing_id,
+                row.delisting.change_id,
+                row.delisting.effective_at,
+                row.delisting.observed_at,
+                row.entitled_shares
+                    .map(|shares| shares.to_string())
+                    .unwrap_or_default(),
+                optional_time(row.position_effective_at),
+                optional_time(row.position_observed_at),
+                terms
+                    .map(|term| term.successor_listing.as_str())
+                    .unwrap_or_default(),
+                optional_time(terms.map(|term| term.observed_at)),
+                optional_time(terms.and_then(|term| term.deliver_at)),
+                rate.unwrap_or_default(),
+                amount.unwrap_or_default(),
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_portfolio_spin_offs_as_of(
     membership_bytes: usize,
     holding_bytes: usize,

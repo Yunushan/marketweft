@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.192.0 · Point-in-time delisting successor shares
+
+- Rust and Wasm exercise independent delisting, terms, holding and delivery cutoffs. The fixtures check the original 10/3 BETA-002 shares, the revised six ALFA-001 shares, missing terms, an unscheduled delivery and a zero revision. Rust also verifies a cancellation of the underlying delisting.
+- Offline Chromium checks the original and revised claims, stable IDs after ticker reuse, separate cash and positions, rewind and validation of a custom CSV. It verifies the catalog survives the rejected and accepted uploads.
+
+[Delisting successor shares](portfolio-replay.md#delisting-successor-shares-csv).
+
 ## 0.191.0 · Offline portable browser upgrades
 
 - Chromium verifies that an open page can still load its exact replay module offline while the replacement worker waits. It shows the pending update action after the replacement assets are cached.

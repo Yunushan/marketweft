@@ -11,6 +11,8 @@ use std::{
 mod income;
 #[path = "portfolio_spinoff.rs"]
 mod spinoff;
+#[path = "portfolio_successor.rs"]
+mod successor;
 pub(crate) use income::PortfolioIncomeReports;
 pub use income::{
     PortfolioDividendRow, PortfolioDividendState, PortfolioIncomeCurrency, PortfolioIncomeSnapshot,
@@ -22,6 +24,11 @@ pub use spinoff::{
     SpinOffCashState, SpinOffCashTerms,
 };
 
+pub use successor::{
+    portfolio_successor_shares_as_of, SuccessorShareRow, SuccessorShareState, SuccessorShareTerms,
+};
+
+const MAX_SHARE_RATIO: u32 = 1_000_000;
 const MAX_HOLDING_REPORTS: usize = 10_000;
 const MAX_HOLDING_LISTINGS: usize = 1_000;
 

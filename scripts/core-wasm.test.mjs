@@ -10,6 +10,29 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('successor share bridge keeps exact quantities and absence at both cutoffs', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
+  const [membership, holdings, terms] = await Promise.all([
+    fixture('synthetic-universe.csv'), fixture('synthetic-portfolio-holdings.csv'), fixture('synthetic-successor-shares.csv'),
+  ]);
+  const time = label => '2025-06-02T' + label + 'Z';
+  const query = (effective, known) => core.portfolioSuccessorSharesAsOf(membership, holdings, terms, time(effective), time(known));
+  assert.deepEqual(query('14:29:59', '15:00:00'), []);
+  assert.deepEqual(query('14:30:00', '14:34:59'), []);
+  assert.equal(query('14:30:00', '14:36:59')[0].terms, null);
+  const offer = query('14:48:59', '14:55:00')[0];
+  assert.equal(offer.terms.listing, 'BETA-002');
+  assert.equal(offer.state, 'receivable');
+  assert.deepEqual(offer.successorShares, { numerator: 10n, denominator: 3 });
+  assert.equal(query('14:49:00', '14:55:00')[0].state, 'delivered');
+  assert.equal(query('14:59:59', '14:57:00')[0].terms.deliverAt, null);
+  const revised = query('15:00:00', '15:00:00')[0];
+  assert.equal(revised.terms.listing, 'ALFA-001');
+  assert.equal(revised.entitledShares, 8);
+  assert.deepEqual(revised.successorShares, { numerator: 6n, denominator: 1 });
+  assert.equal(query('15:00:00', '15:02:00')[0].state, 'no-distribution');
+});
+
 test('spin-off basis allocations retain every millionth across cutoff revisions in Wasm', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, reports, terms] = await Promise.all([

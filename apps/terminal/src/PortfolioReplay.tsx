@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash } from './market-core'
+import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash, PortfolioSuccessorShare } from './market-core'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoHoldings from '../../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv?raw'
@@ -11,7 +11,9 @@ import demoSpinOffs from '../../../crates/core/tests/fixtures/synthetic-portfoli
 import demoCashTerms from '../../../crates/core/tests/fixtures/synthetic-spin-off-cash-terms.csv?raw'
 import demoBasisTerms from '../../../crates/core/tests/fixtures/synthetic-spin-off-basis-terms.csv?raw'
 
-type Source = { holdings: string; prices: string; terms: string; dividends: string; spinOffs: string; cashTerms: string; basisTerms: string }
+import demoSuccessors from '../../../crates/core/tests/fixtures/synthetic-successor-shares.csv?raw'
+
+type Source = { holdings: string; prices: string; terms: string; dividends: string; spinOffs: string; cashTerms: string; basisTerms: string; successors: string }
 const states = {
   unobserved: 'Listing unobserved',
   'missing-close': 'Close unavailable',
@@ -46,9 +48,16 @@ const spinOffBasisStates: Record<PortfolioSpinOffBasis['state'], string> = {
   'awaiting-distribution': 'Awaiting distribution',
   allocated: 'Basis allocated',
 }
+const successorShareStates: Record<PortfolioSuccessorShare['state'], string> = {
+  'missing-terms': 'Successor terms unavailable',
+  'unknown-position': 'Entitlement unavailable',
+  'no-distribution': 'No distribution',
+  receivable: 'Shares receivable',
+  delivered: 'Shares delivered',
+}
 const money = (value: bigint) => fixed(value, 6)
 
-function shareText(shares: PortfolioSpinOff['childShares']) {
+function shareText(shares: PortfolioSuccessorShare['successorShares']) {
   if (shares === null) return '—'
   return shares.denominator === 1 ? shares.numerator.toString() : shares.numerator + '/' + shares.denominator
 }
@@ -69,6 +78,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   const [spinOffs, setSpinOffs] = useState<File | null>(null)
   const [cashTerms, setCashTerms] = useState<File | null>(null)
   const [basisTerms, setBasisTerms] = useState<File | null>(null)
+  const [successors, setSuccessors] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const snapshot = useMemo(() => source
@@ -85,20 +95,26 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
     ? core.portfolioSpinOffBasisAsOf(membership, source.holdings, source.spinOffs, source.basisTerms, effective, known)
     : null, [core, membership, source, effective, known])
 
+  const successorClaims = useMemo(() => source?.successors
+    ? core.portfolioSuccessorSharesAsOf(membership, source.holdings, source.successors, effective, known)
+    : null, [core, membership, source, effective, known])
+
   function open(source: Source) {
     core.portfolioAsOf(membership, source.holdings, source.prices, source.terms, effective, known, source.dividends)
     if (source.spinOffs) core.portfolioSpinOffsAsOf(membership, source.holdings, source.spinOffs, effective, known)
     if (source.cashTerms) core.portfolioSpinOffCashAsOf(membership, source.holdings, source.spinOffs, source.cashTerms, effective, known)
     if (source.basisTerms) core.portfolioSpinOffBasisAsOf(membership, source.holdings, source.spinOffs, source.basisTerms, effective, known)
+    if (source.successors) core.portfolioSuccessorSharesAsOf(membership, source.holdings, source.successors, effective, known)
     setSource(source)
     setError('')
   }
 
-  function startDemo(mode?: 'income' | 'spin-offs') {
+  function startDemo(mode?: 'income' | 'spin-offs' | 'successors') {
     try {
       open({ holdings: demoHoldings, prices: demoPrices, terms: demoTerms,
         dividends: mode === 'income' ? demoDividends : '', spinOffs: mode === 'spin-offs' ? demoSpinOffs : '',
-        cashTerms: mode === 'spin-offs' ? demoCashTerms : '', basisTerms: mode === 'spin-offs' ? demoBasisTerms : '' })
+        cashTerms: mode === 'spin-offs' ? demoCashTerms : '', basisTerms: mode === 'spin-offs' ? demoBasisTerms : '',
+        successors: mode === 'successors' ? demoSuccessors : '' })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio demo.')
     }
@@ -109,10 +125,11 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
     if (!holdings || !prices) return
     setBusy(true)
     try {
-      const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv, cashTermsCsv, basisTermsCsv] = await Promise.all([
+      const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv, cashTermsCsv, basisTermsCsv, successorCsv] = await Promise.all([
         readReport(holdings, 2), readReport(prices, 2), terms ? readReport(terms, 1) : '',
         dividends ? readReport(dividends, 1) : '', spinOffs ? readReport(spinOffs, 1) : '',
         cashTerms ? readReport(cashTerms, 1) : '', basisTerms ? readReport(basisTerms, 1) : '',
+        successors ? readReport(successors, 1) : '',
       ])
       if (dividends && !dividendCsv.trim()) throw new Error('Portfolio dividends CSV contains no reports.')
       if (spinOffs && !spinOffCsv.trim()) throw new Error('Portfolio spin-off CSV contains no reports.')
@@ -120,8 +137,9 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
       if (cashTerms && !spinOffCsv) throw new Error('Supply spin-off reports with the cash terms.')
       if (basisTerms && !basisTermsCsv.trim()) throw new Error('Spin-off basis terms CSV contains no reports.')
       if (basisTerms && !spinOffCsv) throw new Error('Supply spin-off reports with the basis terms.')
+      if (successors && !successorCsv.trim()) throw new Error('Successor share terms CSV contains no reports.')
       open({ holdings: holdingCsv, prices: priceCsv, terms: termCsv, dividends: dividendCsv,
-        spinOffs: spinOffCsv, cashTerms: cashTermsCsv, basisTerms: basisTermsCsv })
+        spinOffs: spinOffCsv, cashTerms: cashTermsCsv, basisTerms: basisTermsCsv, successors: successorCsv })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the portfolio reports.')
     } finally {
@@ -140,6 +158,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <button className="outline" onClick={() => startDemo()} disabled={busy}>Load portfolio demo</button>
           <button className="outline" onClick={() => startDemo('income')} disabled={busy}>Load dividend income demo</button>
           <button className="outline" onClick={() => startDemo('spin-offs')} disabled={busy}>Load spin-off demo</button>
+          <button className="outline" onClick={() => startDemo('successors')} disabled={busy}>Load successor shares demo</button>
         </div>}
       </div>
       <form className="universe-query" onSubmit={load}>
@@ -171,15 +190,41 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <input type="file" accept=".csv,text/csv"
             onChange={event => setBasisTerms(event.target.files?.[0] ?? null)} />
         </label>
+        <label>Delisting successor shares CSV (optional)
+          <input type="file" accept=".csv,text/csv"
+            onChange={event => setSuccessors(event.target.files?.[0] ?? null)} />
+        </label>
         <button className="outline" disabled={busy || !holdings || !prices}>Load portfolio reports</button>
       </form>
       {error && <p role="alert" className="warning replay-error">{error}</p>}
       {snapshot && <PortfolioResult snapshot={snapshot} />}
+      {successorClaims && <SuccessorShareClaims rows={successorClaims} />}
       {distributions && <SpinOffEntitlements rows={distributions} />}
       {settlements && settlements.length > 0 && <SpinOffSettlements rows={settlements} />}
       {allocations && allocations.length > 0 && <SpinOffBasisAllocations rows={allocations} />}
     </section>
   )
+}
+
+function SuccessorShareClaims({ rows }: { rows: PortfolioSuccessorShare[] }) {
+  if (!rows.length) return <p>No successor share claims at these cutoffs.</p>
+  return <div className="replay-table-scroll">
+    <table className="universe-table" aria-label="Portfolio delisting successor shares">
+      <thead><tr><th scope="col">Delisting</th><th scope="col">Old listing</th><th scope="col">Successor listing</th>
+        <th scope="col">Delisting (UTC)</th><th scope="col">Delisting observed (UTC)</th>
+        <th scope="col">Old shares</th><th scope="col">Holding observed (UTC)</th>
+        <th scope="col">Terms observed (UTC)</th><th scope="col">Delivery (UTC)</th>
+        <th scope="col">Successor shares</th><th scope="col">State</th></tr></thead>
+      <tbody>{rows.map(row => <tr key={row.delisting}>
+        <th scope="row">{row.delisting}</th><td>{row.listing}</td><td>{row.terms?.listing ?? '—'}</td>
+        <td>{utc(row.delistedAt)}</td><td>{utc(row.delistingObservedAt)}</td><td>{row.entitledShares ?? '—'}</td>
+        <td>{row.positionObservedAt === null ? '—' : utc(row.positionObservedAt)}</td>
+        <td>{row.terms ? utc(row.terms.observedAt) : '—'}</td>
+        <td>{row.terms?.deliverAt == null ? '—' : utc(row.terms.deliverAt)}</td>
+        <td>{shareText(row.successorShares)}</td><td>{successorShareStates[row.state]}</td>
+      </tr>)}</tbody>
+    </table>
+  </div>
 }
 
 function SpinOffEntitlements({ rows }: { rows: PortfolioSpinOff[] }) {

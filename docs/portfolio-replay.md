@@ -1,6 +1,6 @@
 # Point-in-time portfolio replay
 
-Open **Historical replay → Open universe replay** and load membership. In **Portfolio replay**, load a demo or provide holdings and close-price CSVs. Delisting terms, dividends, spin-offs, spin-off cash terms and spin-off basis terms are optional. Use the universe effective and knowledge times for the portfolio query.
+Open **Historical replay → Open universe replay** and load membership. In **Portfolio replay**, load a demo or provide holdings and close-price CSVs. Delisting cash terms, successor share terms, dividends, spin-offs, spin-off cash terms and spin-off basis terms are optional. Use the universe effective and knowledge times for the portfolio query.
 
 | Input | Contract |
 | --- | --- |
@@ -8,6 +8,7 @@ Open **Historical replay → Open universe replay** and load membership. In **Po
 | Holdings | Absolute whole shares by listing with an effective time, observation time and declared currency for its closes. |
 | Closes | A close at the exact effective cutoff, from the latest quote revision observed by the knowledge cutoff. |
 | Delisting terms | Consideration in the reported currency, a payment time when available, and observation times for revisions. |
+| Delisting successor shares | An exchange ratio, stable successor listing, optional delivery time and observation time for a known delisting. |
 | Dividends | Dated terms by stable listing ID, with observed revisions, ex and pay times, distribution currency and amount per share. |
 | Spin-offs | Dated terms connecting a parent and child listing ID, with separate entitlement and distribution times and an exact share ratio. |
 | Spin-off cash terms | A cash rate per child share, currency, payment date and observation time for the spin-off action ID. |
@@ -83,3 +84,16 @@ Load this CSV with the corresponding spin-off reports. Enter the original total 
 The latest observed terms apply to the latest known distribution once it becomes effective. The engine rounds the child basis once to the nearest millionth, with ties rounded up, and takes its exact difference from the original to get the retained parent basis. Missing holdings, unavailable terms, pending distributions and canceled distributions have explicit states. The child basis covers the gross child entitlement. Lot-level allocation and gain or loss on fractional settlement remain roadmap work.
 
 In **Load spin-off demo**, the BETA-UNIT distribution at effective 14:40 UTC and known 14:49:59 allocates 250.000001 USD to ALFA-001 and leaves 750.000003 USD with BETA-001. At effective and known 14:52, the later terms are visible in EUR and the revised distribution is still pending. At effective 14:55 and known 14:58 the allocation is 300.000001 EUR to the child and 900.000001 EUR to the parent. The 15:02 cancellation removes both allocations. [Basis fixture](../crates/core/tests/fixtures/synthetic-spin-off-basis-terms.csv)
+
+## Delisting successor shares CSV
+
+```csv
+universe,listing_id,change_id,successor_listing,observed_at,deliver_at,numerator,denominator
+DEMO-BASKET,BETA-001,BETA-DELIST,BETA-002,2025-06-02T14:37:00Z,2025-06-02T14:49:00Z,1,3
+```
+
+Use the universe, original listing and change IDs of a reported delisting and a distinct successor listing ID from the same universe. Each revision has a distinct UTC observation time. The numerator may be 0 through 1,000,000 and the denominator must be 1 through 1,000,000. A zero numerator clears the stock consideration. Leave the delivery time blank for an unscheduled claim. Supply at most 5,000 reports in 1 MiB.
+
+The claim appears once the delisting is both effective and known. Its entitlement uses the last holding effective strictly before delisting and visible at the knowledge cutoff. The latest terms visible at that cutoff determine the successor listing, exact reduced share quantity and delivery time. An effective delivery marks the shares as delivered. A cancellation of the delisting removes the claim. The table keeps missing holdings, unavailable terms and zero consideration distinct.
+
+Select **Load successor shares demo**. At effective 14:30 UTC and known 14:34:59 the delisting is unavailable. At known 14:35 the claim appears with unavailable terms. The original terms produce 10/3 BETA-002 shares, delivered at 14:49. At effective and known 15:00, revised terms and an eight-share holding produce six delivered ALFA-001 shares. Moving knowledge to 15:02 clears the stock consideration. The supplied holdings CSV remains the source for ordinary portfolio positions, and cash consideration remains in the delisting cash columns. [Successor share fixture](../crates/core/tests/fixtures/synthetic-successor-shares.csv)
