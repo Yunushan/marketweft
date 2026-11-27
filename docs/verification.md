@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.187.0 · Fibonacci fan
+
+- The browser fixture verifies three exact crossing prices on a signed move and projects the rays through a gap in observed timestamps.
+- It changes the direction through an anchor edit, checks clipping and independent pane navigation, and restores the drawing and original history from a version 53 backup.
+
+[Fibonacci fan](chart-workspace.md#fibonacci-fan).
+
 ## 0.186.0 · Android APK provenance
 
 - A matching release tag gates the attestation job. The job requires a successful Android build and downloads both APKs by the artifact IDs that build returned.

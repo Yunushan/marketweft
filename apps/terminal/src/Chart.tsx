@@ -12,7 +12,7 @@ import { kagiLayout, kagiSegmentAt } from './kagi-chart'
 import type { KagiLayout } from './kagi-chart'
 import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
 import type { PointFigureLayout } from './point-figure-chart'
-import { pitchforkRays } from './pitchfork'
+import { fibonacciFanRays, pitchforkRays } from './annotation-rays'
 import { ChartExport } from './ChartExport'
 import type { AnchoredVwapSeries, CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
@@ -780,6 +780,13 @@ function draw(
           if (level < top || level > priceBottom) continue
           line(from, level, right, level, '#cbbce8')
           ctx.fillText(label + ' ' + fixed(ticks, 6), from + 4, level - 7)
+        }
+      } else if (annotation.kind === 'fibonacci-fan') {
+        const rays = fibonacciFanRays(annotation.start, annotation.end, markerTimeline, x, y, { left, right, top, bottom: priceBottom })
+        for (const ray of rays) {
+          if (!ray) continue
+          const [[startX, startY], [endX, endY]] = ray
+          line(startX, startY, endX, endY, '#64c7b6')
         }
       } else if (annotation.kind === 'pitchfork') {
         const rays = pitchforkRays(annotation.points, markerTimeline, x, y, { left, right, top, bottom: priceBottom })

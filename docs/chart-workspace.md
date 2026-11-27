@@ -174,6 +174,14 @@ Choose **New Fibonacci time zones** and enter or pick two increasing UTC times. 
 
 The chart places lines by UTC. Between adjacent observations it interpolates their display position using the elapsed time. **Projected times** lists the exact timestamps, including projections outside the displayed history. Dates beyond year 9999 are omitted. Both editable anchors are saved per instrument in workspace backup version 51. [Backup format](workspace-backup.md).
 
+## Fibonacci fan
+
+Choose **New Fibonacci fan** and enter or pick two points. **Start** is the common origin of the rays. **End** sets the time and price of the completed move. Choose a later end time and a different price. The fan supports rising and falling moves.
+
+At the end time, the three rays cross the prices reached at 38.2%, 50%, and 61.8% of the signed move from the start price. Open **Fan levels** to see the exact crossing prices, rounded to the nearest millionth with ties away from zero. The chart interpolates UTC anchors between observations and extends each ray to the visible plot boundary. A timeframe that maps both times to the same column has no visible fan until those anchors have distinct columns.
+
+Edit either anchor from the drawing list. The same instrument's drawings project through each pane's timeframe and viewport. A version 53 backup preserves the exact anchors and restores earlier formats. [Backup format](workspace-backup.md).
+
 ## Ellipses and triangles
 
 Choose **New ellipse** and enter or pick two opposite corners of its bounding box. The ellipse accepts either corner first and requires different UTC times and prices.

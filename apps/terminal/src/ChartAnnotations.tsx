@@ -1,7 +1,7 @@
 import { fixed } from './fixed-point'
 import { useState } from 'react'
 import {
-  ANNOTATION_NAMES, fibonacciExtensions, fibonacciTimeZones, formatAnnotationAnchor, hasPointList, hasRange, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
+  ANNOTATION_NAMES, fibonacciExtensions, fibonacciFanLevels, fibonacciTimeZones, formatAnnotationAnchor, hasPointList, hasRange, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint, MarketCore, RiskRewardMeasurement, RiskRewardSide } from './market-core'
@@ -98,6 +98,7 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'rectangle':
     case 'ellipse':
     case 'fibonacci':
+    case 'fibonacci-fan':
     case 'arrow':
       return name + describePoint(entry.start) + ' to ' + describePoint(entry.end)
     case 'risk-reward':
@@ -293,6 +294,13 @@ export function ChartAnnotations({
                 <summary>Projection levels</summary>
                 <div className="ohlc chart-overlay-values" role="group" aria-label="Fibonacci extension levels">
                   {fibonacciExtensions(entry.points).map(level =>
+                    <span key={level.label}><small>{level.label}</small> {fixed(level.ticks, 6)}</span>)}
+                </div>
+              </details>}
+              {entry.kind === 'fibonacci-fan' && <details className="research-details">
+                <summary>Fan levels</summary>
+                <div className="ohlc chart-overlay-values" role="group" aria-label="Fibonacci fan prices at the end time">
+                  {fibonacciFanLevels(entry.start.ticks, entry.end.ticks).map(level =>
                     <span key={level.label}><small>{level.label}</small> {fixed(level.ticks, 6)}</span>)}
                 </div>
               </details>}

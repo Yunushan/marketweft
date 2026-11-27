@@ -13,6 +13,7 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'channel'; start: DrawingEndpoint; end: DrawingEndpoint; offsetTicks: number } |
   { kind: 'polyline'; points: DrawingEndpoint[] } |
   { kind: 'fibonacci'; start: DrawingEndpoint; end: DrawingEndpoint } |
+  { kind: 'fibonacci-fan'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'fibonacci-extension'; points: TrianglePoints } |
   { kind: 'ellipse'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'triangle'; points: TrianglePoints } |
@@ -41,6 +42,7 @@ export const ANNOTATION_NAMES = {
   channel: 'Parallel channel',
   polyline: 'Polyline',
   fibonacci: 'Fibonacci retracement',
+  'fibonacci-fan': 'Fibonacci fan',
   'fibonacci-extension': 'Fibonacci price extension',
   'fibonacci-time-zones': 'Fibonacci time zones',
   ellipse: 'Ellipse',
@@ -74,6 +76,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'rectangle':
     case 'ellipse':
     case 'fibonacci':
+    case 'fibonacci-fan':
     case 'arrow':
       return second.kind === first.kind && sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
     case 'note':
@@ -98,7 +101,8 @@ export function hasPointList(kind: AnnotationKind): kind is 'polyline' | 'triang
 }
 
 export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
-  return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci' || kind === 'ellipse' || kind === 'arrow' || kind === 'risk-reward'
+  return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci' ||
+    kind === 'fibonacci-fan' || kind === 'ellipse' || kind === 'arrow' || kind === 'risk-reward'
 }
 
 export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void {
@@ -115,6 +119,8 @@ export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void
     throw Error('An ellipse needs two different times and two different prices.')
   if (kind === 'fibonacci' && (start.time === end.time || start.ticks === end.ticks))
     throw Error('A Fibonacci retracement needs two different times and two different prices.')
+  if (kind === 'fibonacci-fan' && (end.time <= start.time || start.ticks === end.ticks))
+    throw Error('A Fibonacci fan needs a later end time and two different prices.')
   if (kind === 'channel') {
     const offset = annotation.offsetTicks
     if (start.time === end.time || offset === 0)
@@ -174,13 +180,16 @@ const RETRACEMENT_LEVELS = [
   [618n, '61.8%'], [786n, '78.6%'], [1000n, '100%'],
 ] as const
 
+function roundFibonacciTicks(scaled: bigint) {
+  return (scaled + (scaled < 0n ? -500n : 500n)) / 1000n
+}
+
 export function fibonacciRetracements(start: number, end: number): { ticks: number; label: string }[] {
   const initial = BigInt(start)
   const final = BigInt(end)
   return RETRACEMENT_LEVELS.map(([ratio, label]) => {
     const scaled = final * 1000n + (initial - final) * ratio
-    const rounded = (scaled + (scaled < 0n ? -500n : 500n)) / 1000n
-    return { ticks: Number(rounded), label }
+    return { ticks: Number(roundFibonacciTicks(scaled)), label }
   })
 }
 
@@ -195,8 +204,18 @@ export function fibonacciExtensions(points: Readonly<TrianglePoints>) {
   const origin = BigInt(anchor.ticks) * 1000n
   return EXTENSION_LEVELS.map(([ratio, label]) => {
     const scaled = origin + change * ratio
-    return { ticks: (scaled + (scaled < 0n ? -500n : 500n)) / 1000n, label }
+    return { ticks: roundFibonacciTicks(scaled), label }
   })
+}
+
+const FAN_LEVELS = [[382n, '38.2%'], [500n, '50%'], [618n, '61.8%']] as const
+
+export function fibonacciFanLevels(start: number, end: number) {
+  const initial = BigInt(start)
+  const move = BigInt(end) - initial
+  return FAN_LEVELS.map(([ratio, label]) => ({
+    ticks: roundFibonacciTicks(initial * 1000n + move * ratio), label,
+  }))
 }
 
 const TIME_ZONE_MULTIPLIERS = [0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89] as const
