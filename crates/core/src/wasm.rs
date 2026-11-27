@@ -2868,6 +2868,14 @@ pub extern "C" fn mw_donchian_channels(period: usize) -> u32 {
     process(|input| crate::donchian_channels(period, &decode_bars(input)?).map(encode_price_bands))
 }
 
+#[no_mangle]
+pub extern "C" fn mw_keltner_channels(ema_period: usize, atr_period: usize) -> u32 {
+    process(|input| {
+        crate::keltner_channels(ema_period, atr_period, &decode_bars(input)?)
+            .map(encode_price_bands)
+    })
+}
+
 fn encode_price_bands(bands: Vec<Option<crate::PriceBand>>) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(24 * bands.len());
     for band in bands {

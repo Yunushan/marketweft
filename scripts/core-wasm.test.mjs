@@ -1301,3 +1301,20 @@ test('Donchian Channels consume observed OHLC and preserve exact signed window b
   assert.throws(() => core.donchianChannels(1, [{ ...bars[0], high: -4 }]), /OHLCV/i);
   assert.throws(() => core.donchianChannels(0, bars), /100,000/);
 });
+
+test('Keltner Channels combine separate close EMA and Wilder ATR windows', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-atr.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const band = (lower, middle, upper) => ({ lower, middle, upper });
+  const expected = [null, null, band(2_500_000n, 14_000_000n, 25_500_000n),
+    band(-17_750_000n, 6_000_000n, 29_750_000n), band(-19_375_000n, -500_000n, 18_375_000n),
+    band(-13_187_500n, -3_750_000n, 5_687_500n), band(-10_093_752n, -5_375_000n, -656_248n)];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.keltnerChannels(3, 2, bars.slice(0, end)), expected.slice(0, end));
+  }
+  assert.deepEqual(core.keltnerChannels(1, 3, bars)[2], band(2_000_000n, 14_000_000n, 26_000_000n));
+  assert.deepEqual(core.keltnerChannels(1, 1, [{
+    time: 0, open: 2e9, high: 2e9, low: -2e9, close: 2e9, volume: 0,
+  }]), [band(-6_000_000_000_000_000n, 2_000_000_000_000_000n, 10_000_000_000_000_000n)]);
+  assert.throws(() => core.keltnerChannels(1, 0, bars), /100,000/);
+});

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { OverlayPeriods } from './catalog-schema'
 import { MAX_INDICATOR_PERIOD, validIndicatorPeriod } from './market-core'
-import { STUDIES, validStudyPeriod } from './studies'
+import { DEFAULT_KELTNER_ATR_PERIOD, STUDIES, validStudyPeriod } from './studies'
 import type { StudyKind, StudySettings } from './studies'
 
 export function IndicatorPeriods({ label, periods, saving, onApply }: {
@@ -52,16 +52,20 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
   const { name, minPeriod } = STUDIES[kind]
   const [enabled, setEnabled] = useState(settings.enabled)
   const [period, setPeriod] = useState(String(settings.period))
+  const [atrPeriod, setAtrPeriod] = useState(String(settings.atrPeriod ?? DEFAULT_KELTNER_ATR_PERIOD))
+  const needsAtrPeriod = kind === 'keltner'
   const [error, setError] = useState(false)
   return (
     <form className="indicator-periods" aria-label={label} onSubmit={event => {
       event.preventDefault()
       const bars = Number(period)
-      if (!/^\d+$/.test(period.trim()) || !validStudyPeriod(kind, bars)) {
+      const rangeBars = Number(atrPeriod)
+      if (!/^\d+$/.test(period.trim()) || !validStudyPeriod(kind, bars) ||
+          needsAtrPeriod && (!/^\d+$/.test(atrPeriod.trim()) || !validIndicatorPeriod(rangeBars))) {
         setError(true)
         return
       }
-      onApply({ enabled, period: bars })
+      onApply({ enabled, period: bars, ...(needsAtrPeriod && { atrPeriod: rangeBars }) })
     }}>
       <fieldset>
         <legend>{label}</legend>
@@ -69,12 +73,18 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
           <input type="checkbox" checked={enabled} disabled={saving}
             onChange={event => setEnabled(event.target.checked)} />
         </label>
-        <label>{name} period (bars)
+        <label>{needsAtrPeriod ? 'Keltner EMA' : name} period (bars)
           <input type="text" inputMode="numeric" value={period} disabled={saving}
             onChange={event => { setPeriod(event.target.value); setError(false) }} />
         </label>
+        {needsAtrPeriod && <label>Keltner ATR period (bars)
+          <input type="text" inputMode="numeric" value={atrPeriod} disabled={saving}
+            onChange={event => { setAtrPeriod(event.target.value); setError(false) }} />
+        </label>}
         <button type="submit" disabled={saving}>Apply {name}</button>
-        {error && <p role="alert">Enter a whole {name} period from {minPeriod} through 100,000 bars.</p>}
+        {error && <p role="alert">{needsAtrPeriod ?
+          'Enter whole EMA and ATR periods from 1 through 100,000 bars.' :
+          `Enter a whole ${name} period from ${minPeriod} through 100,000 bars.`}</p>}
       </fieldset>
     </form>
   )

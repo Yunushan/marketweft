@@ -615,7 +615,8 @@ export function App({
   }
   function setStudy(pane: ChartPane, kind: StudyKind, settings: StudySettings) {
     const { rsi: legacy, studies: current, ...preferences } = ws
-    const useDefault = !settings.enabled && settings.period === STUDIES[kind].defaultPeriod
+    const defaults = defaultStudySettings(kind)
+    const useDefault = !settings.enabled && settings.period === defaults.period && settings.atrPeriod === defaults.atrPeriod
     if (useDefault && kind !== 'rsi' && !current) return
     if (kind === 'rsi' && !current) {
       const rsi = { ...legacy }
@@ -1155,7 +1156,7 @@ export function App({
                 onApply={periods => setPeriods('primary', periods)} />
               {STUDY_KINDS.map(kind => {
                 const settings = primaryStudies[kind] ?? defaultStudySettings(kind)
-                return <StudyControls key={`primary-${kind}:${settings.period}:${settings.enabled}`}
+                return <StudyControls key={`primary-${kind}:${settings.period}:${settings.atrPeriod ?? ''}:${settings.enabled}`}
                   kind={kind} label={'Primary chart ' + STUDIES[kind].name} settings={settings} saving={saving}
                   onApply={value => setStudy('primary', kind, value)} />
               })}
@@ -1165,7 +1166,7 @@ export function App({
                   onApply={periods => setPeriods('comparison', periods)} />
                 {STUDY_KINDS.map(kind => {
                   const settings = comparisonStudies[kind] ?? defaultStudySettings(kind)
-                  return <StudyControls key={`comparison-${kind}:${settings.period}:${settings.enabled}`}
+                  return <StudyControls key={`comparison-${kind}:${settings.period}:${settings.atrPeriod ?? ''}:${settings.enabled}`}
                     kind={kind} label={'Comparison chart ' + STUDIES[kind].name} settings={settings} saving={saving}
                     onApply={value => setStudy('comparison', kind, value)} />
                 })}

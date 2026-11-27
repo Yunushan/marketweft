@@ -888,6 +888,7 @@ export interface MarketCore {
   indicator(kind: 'sma' | 'ema' | 'rsi' | 'atr', period: number, bars: readonly Bar[]): (number | null)[];
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
+  keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
   bollingerMeasures(period: number, bars: readonly Bar[]): BollingerMeasures[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
   splitBook(instrument: string, csv: string): Split[];
@@ -980,6 +981,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_atr(period: number): number;
   mw_bollinger_bands(period: number): number;
   mw_donchian_channels(period: number): number;
+  mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
   mw_bollinger_measures(period: number): number;
   mw_formula_version(): number;
   mw_evaluate_formula(sourceBytes: number): number;
@@ -1763,6 +1765,13 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const dest = input(bars.length * 48);
       for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Donchian Channels');
       return readPriceBands(output(api.mw_donchian_channels(period)));
+    },
+    keltnerChannels(emaPeriod, atrPeriod, bars) {
+      if (!validIndicatorPeriod(emaPeriod) || !validIndicatorPeriod(atrPeriod) || bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Series and indicator periods must fit within 100,000 bars.');
+      const dest = input(bars.length * 48);
+      for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Keltner Channels');
+      return readPriceBands(output(api.mw_keltner_channels(emaPeriod, atrPeriod)));
     },
     bollingerMeasures(period, bars) {
       if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)

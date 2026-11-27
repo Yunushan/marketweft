@@ -219,10 +219,15 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       const studies: StudySet = {}
       for (const [kind, entry] of entries) {
         if (!isStudyKind(kind)) throw Error('Unknown configured study.')
-        fields(entry, ['enabled', 'period'], 'pane study settings')
+        fields(entry, kind === 'keltner' ? ['enabled', 'period', 'atrPeriod'] : ['enabled', 'period'], 'pane study settings')
         if (typeof entry.enabled !== 'boolean' || !validStudyPeriod(kind, entry.period))
           throw Error('Invalid enabled setting or period for the configured study.')
-        studies[kind] = { enabled: entry.enabled, period: entry.period }
+        const study: StudySettings = { enabled: entry.enabled, period: entry.period }
+        if (kind === 'keltner') {
+          if (!validStudyPeriod(kind, entry.atrPeriod)) throw Error('Invalid Keltner ATR period.')
+          study.atrPeriod = entry.atrPeriod
+        }
+        studies[kind] = study
       }
       return [pane, studies]
     }))

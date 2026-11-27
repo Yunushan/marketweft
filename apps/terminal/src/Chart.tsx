@@ -866,10 +866,11 @@ export function Chart({
             fixed(value, 6) + '%' : fixed(BigInt(Math.round(value * 1e6)), 6)}</span>
         </div>
       })}
-      {bandStudies.map(({ kind, period, bands }) => {
+      {bandStudies.map(study => {
+        const { kind, period, bands } = study
         const value = bands[sourceIndex]
         return <div key={kind} className="ohlc chart-overlay-values" role="group" aria-label={STUDIES[kind].label}>
-          <span><small>{BAND_STYLE[kind].name} {period}</small></span>
+          <span><small>{BAND_STYLE[kind].name} {kind === 'keltner' ? `${period}/${study.atrPeriod}` : period}</small></span>
           {BAND_LINES.map(({ key, label }) =>
             <span key={key}><small>{label}</small> {value ? fixed(value[key], 6) : '—'}</span>)}
         </div>

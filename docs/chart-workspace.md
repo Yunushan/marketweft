@@ -112,6 +112,14 @@ The window includes the current source bar and uses 20 bars by default. Enter a 
 
 The research CSV exports `donchian_lower_20`, `donchian_middle_20` and `donchian_upper_20` for a 20-bar period. The cells stay empty during warm-up. Values use the source OHLC bars for the selected timeframe, including on chart styles derived from close prices.
 
+### Keltner Channels
+
+Enable **Keltner Channels** in either pane’s indicator settings. The middle line is the close EMA. The outer lines are the EMA plus or minus twice the Wilder ATR. Each pane saves separate EMA and ATR periods from 1 through 100,000 bars. The defaults are 20 bars for EMA and 10 for ATR. [StockCharts’ modern Keltner Channels calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/keltner-channels).
+
+The EMA starts at the first full-window average of closes. Wilder ATR incorporates the previous observed close when measuring each true range. The channels appear once both studies are available and use the same six-decimal EMA and ATR values as the standalone studies. The outer lines coincide with the EMA when the ATR is zero. All three lines use the price axis.
+
+For the default periods, the research CSV exports `keltner_lower_20_10`, `keltner_middle_20_10` and `keltner_upper_20_10`. Both periods are part of the column names. The export leaves warm-up cells empty.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

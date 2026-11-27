@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.116.0 · Keltner Channels
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Exact vectors vary the EMA and ATR periods independently, check observed close gaps, and verify warm-up, flat ranges, the full supported source-price span and prefix stability. |
+| Browser chart and export | Offline Chromium checks the paths against price-axis bounds, reads exact values on hover and verifies every research CSV cell, including warm-up. |
+| Workspace | Version 21 stores both periods per pane. Version 20 restores with its original Donchian settings. The controls reject a zero ATR period. |
+
+[Keltner Channels](chart-workspace.md#keltner-channels) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.115.0 · Donchian Channels
 
 | Check | Evidence |
