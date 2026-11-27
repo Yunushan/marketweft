@@ -4,6 +4,7 @@
 
 - Rust and Wasm exercise independent delisting, terms, holding and delivery cutoffs. The fixtures check the original 10/3 BETA-002 shares, the revised six ALFA-001 shares, missing terms, an unscheduled delivery and a zero revision. Rust also verifies a cancellation of the underlying delisting.
 - Offline Chromium checks the original and revised claims, stable IDs after ticker reuse, separate cash and positions, rewind and validation of a custom CSV. It verifies the catalog survives the rejected and accepted uploads.
+- A same-profile upgrade from the hosted 0.191.0 browser archive to the locally built 0.192.0 archive retained the imported chart and replayed six delivered ALFA-001 shares offline.
 
 [Delisting successor shares](portfolio-replay.md#delisting-successor-shares-csv).
 
