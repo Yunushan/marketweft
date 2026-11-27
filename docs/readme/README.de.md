@@ -15,7 +15,7 @@
 
 MarketWeft ist ein lokal arbeitendes Rechercheterminal für Analysten, Entwickler und Betreiber. Es öffnet berechtigte OHLCV-Dateien, zeichnet Kerzen und Volumen, berechnet SMA und EMA in Festkommaarithmetik und speichert Beobachtungsliste, Instrument und Indikatoren in IndexedDB. Nach dem Zwischenspeichern der Anwendung funktioniert es offline. Die mitgelieferten Kurse und Volumina sind synthetisch und brauchen kein Konto.
 
-MarketWeft 0.166.0 prüft native Windows-11-ARM64-Builds der Desktopanwendung und der Forschungsengine. MarketWeft 0.7.0 ergänzt eine historische Rangliste nach Kursrendite anhand der zum Abfragezeitpunkt bekannten Daten. Die sitzungsbasierte Wiedergabe umfasst Aktiensplits, Bardividenden, Indexzugehörigkeit und Delistings. Das Repository enthält außerdem einen schreibgeschützten TypeScript-Beobachter für den getrennten Dienst trading-bot sowie eine experimentelle Tauri-Hülle. Datenfeeds, Orderaufgabe, signierte Installationspakete und Mehrbenutzer-Hosting stehen weiter auf der Roadmap.
+MarketWeft 0.166.0 prüft native Windows-11-ARM64-Builds der Desktopanwendung und der Forschungsengine. Der Windows-ARM64-Job prüft außerdem den CSV-Import über natives WebView2. MarketWeft 0.7.0 ergänzt eine historische Rangliste nach Kursrendite anhand der zum Abfragezeitpunkt bekannten Daten. Die sitzungsbasierte Wiedergabe umfasst Aktiensplits, Bardividenden, Indexzugehörigkeit und Delistings. Das Repository enthält außerdem einen schreibgeschützten TypeScript-Beobachter für den getrennten Dienst trading-bot sowie eine experimentelle Tauri-Hülle. Datenfeeds, Orderaufgabe, signierte Installationspakete und Mehrbenutzer-Hosting stehen weiter auf der Roadmap.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 

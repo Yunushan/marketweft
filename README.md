@@ -15,7 +15,7 @@
 
 MarketWeft is a local-first research terminal for analysts, developers and operators who need inspectable historical market data. The browser opens authorized OHLCV files, renders interactive candles and volume, calculates fixed-point SMA and EMA, and saves the watchlist, selected instrument and overlays in IndexedDB. The application works offline after its assets are cached. Its bundled prices and volumes are synthetic and require no provider account.
 
-MarketWeft 0.166.0 adds native Windows 11 ARM64 build verification for the desktop app and research engine. MarketWeft 0.7.0 adds point-in-time universe screening by price return. Session-aware replay includes stock splits, cash dividends, membership and delistings. The repository also includes a read-only TypeScript observer for a separate trading-bot service and an experimental Tauri wrapper. Provider feeds, order entry, signed native installers and multi-user hosting remain roadmap work.
+MarketWeft 0.166.0 adds native Windows 11 ARM64 build verification for the desktop app and research engine. The Windows ARM64 job also verifies CSV import in native WebView2. MarketWeft 0.7.0 adds point-in-time universe screening by price return. Session-aware replay includes stock splits, cash dividends, membership and delistings. The repository also includes a read-only TypeScript observer for a separate trading-bot service and an experimental Tauri wrapper. Provider feeds, order entry, signed native installers and multi-user hosting remain roadmap work.
 
 [ROADMAP.md](ROADMAP.md) · [docs/coverage.md](docs/coverage.md)
 

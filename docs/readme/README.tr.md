@@ -15,7 +15,7 @@
 
 MarketWeft analistler, geliştiriciler ve operatörler için yerel öncelikli bir araştırma terminalidir. İzinli OHLCV dosyalarını açar, etkileşimli mumları ve hacmi çizer, sabit noktalı SMA ve EMA hesaplar. İzleme listesi, seçili araç ve göstergeler IndexedDB'de tutulur. Kaynaklar önbelleğe alındıktan sonra çevrimdışı çalışır. Hazır fiyat ve hacimler sentetiktir ve sağlayıcı hesabı gerektirmez.
 
-MarketWeft 0.166.0, masaüstü uygulaması ve araştırma motoru için yerel Windows 11 ARM64 derleme doğrulaması ekler. MarketWeft 0.7.0, sorgu anında bilinen verilerle fiyat getirisine göre noktasal evren taraması ekler. Seans tabanlı yeniden oynatma hisse bölünmelerini, nakit temettüleri, üyeliği ve kot dışı kalmayı kapsar. Depoda ayrı trading-bot hizmeti için salt okunur bir TypeScript gözlemcisi ve deneysel Tauri sarmalayıcısı da bulunur. Veri akışları, emir iletimi, imzalı kurucular ve çok kullanıcılı barındırma yol haritasındadır.
+MarketWeft 0.166.0, masaüstü uygulaması ve araştırma motoru için yerel Windows 11 ARM64 derleme doğrulaması ekler. Windows ARM64 görevi yerel WebView2 ile CSV içe aktarmayı da doğrular. MarketWeft 0.7.0, sorgu anında bilinen verilerle fiyat getirisine göre noktasal evren taraması ekler. Seans tabanlı yeniden oynatma hisse bölünmelerini, nakit temettüleri, üyeliği ve kot dışı kalmayı kapsar. Depoda ayrı trading-bot hizmeti için salt okunur bir TypeScript gözlemcisi ve deneysel Tauri sarmalayıcısı da bulunur. Veri akışları, emir iletimi, imzalı kurucular ve çok kullanıcılı barındırma yol haritasındadır.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 

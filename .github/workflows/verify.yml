@@ -328,13 +328,17 @@ jobs:
         run: |
           python -B scripts/verify_windows_arch.py $env:MACHINE target/release/marketweft-research.exe apps/desktop/target/debug/marketweft-desktop.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Verify CSV import in the Windows x64 desktop executable
-        if: matrix.os == 'windows-2022'
+      - name: Verify CSV import in the native Windows desktop executable
+        if: runner.os == 'Windows'
         timeout-minutes: 5
+        env:
+          MACHINE: ${{ matrix.os == 'windows-11-arm' && 'arm64' || 'x64' }}
         shell: pwsh
         run: |
-          if ($env:RUNNER_ARCH -ne 'X64') { throw 'Expected an x64 Windows host.' }
-          $driver = & scripts/stage_edge_webdriver.ps1 -Architecture x64 -OutputDirectory (Join-Path $env:RUNNER_TEMP 'marketweft-webview2-driver')
+          if ($env:RUNNER_ARCH -ne $env:MACHINE) { throw 'The Windows runner architecture did not match the test target.' }
+          $driver = & scripts/stage_edge_webdriver.ps1 -Architecture $env:MACHINE -OutputDirectory (Join-Path $env:RUNNER_TEMP 'marketweft-webview2-driver')
+          python -B scripts/verify_windows_arch.py $env:MACHINE $driver
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -B apps/desktop/tests/import_webview.py apps/desktop/target/debug/marketweft-desktop.exe --driver $driver
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify the native macOS host and Mach-O binaries

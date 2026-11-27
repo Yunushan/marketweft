@@ -15,7 +15,7 @@
 
 MarketWeft tashar bincike ce da ke aiki a na’urar mai amfani. Tana buɗe OHLCV da aka ba da izini, tana nuna sandunan farashi da ƙarar ciniki, tana lissafin SMA da EMA da tsayayyun guraben goma, kuma tana ajiye jerin sa ido, kadara da alamomi a IndexedDB. Bayan an adana kayan aiki za ta yi aiki ba tare da intanet ba. Farashi da ƙarar da ke tare da ita na kwaikwayo ne, ba sai an buɗe asusun mai bayarwa ba.
 
-MarketWeft 0.166.0 yana ƙara tantance ginin asali na Windows 11 ARM64 don manhajar tebur da injin bincike. MarketWeft 0.7.0 ya ƙara tsara membobin rukuni bisa canjin farashi da bayanan da aka sani lokacin tambaya. Sake kunna zaman kasuwa ya haɗa da rabon hannun jari, kuɗin riba, zama memba da cirewa daga kasuwa. Akwai mai lura na TypeScript mai karatu kawai don sabis na trading-bot daban da naɗin Tauri na gwaji. Hanyoyin bayanai, umarnin ciniki, masu sakawa da aka sa wa hannu da masaukin masu amfani da yawa suna cikin shirin gaba.
+MarketWeft 0.166.0 yana ƙara tantance ginin asali na Windows 11 ARM64 don manhajar tebur da injin bincike. Aikin Windows ARM64 kuma yana tantance shigar da CSV a WebView2 na asali. MarketWeft 0.7.0 ya ƙara tsara membobin rukuni bisa canjin farashi da bayanan da aka sani lokacin tambaya. Sake kunna zaman kasuwa ya haɗa da rabon hannun jari, kuɗin riba, zama memba da cirewa daga kasuwa. Akwai mai lura na TypeScript mai karatu kawai don sabis na trading-bot daban da naɗin Tauri na gwaji. Hanyoyin bayanai, umarnin ciniki, masu sakawa da aka sa wa hannu da masaukin masu amfani da yawa suna cikin shirin gaba.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 

@@ -6,7 +6,7 @@ A successful web test validates a specific browser, build and host. Producing a 
 | --- | --- | --- |
 | Browser / installable PWA | Static React app with a Wasm core. Windows x64 Chromium-family automation, responsive viewport and offline reload. | Browser-engine and device matrix, install/update tests and storage lifecycle acceptance. |
 | Windows x64 | Browser route and a WebView2 CSV import check in the Tauri executable on hosted Windows Server 2022. | Installer and upgrade acceptance on a supported client OS. |
-| Windows ARM64 | Browser route and native Tauri and research-engine builds on hosted Windows 11 ARM64. The Python research SDK fixture runs against the ARM64 executable. | Native WebView2 import, installer and upgrade acceptance. |
+| Windows ARM64 | Browser route and hosted Windows 11 ARM64 checks for the native Tauri executable, WebView2 CSV import and Python research SDK. | Installer and upgrade acceptance. |
 | macOS Apple Silicon / Intel | Browser route and macOS 15 hosted Tauri builds with native Mach-O, Python research SDK and WKWebView CSV import checks for both architectures. | Native file-picker interaction, sandbox, signing and notarization on actual hosts. |
 | Linux x64 | Ubuntu 24.04 x64 package installation and native CSV import. Debian 12 native window and chart rendering observed through AT-SPI. See [verification](verification.md) and the [advisory review](native-advisories.md). | Broader upgrade coverage, continued backport maintenance and validation on other supported distributions. |
 | Linux ARM64 | Browser route and Ubuntu 24.04 ARM64 package installation, native X11 launch and CSV import smoke test. | Broader upgrade coverage and validation on other supported distributions. |
@@ -20,7 +20,7 @@ A successful web test validates a specific browser, build and host. Producing a 
 
 The Windows Server 2022 x64 job selects the Microsoft-signed Edge WebDriver that matches the installed WebView2 Runtime. The driver launches the built MarketWeft executable with a temporary data folder. The fixture checks the app's Tauri origin, records the native runtime version, imports the shared CSV through the file input and checks the exact candlestick quote. [Microsoft WebView2 WebDriver guide](https://learn.microsoft.com/en-us/microsoft-edge/webview2/how-to/webdriver) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
-The Windows 11 ARM64 job checks the runner, Node.js and Rust host architectures and inspects the PE machine field of both Windows executables. It also runs the Python research SDK fixture against the ARM64 research engine. [GitHub Windows 11 ARM64 runner inventory](https://github.com/actions/runner-images/blob/main/images/windows/Windows11-VS2026-Arm64-Readme.md).
+The Windows 11 ARM64 job checks the runner, Node.js and Rust host architectures and inspects the PE machine field of both Windows executables. It runs the Python research SDK fixture and the same native CSV import using an ARM64 Microsoft-signed WebDriver. [GitHub Windows 11 ARM64 runner inventory](https://github.com/actions/runner-images/blob/main/images/windows/Windows11-VS2026-Arm64-Readme.md).
 
 With a matching Edge WebDriver and WebView2 runtime, run the same fixture from the repository root after building the desktop executable.
 

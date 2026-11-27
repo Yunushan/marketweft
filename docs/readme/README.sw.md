@@ -15,7 +15,7 @@
 
 MarketWeft ni kituo cha utafiti cha ndani kwa wachambuzi, wasanidi na waendeshaji. Hufungua OHLCV iliyoidhinishwa, huchora vinara na kiasi, hukokotoa SMA na EMA kwa nukta isiyohama, na huhifadhi orodha, chombo kilichochaguliwa na viashiria katika IndexedDB. Hufanya kazi bila mtandao baada ya kuhifadhi rasilimali. Bei na kiasi vya mfano ni vya kutungwa na havihitaji akaunti.
 
-MarketWeft 0.166.0 inaongeza uthibitishaji wa miundo asili ya Windows 11 ARM64 kwa programu ya mezani na injini ya utafiti. MarketWeft 0.7.0 inaongeza uchujaji na upangaji wa wanachama kwa faida ya bei kwa kutumia taarifa zilizojulikana wakati wa hoja. Rejeo la vipindi vya soko linajumuisha mgawanyo wa hisa, gawio la fedha taslimu, uanachama na kufutwa kwa orodha. Hazina ina kifuatiliaji cha TypeScript cha kusoma tu kwa huduma tofauti ya trading-bot na kifurushi cha majaribio cha Tauri. Milisho ya data, maagizo, visakinishi vilivyosainiwa na upangishaji wa watumiaji wengi vipo kwenye ramani ya kazi.
+MarketWeft 0.166.0 inaongeza uthibitishaji wa miundo asili ya Windows 11 ARM64 kwa programu ya mezani na injini ya utafiti. Kazi ya Windows ARM64 pia inathibitisha uingizaji wa CSV kwenye WebView2 asili. MarketWeft 0.7.0 inaongeza uchujaji na upangaji wa wanachama kwa faida ya bei kwa kutumia taarifa zilizojulikana wakati wa hoja. Rejeo la vipindi vya soko linajumuisha mgawanyo wa hisa, gawio la fedha taslimu, uanachama na kufutwa kwa orodha. Hazina ina kifuatiliaji cha TypeScript cha kusoma tu kwa huduma tofauti ya trading-bot na kifurushi cha majaribio cha Tauri. Milisho ya data, maagizo, visakinishi vilivyosainiwa na upangishaji wa watumiaji wengi vipo kwenye ramani ya kazi.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 

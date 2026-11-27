@@ -15,7 +15,7 @@
 
 MarketWeft adalah terminal riset lokal untuk analis, pengembang, dan operator. Terminal membuka OHLCV yang diizinkan, menampilkan kandil dan volume, menghitung SMA dan EMA dengan titik tetap, dan menyimpan daftar pantauan, instrumen, serta indikator di IndexedDB. Aplikasi berjalan luring setelah aset tersimpan. Harga dan volume bawaan bersifat sintetis dan tidak memerlukan akun penyedia.
 
-MarketWeft 0.166.0 menambahkan verifikasi build native Windows 11 ARM64 untuk aplikasi desktop dan mesin riset. MarketWeft 0.7.0 menambah pemeringkatan anggota semesta berdasarkan imbal hasil harga yang diketahui pada waktu kueri. Pemutaran ulang berbasis sesi mencakup pemecahan saham, dividen tunai, keanggotaan, dan penghapusan pencatatan. Repositori juga menyediakan pengamat TypeScript hanya-baca untuk layanan trading-bot terpisah dan pembungkus Tauri eksperimental. Umpan penyedia, pesanan, penginstal bertanda tangan, dan hosting multipengguna masih dalam peta jalan.
+MarketWeft 0.166.0 menambahkan verifikasi build native Windows 11 ARM64 untuk aplikasi desktop dan mesin riset. Job Windows ARM64 juga memverifikasi impor CSV melalui WebView2 native. MarketWeft 0.7.0 menambah pemeringkatan anggota semesta berdasarkan imbal hasil harga yang diketahui pada waktu kueri. Pemutaran ulang berbasis sesi mencakup pemecahan saham, dividen tunai, keanggotaan, dan penghapusan pencatatan. Repositori juga menyediakan pengamat TypeScript hanya-baca untuk layanan trading-bot terpisah dan pembungkus Tauri eksperimental. Umpan penyedia, pesanan, penginstal bertanda tangan, dan hosting multipengguna masih dalam peta jalan.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 

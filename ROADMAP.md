@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.166.0 adds native Windows 11 ARM64 build verification. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.166.0 adds native Windows 11 ARM64 build and WebView2 CSV import verification. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,7 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
-| Delivered · 0.166.0 | Windows 11 ARM64 native build verification (MW-010, MW-011) | Check the ARM64 host, Node.js, Rust and both PE binaries, then run the Python research SDK fixture against the ARM64 research executable. [Windows native verification](docs/platforms.md#windows-native-verification). |
+| Delivered · 0.166.0 | Windows 11 ARM64 native build and runtime verification (MW-010, MW-011) | Check the ARM64 host and both PE binaries, run the Python research SDK fixture and verify the shared CSV in native WebView2. [Windows native verification](docs/platforms.md#windows-native-verification). |
 | Delivered · 0.165.0 | Windows x64 WebView2 CSV import (MW-010, MW-011) | Launch the built desktop executable with Edge WebDriver on Windows Server 2022, import the shared CSV and check exact candle values. [Windows native verification](docs/platforms.md#windows-native-verification). |
 | Delivered · 0.164.0 | macOS WKWebView CSV import (MW-010, MW-011) | Launch the bundled terminal in an ephemeral WKWebView, import synthetic bars through the visible form and check exact chart values on Intel and Apple Silicon. [macOS native builds](docs/platforms.md#macos-native-builds). |
 | Delivered · 0.163.0 | macOS native build verification (MW-010, MW-011) | Check the macOS host, desktop and research engine architectures on Intel and Apple Silicon and run the native research SDK fixture on each. [macOS native builds](docs/platforms.md#macos-native-builds). |
@@ -180,5 +180,5 @@
 
 ## Handoff for the next change
 
-Launch the Windows 11 ARM64 desktop executable and verify the shared CSV import in native WebView2.
+Build a Windows x64 installer and verify a clean installation and native WebView2 CSV import through the installed executable.
 

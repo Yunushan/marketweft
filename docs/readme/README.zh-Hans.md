@@ -15,7 +15,7 @@
 
 MarketWeft 是面向分析师、开发人员和运维人员的本地优先研究终端。它读取有权使用的 OHLCV 文件，绘制交互式蜡烛图与成交量，用定点数计算 SMA 和 EMA，并把自选列表、选中标的和指标保存在 IndexedDB。应用资源缓存后即可离线使用。内置价格与成交量均为合成数据，无需行情商账户。
 
-MarketWeft 0.166.0 新增桌面程序和研究引擎的 Windows 11 ARM64 原生构建验证。 MarketWeft 0.7.0 新增按价格收益率进行的时点股票池筛选。基于交易时段的回放支持拆股、现金股息、成分变动和退市。仓库还提供独立 trading-bot 服务的只读 TypeScript 观察器和实验性 Tauri 封装。数据源接入、下单、签名原生安装包及多用户托管仍在路线图上。
+MarketWeft 0.166.0 新增桌面程序和研究引擎的 Windows 11 ARM64 原生构建验证。 Windows ARM64 作业还会验证原生 WebView2 的 CSV 导入。 MarketWeft 0.7.0 新增按价格收益率进行的时点股票池筛选。基于交易时段的回放支持拆股、现金股息、成分变动和退市。仓库还提供独立 trading-bot 服务的只读 TypeScript 观察器和实验性 Tauri 封装。数据源接入、下单、签名原生安装包及多用户托管仍在路线图上。
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 

@@ -15,7 +15,7 @@
 
 MarketWeft na research terminal wey dey work for your own device. Analyst, developer and operator fit load OHLCV file wey dem get right to use, see candle and volume, calculate SMA and EMA with fixed decimal, and save watchlist, instrument and indicator for IndexedDB. E fit work offline after e cache the files. The price and volume wey follow am na synthetic, so provider account no dey needed.
 
-MarketWeft 0.166.0 add check for native Windows 11 ARM64 builds of the desktop app and research engine. MarketWeft 0.7.0 fit rank universe members by how price change, using reports wey don reach by the query time. Replay for trading session cover stock split, cash dividend, who dey inside and which listing dem don remove for exchange. The repo get TypeScript observer wey only read separate trading-bot service and Tauri wrapper wey still dey test. Provider feeds, orders, signed installers and hosting for many users dey roadmap.
+MarketWeft 0.166.0 add check for native Windows 11 ARM64 builds of the desktop app and research engine. The Windows ARM64 job still dey check CSV import inside native WebView2. MarketWeft 0.7.0 fit rank universe members by how price change, using reports wey don reach by the query time. Replay for trading session cover stock split, cash dividend, who dey inside and which listing dem don remove for exchange. The repo get TypeScript observer wey only read separate trading-bot service and Tauri wrapper wey still dey test. Provider feeds, orders, signed installers and hosting for many users dey roadmap.
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md)
 
