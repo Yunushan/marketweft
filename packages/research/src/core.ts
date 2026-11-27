@@ -24,6 +24,18 @@ export interface BollingerBand {
   upper: bigint;
 }
 
+export type PriceBand = BollingerBand;
+
+function readPriceBands(out: DataView): (PriceBand | null)[] {
+  return Array.from({ length: out.byteLength / 24 }, (_, index) => {
+    const offset = index * 24;
+    const lower = out.getBigInt64(offset, true);
+    return lower === MISSING ? null : {
+      lower, middle: out.getBigInt64(offset + 8, true), upper: out.getBigInt64(offset + 16, true),
+    };
+  });
+}
+
 export interface BollingerMeasures {
   percentB: bigint | null;
   bandwidth: bigint | null;
@@ -875,6 +887,7 @@ export interface MarketCore {
   measureDrawing(drawing: MeasuredDrawing): DrawingMeasurement;
   indicator(kind: 'sma' | 'ema' | 'rsi' | 'atr', period: number, bars: readonly Bar[]): (number | null)[];
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
+  donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   bollingerMeasures(period: number, bars: readonly Bar[]): BollingerMeasures[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
   splitBook(instrument: string, csv: string): Split[];
@@ -966,6 +979,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_indicator(kind: number, period: number): number;
   mw_atr(period: number): number;
   mw_bollinger_bands(period: number): number;
+  mw_donchian_channels(period: number): number;
   mw_bollinger_measures(period: number): number;
   mw_formula_version(): number;
   mw_evaluate_formula(sourceBytes: number): number;
@@ -1741,14 +1755,14 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
         throw new Error('Series and indicator period must fit within 100,000 bars.');
       putIndicatorCloses(bars);
-      const out = output(api.mw_bollinger_bands(period));
-      return Array.from({ length: bars.length }, (_, index) => {
-        const offset = index * 24;
-        const lower = out.getBigInt64(offset, true);
-        return lower === MISSING ? null : {
-          lower, middle: out.getBigInt64(offset + 8, true), upper: out.getBigInt64(offset + 16, true),
-        };
-      });
+      return readPriceBands(output(api.mw_bollinger_bands(period)));
+    },
+    donchianChannels(period, bars) {
+      if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Series and indicator period must fit within 100,000 bars.');
+      const dest = input(bars.length * 48);
+      for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Donchian Channels');
+      return readPriceBands(output(api.mw_donchian_channels(period)));
     },
     bollingerMeasures(period, bars) {
       if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)

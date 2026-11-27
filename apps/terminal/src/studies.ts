@@ -1,5 +1,5 @@
 import { validIndicatorPeriod } from './market-core'
-import type { Bar, BollingerBand, BollingerMeasures, MarketCore } from './market-core'
+import type { Bar, BollingerMeasures, MarketCore, PriceBand } from './market-core'
 import type { ExportOverlay } from './chart-export'
 
 export const STUDIES = {
@@ -8,6 +8,7 @@ export const STUDIES = {
   bb: { name: 'Bollinger Bands', label: 'Bollinger Bands', minPeriod: 1, defaultPeriod: 20 },
   bb_percent_b: { name: 'Bollinger %B', label: 'Bollinger %B', minPeriod: 1, defaultPeriod: 20, color: '#e797c7' },
   bb_bandwidth: { name: 'BandWidth', label: 'Bollinger BandWidth', minPeriod: 1, defaultPeriod: 20, color: '#6acec6' },
+  donchian: { name: 'Donchian Channels', label: 'Donchian Channels', minPeriod: 1, defaultPeriod: 20 },
 } as const
 export type StudyKind = keyof typeof STUDIES
 export const STUDY_KINDS = Object.keys(STUDIES) as StudyKind[]
@@ -17,14 +18,23 @@ export function defaultStudySettings(kind: StudyKind): StudySettings {
 }
 export type StudySet = Partial<Record<StudyKind, StudySettings>>
 export type StudyValue = number | bigint | null
-export type PanelStudy = { kind: Exclude<StudyKind, 'bb'>; period: number; series: StudyValue[] }
-type BandStudy = { kind: 'bb'; period: number; bands: (BollingerBand | null)[] }
+type BandKind = 'bb' | 'donchian'
+export type PanelStudy = { kind: Exclude<StudyKind, BandKind>; period: number; series: StudyValue[] }
+export type BandStudy = { kind: BandKind; period: number; bands: (PriceBand | null)[] }
 export type StudyValues = PanelStudy | BandStudy
 export const BAND_LINES = [
-  { key: 'lower', label: 'Lower', color: '#8393e1' },
-  { key: 'middle', label: 'Middle', color: '#bcb9f2' },
-  { key: 'upper', label: 'Upper', color: '#8393e1' },
+  { key: 'lower', label: 'Lower' },
+  { key: 'middle', label: 'Middle' },
+  { key: 'upper', label: 'Upper' },
 ] as const
+export const BAND_STYLE = {
+  bb: { name: 'BB', lower: '#8393e1', middle: '#bcb9f2', upper: '#8393e1' },
+  donchian: { name: 'Donchian', lower: '#6fc290', middle: '#c0d481', upper: '#6fc290' },
+} as const
+
+export function isBandStudy(study: StudyValues): study is BandStudy {
+  return 'bands' in study
+}
 
 export function computeStudies(core: MarketCore, settings: StudySet | undefined, bars: readonly Bar[]): StudyValues[] {
   const measuresByPeriod = new Map<number, BollingerMeasures[]>()
@@ -33,6 +43,7 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     if (!study?.enabled) return []
     const { period } = study
     if (kind === 'bb') return [{ kind, period, bands: core.bollingerBands(period, bars) }]
+    if (kind === 'donchian') return [{ kind, period, bands: core.donchianChannels(period, bars) }]
     if (kind === 'bb_percent_b' || kind === 'bb_bandwidth') {
       let measures = measuresByPeriod.get(period)
       if (!measures) {
@@ -47,9 +58,9 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
 }
 
 export function studyOverlays(studies: StudyValues[]): ExportOverlay[] {
-  return studies.flatMap<ExportOverlay>(study => study.kind === 'bb' ?
+  return studies.flatMap<ExportOverlay>(study => isBandStudy(study) ?
     BAND_LINES.map(({ key }) => ({
-      name: 'bb_' + key + '_' + study.period,
+      name: study.kind + '_' + key + '_' + study.period,
       series: study.bands.map(band => band?.[key] ?? null),
     })) :
     [{ name: study.kind + '_' + study.period, series: study.series }])

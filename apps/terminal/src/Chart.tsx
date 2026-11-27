@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from './Icons'
 import { fixed, tickPrice } from './fixed-point'
-import { BAND_LINES, studyOverlays, STUDIES } from './studies'
-import type { PanelStudy, StudyValue, StudyValues } from './studies'
+import { BAND_LINES, BAND_STYLE, isBandStudy, studyOverlays, STUDIES } from './studies'
+import type { BandStudy, PanelStudy, StudyValue, StudyValues } from './studies'
 import { kagiLayout, kagiSegmentAt } from './kagi-chart'
 import type { KagiLayout } from './kagi-chart'
 import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
@@ -14,7 +14,7 @@ import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar, BollingerBand, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, TickBar, VolumeBar } from './market-core'
+import type { Bar, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, TickBar, VolumeBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 type View = { end: number; count: number }
@@ -93,7 +93,7 @@ function draw(
   pointFigure: PointFigureLayout | undefined,
   activePrice: number | undefined,
   studies: PlottedStudy[],
-  bands: readonly (BollingerBand | null)[] | undefined,
+  bandStudies: readonly BandStudy[],
   activeStudyValues: (number | null)[] = [],
 ): Plot | undefined {
   const ctx = canvas.getContext('2d')
@@ -117,10 +117,12 @@ function draw(
     const b = bars[i]
     low = Math.min(low, type === 'line' ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
     high = Math.max(high, type === 'line' ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
-    const band = bands?.[i]
-    if (band) {
-      low = Math.min(low, tickPrice(band.lower))
-      high = Math.max(high, tickPrice(band.upper))
+    for (const { bands } of bandStudies) {
+      const band = bands[i]
+      if (band) {
+        low = Math.min(low, tickPrice(band.lower))
+        high = Math.max(high, tickPrice(band.upper))
+      }
     }
   }
   const delta =
@@ -365,8 +367,9 @@ function draw(
     }
     ctx.stroke()
   }
-  if (bands) {
-    for (const { key, color } of BAND_LINES) {
+  for (const { kind, bands } of bandStudies) {
+    for (const { key } of BAND_LINES) {
+      const color = BAND_STYLE[kind][key]
       ctx.strokeStyle = color
       ctx.lineWidth = 1.5
       ctx.beginPath()
@@ -588,11 +591,11 @@ export function Chart({
     sourceIndices.map(index => sma[index]) : sma, [sourceIndices, sma])
   const plottedEma = useMemo(() => sourceIndices && ema.length ?
     sourceIndices.map(index => ema[index]) : ema, [sourceIndices, ema])
-  const panels = useMemo(() => studies.filter(study => study.kind !== 'bb'), [studies])
-  const bandStudy = studies.find(study => study.kind === 'bb')
-  const bandSeries = bandStudy?.bands
-  const plottedBands = useMemo(() => sourceIndices && bandSeries ?
-    sourceIndices.map(index => bandSeries[index]) : bandSeries, [sourceIndices, bandSeries])
+  const panels = useMemo(() => studies.filter(study => !isBandStudy(study)), [studies])
+  const bandStudies = useMemo(() => studies.filter(isBandStudy), [studies])
+  const plottedBands = useMemo(() => sourceIndices ? bandStudies.map(study => ({
+    ...study, bands: sourceIndices.map(index => study.bands[index]),
+  })) : bandStudies, [sourceIndices, bandStudies])
   const plottedStudies = useMemo<PlottedStudy[]>(() => panels.map(study => ({
     ...study,
     series: sourceIndices ? sourceIndices.map(index => plotValue(study.series[index])) : study.series.map(plotValue),
@@ -635,7 +638,6 @@ export function Chart({
   const time = selectedObservation?.sourceTime ?? b.time
   const studyValues = useMemo(() => panels.map(study => study.series[sourceIndex]), [panels, sourceIndex])
   const activeStudyPlotValues = useMemo(() => studyValues.map(plotValue), [studyValues])
-  const bandValue = bandSeries?.[sourceIndex]
   const crosshairPrice = segment ? tickPrice(segment.toTicks) : box ? tickPrice(box.levelTicks) : undefined
   const firstObservation = kagi?.columns[start].segments[0] ?? pointFigure?.columns[start][0]
   const sourceStart = firstObservation?.sourceIndex ?? priceMovements?.[start].sourceIndex ?? start
@@ -864,11 +866,14 @@ export function Chart({
             fixed(value, 6) + '%' : fixed(BigInt(Math.round(value * 1e6)), 6)}</span>
         </div>
       })}
-      {bandStudy && <div className="ohlc chart-overlay-values" role="group" aria-label="Bollinger Bands">
-        <span><small>BB {bandStudy.period}</small></span>
-        {BAND_LINES.map(({ key, label }) =>
-          <span key={key}><small>{label}</small> {bandValue ? fixed(bandValue[key], 6) : '—'}</span>)}
-      </div>}
+      {bandStudies.map(({ kind, period, bands }) => {
+        const value = bands[sourceIndex]
+        return <div key={kind} className="ohlc chart-overlay-values" role="group" aria-label={STUDIES[kind].label}>
+          <span><small>{BAND_STYLE[kind].name} {period}</small></span>
+          {BAND_LINES.map(({ key, label }) =>
+            <span key={key}><small>{label}</small> {value ? fixed(value[key], 6) : '—'}</span>)}
+        </div>
+      })}
       <div ref={zone} className={picking ? 'canvas-zone picking-endpoint' : 'canvas-zone'}
         style={panels.length ? { height: `calc(var(--price-chart-height) + ${110 * panels.length}px)` } : undefined}>
         <canvas

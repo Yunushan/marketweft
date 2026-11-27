@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use crate::{MAX_BARS, MAX_TICKS};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct BollingerBand {
+pub struct PriceBand {
     pub lower: i64,
     pub middle: i64,
     pub upper: i64,
@@ -99,7 +99,7 @@ impl Window {
 pub fn bollinger_bands(
     period: usize,
     closes: &[i64],
-) -> Result<Vec<Option<BollingerBand>>, String> {
+) -> Result<Vec<Option<PriceBand>>, String> {
     if !(1..=MAX_BARS).contains(&period) || closes.len() > MAX_BARS {
         return Err(
             "Bollinger periods must be 1–100,000 and histories at most 100,000 bars.".into(),
@@ -129,7 +129,7 @@ pub fn bollinger_bands(
             let window = Window::new(sum, squares, length);
             let middle = sum.signum() * ((sum.abs() + length / 2) / length);
             let spread = window.spread_squared.0.isqrt();
-            result[index] = Some(BollingerBand {
+            result[index] = Some(PriceBand {
                 lower: window.round_band(middle - spread, false),
                 middle: middle as i64,
                 upper: window.round_band(middle + spread, true),

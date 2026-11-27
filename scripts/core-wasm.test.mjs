@@ -1283,3 +1283,21 @@ test('Bollinger measures expose signed, missing and wider-than-i64 percentages',
   ]);
   assert.equal(wide[1].bandwidth, 799_999_999_999_999_600_000_000n);
 });
+
+test('Donchian Channels consume observed OHLC and preserve exact signed window boundaries', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-donchian.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const band = (lower, middle, upper) => ({ lower, middle, upper });
+  const expected = [
+    null, null,
+    band(-22_000_000n, -5_000_000n, 12_000_001n), band(-8_000_001n, -3_000_001n, 2_000_000n),
+    band(-4_000_000n, 1_500_001n, 7_000_001n), band(-3_000_000n, 2_000_001n, 7_000_001n),
+    band(-3_000_000n, 2_000_001n, 7_000_001n), band(-3_000_000n, -500_000n, 2_000_000n),
+  ];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.donchianChannels(3, bars.slice(0, end)), expected.slice(0, end));
+  }
+  assert.throws(() => core.donchianChannels(3, [bars[0], bars[0]]), /later/);
+  assert.throws(() => core.donchianChannels(1, [{ ...bars[0], high: -4 }]), /OHLCV/i);
+  assert.throws(() => core.donchianChannels(0, bars), /100,000/);
+});

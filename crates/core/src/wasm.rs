@@ -2859,16 +2859,26 @@ pub extern "C" fn mw_atr(period: usize) -> u32 {
 #[no_mangle]
 pub extern "C" fn mw_bollinger_bands(period: usize) -> u32 {
     process(|input| {
-        let bands = crate::bollinger_bands(period, &indicator_closes(input)?)?;
-        let mut bytes = Vec::with_capacity(24 * bands.len());
-        for band in bands {
-            let values = band.map_or([i64::MIN; 3], |band| [band.lower, band.middle, band.upper]);
-            for value in values {
-                bytes.extend_from_slice(&value.to_le_bytes());
-            }
-        }
-        Ok(bytes)
+        crate::bollinger_bands(period, &indicator_closes(input)?).map(encode_price_bands)
     })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_donchian_channels(period: usize) -> u32 {
+    process(|input| {
+        crate::donchian_channels(period, &decode_bars(input)?).map(encode_price_bands)
+    })
+}
+
+fn encode_price_bands(bands: Vec<Option<crate::PriceBand>>) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(24 * bands.len());
+    for band in bands {
+        let values = band.map_or([i64::MIN; 3], |band| [band.lower, band.middle, band.upper]);
+        for value in values {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+    }
+    bytes
 }
 
 #[no_mangle]

@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.115.0 · Donchian Channels
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Synthetic OHLC checks missing warm-up rows, a skipped timestamp, repeated extrema, the expiration of highs and lows, both signed half-tick midpoints and every earlier history prefix. Native results match direct window scans. |
+| Browser chart and export | Offline Chromium compares the three lines against the price-axis bounds alongside Bollinger Bands and verifies every research CSV value and warm-up cell. |
+| Workspace | Both panes retain independent periods in a version 20 backup. A version 19 Bollinger workspace restores with its earlier studies. |
+
+[Donchian Channels](chart-workspace.md#donchian-channels) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.114.0 · Bollinger %B and BandWidth
 
 | Check | Evidence |

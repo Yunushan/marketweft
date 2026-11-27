@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.114.0 adds Bollinger %B and BandWidth with independent scales and exact research CSV values. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.115.0 adds Donchian Channels with exact rolling extrema and midpoints. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -117,6 +117,7 @@
 | Delivered · 0.112.0 | Wilder ATR (MW-014) | Verify exact signed true ranges, price gaps, Wilder smoothing, stacked studies, CSV output and legacy RSI settings migration. [Wilder ATR](docs/chart-workspace.md#wilder-average-true-range). |
 | Delivered · 0.113.0 | Bollinger Bands (MW-014) | Verify population deviation, exact signed rounding, full-window behavior, price scaling, and research CSV and backup parity. [Bollinger Bands](docs/chart-workspace.md#bollinger-bands). |
 | Delivered · 0.114.0 | Bollinger %B and BandWidth (MW-014) | Verify signed percentages, unclamped %B, zero denominators, gaps, wide exact CSV output and independent settings restore. [Bollinger measures](docs/chart-workspace.md#bollinger-b-and-bandwidth). |
+| Delivered · 0.115.0 | Donchian Channels (MW-014) | Verify rolling observed extrema, signed midpoint ties, warm-up, shared price scaling and exact research CSV. [Donchian Channels](docs/chart-workspace.md#donchian-channels). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -128,5 +129,5 @@
 
 ## Handoff for the next change
 
-Add Donchian Channels as a built-in price study. Verify rolling highs and lows, signed midpoint ties, warm-up, price scaling and exact CSV output.
+Add Keltner Channels as a built-in price study. Verify the moving-average and range inputs, warm-up, exact channel widths, price scaling and research CSV.
 

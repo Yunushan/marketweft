@@ -12,6 +12,7 @@ mod cross_section_liquidity;
 mod delisting;
 mod depth;
 mod dividend;
+mod donchian;
 mod drawing;
 mod financial_wire;
 mod formula;
@@ -63,9 +64,11 @@ pub use backtest::{
     BacktestSignal, FormulaBacktestConfig, FormulaBacktestReport, FormulaBacktestSignal,
     RecordedBacktestCutoffs,
 };
-pub use bollinger::{bollinger_bands, BollingerBand};
+pub use bollinger::{bollinger_bands, PriceBand};
+pub use bollinger::PriceBand as BollingerBand;
 pub use bollinger_measures::{bollinger_measures, BollingerMeasures};
 pub use chart_movement::PriceMovement;
+pub use donchian::donchian_channels;
 pub use cross_section::{
     CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,
     CrossSectionDelistingClaim, CrossSectionDelistingPosting, CrossSectionDividendPosting,

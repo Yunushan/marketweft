@@ -104,6 +104,14 @@ BandWidth is 100 times the upper band minus the lower band, divided by the signe
 
 The research CSV uses columns such as `bb_percent_b_20` and `bb_bandwidth_20`. Values retain six-decimal percentage precision even when they are too large to round-trip through a browser number. An undefined value leaves an empty cell and a gap in its plot.
 
+### Donchian Channels
+
+Enable **Donchian Channels** in either pane’s indicator settings. The upper line is the highest observed high in the window. The lower line is its lowest observed low. The middle line is their average, rounded to the nearest millionth of a price unit with half ticks away from zero. [TradingView’s Donchian Channels calculation](https://www.tradingview.com/support/solutions/43000502253-donchian-channels-dc/).
+
+The window includes the current source bar and uses 20 bars by default. Enter a period from 1 through 100,000. Missing timestamps contribute zero observations. The channel appears once the full window has accumulated. Each pane saves its own period. It shares the price axis with the chart and any other enabled price overlays.
+
+The research CSV exports `donchian_lower_20`, `donchian_middle_20` and `donchian_upper_20` for a 20-bar period. The cells stay empty during warm-up. Values use the source OHLC bars for the selected timeframe, including on chart styles derived from close prices.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.
