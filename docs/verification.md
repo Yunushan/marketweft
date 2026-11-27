@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.164.0 · macOS WKWebView CSV import
+
+| Check | Evidence |
+| --- | --- |
+| Native renderer | The macOS jobs open the bundled terminal in an ephemeral WKWebView and drive the visible import form with the shared synthetic CSV. |
+| Exact chart result | The probe checks the imported symbol, candlestick canvas, open 27, high 30, low 26, close 29 and volume 800. It fails on a missing chart, an import error or a mismatched quote. |
+
+[macOS native builds](platforms.md#macos-native-builds) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.163.0 · macOS native build verification
 
 | Check | Evidence |

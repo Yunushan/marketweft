@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.163.0
+# Platform support · MarketWeft 0.164.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
@@ -7,7 +7,7 @@ A successful web test validates a specific browser, build and host. Producing a 
 | Browser / installable PWA | Static React app with a Wasm core. Windows x64 Chromium-family automation, responsive viewport and offline reload. | Browser-engine and device matrix, install/update tests and storage lifecycle acceptance. |
 | Windows x64 | Tested web path. Windows Server 2022 hosted Tauri build passed. Local native build was blocked by Windows Application Control while running dependency build scripts. | Native window, installer and upgrade acceptance on a supported client OS. |
 | Windows ARM64 | Browser route. Experimental native target. | ARM64 WebView2 runtime, native runner and package tests. |
-| macOS Apple Silicon / Intel | Browser route and macOS 15 hosted Tauri builds with native Mach-O and Python research SDK checks for both architectures. | Per-architecture launch, import, sandbox, signing and notarization on actual hosts. |
+| macOS Apple Silicon / Intel | Browser route and macOS 15 hosted Tauri builds with native Mach-O, Python research SDK and WKWebView CSV import checks for both architectures. | Native file-picker interaction, sandbox, signing and notarization on actual hosts. |
 | Linux x64 | Ubuntu 24.04 x64 package installation and native CSV import. Debian 12 native window and chart rendering observed through AT-SPI. See [verification](verification.md) and the [advisory review](native-advisories.md). | Broader upgrade coverage, continued backport maintenance and validation on other supported distributions. |
 | Linux ARM64 | Browser route and Ubuntu 24.04 ARM64 package installation, native X11 launch and CSV import smoke test. | Broader upgrade coverage and validation on other supported distributions. |
 | Android | Responsive browser path. Phone-sized desktop viewport tested. | Physical-device browser/PWA acceptance. Android wrapper project and signing remain future work. |
@@ -19,6 +19,8 @@ A successful web test validates a specific browser, build and host. Producing a 
 ## macOS native builds
 
 The desktop CI matrix uses separate macOS 15 runners for Intel and Apple Silicon. Each job builds the Tauri desktop executable and native research engine, checks the machine and both Mach-O architectures, and runs the Python research SDK fixture against the built engine. [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#standard-github-hosted-runners-for-public-repositories) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
+The CSV fixture opens the bundled terminal in an ephemeral WKWebView, sends a synthetic file through the visible import form, and checks the resulting chart and exact open, high, low, close and volume.
 
 ## Linux native verification
 
