@@ -50,33 +50,7 @@ final class SimulatorImportTests: XCTestCase {
         symbol.tap()
         symbol.typeText("IOSCSV")
 
-        let file = web.descendants(matching: .any)
-            .matching(NSPredicate(format: "label BEGINSWITH %@", "Historical CSV file")).firstMatch
-        XCTAssertTrue(file.waitForExistence(timeout: 15), web.debugDescription)
-        if !file.isHittable { web.swipeUp() }
-        file.tap()
-
-        let chooseFiles = app.buttons["Choose Files"].firstMatch
-        if chooseFiles.waitForExistence(timeout: 3) { chooseFiles.tap() }
-        let browse = app.buttons["Browse"].firstMatch
-        if browse.waitForExistence(timeout: 3), browse.isHittable { browse.tap() }
-        let location = app.staticTexts.matching(NSPredicate(format: "label IN %@", ["On My iPhone", "On My iPad"])).firstMatch
-        XCTAssertTrue(location.waitForExistence(timeout: 15), app.debugDescription)
-        location.tap()
-        let folder = app.staticTexts["MarketWeft Test Files"].firstMatch
-        XCTAssertTrue(folder.waitForExistence(timeout: 15), app.debugDescription)
-        folder.tap()
-        let fixture = app.collectionViews["File View"].cells
-            .matching(NSPredicate(format: "identifier IN %@", ["native-verification, csv", "native-verification.csv"])).firstMatch
-        XCTAssertTrue(fixture.waitForExistence(timeout: 15), app.debugDescription)
-        let icon = fixture.images.firstMatch
-        if icon.exists && icon.isHittable { icon.tap() } else { fixture.tap() }
-        let confirm = app.navigationBars.buttons["Open"].firstMatch
-        if confirm.waitForExistence(timeout: 2), confirm.isHittable { confirm.tap() }
-        let selectedFile = web.buttons.matching(NSPredicate(
-            format: "label BEGINSWITH %@ AND value CONTAINS[c] %@", "Historical CSV file", "native-verification"
-        )).firstMatch
-        XCTAssertTrue(selectedFile.waitForExistence(timeout: 15), app.debugDescription)
+        chooseSimulatorFile(in: app, input: "Historical CSV file", folders: ["MarketWeft Test Files"], filename: "native-verification.csv")
 
         let submit = web.buttons["Import to watchlist"]
         XCTAssertTrue(submit.waitForExistence(timeout: 15), app.debugDescription)

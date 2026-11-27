@@ -609,6 +609,7 @@ jobs:
           path: |
             reports/ios-simulator-*.xcresult/
             reports/ios-simulator-*-relaunch.txt
+            reports/ios-simulator-*-restored-workspace.marketweft.json
           if-no-files-found: ignore
 
   native-advisories:

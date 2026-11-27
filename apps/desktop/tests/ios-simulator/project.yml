@@ -23,8 +23,10 @@ targets:
     type: bundle.ui-testing
     platform: iOS
     sources:
+      - SimulatorFiles.swift
       - SimulatorStartupTests.swift
       - SimulatorImportTests.swift
+      - SimulatorWorkspaceBackupTests.swift
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

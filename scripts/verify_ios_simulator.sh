@@ -26,6 +26,8 @@ info="$app/Info.plist"
 test "$(plutil -extract CFBundleIdentifier raw -o - "$info")" = "$identifier"
 test "$(plutil -extract CFBundleShortVersionString raw -o - "$info")" = "$version"
 test "$(plutil -extract CFBundleSupportedPlatforms.0 raw -o - "$info")" = iPhoneSimulator
+test "$(plutil -extract UIFileSharingEnabled raw -o - "$info")" = true
+test "$(plutil -extract LSSupportsOpeningDocumentsInPlace raw -o - "$info")" = true
 binary=$(plutil -extract CFBundleExecutable raw -o - "$info")
 test "$(xcrun lipo -archs "$app/$binary")" = arm64
 xcrun vtool -show-build "$app/$binary" | grep -E '^[[:space:]]*platform IOSSIMULATOR$'
@@ -111,6 +113,28 @@ for family in iphone ipad; do
     stop_canary
     xcrun simctl launch --terminate-running-process "$device" "$identifier" | tee "$result-relaunch.txt"
     run_test "$device" "$result-recovery.xcresult" SimulatorImportTests/testRecoversCSVAfterLoopbackLoss
+
+    run_test "$device" "$result-export.xcresult" SimulatorWorkspaceBackupTests/testExportsWorkspaceToFiles
+    app_data=$(xcrun simctl get_app_container "$device" "$identifier" data)
+    backups=("$app_data/Documents/Downloads/"marketweft-workspace-*.marketweft.json)
+    test "${#backups[@]}" = 1
+    test -s "${backups[0]}"
+    jq -e --rawfile csv apps/desktop/tests/fixtures/native-verification.csv '
+        .format == "marketweft-workspace" and .manifest.seriesCount == 1 and
+        .manifest.barCount == 2 and .manifest.preferences.selected == "LOCAL:IOSCSV" and
+        .manifest.series[0].csv == $csv
+    ' "${backups[0]}" >/dev/null
+    preserved="$fixture_data/Documents/preserved-workspace.marketweft.json"
+    cp "${backups[0]}" "$preserved"
+    xcrun simctl uninstall "$device" "$identifier"
+    xcrun simctl install "$device" "$app"
+    fresh_data=$(xcrun simctl get_app_container "$device" "$identifier" data)
+    test "$fresh_data" != "$app_data"
+    test ! -e "$fresh_data/Documents/Downloads"
+    installed=$(xcrun simctl get_app_container "$device" "$identifier" app)
+    cmp "$app/$binary" "$installed/$binary"
+    run_test "$device" "$result-restore.xcresult" SimulatorWorkspaceBackupTests/testRestoresWorkspaceIntoFreshInstall
+    cp "$preserved" "$result-restored-workspace.marketweft.json"
     xcrun simctl shutdown "$device"
     printf 'Verified the exact MarketWeft bundle on the %s simulator.\n' "$family"
 done

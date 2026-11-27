@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.180.0 · iPhone and iPad workspace backup
+
+- The iOS WebView writes terminal-generated downloads to the app's Files folder. The workspace test exports the imported history and selects the resulting backup through Files to verify its checksums.
+- CI checks that the backup contains the exact two-row fixture and selected instrument, preserves the file in the separate test app, and confirms that reinstalling the identical binary creates a fresh data container.
+- On both simulators, the fresh terminal checks the original chart is absent, selects the preserved backup through Files, confirms the checksum preview and restores the exact original chart. The uploaded evidence includes both restored fixture backups and the XCTest results.
+
+[iOS and iPadOS Simulator](platforms.md#ios-and-ipados-simulator) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.179.0 · iPhone and iPad Files import and recovery
 
 - Each iOS Simulator opens the unchanged terminal build, selects the authorized synthetic CSV through Files, and checks its exact OHLCV in WKWebView.
