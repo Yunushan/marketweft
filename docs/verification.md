@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.113.0 · Bollinger Bands
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Fixtures verify population deviation across signed and flat windows, exact half-tick rounding, full-window warm-up, prefix stability and the maximum native history. |
+| Browser chart and export | Offline Chromium checks the upper and lower paths against the price axis, exact values at warm-up and a flat window, and typed CSV values for all three bands. |
+| Workspace | Independent pane periods restore with ATR settings. A version 17 backup restores its studies. |
+
+[Bollinger Bands](chart-workspace.md#bollinger-bands) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.112.0 · Wilder ATR
 
 | Check | Evidence |

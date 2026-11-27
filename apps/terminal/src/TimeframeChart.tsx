@@ -7,7 +7,7 @@ import { fixed, parsePriceSize } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
 import type { TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
-import { STUDY_KINDS } from './studies'
+import { computeStudy, studyOverlays, STUDY_KINDS } from './studies'
 import type { StudySet, StudyValues } from './studies'
 
 type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize'> & {
@@ -100,7 +100,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
 
   const studies = useMemo<StudyValues[]>(() => STUDY_KINDS.flatMap(kind => {
     const settings = studySettings?.[kind]
-    return settings?.enabled ? [{ kind, period: settings.period, series: core.indicator(kind, settings.period, display.bars) }] : []
+    return settings?.enabled ? [computeStudy(core, kind, settings.period, display.bars)] : []
   }), [core, studySettings, display.bars])
 
   async function apply() {
@@ -179,7 +179,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
               { name: 'sma_' + periods.sma, series: sma },
               { name: 'ema_' + periods.ema, series: ema },
             ].filter(overlay => overlay.series.length > 0) : []),
-            ...studies.map(({ kind, period, series }) => ({ name: kind + '_' + period, series })),
+            ...studyOverlays(studies),
           ]} />}
       </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceChartKey}`}
         asset={display} displayBars={displayBars} priceMovements={transformed?.priceMovements} kagiSegments={transformed?.kagiSegments}

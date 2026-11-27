@@ -1253,3 +1253,16 @@ test('Wilder ATR includes gaps and preserves exact values at each source prefix'
   }])[0], 4_000_000_000);
   assert.throws(() => core.indicator('atr', 3, [bars[0], bars[0]]), /later/);
 });
+
+test('Bollinger Bands preserve exact signed tick boundaries and missing warm-up', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-bollinger.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const band = (lower, middle, upper) => ({ lower, middle, upper });
+  assert.deepEqual(core.bollingerBands(3, bars), [
+    null, null, band(-2_552_285n, -666_667n, 1_218_951n), band(0n, 0n, 0n),
+    band(-3_656_854n, 2_000_000n, 7_656_854n), band(-9_797_959n, 0n, 9_797_959n),
+  ]);
+  assert.deepEqual(core.bollingerBands(2, [{...bars[0], close: -0.000001}, {...bars[1], close: 0}]),
+    [null, band(-2n, -1n, 1n)]);
+  assert.throws(() => core.bollingerBands(0, bars), /100,000/);
+});

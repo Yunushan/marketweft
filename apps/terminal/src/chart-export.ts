@@ -5,7 +5,7 @@ import type { SessionTimeframeBar, TimeframeBar } from './market-core'
 import type { Asset } from './workspace'
 
 export type BarRange = { start: number; end: number }
-export type ExportOverlay = { name: string; series: readonly (number | null)[] }
+export type ExportOverlay = { name: string; series: readonly (number | bigint | null)[] }
 export type TimeframeView = { sourceSeconds: number; targetSeconds: number } & (
   { mode: 'utc'; buckets: TimeframeBar[] } |
   { mode: 'session'; buckets: SessionTimeframeBar[]; calendarName: string }
@@ -70,7 +70,7 @@ export function chartCsv(
       }
       for (const { series } of analysis.overlays) {
         const value = series[index]
-        row += ',' + (value == null ? '' : decimal(value))
+        row += ',' + (value == null ? '' : typeof value === 'bigint' ? fixed(value, 6) : decimal(value))
       }
     }
     rows.push(row)

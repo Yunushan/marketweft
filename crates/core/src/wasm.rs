@@ -2820,14 +2820,18 @@ pub extern "C" fn mw_adjust_split_revisions(records: usize) -> u32 {
     })
 }
 
+fn indicator_closes(input: &[u8]) -> Result<Vec<i64>, String> {
+    let (values, trailing) = input.as_chunks::<8>();
+    if !trailing.is_empty() || values.len() > MAX_BARS {
+        return Err("Invalid series length.".into());
+    }
+    Ok(values.iter().copied().map(i64::from_le_bytes).collect())
+}
+
 #[no_mangle]
 pub extern "C" fn mw_indicator(kind: u32, period: usize) -> u32 {
     process(|input| {
-        let (values, trailing) = input.as_chunks::<8>();
-        if !trailing.is_empty() || values.len() > MAX_BARS {
-            return Err("Invalid series length.".into());
-        }
-        let closes: Vec<i64> = values.iter().copied().map(i64::from_le_bytes).collect();
+        let closes = indicator_closes(input)?;
         let results = match kind {
             0 => indicator(Average::Simple, period, &closes)?,
             1 => indicator(Average::Exponential, period, &closes)?,
@@ -2849,6 +2853,21 @@ fn encode_indicator_values(results: Vec<Option<i64>>) -> Vec<u8> {
 pub extern "C" fn mw_atr(period: usize) -> u32 {
     process(|input| {
         crate::average_true_range(period, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_bollinger_bands(period: usize) -> u32 {
+    process(|input| {
+        let bands = crate::bollinger_bands(period, &indicator_closes(input)?)?;
+        let mut bytes = Vec::with_capacity(24 * bands.len());
+        for band in bands {
+            let values = band.map_or([i64::MIN; 3], |band| [band.lower, band.middle, band.upper]);
+            for value in values {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        Ok(bytes)
     })
 }
 

@@ -88,6 +88,12 @@ True range spans the current high, current low and previous source close. The fi
 
 Settings save independently for each pane. A workspace with legacy RSI settings preserves them when an ATR study is configured.
 
+## Bollinger Bands
+
+Open **Indicators**, enable **Bollinger Bands** for either pane and apply a period from 1 through 100,000 closes. The default period is 20. The middle line is the simple mean and the outer lines sit two population standard deviations above and below the exact mean. Each result rounds to six decimal places, with half ticks rounded away from zero. The study needs a full window. In a flat window, the three lines share the same value. [John Bollinger's Bollinger Bands method](https://www.bollingerbands.com/bollinger-bands).
+
+The three lines share the price scale, which includes the visible band values. They use the source closes for the selected timeframe. Each pane saves its own period and visibility setting. The research CSV adds `bb_lower_20`, `bb_middle_20` and `bb_upper_20` for a 20-bar setting, with blank cells while the window fills.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.
