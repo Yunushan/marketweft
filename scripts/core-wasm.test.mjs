@@ -1318,3 +1318,20 @@ test('Keltner Channels combine separate close EMA and Wilder ATR windows', async
   }]), [band(-6_000_000_000_000_000n, 2_000_000_000_000_000n, 10_000_000_000_000_000n)]);
   assert.throws(() => core.keltnerChannels(1, 0, bars), /100,000/);
 });
+
+test('Stochastic Oscillator preserves exact %K and %D and restarts smoothing after a flat range', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-stochastic.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const points = (percentK, percentD) => ({ percentK, percentD });
+  const expected = [
+    points(null, null), points(null, null), points(50_000_000n, null),
+    points(20_000_000n, 35_000_000n), points(45_000_000n, 32_500_000n),
+    points(null, null), points(null, null), points(75_000_000n, null),
+    points(62_500_000n, 68_750_000n), points(37_500_000n, 50_000_000n),
+  ];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.stochasticOscillator(2, 2, 2, bars.slice(0, end)), expected.slice(0, end));
+  }
+  assert.throws(() => core.stochasticOscillator(2, 0, 2, bars), /100,000/);
+  assert.throws(() => core.stochasticOscillator(2, 2, 2, [bars[0], bars[0]]), /later/);
+});

@@ -3,7 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from './Icons'
 import { fixed, tickPrice } from './fixed-point'
 import { BAND_LINES, BAND_STYLE, isBandStudy, studyOverlays, STUDIES } from './studies'
-import type { BandStudy, PanelStudy, StudyValue, StudyValues } from './studies'
+import type { BandStudy, PanelLine, PanelStudy, StudyValue, StudyValues } from './studies'
 import { kagiLayout, kagiSegmentAt } from './kagi-chart'
 import type { KagiLayout } from './kagi-chart'
 import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
@@ -20,7 +20,9 @@ import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema
 type View = { end: number; count: number }
 type Series = (number | null)[]
 const NO_STUDIES: StudyValues[] = []
-type PlottedStudy = Omit<PanelStudy, 'series'> & { series: Series }
+type PlottedStudy = Omit<PanelStudy, 'lines'> & {
+  lines: (Omit<PanelLine, 'series'> & { series: Series })[]
+}
 function plotValue(value: StudyValue): number | null {
   return typeof value === 'bigint' ? tickPrice(value) : value
 }
@@ -94,7 +96,7 @@ function draw(
   activePrice: number | undefined,
   studies: PlottedStudy[],
   bandStudies: readonly BandStudy[],
-  activeStudyValues: (number | null)[] = [],
+  activeStudyValues: (number | null)[][],
 ): Plot | undefined {
   const ctx = canvas.getContext('2d')
   if (!ctx || width < 80 || height < 100) return
@@ -143,13 +145,17 @@ function draw(
   const studyPanels = studies.map(study => {
     if (study.kind === 'rsi')
       return { ...study, low: 0, high: 100, ticks: [0, 30, 70, 100], format: String }
+    if (study.kind === 'stochastic')
+      return { ...study, low: 0, high: 100, ticks: [0, 20, 80, 100], format: (tick: number) => tick + '%' }
     let low = 0
     let high = study.kind === 'bb_percent_b' ? 100 : 0
-    for (let index = start; index < view.end; index++) {
-      const value = study.series[index]
-      if (value == null) continue
-      low = Math.min(low, value)
-      high = Math.max(high, value)
+    for (const { series } of study.lines) {
+      for (let index = start; index < view.end; index++) {
+        const value = series[index]
+        if (value == null) continue
+        low = Math.min(low, value)
+        high = Math.max(high, value)
+      }
     }
     if (low === high) high = 1
     const ticks = study.kind === 'bb_percent_b' ? [low, 0, 100, high] : [low, (low + high) / 2, 0, high]
@@ -447,41 +453,43 @@ function draw(
     const panelTop = bottom + 30 + 110 * panelIndex
     const panelBottom = panelTop + 97
     const studyY = (value: number) => panelBottom - (value - panel.low) / (panel.high - panel.low) * (panelBottom - panelTop)
-    const color = STUDIES[panel.kind].color
-    const selected = activeStudyValues[panelIndex]
     ctx.lineWidth = 1
     for (const tick of panel.ticks) {
       const level = studyY(tick)
-      line(left, level, right, level, (panel.kind === 'rsi' && (tick === 30 || tick === 70)) ||
-        (panel.kind === 'bb_percent_b' && (tick === 0 || tick === 100)) ? '#3e4c6a' : '#293036')
+      const reference = (panel.kind === 'rsi' && (tick === 30 || tick === 70)) ||
+        (panel.kind === 'stochastic' && (tick === 20 || tick === 80)) ||
+        (panel.kind === 'bb_percent_b' && (tick === 0 || tick === 100))
+      line(left, level, right, level, reference ? '#3e4c6a' : '#293036')
       ctx.fillStyle = '#93a19e'
       ctx.fillText(panel.format(tick), right + 7, level)
     }
-    ctx.beginPath()
-    ctx.lineWidth = 1.5
-    ctx.strokeStyle = color
-    let points = 0
-    const isolated: [number, number][] = []
-    for (let index = start; index <= view.end; index++) {
-      const value = index === view.end ? null : panel.series[index]
-      if (value == null) {
-        if (points === 1) isolated.push([x(index - 1), studyY(panel.series[index - 1]!)])
-        points = 0
-      } else {
-        if (points === 0) ctx.moveTo(x(index), studyY(value))
-        else ctx.lineTo(x(index), studyY(value))
-        points++
-      }
-    }
-    ctx.stroke()
-    if (isolated.length) {
+    for (const { color, series } of panel.lines) {
       ctx.beginPath()
-      ctx.fillStyle = color
-      for (const [cx, cy] of isolated) {
-        ctx.moveTo(cx + 2.5, cy)
-        ctx.arc(cx, cy, 2.5, 0, Math.PI * 2)
+      ctx.lineWidth = 1.5
+      ctx.strokeStyle = color
+      let points = 0
+      const isolated: [number, number][] = []
+      for (let index = start; index <= view.end; index++) {
+        const value = index === view.end ? null : series[index]
+        if (value == null) {
+          if (points === 1) isolated.push([x(index - 1), studyY(series[index - 1]!)])
+          points = 0
+        } else {
+          if (points === 0) ctx.moveTo(x(index), studyY(value))
+          else ctx.lineTo(x(index), studyY(value))
+          points++
+        }
       }
-      ctx.fill()
+      ctx.stroke()
+      if (isolated.length) {
+        ctx.beginPath()
+        ctx.fillStyle = color
+        for (const [cx, cy] of isolated) {
+          ctx.moveTo(cx + 2.5, cy)
+          ctx.arc(cx, cy, 2.5, 0, Math.PI * 2)
+        }
+        ctx.fill()
+      }
     }
     if (active !== null && active >= start && active < view.end) {
       const axis = x(active)
@@ -489,7 +497,9 @@ function draw(
       ctx.setLineDash([3, 4])
       line(axis, panelTop, axis, panelBottom, '#bdc9c7')
       ctx.setLineDash([])
-      if (selected != null) {
+      for (const [lineIndex, { color }] of panel.lines.entries()) {
+        const selected = activeStudyValues[panelIndex][lineIndex]
+        if (selected == null) continue
         ctx.beginPath()
         ctx.fillStyle = color
         ctx.arc(axis, studyY(selected), 3, 0, Math.PI * 2)
@@ -598,7 +608,10 @@ export function Chart({
   })) : bandStudies, [sourceIndices, bandStudies])
   const plottedStudies = useMemo<PlottedStudy[]>(() => panels.map(study => ({
     ...study,
-    series: sourceIndices ? sourceIndices.map(index => plotValue(study.series[index])) : study.series.map(plotValue),
+    lines: study.lines.map(line => ({
+      ...line,
+      series: sourceIndices ? sourceIndices.map(index => plotValue(line.series[index])) : line.series.map(plotValue),
+    })),
   })), [sourceIndices, panels])
   const exportStudies = useMemo(() => studyOverlays(studies), [studies])
   const n = bars.length
@@ -636,8 +649,9 @@ export function Chart({
   const closeBased = Boolean(observationsByTime || priceMovements)
   const sourceIndex = selectedObservation?.sourceIndex ?? movement?.sourceIndex ?? readoutIndex
   const time = selectedObservation?.sourceTime ?? b.time
-  const studyValues = useMemo(() => panels.map(study => study.series[sourceIndex]), [panels, sourceIndex])
-  const activeStudyPlotValues = useMemo(() => studyValues.map(plotValue), [studyValues])
+  const studyValues = useMemo(() => panels.map(study => study.lines.map(line => line.series[sourceIndex])),
+    [panels, sourceIndex])
+  const activeStudyPlotValues = useMemo(() => studyValues.map(values => values.map(plotValue)), [studyValues])
   const crosshairPrice = segment ? tickPrice(segment.toTicks) : box ? tickPrice(box.levelTicks) : undefined
   const firstObservation = kagi?.columns[start].segments[0] ?? pointFigure?.columns[start][0]
   const sourceStart = firstObservation?.sourceIndex ?? priceMovements?.[start].sourceIndex ?? start
@@ -858,12 +872,18 @@ export function Chart({
           })}
         </div>
       )}
-      {panels.map(({ kind, period }, index) => {
+      {panels.map(({ kind, periods, lines }, index) => {
         const { name, label } = STUDIES[kind]
-        const value = studyValues[index]
+        const heading = name + ' ' + periods.join('/')
         return <div key={kind} className="ohlc chart-overlay-values" role="group" aria-label={label}>
-          <span><small>{name} {period}</small> {value == null ? '—' : typeof value === 'bigint' ?
-            fixed(value, 6) + '%' : fixed(BigInt(Math.round(value * 1e6)), 6)}</span>
+          {lines.length > 1 && <span><small>{heading}</small></span>}
+          {lines.map((line, lineIndex) => {
+            const value = studyValues[index][lineIndex]
+            return <span key={line.key ?? kind}><small>{line.label ?? heading}</small> {
+              value == null ? '—' : typeof value === 'bigint' ?
+                fixed(value, 6) + '%' : fixed(BigInt(Math.round(value * 1e6)), 6)
+            }</span>
+          })}
         </div>
       })}
       {bandStudies.map(study => {

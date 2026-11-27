@@ -32,7 +32,7 @@ import { parseProviderHistoryFixture, SOURCE_RIGHTS } from './catalog-schema'
 import type {
   ChartPane, ChartType, OverlayPeriods, SourceRight, SourceRights, SourceRightStatus,
 } from './catalog-schema'
-import { defaultStudySettings, STUDIES, STUDY_KINDS } from './studies'
+import { defaultStudySettings, extraStudyPeriods, STUDIES, STUDY_KINDS } from './studies'
 import type { StudyKind, StudySet, StudySettings } from './studies'
 import { WorkspaceBackup } from './WorkspaceBackup'
 import { HistoricalReplay } from './HistoricalReplay'
@@ -616,7 +616,8 @@ export function App({
   function setStudy(pane: ChartPane, kind: StudyKind, settings: StudySettings) {
     const { rsi: legacy, studies: current, ...preferences } = ws
     const defaults = defaultStudySettings(kind)
-    const useDefault = !settings.enabled && settings.period === defaults.period && settings.atrPeriod === defaults.atrPeriod
+    const useDefault = !settings.enabled && settings.period === defaults.period &&
+      extraStudyPeriods(kind).every(key => settings[key] === defaults[key])
     if (useDefault && kind !== 'rsi' && !current) return
     if (kind === 'rsi' && !current) {
       const rsi = { ...legacy }
@@ -1156,7 +1157,7 @@ export function App({
                 onApply={periods => setPeriods('primary', periods)} />
               {STUDY_KINDS.map(kind => {
                 const settings = primaryStudies[kind] ?? defaultStudySettings(kind)
-                return <StudyControls key={`primary-${kind}:${settings.period}:${settings.atrPeriod ?? ''}:${settings.enabled}`}
+                return <StudyControls key={`primary-${kind}:${JSON.stringify(settings)}`}
                   kind={kind} label={'Primary chart ' + STUDIES[kind].name} settings={settings} saving={saving}
                   onApply={value => setStudy('primary', kind, value)} />
               })}
@@ -1166,7 +1167,7 @@ export function App({
                   onApply={periods => setPeriods('comparison', periods)} />
                 {STUDY_KINDS.map(kind => {
                   const settings = comparisonStudies[kind] ?? defaultStudySettings(kind)
-                  return <StudyControls key={`comparison-${kind}:${settings.period}:${settings.atrPeriod ?? ''}:${settings.enabled}`}
+                  return <StudyControls key={`comparison-${kind}:${JSON.stringify(settings)}`}
                     kind={kind} label={'Comparison chart ' + STUDIES[kind].name} settings={settings} saving={saving}
                     onApply={value => setStudy('comparison', kind, value)} />
                 })}

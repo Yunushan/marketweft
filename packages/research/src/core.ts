@@ -36,6 +36,11 @@ function readPriceBands(out: DataView): (PriceBand | null)[] {
   });
 }
 
+export interface StochasticValue {
+  percentK: bigint | null;
+  percentD: bigint | null;
+}
+
 export interface BollingerMeasures {
   percentB: bigint | null;
   bandwidth: bigint | null;
@@ -889,6 +894,7 @@ export interface MarketCore {
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
+  stochasticOscillator(lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
   bollingerMeasures(period: number, bars: readonly Bar[]): BollingerMeasures[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
   splitBook(instrument: string, csv: string): Split[];
@@ -982,6 +988,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_bollinger_bands(period: number): number;
   mw_donchian_channels(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
+  mw_stochastic_oscillator(lookback: number, smoothing: number, signal: number): number;
   mw_bollinger_measures(period: number): number;
   mw_formula_version(): number;
   mw_evaluate_formula(sourceBytes: number): number;
@@ -1370,6 +1377,11 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     return Array.from({ length: out.byteLength / 48 }, (_, i) => decodeBar(out, i * 48));
   }
 
+  function putIndicatorBars(bars: readonly Bar[], operation: string) {
+    const dest = input(bars.length * 48);
+    for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, operation);
+  }
+
   function putIndicatorCloses(bars: readonly Bar[]) {
     const dest = input(bars.length * 8);
     bars.forEach(({ close }, index) => {
@@ -1741,8 +1753,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       }
       let out: DataView;
       if (kind === 'atr') {
-        const dest = input(bars.length * 48);
-        for (const [i, bar] of bars.entries()) putBar(dest, i * 48, bar, 'ATR');
+        putIndicatorBars(bars, 'ATR');
         out = output(api.mw_atr(period));
       } else {
         putIndicatorCloses(bars);
@@ -1762,16 +1773,27 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     donchianChannels(period, bars) {
       if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
         throw new Error('Series and indicator period must fit within 100,000 bars.');
-      const dest = input(bars.length * 48);
-      for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Donchian Channels');
+      putIndicatorBars(bars, 'Donchian Channels');
       return readPriceBands(output(api.mw_donchian_channels(period)));
     },
     keltnerChannels(emaPeriod, atrPeriod, bars) {
       if (!validIndicatorPeriod(emaPeriod) || !validIndicatorPeriod(atrPeriod) || bars.length > MAX_INDICATOR_PERIOD)
         throw new Error('Series and indicator periods must fit within 100,000 bars.');
-      const dest = input(bars.length * 48);
-      for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Keltner Channels');
+      putIndicatorBars(bars, 'Keltner Channels');
       return readPriceBands(output(api.mw_keltner_channels(emaPeriod, atrPeriod)));
+    },
+    stochasticOscillator(lookback, smoothing, signal, bars) {
+      if (![lookback, smoothing, signal].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Series and indicator periods must fit within 100,000 bars.');
+      putIndicatorBars(bars, 'Stochastic Oscillator');
+      const out = output(api.mw_stochastic_oscillator(lookback, smoothing, signal));
+      function value(offset: number) {
+        const ticks = out.getBigInt64(offset, true);
+        return ticks === MISSING ? null : ticks;
+      }
+      return Array.from({ length: bars.length }, (_, index) => ({
+        percentK: value(index * 16), percentD: value(index * 16 + 8),
+      }));
     },
     bollingerMeasures(period, bars) {
       if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)

@@ -42,6 +42,7 @@ mod rsi;
 mod scenarios;
 mod screen;
 mod sector;
+mod stochastic;
 mod tick_bars;
 mod timeframe;
 mod universe;
@@ -139,6 +140,7 @@ pub use screen::{
     ScenarioAllocation, ScenarioCoverage, ScreenRow,
 };
 pub use sector::{Classification, Heatmap, HeatmapListing, SectorGroup};
+pub use stochastic::{stochastic_oscillator, StochasticValue};
 pub use tick_bars::{
     FlowVolume, FootprintBar, FootprintLevel, PriceProfile, ProfileArea, ProfileLevel, TickBar,
     TradeTape, TradeWindow,

@@ -2,7 +2,7 @@ import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
 import type { Asset, SavedImport } from './workspace'
 import { isSha256, sha256Text } from './sha256'
-import { isStudyKind, validStudyPeriod } from './studies'
+import { extraStudyPeriods, isStudyKind, validStudyPeriod } from './studies'
 import type { StudySet, StudySettings } from './studies'
 import { validProvider, verifyProviderSignature } from './provider-signature'
 
@@ -219,13 +219,15 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       const studies: StudySet = {}
       for (const [kind, entry] of entries) {
         if (!isStudyKind(kind)) throw Error('Unknown configured study.')
-        fields(entry, kind === 'keltner' ? ['enabled', 'period', 'atrPeriod'] : ['enabled', 'period'], 'pane study settings')
+        const periods = extraStudyPeriods(kind)
+        fields(entry, ['enabled', 'period', ...periods], 'pane study settings')
         if (typeof entry.enabled !== 'boolean' || !validStudyPeriod(kind, entry.period))
           throw Error('Invalid enabled setting or period for the configured study.')
         const study: StudySettings = { enabled: entry.enabled, period: entry.period }
-        if (kind === 'keltner') {
-          if (!validStudyPeriod(kind, entry.atrPeriod)) throw Error('Invalid Keltner ATR period.')
-          study.atrPeriod = entry.atrPeriod
+        for (const key of periods) {
+          const period = entry[key]
+          if (!validStudyPeriod(kind, period)) throw Error('Invalid auxiliary study period.')
+          study[key] = period
         }
         studies[kind] = study
       }

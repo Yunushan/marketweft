@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.117.0 · Stochastic Oscillator
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Exact fixtures compare warm-up and every observed prefix across price extremes, flat windows and recovery, and validate the period bounds. |
+| Browser chart and export | Offline Chromium verifies %K and %D on the same 0–100 scale, separate breaks through flat windows and exact CSV values and empty cells. |
+| Workspace | Version 22 stores lookback, %K smoothing and %D smoothing separately in each pane. Version 21 still restores its saved Keltner settings. |
+
+[Stochastic Oscillator](chart-workspace.md#stochastic-oscillator) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.116.0 · Keltner Channels
 
 | Check | Evidence |

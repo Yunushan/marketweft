@@ -120,6 +120,14 @@ The EMA starts at the first full-window average of closes. Wilder ATR incorporat
 
 For the default periods, the research CSV exports `keltner_lower_20_10`, `keltner_middle_20_10` and `keltner_upper_20_10`. Both periods are part of the column names. The export leaves warm-up cells empty.
 
+### Stochastic Oscillator
+
+Enable **Stochastic Oscillator** in either pane’s indicator settings. Its panel shows %K and %D on a common 0% to 100% scale. The defaults are 14 bars for the lookback, 3 for %K smoothing and 3 for %D. Each pane saves all three periods, and each can be from 1 through 100,000 bars. [StockCharts’ full Stochastic Oscillator calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/stochastic-oscillator-fast-slow-and-full).
+
+To get the raw value, subtract the lowest observed low from the close, divide by the observed high-low range and multiply by 100. %K is its simple moving average. %D is a second simple moving average applied to %K. Every stage rounds to six decimal places. Use 1 for %K smoothing to see the raw value, or 1 for %D to match %K.
+
+The raw value is absent during warm-up or when the observed range is zero. Each average needs a complete window of defined inputs. Missing timestamps contribute zero observations. A gap in either line stays visible on the plot and leaves its research CSV cell empty. The default CSV columns are `stochastic_k_14_3_3` and `stochastic_d_14_3_3`.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

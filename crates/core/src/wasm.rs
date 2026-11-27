@@ -2876,6 +2876,23 @@ pub extern "C" fn mw_keltner_channels(ema_period: usize, atr_period: usize) -> u
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_stochastic_oscillator(
+    lookback: usize,
+    smoothing: usize,
+    signal: usize,
+) -> u32 {
+    process(|input| {
+        let rows = crate::stochastic_oscillator(lookback, smoothing, signal, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 16);
+        for row in rows {
+            bytes.extend_from_slice(&row.percent_k.unwrap_or(i64::MIN).to_le_bytes());
+            bytes.extend_from_slice(&row.percent_d.unwrap_or(i64::MIN).to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
 fn encode_price_bands(bands: Vec<Option<crate::PriceBand>>) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(24 * bands.len());
     for band in bands {

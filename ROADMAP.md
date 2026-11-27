@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.116.0 adds Keltner Channels with separate EMA and ATR periods. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.117.0 adds the Stochastic Oscillator with exact %K and %D values. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -119,6 +119,7 @@
 | Delivered · 0.114.0 | Bollinger %B and BandWidth (MW-014) | Verify signed percentages, unclamped %B, zero denominators, gaps, wide exact CSV output and independent settings restore. [Bollinger measures](docs/chart-workspace.md#bollinger-b-and-bandwidth). |
 | Delivered · 0.115.0 | Donchian Channels (MW-014) | Verify rolling observed extrema, signed midpoint ties, warm-up, shared price scaling and exact research CSV. [Donchian Channels](docs/chart-workspace.md#donchian-channels). |
 | Delivered · 0.116.0 | Keltner Channels (MW-014) | Verify independent EMA and ATR periods, the effect of observed price gaps, signed band values on the shared price axis, warm-up, and exact research CSV. [Keltner Channels](docs/chart-workspace.md#keltner-channels). |
+| Delivered · 0.117.0 | Stochastic Oscillator (MW-014) | Verify three periods, exact close position and smoothing, flat-range gaps, a common 0–100 scale, and exact research CSV. [Stochastic Oscillator](docs/chart-workspace.md#stochastic-oscillator). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -130,5 +131,5 @@
 
 ## Handoff for the next change
 
-Add the Stochastic Oscillator as a built-in study. Verify the close relative to the rolling high-low range, smoothing, flat and missing windows, and exact research CSV.
+Add Williams %R as a built-in study. Verify exact rolling high-low positions, the signed scale, flat and missing windows, and exact research CSV.
 

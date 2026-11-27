@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { OverlayPeriods } from './catalog-schema'
 import { MAX_INDICATOR_PERIOD, validIndicatorPeriod } from './market-core'
-import { DEFAULT_KELTNER_ATR_PERIOD, STUDIES, validStudyPeriod } from './studies'
+import { extraStudyPeriods, EXTRA_STUDY_PERIODS, STUDIES, validStudyPeriod } from './studies'
 import type { StudyKind, StudySettings } from './studies'
 
 export function IndicatorPeriods({ label, periods, saving, onApply }: {
@@ -52,20 +52,30 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
   const { name, minPeriod } = STUDIES[kind]
   const [enabled, setEnabled] = useState(settings.enabled)
   const [period, setPeriod] = useState(String(settings.period))
-  const [atrPeriod, setAtrPeriod] = useState(String(settings.atrPeriod ?? DEFAULT_KELTNER_ATR_PERIOD))
-  const needsAtrPeriod = kind === 'keltner'
+  const extraPeriods = extraStudyPeriods(kind)
+  const [extraValues, setExtraValues] = useState(() => Object.fromEntries(extraPeriods.map(key =>
+    [key, String(settings[key] ?? EXTRA_STUDY_PERIODS[key].defaultPeriod)],
+  )))
   const [error, setError] = useState(false)
   return (
     <form className="indicator-periods" aria-label={label} onSubmit={event => {
       event.preventDefault()
       const bars = Number(period)
-      const rangeBars = Number(atrPeriod)
-      if (!/^\d+$/.test(period.trim()) || !validStudyPeriod(kind, bars) ||
-          needsAtrPeriod && (!/^\d+$/.test(atrPeriod.trim()) || !validIndicatorPeriod(rangeBars))) {
+      if (!/^\d+$/.test(period.trim()) || !validStudyPeriod(kind, bars)) {
         setError(true)
         return
       }
-      onApply({ enabled, period: bars, ...(needsAtrPeriod && { atrPeriod: rangeBars }) })
+      const next: StudySettings = { enabled, period: bars }
+      for (const key of extraPeriods) {
+        const value = extraValues[key]
+        const parsed = Number(value)
+        if (!/^\d+$/.test(value.trim()) || !validIndicatorPeriod(parsed)) {
+          setError(true)
+          return
+        }
+        next[key] = parsed
+      }
+      onApply(next)
     }}>
       <fieldset>
         <legend>{label}</legend>
@@ -73,17 +83,18 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
           <input type="checkbox" checked={enabled} disabled={saving}
             onChange={event => setEnabled(event.target.checked)} />
         </label>
-        <label>{needsAtrPeriod ? 'Keltner EMA' : name} period (bars)
+        <label>{kind === 'keltner' ? 'Keltner EMA' : kind === 'stochastic' ? 'Stochastic lookback' : name} period (bars)
           <input type="text" inputMode="numeric" value={period} disabled={saving}
             onChange={event => { setPeriod(event.target.value); setError(false) }} />
         </label>
-        {needsAtrPeriod && <label>Keltner ATR period (bars)
-          <input type="text" inputMode="numeric" value={atrPeriod} disabled={saving}
-            onChange={event => { setAtrPeriod(event.target.value); setError(false) }} />
-        </label>}
+        {extraPeriods.map(key => <label key={key}>{EXTRA_STUDY_PERIODS[key].label} period (bars)
+          <input type="text" inputMode="numeric" value={extraValues[key]} disabled={saving}
+            onChange={event => { setExtraValues({ ...extraValues, [key]: event.target.value }); setError(false) }} />
+        </label>)}
         <button type="submit" disabled={saving}>Apply {name}</button>
-        {error && <p role="alert">{needsAtrPeriod ?
-          'Enter whole EMA and ATR periods from 1 through 100,000 bars.' :
+        {error && <p role="alert">{kind === 'keltner' ?
+          'Enter whole EMA and ATR periods from 1 through 100,000 bars.' : kind === 'stochastic' ?
+          'Enter whole Stochastic periods from 1 through 100,000 bars.' :
           `Enter a whole ${name} period from ${minPeriod} through 100,000 bars.`}</p>}
       </fieldset>
     </form>
