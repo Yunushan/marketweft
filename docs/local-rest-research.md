@@ -19,6 +19,7 @@ The service prints the bound loopback address. The port defaults to 4174. Set `M
 | `POST /v1/formula` | `MARKETWEFT_FORMULA_TOKEN` | `formula`, `history_csv`, optional `observed_through` UTC seconds and ordered `functions` |
 | `POST /v1/universe/screen` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `prices_csv`, `baseline_at`, `effective_at` and `known_at` |
 | `POST /v1/options/snapshot` | `MARKETWEFT_OPTIONS_TOKEN` | `underlying_csv`, `quotes_csv`, `effective_at`, `known_at` and optional `max_age` |
+| `POST /v1/options/american/valuation` | `MARKETWEFT_OPTIONS_TOKEN` | Option CSVs, `contract_id`, both UTC cutoffs, and optional volatility and cash dividends |
 
 Both endpoints accept `offset` and `limit`. The default page contains up to 200 rows. Pages can contain at most 1,000 rows. Reuse the same query and apply `next_offset` to obtain the next page. A screen ranks the full effective universe before slicing the result.
 
@@ -270,3 +271,12 @@ Post JSON to `/v1/options/snapshot` with the bearer token for the `options` scop
 Send `underlying_csv` and `quotes_csv` as UTF-8 file contents and supply independent `effective_at` and `known_at` UTC timestamps. Each CSV is limited to 2 MiB. `max_age` is a whole number of seconds and defaults to 300 for both underlying and option quotes. Use `limit` and `offset` to page the visible contracts. The default is 200 contracts and the maximum page is 1,000. Repeat the same inputs with the returned `next_offset` for the next page.
 
 The response provides both cutoffs, the instrument and currency, the selected underlying, and the visible option rows. Quotes carry exact tick amounts as strings, UTC quote and observation times, exercise style and a model status. An eligible European quote has analytics. A missing bid or ask and unavailable analytics are represented by `null`. Use the bundled option fixture to see the underlying move from USD 100 to USD 100.50 after its report appears, with the delayed American call visible at later knowledge cutoffs. [Option CSV formats and cutoffs](option-chain.md).
+
+
+## American option valuations
+
+Post the query to `/v1/options/american/valuation` under the `options` scope. Supply `underlying_csv`, `quotes_csv`, `contract_id`, `effective_at` and `known_at`. The maximum age `max_age` defaults to 300 seconds. The lattice size is set by `steps`, which accepts 1–256 and defaults to 128.
+
+Supply `volatility` as an annual fraction to price the contract. An absent or null volatility solves the observed bid–ask midpoint. Supply `cash_dividends_csv` with up to 1 MiB of UTF-8 reports to apply distributions known by the cutoff with ex-dates after the effective time and at or before expiry. The response identifies both cutoffs, model status, currency, price, volatility and the reports used. Each report includes exact integer millionths per share as a decimal string and its announcement, ex-date, pay date and observation time in UTC seconds. An unavailable model has a status and null price and volatility.
+
+With the sample April American 90-strike call, the 14:06 UTC revision carries USD 1 and USD 9 per share and gives 32.53% IV for the USD 16.234568 midpoint. Direct pricing at 25% gives USD 14.171952 at the same cutoffs. [Example inputs and replay cutoffs](option-chain.md#cash-dividend-implied-volatility).

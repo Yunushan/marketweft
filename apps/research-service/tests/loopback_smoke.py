@@ -87,6 +87,20 @@ def verify(origin, formula_token, screen_token, options_token):
     assert later_rows["APR-AM-C90"]["exercise_style"] == "american"
     assert later_rows["APR-P110"]["status"] == "ok"
 
+    american = dict(
+        option_input, contract_id="APR-AM-C90", known_at="2025-04-03T14:06:00Z",
+        cash_dividends_csv=fixture("synthetic-option-cash-dividends.csv"),
+    )
+    value_path = "/v1/options/american/valuation"
+    assert post(value_path, formula_token, american)[0] == 403
+    status, solved = post(value_path, options_token, american)
+    assert status == 200 and solved["status"] == "value", solved
+    assert abs(solved["price"] - 16.234568) < 1e-10
+    assert [row["amount_per_share_ticks"] for row in solved["dividends"]] == ["1000000", "9000000"]
+    status, priced = post(value_path, options_token, dict(american, volatility=0.25))
+    assert status == 200 and abs(priced["price"] - 14.171952) < 5e-7, priced
+    assert priced["dividends"] == solved["dividends"]
+
 
 @contextmanager
 def research_process(executable, formula_token, screen_token, **overrides):
@@ -131,7 +145,7 @@ def main(executable):
         executable, formula_token, screen_token, MARKETWEFT_OPTIONS_TOKEN=options_token,
     ) as (_, origin, _):
         verify(origin, formula_token, screen_token, options_token)
-    print("Verified scoped formula, universe screen and option snapshots over loopback TCP.")
+    print("Verified scoped formulas, universe screens, option snapshots and American valuations over loopback TCP.")
 
 
 if __name__ == "__main__":

@@ -11,9 +11,9 @@ use crate::option_wire::{option_cash_status, option_dividend_rows, option_snapsh
 use crate::screen::MAX_PRICE_BYTES;
 use crate::universe::{valid_id, MAX_MEMBERSHIP_BYTES};
 use crate::{
-    parse_csv, parse_dividends, parse_universe, AmericanCashImpliedRequest, AmericanCashRequest,
-    AmericanImplied, CashOptionError, FinancialBook, Formula, OptionBook, PriceBook,
-    FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_INPUT_BYTES,
+    parse_csv, parse_dividends, parse_universe, AmericanValuation, AmericanValuationRequest,
+    FinancialBook, Formula, OptionBook, PriceBook, FORMULA_VERSION, MAX_AMERICAN_STEPS,
+    MAX_INPUT_BYTES,
 };
 use std::fmt::Write;
 
@@ -143,64 +143,25 @@ pub fn american_option_request(bytes: &[u8]) -> Result<String, String> {
         "continuous" if cash.is_empty() => None,
         _ => return Err("Supply cash dividend reports only in cash mode.".into()),
     };
-    let result = match (volatility, dividends.as_ref()) {
-        (Some(volatility), None) => book
-            .price_american(
-                contract_id,
-                effective_at,
-                known_at,
-                max_age,
-                volatility,
-                steps,
-            )
-            .map(|price| (AmericanImplied { price, volatility }, Vec::new()))
-            .map_err(CashOptionError::Quote),
-        (None, None) => book
-            .implied_american(contract_id, effective_at, known_at, max_age, steps)
-            .map(|model| (model, Vec::new()))
-            .map_err(CashOptionError::Quote),
-        (Some(volatility), Some(dividends)) => book
-            .american_cash_valuation(
-                dividends,
-                AmericanCashRequest {
-                    contract_id,
-                    effective_at,
-                    known_at,
-                    max_age,
-                    volatility,
-                    steps,
-                },
-            )
-            .map(|value| {
-                (
-                    AmericanImplied {
-                        price: value.price,
-                        volatility,
-                    },
-                    value.dividends,
-                )
-            }),
-        (None, Some(dividends)) => book
-            .american_cash_implied_valuation(
-                dividends,
-                AmericanCashImpliedRequest {
-                    contract_id,
-                    effective_at,
-                    known_at,
-                    max_age,
-                    steps,
-                },
-            )
-            .map(|value| (value.model, value.dividends)),
-    };
+    let result = book.american_valuation(
+        dividends.as_ref(),
+        AmericanValuationRequest {
+            contract_id,
+            effective_at,
+            known_at,
+            max_age,
+            steps,
+            volatility,
+        },
+    );
     let mut output = format!(
         "marketweft-american-option\t{PROTOCOL_VERSION}\t{contract_id},{}\n",
         source.currency
     );
     match result {
-        Ok((model, applied)) => {
+        Ok(AmericanValuation { model, dividends }) => {
             writeln!(output, "value\t{}\t{}", model.price, model.volatility).unwrap();
-            option_dividend_rows(&mut output, applied);
+            option_dividend_rows(&mut output, dividends);
         }
         Err(error) => writeln!(output, "{}", option_cash_status(error)?).unwrap(),
     }

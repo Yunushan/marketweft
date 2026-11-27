@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.100.0 · REST American option valuations
+
+| Check | Evidence |
+| --- | --- |
+| HTTP valuation | Standalone loopback requests reproduce USD 14.171952 at 25% and the USD 16.234568 midpoint with both known cash reports. The formula credential is rejected for the valuation route. |
+| Point-in-time replay | Router tests verify quote visibility, revisions, exact amounts and UTC provenance, cancellation and replay rewind. A mismatched currency and invalid step count return explicit errors. |
+| Native parity | The native and REST paths use the same American valuation method. The Python and MCP suites still reproduce the existing recorded cutoffs. |
+
+[REST American option valuations](local-rest-research.md#american-option-valuations) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.99.0 · Scoped REST option snapshots
 
 | Check | Evidence |

@@ -99,6 +99,22 @@ pub struct ChainSnapshot<'a> {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub struct AmericanValuationRequest<'a> {
+    pub contract_id: &'a str,
+    pub effective_at: i64,
+    pub known_at: i64,
+    pub max_age: u32,
+    pub steps: u16,
+    pub volatility: Option<f64>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct AmericanValuation<'a> {
+    pub model: AmericanImplied,
+    pub dividends: Vec<&'a Dividend>,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct AmericanCashRequest<'a> {
     pub contract_id: &'a str,
     pub effective_at: i64,
@@ -401,6 +417,76 @@ impl OptionBook {
             price,
             dividends: inputs.reports,
         })
+    }
+
+    /// Price the selected American contract or solve its midpoint, with an optional dated cash schedule.
+    pub fn american_valuation<'a>(
+        &self,
+        dividends: Option<&'a DividendBook>,
+        request: AmericanValuationRequest<'_>,
+    ) -> Result<AmericanValuation<'a>, CashOptionError> {
+        let AmericanValuationRequest {
+            contract_id,
+            effective_at,
+            known_at,
+            max_age,
+            steps,
+            volatility,
+        } = request;
+        let (model, dividends) = match (volatility, dividends) {
+            (Some(volatility), None) => {
+                let price = self
+                    .price_american(
+                        contract_id,
+                        effective_at,
+                        known_at,
+                        max_age,
+                        volatility,
+                        steps,
+                    )
+                    .map_err(CashOptionError::Quote)?;
+                (AmericanImplied { price, volatility }, Vec::new())
+            }
+            (None, None) => (
+                self.implied_american(contract_id, effective_at, known_at, max_age, steps)
+                    .map_err(CashOptionError::Quote)?,
+                Vec::new(),
+            ),
+            (Some(volatility), Some(dividends)) => {
+                let value = self.american_cash_valuation(
+                    dividends,
+                    AmericanCashRequest {
+                        contract_id,
+                        effective_at,
+                        known_at,
+                        max_age,
+                        volatility,
+                        steps,
+                    },
+                )?;
+                (
+                    AmericanImplied {
+                        price: value.price,
+                        volatility,
+                    },
+                    value.dividends,
+                )
+            }
+            (None, Some(dividends)) => {
+                let value = self.american_cash_implied_valuation(
+                    dividends,
+                    AmericanCashImpliedRequest {
+                        contract_id,
+                        effective_at,
+                        known_at,
+                        max_age,
+                        steps,
+                    },
+                )?;
+                (value.model, value.dividends)
+            }
+        };
+        Ok(AmericanValuation { model, dividends })
     }
 
     /// Solve the observed American midpoint using the known cash schedule.

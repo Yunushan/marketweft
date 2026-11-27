@@ -253,3 +253,78 @@ async fn v1_managed_credentials_remain_valid_and_options_is_added_on_issuance() 
         .unwrap();
     assert_eq!(version, 2);
 }
+
+#[tokio::test]
+async fn american_option_rest_reprices_the_observed_midpoint_and_keeps_dividend_provenance() {
+    const AMERICAN_ROUTE: &str = "/v1/options/american/valuation";
+    const CASH: &str =
+        include_str!("../../../crates/core/tests/fixtures/synthetic-option-cash-dividends.csv");
+    let tokens = Tokens::with_options(Some(FORMULA), None, Some(OPTIONS)).unwrap();
+    let router = research_router(ADDRESS.parse().unwrap(), tokens).unwrap();
+    let mut query = option_query("2025-04-03T14:01:59Z");
+    query["contract_id"] = json!("APR-AM-C90");
+    query["cash_dividends_csv"] = json!(CASH);
+    assert_eq!(
+        request(&router, AMERICAN_ROUTE, Some(FORMULA), &query)
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    let (status, early) = request(&router, AMERICAN_ROUTE, Some(OPTIONS), &query).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(early["status"], "missing-contract");
+    assert!(early["price"].is_null());
+    assert_eq!(early["dividends"], json!([]));
+
+    query["known_at"] = json!("2025-04-03T14:04:00Z");
+    let (_, first) = request(&router, AMERICAN_ROUTE, Some(OPTIONS), &query).await;
+    assert_eq!(first["dividends"][0]["amount_per_share_ticks"], "7000000");
+    query["known_at"] = json!("2025-04-03T14:06:00Z");
+    let (_, revised) = request(&router, AMERICAN_ROUTE, Some(OPTIONS), &query).await;
+    assert_eq!(revised["currency"], "USD");
+    assert_eq!(revised["effective_at"], "2025-04-03T14:00:00Z");
+    assert_eq!(revised["known_at"], "2025-04-03T14:06:00Z");
+    assert_eq!(revised["status"], "value");
+    let midpoint = revised["price"].as_f64().unwrap();
+    assert!((midpoint - 16.234568).abs() < 1e-10);
+    assert!((midpoint - first["price"].as_f64().unwrap()).abs() < 1e-10);
+    assert!((revised["volatility"].as_f64().unwrap() - 0.3253).abs() < 0.000_05);
+    assert_eq!(revised["dividends"][0]["amount_per_share_ticks"], "1000000");
+    let main = &revised["dividends"][1];
+    assert_eq!(main["id"], "MAIN");
+    assert_eq!(main["amount_per_share_ticks"], "9000000");
+    assert_eq!(main["ex_at"], 1759500000);
+    assert_eq!(main["pay_at"], 1759932000);
+    assert_eq!(main["observed_at"], 1743689160);
+
+    query["volatility"] = json!(0.25);
+    let (_, manual) = request(&router, AMERICAN_ROUTE, Some(OPTIONS), &query).await;
+    assert!((manual["price"].as_f64().unwrap() - 14.171952).abs() < 0.000_000_5);
+    assert_eq!(manual["dividends"], revised["dividends"]);
+    query.as_object_mut().unwrap().remove("volatility");
+    query["known_at"] = json!("2025-04-03T14:07:00Z");
+    let (_, cancelled) = request(&router, AMERICAN_ROUTE, Some(OPTIONS), &query).await;
+    assert_eq!(cancelled["dividends"], json!([main]));
+    query["known_at"] = json!("2025-04-03T14:04:00Z");
+    assert_eq!(
+        request(&router, AMERICAN_ROUTE, Some(OPTIONS), &query)
+            .await
+            .1,
+        first
+    );
+
+    query["cash_dividends_csv"] = json!(CASH.replace(",USD,", ",EUR,"));
+    assert_eq!(
+        request(&router, AMERICAN_ROUTE, Some(OPTIONS), &query)
+            .await
+            .0,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    query["steps"] = json!(257);
+    assert_eq!(
+        request(&router, AMERICAN_ROUTE, Some(OPTIONS), &query)
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+}

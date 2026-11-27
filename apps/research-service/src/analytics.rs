@@ -4,9 +4,10 @@ use crate::{
 };
 use axum::http::StatusCode;
 use marketweft_core::{
-    parse_csv, parse_exact_utc, parse_universe, ExerciseStyle, Formula, FormulaFunctionDefinition,
-    FormulaLibrary, OptionAnalytics, OptionBook, OptionSide, PriceBook, PriceObservation,
-    FORMULA_VERSION,
+    parse_csv, parse_dividends, parse_exact_utc, parse_universe, AmericanValuationRequest,
+    CashOptionError, ExerciseStyle, Formula, FormulaFunctionDefinition, FormulaLibrary,
+    OptionAnalytics, OptionBook, OptionSide, PriceBook, PriceObservation, FORMULA_VERSION,
+    MAX_AMERICAN_STEPS,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -20,6 +21,7 @@ pub(crate) enum ResearchPage {
     Formula(FormulaPage),
     Screen(ScreenPage),
     Options(OptionPage),
+    AmericanOption(AmericanOptionResponse),
 }
 
 pub(crate) fn present_u64<'de, D: Deserializer<'de>>(input: D) -> Result<Option<u64>, D::Error> {
@@ -313,15 +315,7 @@ pub(crate) fn option_snapshot(
 ) -> Result<(), ApiError> {
     let params: OptionQuery = request(bytes)?;
     let (offset, limit) = pagination(params.offset, params.limit, 20_000)?;
-    let (Some(effective), Some(known)) = (
-        parse_exact_utc(&params.effective_at),
-        parse_exact_utc(&params.known_at),
-    ) else {
-        return Err(ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "Supply exact effective and known UTC times.",
-        ));
-    };
+    let (effective, known) = option_cutoffs(&params.effective_at, &params.known_at)?;
     let book = OptionBook::parse(&params.underlying_csv, &params.quotes_csv)
         .map_err(|error| analytical_error(error.to_string()))?;
     let source = book.underlying();
@@ -368,6 +362,156 @@ pub(crate) fn option_snapshot(
         offset: offset as u32,
         next_offset: next_offset.map(|value| value as u32),
         rows,
+    }));
+    Ok(())
+}
+
+fn option_cutoffs(effective: &str, known: &str) -> Result<(i64, i64), ApiError> {
+    parse_exact_utc(effective)
+        .zip(parse_exact_utc(known))
+        .ok_or_else(|| {
+            ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "Supply exact effective and known UTC times.",
+            )
+        })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AmericanOptionQuery {
+    underlying_csv: String,
+    quotes_csv: String,
+    cash_dividends_csv: Option<String>,
+    contract_id: String,
+    effective_at: String,
+    known_at: String,
+    #[serde(default = "default_quote_age")]
+    max_age: u32,
+    #[serde(default = "default_lattice_steps")]
+    steps: u16,
+    volatility: Option<f64>,
+}
+
+const fn default_lattice_steps() -> u16 {
+    128
+}
+
+#[derive(Serialize)]
+pub(crate) struct AmericanOptionResponse {
+    contract_id: String,
+    currency: String,
+    effective_at: String,
+    known_at: String,
+    status: &'static str,
+    price: Option<f64>,
+    volatility: Option<f64>,
+    dividends: Vec<AppliedDividend>,
+}
+
+#[derive(Serialize)]
+struct AppliedDividend {
+    id: String,
+    announced_at: i64,
+    ex_at: i64,
+    pay_at: i64,
+    observed_at: i64,
+    currency: String,
+    amount_per_share_ticks: String,
+}
+
+pub(crate) fn american_option(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    let params: AmericanOptionQuery = request(bytes)?;
+    let (effective_at, known_at) = option_cutoffs(&params.effective_at, &params.known_at)?;
+    if !(1..=40).contains(&params.contract_id.len())
+        || !params
+            .contract_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"._-".contains(&byte))
+    {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Select a valid American contract ID.",
+        ));
+    }
+    if !(1..=MAX_AMERICAN_STEPS).contains(&params.steps) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use 1 to 256 whole pricing steps.",
+        ));
+    }
+    if params
+        .volatility
+        .is_some_and(|volatility| !(0.0..=10.0).contains(&volatility))
+    {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use annual volatility from 0 to 10.",
+        ));
+    }
+    let book = OptionBook::parse(&params.underlying_csv, &params.quotes_csv)
+        .map_err(|error| analytical_error(error.to_string()))?;
+    let source = book.underlying();
+    let cash = params
+        .cash_dividends_csv
+        .as_deref()
+        .map(|reports| parse_dividends(reports, &source.instrument))
+        .transpose()
+        .map_err(analytical_error)?;
+    let result = book.american_valuation(
+        cash.as_ref(),
+        AmericanValuationRequest {
+            contract_id: &params.contract_id,
+            effective_at,
+            known_at,
+            max_age: params.max_age,
+            steps: params.steps,
+            volatility: params.volatility,
+        },
+    );
+    let (status, price, volatility, dividends) = match result {
+        Ok(result) => (
+            "value",
+            Some(result.model.price),
+            Some(result.model.volatility),
+            result
+                .dividends
+                .into_iter()
+                .map(|row| AppliedDividend {
+                    id: row.id.clone(),
+                    announced_at: row.announced_at,
+                    ex_at: row.ex_at,
+                    pay_at: row.pay_at,
+                    observed_at: row.observed_at,
+                    currency: row.currency.clone(),
+                    amount_per_share_ticks: row.amount_per_share.to_string(),
+                })
+                .collect(),
+        ),
+        Err(CashOptionError::Quote(status)) => (status.code(), None, None, Vec::new()),
+        Err(CashOptionError::InstrumentMismatch) => {
+            return Err(analytical_error(
+                "Cash dividend instrument must match the option chain.".into(),
+            ))
+        }
+        Err(CashOptionError::CurrencyMismatch) => {
+            return Err(analytical_error(
+                "Cash dividend currency must match the option chain.".into(),
+            ))
+        }
+    };
+    emit(ResearchPage::AmericanOption(AmericanOptionResponse {
+        contract_id: params.contract_id,
+        currency: source.currency.clone(),
+        effective_at: params.effective_at,
+        known_at: params.known_at,
+        status,
+        price,
+        volatility,
+        dividends,
     }));
     Ok(())
 }

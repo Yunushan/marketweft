@@ -81,8 +81,9 @@ pub use macro_calendar::{MacroCalendar, ReleaseRecord, ReleaseSnapshot, ReportKi
 pub use option_cash::CashOptionDividend;
 pub use option_chain::{
     AmericanCashImpliedRequest, AmericanCashImpliedValuation, AmericanCashRequest,
-    AmericanCashValuation, CashOptionError, ChainSnapshot, Contract, ExerciseStyle, OptionBook,
-    OptionBookError, OptionQuote, OptionRow, QuoteStatus, Underlying, UnderlyingQuote,
+    AmericanCashValuation, AmericanValuation, AmericanValuationRequest, CashOptionError,
+    ChainSnapshot, Contract, ExerciseStyle, OptionBook, OptionBookError, OptionQuote, OptionRow,
+    QuoteStatus, Underlying, UnderlyingQuote,
 };
 pub use option_price::{
     AmericanImplied, EuropeanOption, ModelError, OptionAnalytics, OptionSide, OptionTerms,

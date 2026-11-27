@@ -478,6 +478,7 @@ fn route_authority(
         .route("/v1/formula", post(formula))
         .route("/v1/universe/screen", post(screen))
         .route("/v1/options/snapshot", post(option_snapshot))
+        .route("/v1/options/american/valuation", post(american_option))
         .route("/v1/formula/stream", get(websocket::formula))
         .route("/v1/universe/screen/stream", get(websocket::screen))
         .with_state(state)
@@ -648,4 +649,11 @@ async fn option_snapshot(
     request: Request,
 ) -> Result<Json<ResearchPage>, ApiError> {
     execute(state, request, Scope::Options, analytics::option_snapshot).await
+}
+
+async fn american_option(
+    State(state): State<Arc<Server>>,
+    request: Request,
+) -> Result<Json<ResearchPage>, ApiError> {
+    execute(state, request, Scope::Options, analytics::american_option).await
 }
