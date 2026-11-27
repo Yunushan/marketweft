@@ -11,6 +11,10 @@ pub struct Bar {
     pub volume: i64,
 }
 
+pub(crate) fn typical_sum(bar: &Bar) -> i128 {
+    i128::from(bar.high) + i128::from(bar.low) + i128::from(bar.close)
+}
+
 pub(crate) fn validate_ohlcv(bar: &Bar, index: usize) -> Result<(), String> {
     if [bar.open, bar.high, bar.low, bar.close]
         .iter()

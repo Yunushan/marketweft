@@ -2890,6 +2890,28 @@ pub extern "C" fn mw_cumulative_volume() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_commodity_channel_index(period: usize) -> u32 {
+    process(|input| {
+        crate::commodity_channel_index(period, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_rate_of_change(period: usize) -> u32 {
+    process(|input| {
+        let values = crate::rate_of_change(period, &indicator_closes(input)?)?;
+        Ok(encode_wide_indicator_values(values))
+    })
+}
+
+fn encode_wide_indicator_values(values: Vec<Option<i128>>) -> Vec<u8> {
+    values
+        .into_iter()
+        .flat_map(|value| value.unwrap_or(i128::MIN).to_le_bytes())
+        .collect()
+}
+
+#[no_mangle]
 pub extern "C" fn mw_directional_movement(di_period: usize, adx_period: usize) -> u32 {
     process(|input| {
         let rows = crate::directional_movement(di_period, adx_period, &decode_bars(input)?)?;
@@ -2928,10 +2950,7 @@ pub extern "C" fn mw_chaikin_money_flow(period: usize) -> u32 {
 pub extern "C" fn mw_chaikin_oscillator(fast: usize, slow: usize) -> u32 {
     process(|input| {
         let results = crate::chaikin_oscillator(fast, slow, &decode_bars(input)?)?;
-        Ok(results
-            .into_iter()
-            .flat_map(|value| value.unwrap_or(i128::MIN).to_le_bytes())
-            .collect())
+        Ok(encode_wide_indicator_values(results))
     })
 }
 

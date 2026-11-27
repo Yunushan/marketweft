@@ -21,6 +21,8 @@ export const STUDIES = {
   mfi: { name: 'MFI', label: 'Money Flow Index', minPeriod: 1, defaultPeriod: 14, color: '#a9cc89' },
   vwma: { name: 'VWMA', label: 'Volume-Weighted Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#f1c177' },
   dmi: { name: 'DMI', label: 'Directional Movement System', minPeriod: 1, defaultPeriod: 14, periodLabel: 'DI', color: '#aaa3f0' },
+  cci: { name: 'CCI', label: 'Commodity Channel Index', minPeriod: 1, defaultPeriod: 20, color: '#c5adf1' },
+  roc: { name: 'ROC', label: 'Rate of Change', minPeriod: 1, defaultPeriod: 12, color: '#73c3e4' },
 } as const
 export type StudyKind = keyof typeof STUDIES
 export const STUDY_KINDS = Object.keys(STUDIES) as StudyKind[]
@@ -68,7 +70,8 @@ export type PanelLine = StudyLine<StudyValue> & { histogram?: { negativeColor: s
 export type PanelStudy = {
   kind: Exclude<StudyKind, BandKind | 'vwma'>
   periods: number[]
-  unit?: 'price' | 'volume'
+  unit?: 'price' | 'volume' | 'index'
+  guides?: number[]
   zeroLine?: boolean
   lines: PanelLine[]
 }
@@ -167,6 +170,16 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     if (kind === 'chaikin_money_flow') {
       return [{ kind, periods: [period], zeroLine: true, lines: [
         { color: STUDIES[kind].color, series: core.chaikinMoneyFlow(period, bars) },
+      ] }]
+    }
+    if (kind === 'cci') {
+      return [{ kind, periods: [period], unit: 'index', guides: [-100, 0, 100], lines: [
+        { color: STUDIES.cci.color, series: core.commodityChannelIndex(period, bars) },
+      ] }]
+    }
+    if (kind === 'roc') {
+      return [{ kind, periods: [period], zeroLine: true, lines: [
+        { color: STUDIES.roc.color, series: core.rateOfChange(period, bars) },
       ] }]
     }
     let series: StudyValue[]

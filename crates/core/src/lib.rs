@@ -37,6 +37,7 @@ mod paper;
 mod paper_replay;
 mod point_figure;
 mod portfolio;
+mod price_momentum;
 mod provider_history;
 mod range_bars;
 mod range_position;
@@ -137,6 +138,7 @@ pub use portfolio::{
     PortfolioIncomeCurrency, PortfolioIncomeSnapshot, PortfolioRow, PortfolioSnapshot,
     PortfolioState,
 };
+pub use price_momentum::{commodity_channel_index, rate_of_change};
 pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use range_bars::RangeBar;
 pub use range_position::williams_percent_r;

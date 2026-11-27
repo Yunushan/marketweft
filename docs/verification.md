@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.124.0 · Commodity Channel Index and Rate of Change
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Exact vectors cover each observed prefix, signed prices, flat and zero baselines, and returns beyond the signed 64-bit range. Native CCI results match direct window scans and the full 100,000-bar lookback. |
+| Browser chart and export | Offline Chromium checks independent signed scales, the zero-baseline path break, all fixture CSV rows and an exact return beyond the signed 64-bit range. |
+| Workspace | Version 29 saves separate periods in both panes. Version 28 restores its original DMI settings. |
+
+[CCI and ROC](chart-workspace.md#commodity-channel-index-and-rate-of-change) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.123.0 · Directional Movement System
 
 | Check | Evidence |

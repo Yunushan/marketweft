@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.123.0 adds Wilder’s Directional Movement System with separately configured DI and ADX periods. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.124.0 adds CCI and ROC with exact signed rolling calculations. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -126,6 +126,7 @@
 | Delivered · 0.121.0 | Chaikin Money Flow and Chaikin Oscillator (MW-014) | Verify rolling and EMA inputs, zero-volume windows, independent signed scales, wide volume units, and exact research CSV. [Chaikin studies](docs/chart-workspace.md#chaikin-studies). |
 | Delivered · 0.122.0 | Money Flow Index and Volume-Weighted Moving Average (MW-014) | Verify signed typical-price changes, ties, empty windows, wide rolling arithmetic, a shared price axis and exact research CSV. [MFI and VWMA](docs/chart-workspace.md#money-flow-index-and-volume-weighted-moving-average). |
 | Delivered · 0.123.0 | Wilder’s Directional Movement System (MW-014) | Verify +DI, −DI and ADX over gaps, ties and flat histories, two warm-up periods, independent settings and exact research CSV. [Directional Movement System](docs/chart-workspace.md#directional-movement-system). |
+| Delivered · 0.124.0 | Commodity Channel Index and Rate of Change (MW-014) | Verify exact mean deviations over full signed price windows, zero denominators, wide returns, signed scales and exact research CSV. [CCI and ROC](docs/chart-workspace.md#commodity-channel-index-and-rate-of-change). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -137,5 +138,5 @@
 
 ## Handoff for the next change
 
-Add the Commodity Channel Index and Rate of Change. Verify rolling absolute deviations from the mean, signed prices, zero denominators, warm-up, and exact research CSV.
+Add Aroon and Aroon Oscillator. Verify latest tied extrema, time since highs and lows, warm-up, paired lines, and exact research CSV.
 

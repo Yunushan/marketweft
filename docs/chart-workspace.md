@@ -184,6 +184,16 @@ A rise in the high must be positive and exceed the fall in the low to count as p
 
 The default research CSV columns are `dmi_plus_di_14_14`, `dmi_minus_di_14_14` and `dmi_adx_14_14`. The CSV preserves six-place percentage points and leaves warm-up values empty.
 
+### Commodity Channel Index and Rate of Change
+
+Enable **CCI** or **ROC** in either pane’s indicator settings. Each period accepts 1 through 100,000 observed bars. CCI shows index values with references at −100, 0 and 100. ROC shows percentages with a zero reference.
+
+CCI defaults to 20 bars. The study subtracts the trailing mean typical price from the current typical price and divides by 0.015 times the mean absolute deviation from that same mean. Typical price is the mean of high, low and close. Both statistics use the same full trailing window. A window with zero mean deviation leaves the CCI value empty. [StockCharts’ Commodity Channel Index calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/commodity-channel-index-cci).
+
+ROC defaults to 12 changes. It subtracts the close one lookback ago from the current close, divides by that earlier signed close and multiplies by 100. A zero baseline leaves the value empty. A negative baseline retains its sign in the calculation. [StockCharts’ Rate of Change calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/rate-of-change-roc).
+
+The default research CSV columns are `cci_20` and `roc_12`. Values are rounded directly to six decimal places. The plot leaves gaps where output is absent, and the CSV leaves those cells empty. Exact ROC readouts and CSV values can exceed the signed 64-bit tick range.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

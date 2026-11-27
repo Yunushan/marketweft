@@ -1,5 +1,5 @@
 use crate::{
-    history::{validate_bar_time, validate_ohlcv},
+    history::{typical_sum, validate_bar_time, validate_ohlcv},
     screen::{decimal_ratio, rounded_div},
     Bar, MAX_BARS,
 };
@@ -40,10 +40,6 @@ fn validate_period(period: usize, bars: &[Bar]) -> Result<(), String> {
         );
     }
     Ok(())
-}
-
-fn typical_sum(bar: &Bar) -> i128 {
-    i128::from(bar.high) + i128::from(bar.low) + i128::from(bar.close)
 }
 
 /// Returns the Money Flow Index in six-place percentage points. Direction is

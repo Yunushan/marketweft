@@ -912,6 +912,8 @@ export interface MarketCore {
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
   cumulativeVolume(bars: readonly Bar[]): CumulativeVolume[];
+  commodityChannelIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
+  rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
   moneyFlowIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   volumeWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1014,6 +1016,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_donchian_channels(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
   mw_cumulative_volume(): number;
+  mw_commodity_channel_index(period: number): number;
+  mw_rate_of_change(period: number): number;
   mw_directional_movement(diPeriod: number, adxPeriod: number): number;
   mw_money_flow_index(period: number): number;
   mw_volume_weighted_average(period: number): number;
@@ -1081,6 +1085,13 @@ interface MarketExports extends WebAssembly.Exports {
 
 const SCALE = 1_000_000;
 const MISSING = -(1n << 63n);
+
+function readWideIndicator(out: DataView, length: number): (bigint | null)[] {
+  return Array.from({ length }, (_, index) => {
+    const ticks = signed128(out, index * 16);
+    return ticks === -(1n << 127n) ? null : ticks;
+  });
+}
 
 function signed128(out: DataView, offset: number): bigint {
   return (out.getBigInt64(offset + 8, true) << 64n) | out.getBigUint64(offset, true);
@@ -1841,6 +1852,15 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         onBalance: signed128(out, index * 32), accumulationDistribution: signed128(out, index * 32 + 16),
       }));
     },
+    commodityChannelIndex(period, bars) {
+      return observedIndicator(api.mw_commodity_channel_index, period, bars, 'Commodity Channel Index');
+    },
+    rateOfChange(period, bars) {
+      if (!validIndicatorPeriod(period) || bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Series and indicator period must fit within 100,000 bars.');
+      putIndicatorCloses(bars);
+      return readWideIndicator(output(api.mw_rate_of_change(period)), bars.length);
+    },
     directionalMovement(diPeriod, adxPeriod, bars) {
       if (![diPeriod, adxPeriod].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)
         throw new Error('Series and indicator periods must fit within 100,000 bars.');
@@ -1867,11 +1887,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       if (![fast, slow].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)
         throw new Error('Series and indicator periods must fit within 100,000 bars.');
       putIndicatorBars(bars, 'Chaikin Oscillator');
-      const out = output(api.mw_chaikin_oscillator(fast, slow));
-      return Array.from({ length: bars.length }, (_, index) => {
-        const ticks = signed128(out, index * 16);
-        return ticks === -(1n << 127n) ? null : ticks;
-      });
+      return readWideIndicator(output(api.mw_chaikin_oscillator(fast, slow)), bars.length);
     },
     macd(fast, slow, signal, bars) {
       if (![fast, slow, signal].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)

@@ -1461,3 +1461,19 @@ test('Directional Movement keeps exact signed-gap inputs and independent DI and 
   assert.throws(() => core.directionalMovement(2, 0, bars), /100,000/);
   assert.throws(() => core.directionalMovement(2, 2, [bars[0], bars[0]]), /later/);
 });
+
+test('CCI and ROC preserve signed windows, zero denominators and wide ROC through Wasm', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-price-momentum.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const cci = [null, null, 50000000n, -100000000n, -40000000n, 100000000n, 100000000n, 16666667n, -85714286n, -33333333n, 100000000n, -100000000n];
+  const roc = [null, null, -12500000n, 80000000n, 14285714n, -77777778n, -175000000n, -150000000n, -100000000n, 0n, null, -400000000n];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.commodityChannelIndex(3, bars.slice(0, end)), cci.slice(0, end));
+    assert.deepEqual(core.rateOfChange(2, bars.slice(0, end)), roc.slice(0, end));
+  }
+  const wide = [{ ...bars[0], close: 0.000001 }, { ...bars[1], close: 2e9 }];
+  assert.equal(core.rateOfChange(1, wide).at(-1), 199_999_999_999_999_900_000_000n);
+  assert.equal(core.commodityChannelIndex(2, bars)[2], null);
+  assert.throws(() => core.rateOfChange(0, bars), /100,000/);
+  assert.throws(() => core.commodityChannelIndex(3, [bars[0], bars[0]]), /later/);
+});

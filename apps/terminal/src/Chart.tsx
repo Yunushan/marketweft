@@ -192,8 +192,9 @@ function draw(
   const studyPanels = studies.map(study => {
     const fixedScale = FIXED_STUDY_SCALES[study.kind]
     if (fixedScale) return { ...study, ...fixedScale, low: fixedScale.ticks[0], high: fixedScale.ticks.at(-1)! }
-    let low = 0
-    let high = study.kind === 'bb_percent_b' ? 100 : 0
+    const guides = study.guides ?? (study.kind === 'bb_percent_b' ? [0, 100] : study.zeroLine ? [0] : [])
+    let low = Math.min(0, ...guides)
+    let high = Math.max(0, ...guides)
     for (const { series } of study.lines) {
       for (let index = start; index < view.end; index++) {
         const value = series[index]
@@ -206,10 +207,8 @@ function draw(
       high = 1
       if (study.zeroLine) low = -1
     }
-    const ticks = study.kind === 'bb_percent_b' ? [low, 0, 100, high] :
-      study.zeroLine ? [low, 0, high] : [low, (low + high) / 2, 0, high]
-    const format = study.unit === 'volume' ? volume : study.unit === 'price' ? price : (value: number) => price(value) + '%'
-    const guides = study.kind === 'bb_percent_b' ? [0, 100] : study.zeroLine ? [0] : []
+    const ticks = guides.length ? [low, ...guides, high] : [low, (low + high) / 2, 0, high]
+    const format = study.unit === 'volume' ? volume : study.unit ? price : (value: number) => price(value) + '%'
     return { ...study, low, high, ticks: [...new Set(ticks)].sort((a, b) => a - b), format, guides }
   })
   const studyLabels = studyPanels.flatMap(panel => panel.ticks.map(panel.format))
