@@ -10,11 +10,19 @@ func chooseSimulatorFile(in app: XCUIApplication, input: String, folders: [Strin
     if !file.isHittable { web.swipeUp() }
     file.tap()
 
+    let locations = ["On My iPhone", "On My iPad"]
+    let pickerControls = ["Browse", "Recents", "Locations"] + locations + folders
+    let picker = app.descendants(matching: .any)
+        .matching(NSPredicate(format: "label IN %@", pickerControls)).firstMatch
     let chooseFiles = app.buttons["Choose Files"].firstMatch
-    if chooseFiles.waitForExistence(timeout: 3) { chooseFiles.tap() }
+    let openingControl = app.descendants(matching: .any)
+        .matching(NSPredicate(format: "label IN %@", pickerControls + ["Choose Files"])).firstMatch
+    XCTAssertTrue(openingControl.waitForExistence(timeout: 25), app.debugDescription)
+    if chooseFiles.exists && chooseFiles.isHittable { chooseFiles.tap() }
+    XCTAssertTrue(picker.waitForExistence(timeout: 25), app.debugDescription)
     let browse = app.buttons["Browse"].firstMatch
-    if browse.waitForExistence(timeout: 3), browse.isHittable { browse.tap() }
-    let local = NSPredicate(format: "label IN %@", ["On My iPhone", "On My iPad"])
+    if browse.exists && browse.isHittable { browse.tap() }
+    let local = NSPredicate(format: "label IN %@", locations)
     let previousFolder = app.navigationBars.buttons["MarketWeft"].firstMatch
     if previousFolder.exists && previousFolder.isHittable { previousFolder.tap() }
     let backToLocal = app.navigationBars.buttons.matching(local).firstMatch
