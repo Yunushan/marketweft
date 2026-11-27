@@ -1,4 +1,4 @@
-"""Fetch a prior verified Ubuntu package for an in-place upgrade smoke test."""
+"""Fetch a prior verified desktop installer for an in-place upgrade smoke test."""
 
 import argparse
 import hashlib
@@ -15,7 +15,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from zipfile import ZipFile
 
 API = "https://api.github.com/repos/Yunushan/marketweft"
-RUNNER_ARCH = {"amd64": "X64", "arm64": "ARM64"}
+ARCHITECTURES = {"ubuntu": {"amd64": "X64", "arm64": "ARM64"}, "windows": {"x64": "x64", "arm64": "arm64"}}
 
 
 class BaselineArchiveMissing(RuntimeError):
@@ -54,7 +54,7 @@ def package_from_archive(archive, destination, filename):
         raise ValueError("The extracted upgrade baseline did not match its package checksum.")
 
 
-def fetch(run_id, commit, version, architecture, output, token):
+def fetch(run_id, commit, version, architecture, output, token, platform="ubuntu"):
     opener = build_opener(NoRedirect())
     headers = {
         "Accept": "application/vnd.github+json",
@@ -72,7 +72,8 @@ def fetch(run_id, commit, version, architecture, output, token):
             or run["conclusion"] != "success"
             or run["head_repository"]["full_name"].lower() != "yunushan/marketweft"):
         raise ValueError("The baseline run does not verify the requested project commit.")
-    expected = f"ubuntu-desktop-{RUNNER_ARCH[architecture]}-attempt-{run['run_attempt']}"
+    runner_arch = ARCHITECTURES[platform][architecture]
+    expected = f"{platform}-desktop-{runner_arch}-attempt-{run['run_attempt']}"
     with api(f"/actions/runs/{run_id}/artifacts?per_page=100") as response:
         found = [item for item in json.load(response)["artifacts"]
                  if item["name"] == expected and not item["expired"]]
@@ -91,7 +92,10 @@ def fetch(run_id, commit, version, architecture, output, token):
         with error:
             location = https_location(error.headers["Location"])
 
-    filename = f"marketweft-desktop_{version}_{architecture}.deb"
+    if platform == "ubuntu":
+        filename = f"marketweft-desktop_{version}_{architecture}.deb"
+    else:
+        filename = f"MarketWeft-desktop-{version}-windows-{architecture}-setup.exe"
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="marketweft-baseline-", dir=output) as directory:
         temporary = Path(directory)
@@ -120,16 +124,19 @@ if __name__ == "__main__":
     parser.add_argument("--run", type=int, required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--version", required=True)
-    parser.add_argument("--architecture", choices=tuple(RUNNER_ARCH), required=True)
+    parser.add_argument("--platform", choices=ARCHITECTURES, default="ubuntu")
+    parser.add_argument("--architecture", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.architecture not in ARCHITECTURES[args.platform]:
+        parser.error(f"Unsupported {args.platform} architecture: {args.architecture}")
     if not re.fullmatch(r"[0-9a-f]{40}", args.commit) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.version):
         parser.error("Supply the full commit SHA and a numeric release version.")
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         parser.error("GITHUB_TOKEN must grant Actions read access to the baseline run.")
     try:
-        print(fetch(args.run, args.commit, args.version, args.architecture, args.output, token))
+        print(fetch(args.run, args.commit, args.version, args.architecture, args.output, token, args.platform))
     except BaselineArchiveMissing as error:
         print(error, file=sys.stderr)
         raise SystemExit(42) from error

@@ -1,4 +1,6 @@
 use std::{
+    env,
+    path::PathBuf,
     sync::mpsc,
     thread,
     time::{Duration, Instant},
@@ -8,8 +10,8 @@ use tauri::{Builder, Context, WebviewWindow, WebviewWindowBuilder, Wry};
 const CSV: &str = include_str!("../tests/fixtures/native-verification.csv");
 const PROBE: &str = include_str!("../tests/import_native_fixture.js");
 
-fn verify(window: &WebviewWindow) -> Result<(), String> {
-    let script = format!("({PROBE})({CSV:?})");
+fn verify(window: &WebviewWindow, phase: &str) -> Result<(), String> {
+    let script = format!("({PROBE})({CSV:?}, {phase:?})");
     let deadline = Instant::now() + Duration::from_secs(40);
     let mut last = String::from("waiting for WebView JavaScript");
     while Instant::now() < deadline {
@@ -45,13 +47,31 @@ pub fn configure(builder: Builder<Wry>, mut context: Context<Wry>) -> (Builder<W
     let builder = builder.setup(move |app| {
         #[cfg(windows)]
         println!("Native WebView2 runtime: {}", tauri::webview_version()?);
+        let phase = env::var("MARKETWEFT_NATIVE_SMOKE_PHASE").unwrap_or_else(|_| "import".into());
+        match phase.as_str() {
+            "import" => {}
+            "seed" | "reopen" if cfg!(windows) => {
+                let directory = env::var_os("WEBVIEW2_USER_DATA_FOLDER").map(PathBuf::from);
+                if !directory.is_some_and(|path| path.is_absolute() && path.is_dir()) {
+                    return Err(
+                        "The persistent WebView2 fixture requires an existing explicit profile."
+                            .into(),
+                    );
+                }
+            }
+            _ => return Err(format!("Unsupported native fixture phase: {phase}").into()),
+        }
         let window = WebviewWindowBuilder::from_config(app, &config)?
-            .incognito(true)
+            .incognito(phase == "import")
             .build()?;
         let app = app.handle().clone();
-        thread::spawn(move || match verify(&window) {
+        thread::spawn(move || match verify(&window, &phase) {
             Ok(()) => {
-                println!("Verified native WebView CSV import and exact OHLCV.");
+                if phase == "import" {
+                    println!("Verified native WebView CSV import and exact OHLCV.");
+                } else {
+                    println!("Verified native WebView workspace {phase} and exact OHLCV.");
+                }
                 app.exit(0);
             }
             Err(error) => {

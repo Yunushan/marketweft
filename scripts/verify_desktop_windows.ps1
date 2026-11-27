@@ -122,22 +122,7 @@ if ($Architecture -eq 'x64') {
     Test-InstalledPackage (Join-Path $smoke $name) $SmokeBinary (Join-Path $scratch 'smoke') {
         param($Installed, $Directory)
         $webviewProfile = Join-Path $Directory 'smoke-profile'
-        $stdout = Join-Path $Directory 'native-smoke.log'
-        $stderr = Join-Path $Directory 'native-smoke-errors.log'
-        $process = Start-Process -FilePath $Installed -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr -Environment @{ WEBVIEW2_USER_DATA_FOLDER = $webviewProfile }
-        try {
-            if (!$process.WaitForExit(60000)) {
-                Stop-Process -InputObject $process
-                $process.WaitForExit()
-                throw 'The installed ARM64 test build timed out.'
-            }
-            Get-Content -LiteralPath $stdout, $stderr
-            if ($process.ExitCode -ne 0 -or !(Select-String -LiteralPath $stdout -SimpleMatch 'Verified native WebView CSV import and exact OHLCV.' -Quiet)) {
-                throw 'The installed ARM64 test build did not verify its WebView2 import.'
-            }
-        } finally {
-            $process.Dispose()
-        }
+        & "$PSScriptRoot/invoke_native_windows_smoke.ps1" -Binary $Installed -WebViewProfile $webviewProfile -LogDirectory $Directory
     }
 }
 Write-Output "Verified clean Windows $Architecture installation, installed WebView2 import and uninstallation of $version."

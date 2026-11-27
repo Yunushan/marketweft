@@ -1,7 +1,8 @@
-csv => {
+(csv, phase = 'import') => {
   try {
     const symbol = 'NATIVESMOKE'
-    const chart = document.querySelector(`canvas[aria-label^="${symbol} interactive candlestick"]`)
+    const kind = phase === 'import' ? 'candlestick' : 'close line'
+    const chart = document.querySelector(`canvas[aria-label^="${symbol} interactive ${kind}"]`)
     if (chart) {
       const expected = new Map([['O', 27], ['H', 30], ['L', 26], ['C', 29], ['Vol', 800]])
       const cells = chart.closest('section.plot').querySelectorAll('.ohlc > span')
@@ -16,7 +17,18 @@ csv => {
       for (const [label, value] of expected) {
         if (quote.get(label) !== value) return `error: expected ${label}=${value}, saw ${quote.get(label)}`
       }
+      if (phase !== 'import' && document.querySelector('select[aria-label="Primary chart type"]')?.value !== 'line') {
+        return 'waiting for the saved close-line preference'
+      }
       return 'verified'
+    }
+    if (phase === 'reopen') return 'waiting for the saved workspace'
+    if (phase === 'seed' && document.querySelector(`canvas[aria-label^="${symbol} interactive candlestick"]`)) {
+      const chartType = document.querySelector('select[aria-label="Primary chart type"]')
+      if (!chartType || chartType.disabled) return 'waiting for the chart control'
+      chartType.value = 'line'
+      chartType.dispatchEvent(new Event('change', { bubbles: true }))
+      return 'saving the close-line preference'
     }
 
     const dialog = document.querySelector('dialog[open]')

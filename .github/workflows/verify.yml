@@ -354,6 +354,32 @@ jobs:
             throw 'The ARM64 verification executable must be distinct from the release executable.'
           }
           & scripts/verify_desktop_windows.ps1 -Architecture arm64 -Binary $production -SmokeBinary $desktop -WorkRoot $env:RUNNER_TEMP
+      - name: Upgrade the installed Windows desktop and reopen its saved workspace
+        if: runner.os == 'Windows'
+        timeout-minutes: 20
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MACHINE: ${{ matrix.os == 'windows-11-arm' && 'arm64' || 'x64' }}
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          $desktop = 'apps/desktop/target/release/marketweft-desktop.exe'
+          $options = @{
+            Architecture = $env:MACHINE
+            Candidate = "reports/MarketWeft-desktop-$version-windows-$($env:MACHINE)-setup.exe"
+            CandidateBinary = $desktop
+            WorkRoot = $env:RUNNER_TEMP
+            BaselineRun = 46001373065
+            BaselineCommit = 'e5b59b7b99a22986a1ec4013484a05d1da0298a2'
+            BaselineVersion = '0.168.0'
+          }
+          if ($env:MACHINE -eq 'arm64') {
+            $options.CandidateBinary = Join-Path $env:RUNNER_TEMP 'marketweft-desktop-arm64-release.exe'
+            $options.CandidateSmoke = $desktop
+          } else {
+            $options.Driver = Join-Path $env:RUNNER_TEMP 'marketweft-webview2-driver/msedgedriver.exe'
+          }
+          & scripts/verify_windows_desktop_upgrade.ps1 @options
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: runner.os == 'Windows'
         with:
