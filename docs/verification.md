@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.159.0 · Ubuntu Linux ARM64 desktop verification
+
+| Check | Evidence |
+| --- | --- |
+| Architecture | The hosted runner confirms ARM64 and AArch64, builds the locked Rust and Tauri targets, and checks the desktop ELF machine type. |
+| Native WebView | The Ubuntu x64 and ARM64 jobs run the GLib fixture and launch the app under X11. The smoke test exercises the visible import controls and reads an imported synthetic CSV in the chart. |
+
+[Native platform support](platforms.md#linux-native-verification) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.158.0 · Fibonacci time zones
 
 | Check | Evidence |
