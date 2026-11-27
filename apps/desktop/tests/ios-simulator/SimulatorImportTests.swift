@@ -7,6 +7,11 @@ final class SimulatorImportTests: XCTestCase {
     private let quote = "IOSCSV OHLCV. Open 27.00, high 30.00, low 26.00, close 29.00, volume 800"
 
     private func canaryConnectionError() throws -> Int32 {
+        let port = try XCTUnwrap(
+            ProcessInfo.processInfo.environment["MARKETWEFT_CANARY_PORT"].flatMap { UInt16($0) },
+            "Provide the OS-assigned simulator loopback port."
+        )
+        XCTAssertGreaterThan(port, 0)
         let descriptor = socket(AF_INET, SOCK_STREAM, 0)
         guard descriptor >= 0 else {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
@@ -16,7 +21,7 @@ final class SimulatorImportTests: XCTestCase {
         var address = sockaddr_in()
         address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         address.sin_family = sa_family_t(AF_INET)
-        address.sin_port = UInt16(53179).bigEndian
+        address.sin_port = port.bigEndian
         address.sin_addr.s_addr = inet_addr("127.0.0.1")
         let status = withUnsafePointer(to: &address) { pointer in
             pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { socketAddress in

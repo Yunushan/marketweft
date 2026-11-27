@@ -88,14 +88,57 @@ fixture_id=org.marketweft.fixture-files
 mkdir "$work/canary"
 printf 'MarketWeft simulator network canary\n' >"$work/canary/index.html"
 
+start_canary() {
+    local family=$1 attempt
+    local port_file="$work/canary-$family.port"
+    local log="$work/canary-$family.log"
+    local content
+    python3 - "$work/canary" "$port_file" >"$log" 2>&1 <<'PYTHON' &
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+import sys
+
+root, port_file = sys.argv[1:]
+handler = partial(SimpleHTTPRequestHandler, directory=root)
+with ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
+    path = Path(port_file)
+    ready = path.with_suffix(".tmp")
+    ready.write_bytes(f"{server.server_port}\n".encode("ascii"))
+    ready.replace(path)
+    server.serve_forever()
+PYTHON
+    canary_pid=$!
+    for attempt in {1..15}; do
+        if [[ -s "$port_file" ]]; then
+            IFS= read -r canary_port <"$port_file"
+            if [[ "$canary_port" =~ ^[0-9]{1,5}$ ]] &&
+                content=$(curl --noproxy 127.0.0.1 --silent --show-error --fail --max-time 1 \
+                "http://127.0.0.1:$canary_port/") && [[ "$content" == 'MarketWeft simulator network canary' ]]; then
+                printf '%s simulator canary is ready on port %s.\n' "$family" "$canary_port"
+                return
+            fi
+        fi
+        if ! kill -0 "$canary_pid" 2>/dev/null; then break; fi
+        sleep 1
+    done
+    printf 'The %s simulator loopback canary did not become ready.\n' "$family" >&2
+    cat "$log" >&2
+    return 1
+}
+
 run_test() {
-    local destination=$1 result=$2 method=$3
-    xcodebuild -project "$project" -scheme MarketWeftSimulatorTests \
+    local destination=$1 result=$2 method=$3 port=${4:-}
+    local summary
+    TEST_RUNNER_MARKETWEFT_CANARY_PORT="$port" xcodebuild -project "$project" -scheme MarketWeftSimulatorTests \
         -destination "platform=iOS Simulator,id=$destination" -derivedDataPath "$work/build" \
         -resultBundlePath "$result" -parallel-testing-enabled NO -testLanguage en -testRegion US \
         "-only-testing:MarketWeftSimulatorTests/$method" test-without-building
-    xcrun xcresulttool get test-results summary --path "$result" |
-        jq -e '.totalTestCount == 1 and .passedTests == 1' >/dev/null
+    summary=$(xcrun xcresulttool get test-results summary --path "$result")
+    if ! jq -e '.totalTestCount == 1 and .passedTests == 1' <<<"$summary" >/dev/null; then
+        printf 'Unexpected XCTest result for %s.\n%s\n' "$method" "$summary" >&2
+        return 1
+    fi
 }
 
 reboot_for_upgrade() {
@@ -159,19 +202,11 @@ for family in iphone ipad; do
     test ! -e "$clean_data/Documents/upgrade-document.txt"
     run_test "$device" "$result-startup.xcresult" SimulatorStartupTests/testLoadsBundledTerminalAndExactQuote
 
-    python3 -m http.server 53179 --bind 127.0.0.1 --directory "$work/canary" >"$work/canary.log" 2>&1 &
-    canary_pid=$!
-    for attempt in 1 2 3 4 5; do
-        if curl --silent --fail --max-time 1 http://127.0.0.1:53179/ >/dev/null; then break; fi
-        sleep "$attempt"
-    done
-    kill -0 "$canary_pid"
-    curl --silent --fail --max-time 1 http://127.0.0.1:53179/ |
-        grep -Fx 'MarketWeft simulator network canary'
-    run_test "$device" "$result-import.xcresult" SimulatorImportTests/testImportsCSVFromFiles
+    start_canary "$family"
+    run_test "$device" "$result-import.xcresult" SimulatorImportTests/testImportsCSVFromFiles "$canary_port"
     stop_canary
     xcrun simctl launch --terminate-running-process "$device" "$identifier" | tee "$result-relaunch.txt"
-    run_test "$device" "$result-recovery.xcresult" SimulatorImportTests/testRecoversCSVAfterLoopbackLoss
+    run_test "$device" "$result-recovery.xcresult" SimulatorImportTests/testRecoversCSVAfterLoopbackLoss "$canary_port"
 
     run_test "$device" "$result-export.xcresult" SimulatorWorkspaceBackupTests/testExportsWorkspaceToFiles
     app_data=$(xcrun simctl get_app_container "$device" "$identifier" data)
