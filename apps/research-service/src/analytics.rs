@@ -1,7 +1,8 @@
 use crate::{
     proto::{
-        Close, FormulaPage, FormulaQuery, FormulaRow, OptionModel, OptionPage, OptionQuery,
-        OptionRow, OptionUnderlying, ScreenPage, ScreenQuery, ScreenRow,
+        AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close, FormulaPage,
+        FormulaQuery, FormulaRow, OptionModel, OptionPage, OptionQuery, OptionRow,
+        OptionUnderlying, ScreenPage, ScreenQuery, ScreenRow,
     },
     ApiError,
 };
@@ -341,54 +342,19 @@ fn option_cutoffs(effective: &str, known: &str) -> Result<(i64, i64), ApiError> 
         })
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AmericanOptionQuery {
-    underlying_csv: String,
-    quotes_csv: String,
-    cash_dividends_csv: Option<String>,
-    contract_id: String,
-    effective_at: String,
-    known_at: String,
-    #[serde(default = "default_quote_age")]
-    max_age: u32,
-    #[serde(default = "default_lattice_steps")]
-    steps: u16,
-    volatility: Option<f64>,
-}
-
-const fn default_lattice_steps() -> u16 {
-    128
-}
-
-#[derive(Serialize)]
-pub(crate) struct AmericanOptionResponse {
-    contract_id: String,
-    currency: String,
-    effective_at: String,
-    known_at: String,
-    status: &'static str,
-    price: Option<f64>,
-    volatility: Option<f64>,
-    dividends: Vec<AppliedDividend>,
-}
-
-#[derive(Serialize)]
-struct AppliedDividend {
-    id: String,
-    announced_at: i64,
-    ex_at: i64,
-    pay_at: i64,
-    observed_at: i64,
-    currency: String,
-    amount_per_share_ticks: String,
-}
-
 pub(crate) fn american_option(
     bytes: &[u8],
     emit: &mut dyn FnMut(ResearchPage) -> bool,
 ) -> Result<(), ApiError> {
-    let params: AmericanOptionQuery = request(bytes)?;
+    evaluate_american(request(bytes)?, &mut |result| {
+        emit(ResearchPage::AmericanOption(result))
+    })
+}
+
+pub(crate) fn evaluate_american(
+    params: AmericanOptionQuery,
+    emit: &mut dyn FnMut(AmericanOptionResponse) -> bool,
+) -> Result<(), ApiError> {
     let (effective_at, known_at) = option_cutoffs(&params.effective_at, &params.known_at)?;
     if !(1..=40).contains(&params.contract_id.len())
         || !params
@@ -401,12 +367,13 @@ pub(crate) fn american_option(
             "Select a valid American contract ID.",
         ));
     }
-    if !(1..=MAX_AMERICAN_STEPS).contains(&params.steps) {
-        return Err(ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "Use 1 to 256 whole pricing steps.",
-        ));
-    }
+    let steps = params.steps.unwrap_or(128);
+    let steps = u16::try_from(steps)
+        .ok()
+        .filter(|steps| (1..=MAX_AMERICAN_STEPS).contains(steps))
+        .ok_or_else(|| {
+            ApiError::new(StatusCode::BAD_REQUEST, "Use 1 to 256 whole pricing steps.")
+        })?;
     if params
         .volatility
         .is_some_and(|volatility| !(0.0..=10.0).contains(&volatility))
@@ -431,8 +398,8 @@ pub(crate) fn american_option(
             contract_id: &params.contract_id,
             effective_at,
             known_at,
-            max_age: params.max_age,
-            steps: params.steps,
+            max_age: params.max_age.unwrap_or_else(default_quote_age),
+            steps,
             volatility: params.volatility,
         },
     );
@@ -467,15 +434,15 @@ pub(crate) fn american_option(
             ))
         }
     };
-    emit(ResearchPage::AmericanOption(AmericanOptionResponse {
+    emit(AmericanOptionResponse {
         contract_id: params.contract_id,
         currency: source.currency.clone(),
         effective_at: params.effective_at,
         known_at: params.known_at,
-        status,
+        status: status.into(),
         price,
         volatility,
         dividends,
-    }));
+    });
     Ok(())
 }

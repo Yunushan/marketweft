@@ -7,6 +7,7 @@ service Research {
   rpc EvaluateFormula(FormulaQuery) returns (FormulaPage);
   rpc ScreenUniverse(ScreenQuery) returns (ScreenPage);
   rpc SnapshotOptions(OptionQuery) returns (OptionPage);
+  rpc ValueAmericanOption(AmericanOptionQuery) returns (AmericanOptionResponse);
 }
 
 message FormulaFunction {
@@ -130,4 +131,42 @@ message OptionPage {
   uint32 offset = 7;
   optional uint32 next_offset = 8;
   repeated OptionRow rows = 9;
+}
+
+
+message AmericanOptionQuery {
+  string underlying_csv = 1;
+  string quotes_csv = 2;
+  string contract_id = 3;
+  string effective_at = 4;
+  string known_at = 5;
+  // Omit to value against the underlying's continuous yield only.
+  optional string cash_dividends_csv = 6;
+  optional uint32 max_age = 7;
+  optional uint32 steps = 8;
+  // Omit to solve the quote midpoint. Explicit zero runs zero-volatility pricing.
+  optional double volatility = 9;
+}
+
+message AppliedDividend {
+  string id = 1;
+  int64 announced_at = 2;
+  int64 ex_at = 3;
+  int64 pay_at = 4;
+  int64 observed_at = 5;
+  string currency = 6;
+  // Exact six-place cash amount per share.
+  string amount_per_share_ticks = 7;
+}
+
+message AmericanOptionResponse {
+  string contract_id = 1;
+  string currency = 2;
+  string effective_at = 3;
+  string known_at = 4;
+  string status = 5;
+  // Both fields are absent when valuation is unavailable.
+  optional double price = 6;
+  optional double volatility = 7;
+  repeated AppliedDividend dividends = 8;
 }

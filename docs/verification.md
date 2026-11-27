@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.103.0 · gRPC American valuations
+
+| Check | Evidence |
+| --- | --- |
+| Model and transport parity | Loopback gRPC and REST agree on the USD 16.234568 midpoint, the USD 14.171952 price at supplied volatility of 0.25, and explicit zero-volatility mode. |
+| Observation and presence | Tests cover the unreleased contract, dividend revisions and cancellation, exact per-share amounts, and the ex, pay and observation times. |
+| Scope and bounds | The gRPC endpoint rejects missing credentials, screen credentials, out-of-range steps and nonfinite volatility. |
+
+[American valuations over gRPC](local-rest-research.md#american-valuations-over-grpc) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.102.0 · gRPC option snapshots
 
 | Check | Evidence |

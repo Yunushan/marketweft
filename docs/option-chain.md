@@ -51,7 +51,7 @@ The demo's American call becomes visible at 14:02 UTC. With 25% annual volatilit
 
 Choose **Solve midpoint IV** for a selected American contract and lattice size. The solve uses the observed two-sided midpoint, the underlying snapshot and both applied UTC cutoffs. The manual volatility field is used for **Price American option**. Expired, stale, missing or crossed inputs produce a status. A midpoint at the flat immediate-exercise boundary leaves volatility unresolved.
 
-At 128 steps, the demo call's midpoint is USD 16.234568. The implied volatility is 24.96% at 14:02 UTC and 23.82% after the 14:03 UTC underlying update. The model reproduces the same midpoint at both volatilities. [Native American option valuations](../packages/python-research/README.md#american-option-valuations) · [MCP American option valuations](local-mcp-research.md#american-option-valuations) · [REST American option valuations](local-rest-research.md#american-option-valuations).
+At 128 steps, the demo call's midpoint is USD 16.234568. The implied volatility is 24.96% at 14:02 UTC and 23.82% after the 14:03 UTC underlying update. The model reproduces the same midpoint at both volatilities. [Native American option valuations](../packages/python-research/README.md#american-option-valuations) · [MCP American option valuations](local-mcp-research.md#american-option-valuations) · [REST American option valuations](local-rest-research.md#american-option-valuations) · [American valuations over gRPC](local-rest-research.md#american-valuations-over-grpc).
 
 
 ## Discrete cash dividends

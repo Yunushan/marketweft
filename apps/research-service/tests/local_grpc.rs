@@ -6,7 +6,10 @@ use axum::{
 };
 use futures_util::{SinkExt, StreamExt};
 use marketweft_research_service::{
-    proto::{research_client::ResearchClient, FormulaQuery, OptionQuery, ScreenQuery},
+    proto::{
+        research_client::ResearchClient, AmericanOptionQuery, FormulaQuery, OptionQuery,
+        ScreenQuery,
+    },
     research_router, Tokens,
 };
 use serde_json::{json, Value};
@@ -222,6 +225,23 @@ fn options(effective: &str, known: &str) -> OptionQuery {
     }
 }
 
+async fn rest_json(router: &axum::Router, path: &str, body: Value) -> Value {
+    let response = router
+        .clone()
+        .oneshot(
+            HttpRequest::post(path)
+                .header("host", "127.0.0.1:4174")
+                .header("authorization", format!("Bearer {OPTIONS_TOKEN}"))
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    serde_json::from_slice(&to_bytes(response.into_body(), 1024 * 1024).await.unwrap()).unwrap()
+}
+
 #[tokio::test]
 async fn option_pages_match_rest_and_websocket_across_effective_and_known_cutoffs() {
     let server = ResearchProcess::start(Settings::default());
@@ -288,22 +308,7 @@ async fn option_pages_match_rest_and_websocket_across_effective_and_known_cutoff
             if let Some(offset) = query.offset {
                 body["offset"] = json!(offset);
             }
-            let response = router
-                .clone()
-                .oneshot(
-                    HttpRequest::post("/v1/options/snapshot")
-                        .header("host", "127.0.0.1:4174")
-                        .header("authorization", &token)
-                        .header("content-type", "application/json")
-                        .body(Body::from(body.to_string()))
-                        .unwrap(),
-                )
-                .await
-                .unwrap();
-            assert_eq!(response.status(), 200);
-            let rest_json: Value =
-                serde_json::from_slice(&to_bytes(response.into_body(), 1024 * 1024).await.unwrap())
-                    .unwrap();
+            let rest_json = rest_json(&router, "/v1/options/snapshot", body).await;
             let frame = timeout(IO_DEADLINE, socket.next())
                 .await
                 .unwrap()
@@ -406,4 +411,141 @@ async fn option_query_preserves_zero_age_and_enforces_scope_and_limits() {
     };
     assert_eq!(quote(&default_page), "ok");
     assert_eq!(quote(&zero_page), "stale-underlying");
+}
+
+fn american_options(known: &str) -> AmericanOptionQuery {
+    let query = options("14:00", "14:00");
+    AmericanOptionQuery {
+        underlying_csv: query.underlying_csv,
+        quotes_csv: query.quotes_csv,
+        effective_at: query.effective_at,
+        known_at: format!("2025-04-03T{known}Z"),
+        contract_id: "APR-AM-C90".into(),
+        cash_dividends_csv: Some(
+            include_str!("../../../crates/core/tests/fixtures/synthetic-option-cash-dividends.csv")
+                .into(),
+        ),
+        ..AmericanOptionQuery::default()
+    }
+}
+
+#[tokio::test]
+async fn american_values_match_rest_with_cash_revisions_and_optional_numbers() {
+    let server = ResearchProcess::start(Settings::default());
+    let mut client = connect(&server).await;
+    let router = research_router(
+        "127.0.0.1:4174".parse().unwrap(),
+        Tokens::with_options(None, None, Some(OPTIONS_TOKEN)).unwrap(),
+    )
+    .unwrap();
+
+    for (known, volatility, expected_price, cash_ticks) in [
+        ("14:01:59", None, None, vec![]),
+        ("14:04:00", None, Some(16.234568_f64), vec!["7000000"]),
+        (
+            "14:06:00",
+            None,
+            Some(16.234568),
+            vec!["1000000", "9000000"],
+        ),
+        (
+            "14:06:00",
+            Some(0.25),
+            Some(14.171952),
+            vec!["1000000", "9000000"],
+        ),
+        ("14:06:00", Some(0.0), None, vec!["1000000", "9000000"]),
+        ("14:07:00", None, Some(16.234568), vec!["9000000"]),
+    ] {
+        let mut query = american_options(known);
+        query.volatility = volatility;
+        let value = client
+            .value_american_option(authorized(query.clone(), OPTIONS_TOKEN))
+            .await
+            .unwrap()
+            .into_inner();
+        let body = json!({
+            "underlying_csv": query.underlying_csv,
+            "quotes_csv": query.quotes_csv,
+            "effective_at": query.effective_at,
+            "known_at": query.known_at,
+            "contract_id": query.contract_id,
+            "cash_dividends_csv": query.cash_dividends_csv,
+            "volatility": volatility,
+        });
+        let rest = rest_json(&router, "/v1/options/american/valuation", body).await;
+        let g = serde_json::from_slice::<Value>(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert_eq!(g, rest);
+        assert_eq!(
+            value
+                .dividends
+                .iter()
+                .map(|row| row.amount_per_share_ticks.as_str())
+                .collect::<Vec<_>>(),
+            cash_ticks
+        );
+        if known == "14:01:59" {
+            assert_eq!(value.status, "missing-contract");
+            assert_eq!((value.price, value.volatility), (None, None));
+            continue;
+        }
+        assert_eq!(value.status, "value");
+        let model_price = value.price.unwrap();
+        if let Some(expected) = expected_price {
+            assert!((model_price - expected).abs() < 5e-7);
+        }
+        if let Some(volatility) = volatility {
+            assert_eq!(value.volatility, Some(volatility));
+        }
+        if known == "14:06:00" {
+            let observed = &value.dividends[1];
+            assert_eq!(observed.id, "MAIN");
+            assert_eq!(observed.ex_at, 1759500000);
+            assert_eq!(observed.pay_at, 1759932000);
+            assert_eq!(observed.observed_at, 1743689160);
+        }
+    }
+}
+
+#[tokio::test]
+async fn american_valuation_enforces_scope_and_rejects_invalid_model_inputs() {
+    let server = ResearchProcess::start(Settings::default());
+    let mut client = connect(&server).await;
+    let query = american_options("14:06:00");
+    assert_eq!(
+        client
+            .value_american_option(query.clone())
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unauthenticated
+    );
+    assert_eq!(
+        client
+            .value_american_option(authorized(query.clone(), SCREEN_TOKEN))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+    let mut invalid = query.clone();
+    invalid.steps = Some(u32::MAX);
+    assert_eq!(
+        client
+            .value_american_option(authorized(invalid, OPTIONS_TOKEN))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::InvalidArgument
+    );
+    let mut invalid = query;
+    invalid.volatility = Some(f64::NAN);
+    assert_eq!(
+        client
+            .value_american_option(authorized(invalid, OPTIONS_TOKEN))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::InvalidArgument
+    );
 }

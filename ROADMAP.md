@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.102.0 serves point-in-time option snapshots over scoped gRPC. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.103.0 provides scoped gRPC valuations for American options with dated cash dividends. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -105,6 +105,7 @@
 | Delivered · 0.100.0 | REST American option valuations (MW-026, MW-028) | Reconcile price, midpoint IV, unavailable statuses and exact cash amounts with the native client. [REST American option valuations](docs/local-rest-research.md#american-option-valuations). |
 | Delivered · 0.101.0 | WebSocket option snapshots (MW-026, MW-028) | Verify resuming after a page, exact quote fields, and complete snapshot parity with REST at two independent replay cutoffs. [Option snapshots over WebSocket](docs/local-rest-research.md#option-snapshots-over-websocket). |
 | Delivered · 0.102.0 | gRPC option snapshots (MW-026, MW-028) | Verify Protobuf field presence, scope isolation, and complete page parity across REST, WebSocket and gRPC at independent cutoffs. [Option snapshots over gRPC](docs/local-rest-research.md#option-snapshots-over-grpc). |
+| Delivered · 0.103.0 | gRPC American valuations (MW-026, MW-028) | Verify supplied and implied volatility, dividend revision and cancellation provenance, absent model values, and REST parity. [American valuations over gRPC](docs/local-rest-research.md#american-valuations-over-grpc). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -116,5 +117,5 @@
 
 ## Handoff for the next change
 
-Expose scoped American option valuations over gRPC. Verify midpoint and supplied-volatility modes against REST and preserve dated cash-dividend provenance.
+Add Heikin-Ashi as a distinct per-pane chart type. Verify its deterministic bar transform, exact hover evidence, mixed pane layouts and workspace restore.
 

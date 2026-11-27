@@ -7,6 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "FormulaFunction",
         "ScreenQuery",
         "OptionQuery",
+        "AmericanOptionQuery",
     ] {
         builder = builder
             .type_attribute(message, "#[derive(serde::Deserialize)]")
@@ -22,6 +23,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "OptionUnderlying",
         "OptionRow",
         "OptionModel",
+        "AmericanOptionResponse",
+        "AppliedDividend",
     ] {
         builder = builder.type_attribute(message, "#[derive(serde::Serialize)]");
     }
@@ -33,6 +36,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "OptionQuery.max_age",
         "OptionQuery.offset",
         "OptionQuery.limit",
+        "AmericanOptionQuery.max_age",
+        "AmericanOptionQuery.steps",
     ] {
         builder = builder.field_attribute(
             field,
