@@ -344,7 +344,14 @@ jobs:
       - name: Verify CSV import through the native ARM64 WebView2 session
         if: matrix.os == 'windows-11-arm'
         timeout-minutes: 5
-        run: node apps/desktop/tests/import_webview2_arm64.mjs apps/desktop/target/debug/marketweft-desktop.exe
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'marketweft-webview2-arm64.log'
+          cargo run --locked --manifest-path apps/desktop/Cargo.toml --features native-smoke | Tee-Object -FilePath $log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (!(Select-String -LiteralPath $log -SimpleMatch 'Verified native WebView CSV import and exact OHLCV.' -Quiet)) {
+            throw 'The ARM64 WebView2 fixture did not report successful CSV verification.'
+          }
       - name: Verify the native macOS host and Mach-O binaries
         if: runner.os == 'macOS'
         shell: bash
