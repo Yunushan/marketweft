@@ -147,6 +147,8 @@ function draw(
       return { ...study, low: 0, high: 100, ticks: [0, 30, 70, 100], format: String }
     if (study.kind === 'stochastic')
       return { ...study, low: 0, high: 100, ticks: [0, 20, 80, 100], format: (tick: number) => tick + '%' }
+    if (study.kind === 'williams_r')
+      return { ...study, low: -100, high: 0, ticks: [-100, -80, -20, 0], format: (tick: number) => tick + '%' }
     let low = 0
     let high = study.kind === 'bb_percent_b' ? 100 : 0
     for (const { series } of study.lines) {
@@ -458,6 +460,7 @@ function draw(
       const level = studyY(tick)
       const reference = (panel.kind === 'rsi' && (tick === 30 || tick === 70)) ||
         (panel.kind === 'stochastic' && (tick === 20 || tick === 80)) ||
+        (panel.kind === 'williams_r' && (tick === -20 || tick === -80)) ||
         (panel.kind === 'bb_percent_b' && (tick === 0 || tick === 100))
       line(left, level, right, level, reference ? '#3e4c6a' : '#293036')
       ctx.fillStyle = '#93a19e'

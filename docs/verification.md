@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.118.0 · Williams %R
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | Fixtures verify exact signed positions at both endpoints, earlier observed prefixes, warm-up, flat ranges, range validation and a negative half-tick. |
+| Browser chart and export | Offline Chromium checks the −100% to 0% axis, a path break through a flat range, signed readouts and every research CSV value. |
+| Workspace | The panes retain separate periods in a version 23 backup, and version 22 preserves its Stochastic settings on restore. |
+
+[Williams %R](chart-workspace.md#williams-r) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.117.0 · Stochastic Oscillator
 
 | Check | Evidence |

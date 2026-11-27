@@ -128,6 +128,14 @@ To get the raw value, subtract the lowest observed low from the close, divide by
 
 The raw value is absent during warm-up or when the observed range is zero. Each average needs a complete window of defined inputs. Missing timestamps contribute zero observations. A gap in either line stays visible on the plot and leaves its research CSV cell empty. The default CSV columns are `stochastic_k_14_3_3` and `stochastic_d_14_3_3`.
 
+### Williams %R
+
+Enable **Williams %R** in either pane’s indicator settings. The default lookback is 14 observed bars. Each pane can save a lookback from 1 through 100,000. The chart uses a fixed −100% to 0% scale with reference levels at −80% and −20%. [StockCharts’ Williams %R calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/williams-r).
+
+Subtract the highest observed high from the close, divide by the observed high-low range and multiply by 100. The current bar is included. A close at the high gives 0%, and a close at the low gives −100%. The signed result is rounded directly to six decimal places, with half ticks away from zero.
+
+The line is absent during warm-up and when the observed range is zero. Missing timestamps contribute zero observations. The chart leaves gaps for absent values. The research CSV exports exact signed percentage points under a column such as `williams_r_14` and leaves absent values empty.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

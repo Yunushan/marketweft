@@ -2877,6 +2877,13 @@ pub extern "C" fn mw_keltner_channels(ema_period: usize, atr_period: usize) -> u
 }
 
 #[no_mangle]
+pub extern "C" fn mw_williams_percent_r(period: usize) -> u32 {
+    process(|input| {
+        crate::williams_percent_r(period, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_stochastic_oscillator(
     lookback: usize,
     smoothing: usize,

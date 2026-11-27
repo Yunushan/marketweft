@@ -1335,3 +1335,20 @@ test('Stochastic Oscillator preserves exact %K and %D and restarts smoothing aft
   assert.throws(() => core.stochasticOscillator(2, 0, 2, bars), /100,000/);
   assert.throws(() => core.stochasticOscillator(2, 2, 2, [bars[0], bars[0]]), /later/);
 });
+
+test('Williams %R uses the signed distance from the observed high and rounds negative ties directly', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-stochastic.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const expected = [
+    null, 0n, -100_000_000n, -60_000_000n, -50_000_000n,
+    null, -50_000_000n, 0n, -75_000_000n, -50_000_000n,
+  ];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.williamsPercentR(2, bars.slice(0, end)), expected.slice(0, end));
+  }
+  const tie = { time: 0, open: 0, high: 200, low: 0, close: 199.999999, volume: 0 };
+  assert.deepEqual(core.williamsPercentR(1, [tie]), [-1n]);
+  assert.equal(core.stochasticOscillator(1, 1, 1, [tie])[0].percentK, 100_000_000n);
+  assert.throws(() => core.williamsPercentR(0, bars), /100,000/);
+  assert.throws(() => core.williamsPercentR(3, [bars[0], bars[0]]), /later/);
+});

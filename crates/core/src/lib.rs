@@ -35,6 +35,7 @@ mod point_figure;
 mod portfolio;
 mod provider_history;
 mod range_bars;
+mod range_position;
 mod renko;
 mod replay;
 pub mod research;
@@ -129,6 +130,7 @@ pub use portfolio::{
 };
 pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use range_bars::RangeBar;
+pub use range_position::williams_percent_r;
 pub use renko::renko;
 pub type RenkoBrick = PriceMovement;
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};

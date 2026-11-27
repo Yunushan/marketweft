@@ -1,4 +1,7 @@
-use crate::{donchian_channels, screen::rounded_div, Bar, MAX_BARS, SCALE};
+use crate::{
+    range_position::{rolling_close_position, RangeAnchor},
+    Bar, MAX_BARS,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StochasticValue {
@@ -47,20 +50,7 @@ pub fn stochastic_oscillator(
             "Stochastic periods must be 1–100,000 and histories at most 100,000 bars.".into(),
         );
     }
-    let extrema = donchian_channels(lookback, bars)?;
-    let raw: Vec<_> = bars
-        .iter()
-        .zip(extrema)
-        .map(|(bar, extrema)| {
-            let band = extrema?;
-            let range = band.upper - band.lower;
-            if range == 0 {
-                return None;
-            }
-            let position = i128::from(bar.close - band.lower) * i128::from(100 * SCALE);
-            Some(rounded_div(position, i128::from(range)) as i64)
-        })
-        .collect();
+    let raw = rolling_close_position(lookback, RangeAnchor::Low, bars)?;
     let percent_k = smooth(smoothing, &raw);
     let percent_d = smooth(signal, &percent_k);
     Ok(percent_k

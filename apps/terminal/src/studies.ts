@@ -11,6 +11,7 @@ export const STUDIES = {
   donchian: { name: 'Donchian Channels', label: 'Donchian Channels', minPeriod: 1, defaultPeriod: 20 },
   keltner: { name: 'Keltner Channels', label: 'Keltner Channels', minPeriod: 1, defaultPeriod: 20 },
   stochastic: { name: 'Stochastic Oscillator', label: 'Stochastic Oscillator', minPeriod: 1, defaultPeriod: 14, color: '#a6c9f8' },
+  williams_r: { name: 'Williams %R', label: 'Williams %R', minPeriod: 1, defaultPeriod: 14, color: '#ceaeec' },
 } as const
 export type StudyKind = keyof typeof STUDIES
 export const STUDY_KINDS = Object.keys(STUDIES) as StudyKind[]
@@ -88,6 +89,8 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       }
       const key = kind === 'bb_percent_b' ? 'percentB' : 'bandwidth'
       series = measures.map(row => row[key])
+    } else if (kind === 'williams_r') {
+      series = core.williamsPercentR(period, bars)
     } else {
       series = core.indicator(kind, period, bars)
     }
