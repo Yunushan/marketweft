@@ -67,22 +67,31 @@ func chooseSimulatorFile(in app: XCUIApplication, input: String, folders: [Strin
     let browse = app.buttons["Browse"].firstMatch
     if browse.exists && browse.isHittable { browse.tap() }
     let local = NSPredicate(format: "label IN %@", locations)
+    let localIdentifiers = locations.map { "DOC.sidebar.item.\($0)" }
+    let localCell = app.cells.matching(NSPredicate(format: "identifier IN %@", localIdentifiers)).firstMatch
     let previousFolder = app.navigationBars.buttons["MarketWeft"].firstMatch
     if previousFolder.exists && previousFolder.isHittable { previousFolder.tap() }
     let backToLocal = app.navigationBars.buttons.matching(local).firstMatch
     if backToLocal.exists && backToLocal.isHittable {
         backToLocal.tap()
+    } else if localCell.exists && localCell.isHittable {
+        localCell.tap()
     } else {
         let location = app.staticTexts.matching(local).firstMatch
         XCTAssertTrue(location.waitForExistence(timeout: 15), app.debugDescription)
         location.tap()
     }
     let entries = app.collectionViews["File View"].cells
-    for folder in folders {
+    for (index, folder) in folders.enumerated() {
         let entry = entries.matching(NSPredicate(
             format: "identifier == %@ OR label == %@ OR label BEGINSWITH %@",
             "\(folder), Folder", folder, "\(folder),"
         )).firstMatch
+        if index == 0, !entry.waitForExistence(timeout: 5), localCell.exists, localCell.isHittable {
+            // Files can leave the local location selected in the sidebar after a tap.
+            let forward = localCell.images["chevron.forward"].firstMatch
+            if forward.exists && forward.isHittable { forward.tap() } else { localCell.tap() }
+        }
         XCTAssertTrue(entry.waitForExistence(timeout: 20), "Missing Files folder \(folder). \(app.debugDescription)")
         tapFilesCell(entry)
     }
