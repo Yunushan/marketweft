@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formulas, point-in-time universe screening and financial snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
+MarketWeft exposes historical formulas, point-in-time universe screening, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
 
 ```json
 {
@@ -31,3 +31,12 @@ The server negotiates protocol revision 2025-11-25 during initialization. A malf
 Use the read-only `financial_snapshot_as_of` tool. Supply `filings_csv`, the `issuer`, and independent `valuation_at` and `known_at` cutoffs in exact UTC. You can also supply `capitalization_csv`. Each CSV argument contains the file contents and is limited to 1 MiB of UTF-8 data.
 
 The response contains the applied cutoffs, annual filing, exact capitalization observation, up to four selected quarters, trailing coverage and both sets of valuation multiples. Money and multiples are exact decimal strings representing integer millionths. Missing amounts are `null`. When trailing coverage is incomplete, the earnings and sales multiples are `null` and `trailing.kind` gives the reason. The latest known quarterly book value can still support P/B. [Financial statements and example cutoffs](financial-statements.md).
+
+
+## Option chain snapshots
+
+Call the read-only `option_snapshot_as_of` tool with `underlying_csv`, `quotes_csv`, `effective_at` and `known_at`. Send the CSV contents and exact UTC times. Each CSV can contain up to 2 MiB of UTF-8 data. `max_age` sets the quote age in seconds and defaults to 300 for both option and underlying quotes.
+
+The response includes the applied cutoffs, underlying quote and a page of contracts. Quote and observation times are integer UTC seconds. Spot, strike, bid, ask, rate and yield are decimal strings representing exact millionths. A missing bid or ask is `null`. Options with no eligible quote at the cutoffs are absent. Visible contracts retain exercise style, source times and a status. The `analytics` object contains the European model values when available and is `null` otherwise.
+
+Set `limit` for a page of 1–1,000 contracts. The default is 200. To continue, pass `next_offset` as `offset` with the same CSVs, cutoffs and quote age. With the example option cutoffs, the first underlying is USD 100, the delayed American call appears at 14:02 UTC, and the underlying becomes USD 100.50 at 14:03 UTC. [Option CSV inputs and demo cutoffs](option-chain.md).

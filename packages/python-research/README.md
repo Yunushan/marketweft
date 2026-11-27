@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.7.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.8.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -76,7 +76,7 @@ for row in snapshot.options:
     print(row.contract_id, row.exercise_style, row.status, row.analytics)
 ```
 
-The snapshot retains the exact quote and observation timestamps in UTC seconds. Strike, bid, ask and spot use integer millionths in the instrument currency. Interest rate and continuous dividend yield use integer millionths of an annual fraction. European `analytics` includes modeled price, implied volatility as an annual fraction, and Delta, Gamma, Vega, Theta and Rho. Unavailable models return `None` with a status, and contracts with no known observation are excluded. [Option inputs and demo cutoffs](../../docs/option-chain.md).
+The snapshot retains the exact quote and observation timestamps in UTC seconds. Strike, bid, ask and spot use integer millionths in the instrument currency. Interest rate and continuous dividend yield use integer millionths of an annual fraction. European `analytics` includes modeled price, implied volatility as an annual fraction, and Delta, Gamma, Vega, Theta and Rho. Unavailable models return `None` with a status, and contracts with no known observation are excluded. [Option inputs and demo cutoffs](../../docs/option-chain.md) · [MCP option snapshots](../../docs/local-mcp-research.md#option-chain-snapshots).
 
 ## American option valuations
 

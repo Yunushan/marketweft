@@ -8,11 +8,11 @@ import sys
 from typing import BinaryIO
 
 from . import FinancialMultiples, FinancialSnapshot, FormulaFunction, ResearchEngine, ResearchError, ScreenPrice
-from . import _MAX_FINANCIAL_CSV
+from . import _MAX_FINANCIAL_CSV, _MAX_OPTION_CSV, _MAX_OPTION_ROWS, _OPTION_STATUSES
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.7.0"
+SERVER_VERSION = "0.8.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -20,6 +20,7 @@ MIN_I64 = -(1 << 63)
 TOOL_NAME = "evaluate_historical_formula"
 SCREEN_TOOL_NAME = "screen_universe_as_of"
 FINANCIAL_TOOL_NAME = "financial_snapshot_as_of"
+OPTION_SNAPSHOT_TOOL_NAME = "option_snapshot_as_of"
 _UTC_SCHEMA = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
 INPUT_SCHEMA = {
     "type": "object",
@@ -140,9 +141,9 @@ SCREEN_TOOL = {
 }
 
 _FINANCIAL_CSV_SCHEMA = {"type": "string", "minLength": 1, "maxLength": _MAX_FINANCIAL_CSV}
-_ISSUER_SCHEMA = {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,40}$"}
+_IDENTIFIER_SCHEMA = {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,40}$"}
 _CURRENCY_SCHEMA = {"type": "string", "pattern": "^[A-Z]{3}$"}
-_FINANCIAL_TIME_SCHEMA = {"type": "integer"}
+_TIME_SCHEMA = {"type": "integer"}
 _TICKS_SCHEMA = {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]{0,38})$"}
 _OPTIONAL_TICKS_SCHEMA = {**_TICKS_SCHEMA, "type": ["string", "null"]}
 _FLOW_FIELDS = ("revenue", "common_net_income", "operating_cash_flow")
@@ -164,18 +165,18 @@ FINANCIAL_INPUT_SCHEMA = {
     **_object_schema({
         "filings_csv": _FINANCIAL_CSV_SCHEMA,
         "capitalization_csv": _FINANCIAL_CSV_SCHEMA,
-        "issuer": _ISSUER_SCHEMA,
+        "issuer": _IDENTIFIER_SCHEMA,
         "valuation_at": _UTC_SCHEMA,
         "known_at": _UTC_SCHEMA,
     }),
     "required": ["filings_csv", "issuer", "valuation_at", "known_at"],
 }
 _FILING_PROPERTIES = {
-    "source_id": _ISSUER_SCHEMA,
-    "fiscal_start": _FINANCIAL_TIME_SCHEMA,
-    "fiscal_end": _FINANCIAL_TIME_SCHEMA,
-    "published_at": _FINANCIAL_TIME_SCHEMA,
-    "observed_at": _FINANCIAL_TIME_SCHEMA,
+    "source_id": _IDENTIFIER_SCHEMA,
+    "fiscal_start": _TIME_SCHEMA,
+    "fiscal_end": _TIME_SCHEMA,
+    "published_at": _TIME_SCHEMA,
+    "observed_at": _TIME_SCHEMA,
     "currency": _CURRENCY_SCHEMA,
     **{field: _OPTIONAL_TICKS_SCHEMA for field in _FILING_FIELDS},
 }
@@ -186,14 +187,14 @@ _MULTIPLE_SCHEMAS = [
 _MULTIPLE_SCHEMA = {"anyOf": _MULTIPLE_SCHEMAS}
 _OPTIONAL_MULTIPLE_SCHEMA = {"anyOf": [*_MULTIPLE_SCHEMAS, {"type": "null"}]}
 FINANCIAL_OUTPUT_SCHEMA = _object_schema({
-    "issuer": _ISSUER_SCHEMA,
+    "issuer": _IDENTIFIER_SCHEMA,
     "valuation_at": _UTC_SCHEMA,
     "known_at": _UTC_SCHEMA,
     "filing": _object_schema(_FILING_PROPERTIES, nullable=True),
     "market_cap": _object_schema({
-        "source_id": _ISSUER_SCHEMA,
-        "at": _FINANCIAL_TIME_SCHEMA,
-        "observed_at": _FINANCIAL_TIME_SCHEMA,
+        "source_id": _IDENTIFIER_SCHEMA,
+        "at": _TIME_SCHEMA,
+        "observed_at": _TIME_SCHEMA,
         "currency": _CURRENCY_SCHEMA,
         "ticks": _TICKS_SCHEMA,
     }, nullable=True),
@@ -220,6 +221,65 @@ FINANCIAL_TOOL = {
 }
 
 
+_OPTION_CSV_SCHEMA = {"type": "string", "minLength": 1, "maxLength": _MAX_OPTION_CSV}
+_U32_MAX = (1 << 32) - 1
+_MAX_OPTION_AGE = 300
+_DEFAULT_OPTION_PAGE = 200
+_OPTION_SNAPSHOT_FIELDS = ["underlying_csv", "quotes_csv", "effective_at", "known_at"]
+OPTION_SNAPSHOT_INPUT = {
+    **_object_schema({
+        "underlying_csv": _OPTION_CSV_SCHEMA,
+        "quotes_csv": _OPTION_CSV_SCHEMA,
+        "effective_at": _UTC_SCHEMA,
+        "known_at": _UTC_SCHEMA,
+        "max_age": {"type": "integer", "minimum": 0, "maximum": _U32_MAX, "default": _MAX_OPTION_AGE},
+        "offset": {"type": "integer", "minimum": 0, "maximum": _MAX_OPTION_ROWS, "default": 0},
+        "limit": {"type": "integer", "minimum": 1, "maximum": MAX_ROWS, "default": _DEFAULT_OPTION_PAGE},
+    }),
+    "required": _OPTION_SNAPSHOT_FIELDS,
+}
+_OPTION_QUOTE_CLOCKS = dict.fromkeys(("quote_at", "observed_at"), _TIME_SCHEMA)
+_OPTION_QUOTE = _object_schema({
+    "contract_id": _IDENTIFIER_SCHEMA,
+    "expiration": _TIME_SCHEMA,
+    "strike_ticks": _TICKS_SCHEMA,
+    "side": {"enum": ["call", "put"]},
+    "exercise_style": {"enum": ["european", "american"]},
+    **_OPTION_QUOTE_CLOCKS,
+    "bid_ticks": _OPTIONAL_TICKS_SCHEMA,
+    "ask_ticks": _OPTIONAL_TICKS_SCHEMA,
+    "status": {"enum": ["ok", *sorted(_OPTION_STATUSES)]},
+    "analytics": _object_schema(
+        dict.fromkeys(("volatility", "price", "delta", "gamma", "vega", "theta", "rho"), {"type": "number"}),
+        nullable=True,
+    ),
+})
+OPTION_SNAPSHOT_OUTPUT = _object_schema({
+    "instrument": {"type": "string", "pattern": "^[A-Z0-9._/-]{1,32}:[A-Z0-9._/-]{1,32}$"},
+    "currency": _CURRENCY_SCHEMA,
+    "effective_at": _UTC_SCHEMA,
+    "known_at": _UTC_SCHEMA,
+    "underlying": _object_schema({
+        **_OPTION_QUOTE_CLOCKS,
+        **dict.fromkeys(("spot_ticks", "rate_units", "dividend_yield_units"), _TICKS_SCHEMA),
+    }, nullable=True),
+    "total_rows": {"type": "integer", "minimum": 0, "maximum": _MAX_OPTION_ROWS},
+    "offset": {"type": "integer", "minimum": 0, "maximum": _MAX_OPTION_ROWS},
+    "next_offset": {"type": ["integer", "null"], "minimum": 0, "maximum": _MAX_OPTION_ROWS},
+    "rows": {"type": "array", "maxItems": MAX_ROWS, "items": _OPTION_QUOTE},
+})
+OPTION_SNAPSHOT_TOOL = {
+    "name": OPTION_SNAPSHOT_TOOL_NAME,
+    "description": (
+        "Replay option quotes and European analytics from supplied underlying and option CSV contents at "
+        "independent effective and known UTC times. Reuse the same inputs with next_offset for another page."
+    ),
+    "annotations": TOOL["annotations"],
+    "inputSchema": OPTION_SNAPSHOT_INPUT,
+    "outputSchema": OPTION_SNAPSHOT_OUTPUT,
+}
+
+
 class RequestError(Exception):
     def __init__(self, code: int, message: str):
         super().__init__(message)
@@ -242,7 +302,7 @@ def _price(price: ScreenPrice | None) -> dict | None:
     return None if price is None else {"ticks": str(price.ticks), "observed_at": price.observed_at}
 
 
-def _financial_values(record, *amounts) -> dict | None:
+def _fixed_fields(record, *amounts) -> dict | None:
     if record is None:
         return None
     payload = asdict(record)
@@ -254,9 +314,9 @@ def _financial_values(record, *amounts) -> dict | None:
 
 def _financial_multiples(value: FinancialMultiples) -> dict:
     return {
-        "price_earnings": _financial_values(value.price_earnings, "units"),
-        "price_sales": _financial_values(value.price_sales, "units"),
-        "price_book": _financial_values(value.price_book, "units"),
+        "price_earnings": _fixed_fields(value.price_earnings, "units"),
+        "price_sales": _fixed_fields(value.price_sales, "units"),
+        "price_book": _fixed_fields(value.price_book, "units"),
     }
 
 
@@ -265,11 +325,11 @@ def _financial_content(report: FinancialSnapshot, valuation_at: str, known_at: s
         "issuer": report.issuer,
         "valuation_at": valuation_at,
         "known_at": known_at,
-        "filing": _financial_values(report.filing, *_FILING_FIELDS),
-        "market_cap": _financial_values(report.market_cap, "ticks"),
+        "filing": _fixed_fields(report.filing, *_FILING_FIELDS),
+        "market_cap": _fixed_fields(report.market_cap, "ticks"),
         "annual_valuation": _financial_multiples(report.annual_valuation),
-        "quarters": [_financial_values(quarter, *_FILING_FIELDS) for quarter in report.quarters],
-        "trailing": _financial_values(report.trailing, *_FLOW_FIELDS),
+        "quarters": [_fixed_fields(quarter, *_FILING_FIELDS) for quarter in report.quarters],
+        "trailing": _fixed_fields(report.trailing, *_FLOW_FIELDS),
         "quarterly_valuation": _financial_multiples(report.quarterly_valuation),
     }
 
@@ -344,7 +404,7 @@ class ResearchServer:
         if method == "tools/list":
             if params.get("cursor") is not None:
                 raise RequestError(-32602, "The tool list fits on a single page.")
-            return {"tools": [TOOL, SCREEN_TOOL, FINANCIAL_TOOL]}
+            return {"tools": [TOOL, SCREEN_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -354,6 +414,8 @@ class ResearchServer:
                 return self._screen(arguments)
             if name == FINANCIAL_TOOL_NAME:
                 return self._financial(arguments)
+            if name == OPTION_SNAPSHOT_TOOL_NAME:
+                return self._option_snapshot(arguments)
             raise RequestError(-32602, "Unknown research tool.")
         raise RequestError(-32601, "Method not found.")
 
@@ -434,6 +496,35 @@ class ResearchServer:
         except (ResearchError, ValueError) as error:
             return {"content": _text(str(error)), "isError": True}
         return _structured(_financial_content(report, arguments["valuation_at"], arguments["known_at"]))
+
+    def _option_snapshot(self, arguments) -> dict:
+        properties = OPTION_SNAPSHOT_INPUT["properties"]
+        if not isinstance(arguments, dict) or set(arguments) - properties.keys():
+            raise RequestError(-32602, "Supply only the documented option snapshot arguments.")
+        if not all(isinstance(arguments.get(field), str) and arguments[field] for field in _OPTION_SNAPSHOT_FIELDS):
+            raise RequestError(-32602, "Supply underlying and option CSV contents and both UTC times.")
+        max_age = _integer(arguments, "max_age", _MAX_OPTION_AGE, 0, _U32_MAX)
+        offset = _integer(arguments, "offset", 0, 0, _MAX_OPTION_ROWS)
+        limit = _integer(arguments, "limit", _DEFAULT_OPTION_PAGE, 1, MAX_ROWS)
+        try:
+            report = self._engine.option_snapshot(
+                **{field: arguments[field] for field in _OPTION_SNAPSHOT_FIELDS}, max_age=max_age,
+            )
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+        page = report.options[offset:offset + limit]
+        end = offset + len(page)
+        return _structured({
+            "instrument": report.instrument,
+            "currency": report.currency,
+            "effective_at": arguments["effective_at"],
+            "known_at": arguments["known_at"],
+            "underlying": _fixed_fields(report.underlying, "spot_ticks", "rate_units", "dividend_yield_units"),
+            "total_rows": len(report.options),
+            "offset": offset,
+            "next_offset": end if end < len(report.options) else None,
+            "rows": [_fixed_fields(row, "strike_ticks", "bid_ticks", "ask_ticks") for row in page],
+        })
 
 
 def run(server: ResearchServer, read: BinaryIO, write: BinaryIO) -> None:

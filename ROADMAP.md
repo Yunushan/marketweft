@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.96.0 adds point-in-time option snapshots and American valuations to the TypeScript SDK. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.97.0 adds point-in-time option snapshots to the local read-only MCP server. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -99,6 +99,7 @@
 | Delivered · 0.94.0 | Native option snapshots (MW-026, MW-028) | Verify the native command and installed Python SDK against the same offline exercise-style, quote and underlying fixtures as the browser. [Native option snapshots](packages/python-research/README.md#option-chain-snapshots). |
 | Delivered · 0.95.0 | Native American option valuations (MW-026, MW-028) | Verify both valuation modes and exact report provenance across announcement revisions, cancellation and rewind in the installed Python SDK. [Native American option valuations](packages/python-research/README.md#american-option-valuations). |
 | Delivered · 0.96.0 | TypeScript option research (MW-026, MW-028) | Verify point-in-time option snapshots and cash-dividend valuations through the offline installed npm package. [TypeScript option research](packages/research/README.md#option-snapshots-and-american-valuations). |
+| Delivered · 0.97.0 | Read-only MCP option snapshots (MW-026, MW-028) | Verify exact quote units, separate cutoffs, unavailable statuses and stable offset pagination. [MCP option snapshots](docs/local-mcp-research.md#option-chain-snapshots). |
 | P0 | Native release prerequisites (MW-010, MW-011) | Maintain the GTK compatibility backport until its upstream replacement lands. Collect OS-specific install and upgrade evidence, validate import and sandbox boundaries and ship corresponding notices. Sign and verify an installer on a second machine. |
 | P1 | Market data provenance and broader corporate actions (MW-013, MW-017, MW-029) | Extend the source and rights model to live providers and cover additional corporate action types. |
 | P1 | Interactive research workspace (MW-006, MW-012, MW-014) | Validate new chart types against fixtures and restore exact settings after migrations. |
@@ -110,5 +111,5 @@
 
 ## Handoff for the next change
 
-Expose point-in-time option snapshots through the local read-only MCP server. Verify knowledge cutoffs, exact quote units and unavailable statuses in the installed Python package.
+Expose read-only American option prices and midpoint IV through local MCP. Verify observed cash-dividend revisions, exact provenance and role of the independent cutoffs.
 

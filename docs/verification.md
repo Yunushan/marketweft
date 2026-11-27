@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.97.0 · MCP option snapshots
+
+| Check | Evidence |
+| --- | --- |
+| Tool discovery | The official MCP client verified the read-only option tool and its schemas against the installed Python 0.8.0 wheel. Formula, screen and financial tools were also present. |
+| Cutoffs and prices | The MCP test verifies exact decimal-string strike and bid, the missing bid, the crossed quote and its correction, and the American contract with its distinct quote and observation times. |
+| Pagination and errors | The bounded pages reconstruct the unpaged snapshot. Invalid paths, query values and cutoffs return errors, and a subsequent replay still restores the original snapshot. |
+
+[MCP option snapshots](local-mcp-research.md#option-chain-snapshots) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.96.0 · TypeScript option research
 
 | Check | Evidence |

@@ -67,7 +67,7 @@ class McpTest(unittest.TestCase):
         self.assertEqual(replies[1]["result"]["protocolVersion"], "2025-11-25")
         tools = replies[2]["result"]["tools"]
         self.assertEqual([item["name"] for item in tools],
-                         [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME])
+                         [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME, mcp.OPTION_SNAPSHOT_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -179,6 +179,66 @@ class McpTest(unittest.TestCase):
         self.assertEqual(financial("14:05:00", capitalization_csv=None)["error"]["code"], -32602)
         self.assertTrue(financial("14:61:00")["result"]["isError"])
         self.assertEqual(financial("14:05:00")["result"]["structuredContent"], ready)
+
+
+    def test_option_snapshot_pages_exact_quotes_and_replays_both_cutoffs(self):
+        server = mcp.ResearchServer(ResearchEngine(EXECUTABLE))
+        server.handle(rpc("initialize", 1, INITIALIZE))
+        server.handle(rpc("notifications/initialized"))
+        fixture = ROOT / "crates/core/tests/fixtures"
+        arguments = {
+            "underlying_csv": (fixture / "synthetic-option-underlying.csv").read_text(encoding="utf-8"),
+            "quotes_csv": (fixture / "synthetic-option-exercise-quotes.csv").read_text(encoding="utf-8"),
+            "effective_at": "2025-04-03T14:00:00Z", "known_at": "2025-04-03T14:00:00Z",
+        }
+
+        def options(**changes):
+            return server.handle(rpc("tools/call", 2, {
+                "name": mcp.OPTION_SNAPSHOT_TOOL_NAME, "arguments": {**arguments, **changes},
+            }))
+
+        tools = server.handle(rpc("tools/list", 3))["result"]["tools"]
+        tool = next(tool for tool in tools if tool["name"] == mcp.OPTION_SNAPSHOT_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertEqual(tool["outputSchema"]["properties"]["rows"]["items"]["properties"]["strike_ticks"]["type"], "string")
+
+        init_payload = options()["result"]
+        initial = init_payload["structuredContent"]
+        self.assertEqual(json.loads(init_payload["content"][0]["text"]), initial)
+        self.assertEqual((initial["instrument"], initial["currency"]), ("DEMO:OPT", "USD"))
+        self.assertEqual(initial["underlying"]["spot_ticks"], "100000000")
+        original = {row["contract_id"]: row for row in initial["rows"]}
+        self.assertNotIn("APR-AM-C90", original)
+        self.assertAlmostEqual(original["APR-C100"]["analytics"]["volatility"], .2, places=6)
+        self.assertEqual(original["APR-C100"]["strike_ticks"], "100000000")
+        self.assertEqual(original["APR-C100"]["bid_ticks"], "8807321")
+        self.assertEqual(original["APR-P110"]["status"], "crossed")
+        self.assertIsNone(original["APR-C105"]["bid_ticks"])
+        self.assertIsNone(original["APR-C105"]["analytics"])
+
+        all_rows = []
+        offset = 0
+        while offset is not None:
+            page = options(offset=offset, limit=2)["result"]["structuredContent"]
+            self.assertEqual(page["total_rows"], initial["total_rows"])
+            self.assertEqual(page["underlying"], initial["underlying"])
+            all_rows.extend(page["rows"])
+            offset = page["next_offset"]
+        self.assertEqual(all_rows, initial["rows"])
+
+        late = options(known_at="2025-04-03T14:04:00Z")["result"]["structuredContent"]
+        self.assertEqual(late["effective_at"], arguments["effective_at"])
+        self.assertEqual(late["known_at"], "2025-04-03T14:04:00Z")
+        self.assertEqual(late["underlying"]["spot_ticks"], "100500000")
+        contracts = {row["contract_id"]: row for row in late["rows"]}
+        self.assertEqual(contracts["APR-AM-C90"]["status"], "american-volatility-required")
+        self.assertEqual(contracts["APR-AM-C90"]["exercise_style"], "american")
+        self.assertGreater(contracts["APR-AM-C90"]["observed_at"], contracts["APR-AM-C90"]["quote_at"])
+        self.assertEqual(contracts["APR-P110"]["status"], "ok")
+        self.assertEqual(options(underlying_path="quotes.csv")["error"]["code"], -32602)
+        self.assertEqual(options(max_age=True)["error"]["code"], -32602)
+        self.assertTrue(options(known_at="2025-04-03T14:60:00Z")["result"]["isError"])
+        self.assertEqual(options()["result"]["structuredContent"], initial)
 
 
 if __name__ == "__main__":

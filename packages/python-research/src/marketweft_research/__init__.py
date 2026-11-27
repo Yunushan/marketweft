@@ -30,6 +30,7 @@ _MAX_SOURCE = 2048
 _MAX_CSV = 8 * 1024 * 1024
 _MAX_FINANCIAL_CSV = 1024 * 1024
 _MAX_OPTION_CSV = 2 * 1024 * 1024
+_MAX_OPTION_ROWS = 20_000
 _MAX_OPTION_DIVIDEND_CSV = 1024 * 1024
 _OPTION_STATUSES = {
     "expired", "stale-option", "missing-bid-ask", "crossed", "missing-underlying",
@@ -402,7 +403,7 @@ def _option_snapshot(output: bytes) -> OptionChainSnapshot:
     instrument, separator, currency = identity.partition(",")
     if not separator or not _INSTRUMENT.fullmatch(instrument) or not _CURRENCY.fullmatch(currency):
         raise ResearchError("Invalid option underlying identity in research response.")
-    if len(lines) > 20_001:
+    if len(lines) > _MAX_OPTION_ROWS + 1:
         raise ResearchError("Too many rows in option snapshot response.")
     underlying = None
     options: list[OptionChainQuote] = []
