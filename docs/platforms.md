@@ -1,12 +1,12 @@
-# Platform support · MarketWeft 0.168.0
+# Platform support · MarketWeft 0.169.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
 | Target | Current route / available evidence | Required for official native or operational support |
 | --- | --- | --- |
 | Browser / installable PWA | Static React app with a Wasm core. Windows x64 Chromium-family automation, responsive viewport and offline reload. | Browser-engine and device matrix, install/update tests and storage lifecycle acceptance. |
-| Windows x64 | Browser route and a per-user installer with native WebView2 CSV import on hosted Windows Server 2022. | Client Windows installation, upgrade and Authenticode verification. |
-| Windows ARM64 | Per-user installer, installed release startup, native WebView2 CSV import in an installed test build and Python research SDK on hosted Windows 11 ARM64. | Upgrade and Authenticode verification. |
+| Windows x64 | Per-user installer, native WebView2 CSV import and same-profile installer upgrade on hosted Windows Server 2022. | Windows client coverage and Authenticode verification. |
+| Windows ARM64 | Per-user installer, installed release startup, same-profile upgrade with an instrumented build and Python research SDK on hosted Windows 11 ARM64. | Authenticode verification. |
 | macOS Apple Silicon / Intel | Browser route and macOS 15 hosted Tauri builds with native Mach-O, Python research SDK and WKWebView CSV import checks for both architectures. | Native file-picker interaction, sandbox, signing and notarization on actual hosts. |
 | Linux x64 | Ubuntu 24.04 x64 package installation and native CSV import. Debian 12 native window and chart rendering observed through AT-SPI. See [verification](verification.md) and the [advisory review](native-advisories.md). | Broader upgrade coverage, continued backport maintenance and validation on other supported distributions. |
 | Linux ARM64 | Browser route and Ubuntu 24.04 ARM64 package installation, native X11 launch and CSV import smoke test. | Broader upgrade coverage and validation on other supported distributions. |
@@ -33,6 +33,8 @@ python -B apps/desktop/tests/import_webview.py apps/desktop/target/release/marke
 Download the `windows-desktop-x64-attempt-N` or `windows-desktop-arm64-attempt-N` artifact for your Windows architecture from a successful verification run. Unpack it and compare the installer's SHA-256 with its sidecar before running it. The per-user installer uses the installed Microsoft WebView2 Runtime and registers a Start menu shortcut and an uninstall entry. It includes the application license, dependency notices, source revision and dependency source records. [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 CI compiles each installer twice from the same release executable, verifies identical bytes, installs into a temporary directory and checks uninstallation. The x64 job imports the CSV in the installed release. The ARM64 job confirms the installed release initializes WebView2 and exercises the same CSV workflow through a separately installed test build. Both jobs verify that the uninstaller preserves a user-created file.
+
+The upgrade fixture installs verified 0.168.0 packages and applies the candidate directly to the existing installation. It checks the candidate executable and source revision, then reopens the exact WebView2 profile to verify the saved close-line chart and imported OHLCV. The x64 fixture drives the installed executables through Edge WebDriver. The ARM64 fixture reopens the shared profile using test builds of the prior and candidate sources.
 
 ## macOS native builds
 

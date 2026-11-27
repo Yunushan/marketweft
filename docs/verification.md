@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.169.0 · Windows installer upgrades
+
+| Check | Evidence |
+| --- | --- |
+| Baseline and installation | Each Windows runner checks the previous installer against its verified GitHub Actions archive and upgrades to the candidate in the same directory. The fixture compares release identity, architecture and the installed candidate bytes. |
+| Persisted workspace | The fixture imports synthetic OHLCV, selects a close-line chart and reopens the same profile before and after upgrade. The x64 test uses the installed applications. ARM64 uses test builds of the pinned baseline and candidate sources to inspect the same WebView2 profile. |
+| User files | The candidate and uninstaller preserve the user-created marker. Cleanup removes the desktop registration and shortcut. |
+
+[Windows installers](platforms.md#windows-installers) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.168.0 · Windows ARM64 desktop installer
 
 | Check | Evidence |
