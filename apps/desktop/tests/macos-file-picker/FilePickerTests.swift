@@ -25,26 +25,25 @@ final class FilePickerTests: XCTestCase {
         symbol.click()
         symbol.typeText("MACPICKER")
 
-        let chooseFile = web.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH[c] %@ OR label == %@", "Choose File", "Historical CSV")
-        ).firstMatch
+        let chooseFile = web.buttons.matching(NSPredicate(format: "value ==[c] %@", "no file selected")).firstMatch
         XCTAssertTrue(chooseFile.waitForExistence(timeout: 10), web.debugDescription)
         chooseFile.click()
 
-        let panel = app.sheets.firstMatch
-        XCTAssertTrue(panel.waitForExistence(timeout: 10), app.debugDescription)
-        let openButton = panel.buttons["Open"].firstMatch
-        XCTAssertTrue(openButton.exists, panel.debugDescription)
-        panel.typeKey("g", modifierFlags: [.command, .shift])
+        let openButton = app.buttons["Open"].firstMatch
+        XCTAssertTrue(openButton.waitForExistence(timeout: 10), app.debugDescription)
+        app.typeKey("g", modifierFlags: [.command, .shift])
         app.typeText(csvPath)
         app.typeKey(XCUIKeyboardKey.return, modifierFlags: [])
         let ready = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "enabled == true AND hittable == true"),
             object: openButton
         )
-        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed, panel.debugDescription)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed, app.debugDescription)
         openButton.click()
 
+        let fixture = URL(fileURLWithPath: csvPath).lastPathComponent
+        let chosen = web.buttons.matching(NSPredicate(format: "value == %@", fixture)).firstMatch
+        XCTAssertTrue(chosen.waitForExistence(timeout: 10), web.debugDescription)
         let submit = web.buttons["Import to watchlist"]
         XCTAssertTrue(submit.waitForExistence(timeout: 10), web.debugDescription)
         submit.click()
