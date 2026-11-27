@@ -88,8 +88,9 @@ func chooseSimulatorFile(in app: XCUIApplication, input: String, folders: [Strin
     }
     let baseName = (filename as NSString).deletingPathExtension
     let fileExtension = (filename as NSString).pathExtension
+    let identifiers = [filename, "\(baseName), \(fileExtension)", "\(filename), \(fileExtension)"]
     let document = entries
-        .matching(NSPredicate(format: "identifier IN %@", [filename, "\(baseName), \(fileExtension)"])).firstMatch
+        .matching(NSPredicate(format: "identifier IN %@", identifiers)).firstMatch
     XCTAssertTrue(document.waitForExistence(timeout: 20), app.debugDescription)
     tapFilesCell(document)
     let confirm = app.navigationBars.buttons["Open"].firstMatch
