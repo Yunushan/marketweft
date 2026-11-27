@@ -104,8 +104,11 @@ func chooseSimulatorFile(in app: XCUIApplication, input: String, folders: [Strin
     tapFilesCell(document)
     let confirm = app.navigationBars.buttons["Open"].firstMatch
     if confirm.waitForExistence(timeout: 2), confirm.isHittable { confirm.tap() }
+    // WebKit can clip the visible filename in narrow file controls after the picker closes.
+    let visibleFilenamePrefix = String(baseName.prefix(12))
     let selectedFile = web.buttons.matching(NSPredicate(
-        format: "label BEGINSWITH %@ AND value CONTAINS[c] %@", input, baseName
+        format: "label BEGINSWITH %@ AND (value CONTAINS[c] %@ OR value BEGINSWITH[c] %@)",
+        input, baseName, visibleFilenamePrefix
     )).firstMatch
     XCTAssertTrue(selectedFile.waitForExistence(timeout: 15), app.debugDescription)
 }
