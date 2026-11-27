@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.186.0 · Android APK provenance
+
+- A matching release tag gates the attestation job. The job requires a successful Android build and downloads both APKs by the artifact IDs that build returned.
+- Before attestation, the job checks the paired package names and sidecars, the embedded commit, both ELF architectures and 16 KB alignment for ARM64.
+- The job verifies both subjects against the repository, hosted workflow, exact source commit and release ref. The debug APKs, checksum sidecars and shared attestation bundle are published together.
+
+[Verify Android debug APK provenance](platforms.md#verify-android-debug-apk-provenance).
+
 ## 0.184.0 · Android ARM64 debug package
 
 - CI cross-compiles the Android terminal with the locked NDK, verifies the APK signature and ARM64 ELF machine, and checks both native segment and ZIP alignment for 16 KB pages.

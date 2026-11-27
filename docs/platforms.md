@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.185.0
+# Platform support · MarketWeft 0.186.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
@@ -38,6 +38,25 @@ From a checkout at the APK's source revision, use Android SDK Build Tools 37.0.0
 bash scripts/verify_android_on_device.sh "$ANDROID_SERIAL" arm64-v8a \
   MarketWeft-android-0.184.0-arm64-v8a-debug.apk reports/android-arm64-device
 ```
+
+### Verify Android debug APK provenance
+
+On a matching release tag, the hosted workflow checks both Android debug APKs using the exact artifact IDs returned by the build job. It checks the APK checksum, embedded commit, ELF ABI and ARM64 segment alignment before producing and verifying a shared provenance bundle.
+
+Download the APKs, checksum sidecars and `marketweft-android.intoto.jsonl` from the `android-terminal-attested-attempt-N` artifact. From a checkout with the release tag, select the corresponding APK and verify it with GitHub CLI.
+
+```sh
+release_ref=refs/tags/v0.186.0
+release_commit=$(git rev-list -n 1 "$release_ref")
+package=MarketWeft-android-0.186.0-arm64-v8a-debug.apk
+sha256sum --check "$package.sha256"
+gh attestation verify "$package" --repo Yunushan/marketweft \
+  --signer-workflow Yunushan/marketweft/.github/workflows/verify.yml \
+  --deny-self-hosted-runners --source-ref "$release_ref" --source-digest "$release_commit" \
+  --bundle marketweft-android.intoto.jsonl
+```
+
+The same commands apply to the x86_64 APK and its checksum. The attestation verifies build provenance for the debug packages. The APK signing and device evidence are recorded in the Android build job. [GitHub artifact attestations](https://docs.github.com/en/actions/concepts/security/artifact-attestations).
 
 ## iOS and iPadOS Simulator
 
