@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.170.0 · Windows installer build provenance
+
+| Check | Evidence |
+| --- | --- |
+| Installer subjects | The tag job verifies the x64 and ARM64 installers against their SHA-256 sidecars, extracts their recorded Git revision and inspects the bundled desktop executables' PE machine fields. |
+| Provenance | GitHub signs the build attestation for both Windows installer digests. The workflow verifies the exact repository, signer workflow, tag and commit before uploading the installers and bundle. |
+
+[Windows installer provenance](platforms.md#verify-windows-installer-provenance) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.169.0 · Windows installer upgrades
 
 | Check | Evidence |

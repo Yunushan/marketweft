@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.169.0 adds in-place Windows installer upgrades with shared WebView2 workspace verification. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.170.0 adds signed build provenance for the verified Windows x64 and ARM64 installers. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for what ran. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Delivered · 0.170.0 | Windows installer build provenance (MW-010, MW-011) | Attest both verified installers on a release tag and confirm their digests, source commit, workflow identity and exact tag. [Windows installer provenance](docs/platforms.md#verify-windows-installer-provenance). |
 | Delivered · 0.169.0 | In-place Windows installer upgrades (MW-010, MW-011) | Upgrade both Windows architectures from 0.168.0 while preserving imported OHLCV, the saved close-line chart and a user-created file. [Windows installers](docs/platforms.md#windows-installers). |
 | Delivered · 0.168.0 | Windows ARM64 desktop installer (MW-010, MW-011) | Verify installer reproducibility, startup of the installed release, native CSV import in an installed test build and uninstallation that preserves user-created files. [Windows installers](docs/platforms.md#windows-installers). |
 | Delivered · 0.167.0 | Windows x64 desktop installer (MW-010, MW-011) | Verify installer reproducibility, clean installation, native WebView2 import and uninstallation that preserves user-created files. [Windows installers](docs/platforms.md#windows-installers). |
@@ -183,5 +184,5 @@
 
 ## Handoff for the next change
 
-Publish and verify release provenance attestations for the Windows x64 and ARM64 installers from the exact tagged commit.
+Package the macOS desktop app for Intel and Apple Silicon and verify that the distributed bundles open and load native WKWebView.
 

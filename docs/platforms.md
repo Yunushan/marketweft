@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.169.0
+# Platform support · MarketWeft 0.170.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
@@ -35,6 +35,16 @@ Download the `windows-desktop-x64-attempt-N` or `windows-desktop-arm64-attempt-N
 CI compiles each installer twice from the same release executable, verifies identical bytes, installs into a temporary directory and checks uninstallation. The x64 job imports the CSV in the installed release. The ARM64 job confirms the installed release initializes WebView2 and exercises the same CSV workflow through a separately installed test build. Both jobs verify that the uninstaller preserves a user-created file.
 
 The upgrade fixture installs verified 0.168.0 packages and applies the candidate directly to the existing installation. It checks the candidate executable and source revision, then reopens the exact WebView2 profile to verify the saved close-line chart and imported OHLCV. The x64 fixture drives the installed executables through Edge WebDriver. The ARM64 fixture reopens the shared profile using test builds of the prior and candidate sources.
+
+### Verify Windows installer provenance
+
+The tagged workflow checks each Windows installer's SHA-256, embedded source revision and the PE architecture of its application before creating a GitHub build attestation. Download the `windows-desktop-signed-attempt-N` artifact from the successful tag run. The signed provenance covers both installers and can be verified with the accompanying bundle. Windows Authenticode has its own verification requirements. [GitHub attestation verification reference](https://cli.github.com/manual/gh_attestation_verify).
+
+```powershell
+gh attestation verify $Installer --repo Yunushan/marketweft --signer-workflow Yunushan/marketweft/.github/workflows/verify.yml --deny-self-hosted-runners --source-ref refs/tags/v0.170.0 --source-digest $Commit --bundle marketweft-windows-desktop.intoto.jsonl
+```
+
+Set `$Installer` to the downloaded x64 or ARM64 installer and `$Commit` to the full commit SHA for the tag. Use the matching tag and attestation bundle when verifying a later release.
 
 ## macOS native builds
 
