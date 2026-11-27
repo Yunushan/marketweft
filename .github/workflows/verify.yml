@@ -281,7 +281,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2022, macos-15, macos-15-intel, ubuntu-24.04, ubuntu-24.04-arm]
+        os: [windows-2022, windows-11-arm, macos-15, macos-15-intel, ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -291,6 +291,19 @@ jobs:
         with:
           node-version: 26.8.2
           cache: npm
+      - name: Verify the native Windows ARM64 host and toolchain
+        if: matrix.os == 'windows-11-arm'
+        shell: pwsh
+        run: |
+          $nodeArch = node -p 'process.arch'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $compiler = rustc -vV
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($env:RUNNER_ARCH -cne 'ARM64' -or $nodeArch -cne 'arm64' -or 'host: aarch64-pc-windows-msvc' -cnotin $compiler) {
+            throw 'Expected a Windows ARM64 runner with native Node.js and Rust.'
+          }
+          Write-Output "Runner architecture $env:RUNNER_ARCH and Node.js architecture $nodeArch"
+          $compiler
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth dbus-x11 xdotool python3-pyatspi at-spi2-core webkit2gtk-driver dpkg-dev desktop-file-utils
       - run: npm ci
@@ -307,6 +320,14 @@ jobs:
           if-no-files-found: error
       - if: runner.os != 'Linux'
         run: cargo build --locked --manifest-path apps/desktop/Cargo.toml
+      - name: Verify the native Windows PE architectures
+        if: runner.os == 'Windows'
+        env:
+          MACHINE: ${{ matrix.os == 'windows-11-arm' && 'arm64' || 'x64' }}
+        shell: pwsh
+        run: |
+          python -B scripts/verify_windows_arch.py $env:MACHINE target/release/marketweft-research.exe apps/desktop/target/debug/marketweft-desktop.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify CSV import in the Windows x64 desktop executable
         if: matrix.os == 'windows-2022'
         timeout-minutes: 5
