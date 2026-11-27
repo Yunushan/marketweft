@@ -14,7 +14,7 @@ The comparison uses the original bars and timestamps from each saved series. Imp
 
 Choose **Candles** for a filled price body, **OHLC bars** for a high-to-low stem with a left open tick and right close tick, or **Close line** to trace observed closes. These three show observed volume and use the same source bars, overlays and cursor readout. **Heikin-Ashi** adds a derived candle view. When several bars share a display column, the candles and OHLC bars use the first open, highest high, lowest low and last close. The line keeps the first, last, highest and lowest closes in their original order. A single observed close is drawn as a point.
 
-The x-axis places consecutive observed bars at regular bar spacing. An unobserved timestamp has no chart point or linked crosshair. Switching among time-based chart types keeps the visible range. Switching to or from Renko resets the visible range. The pane keeps its indicator settings. Each pane saves its own chart type. [Backup format](workspace-backup.md)
+The x-axis places consecutive observed bars at regular bar spacing. An unobserved timestamp has no chart point or linked crosshair. Switching among time-based chart types keeps the visible range. Switching to or from Renko or Three Line Break resets the visible range. The pane keeps its indicator settings. Each pane saves its own chart type. [Backup format](workspace-backup.md)
 
 ### Heikin-Ashi
 
@@ -27,6 +27,12 @@ The calculation starts from the beginning of the pane's selected history or aggr
 Choose **Renko** for fixed-size price bricks. Enter the size in price units, with up to six decimal places. Each pane saves its size independently. The first observed close anchors the price grid. A move of one brick size extends the current direction, and a move of two brick sizes reverses it. One source close can generate several bricks with the same UTC timestamp. The calculation uses closed source bars and the selected timeframe. [Renko calculation](https://www.tradingview.com/support/solutions/43000502284-understanding-renko-charts/) · [Reversal threshold](https://www.tradingview.com/support/solutions/43000481040-what-do-renko-wicks-mean/).
 
 Hover a brick to inspect its sequence number, open, close, and observed close. The x-axis steps by brick. An incoming UTC crosshair snaps to the last visible brick at that timestamp. Measurements can appear when both endpoint timestamps have bricks. Moving averages follow the closes of the source bars, and Renko omits a volume graph. The visible CSV includes source bars from the first visible brick's observation through the last. Choose **All bars** to include earlier and later observations. Workspace backup keeps the source CSV and pane settings. [Backup format](workspace-backup.md)
+
+### Three Line Break
+
+Choose **Three Line Break** to show new extremes in closing prices. The first observed close anchors the view. A higher close extends a rising line sequence, and a lower close extends a falling sequence. A reversal needs a close strictly beyond the lowest or highest edge of up to three consecutive lines in the prevailing direction. A reversal starts from the prior line’s opposite edge. A close equal to the threshold leaves the chart as it was. Each source close can produce at most one line. [Three-line break construction](https://financialdestination.in/wp-content/uploads/2025/12/3.-Beyond-candlesticks-steve-nison.pdf) · [Consecutive-line settings](https://www.sierrachart.com/index.php?ID=131&page=doc/StudiesReference.php).
+
+The readout shows the line number, UTC timestamp, and exact open and close. Time advances by emitted lines. Linked crosshairs match source timestamps, and moving-average values and CSV exports use the source bars. The backup stores each pane’s choice and preserves its source CSV.
 
 ## Fixed-duration timeframes
 

@@ -17,7 +17,7 @@ export type Preferences = {
 }
 
 export type ChartPane = 'primary' | 'comparison'
-export type ChartType = 'candles' | 'line' | 'ohlc' | 'heikin-ashi' | 'renko'
+export type ChartType = 'candles' | 'line' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break'
 export const DEFAULT_RENKO_TICKS = 1_000_000
 export const MAX_RENKO_TICKS = 2_000_000_000_000_000
 export type OverlayPeriods = { sma: number; ema: number }
@@ -182,7 +182,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       throw Error('Invalid workspace chart types.')
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, type]) =>
-      (pane !== 'primary' && pane !== 'comparison') || (type !== 'line' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko'))) {
+      (pane !== 'primary' && pane !== 'comparison') || (type !== 'line' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' && type !== 'three-line-break'))) {
       throw Error('Unknown pane or chart type in the workspace.')
     }
     result.chartTypes = Object.fromEntries(entries)

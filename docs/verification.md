@@ -1,5 +1,15 @@
 # MarketWeft verification
 
+## 0.106.0 · Three Line Break chart
+
+| Check | Evidence |
+| --- | --- |
+| Native and Wasm | A shared fixture fixes 14 output lines. Exact threshold touches are ignored, a one-tick break reverses the chart, and every history prefix reproduces its existing lines. |
+| Browser chart | Offline Chromium checks colored rectangles, the precise six-place reversal open and close, and the original UTC source timestamp. |
+| Workspace | A mixed Three Line Break and Renko layout restores its source CSV and independent Renko size. A legacy version 10 backup still restores. |
+
+[Three Line Break](chart-workspace.md#three-line-break) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.105.0 · Fixed-size Renko chart
 
 | Check | Evidence |

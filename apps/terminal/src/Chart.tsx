@@ -8,7 +8,7 @@ import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar, MarketCore, MeasuredDrawing, RenkoBrick, TickBar } from './market-core'
+import type { Bar, MarketCore, MeasuredDrawing, PriceMovement, TickBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 type View = { end: number; count: number }
@@ -31,6 +31,7 @@ const chartNames: Record<ChartType, string> = {
   ohlc: 'OHLC bar',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
+  'three-line-break': 'Three Line Break',
 }
 const defaultView = (n: number) => ({ end: n, count: Math.min(n, 60) })
 const clamp = (x: number, min: number, max: number) =>
@@ -81,11 +82,12 @@ function draw(
   canvas.width = Math.round(width * dpr)
   canvas.height = Math.round(height * dpr)
   ctx.scale(dpr, dpr)
+  const isPriceMovement = type === 'renko' || type === 'three-line-break'
   const left = 10,
     top = 19,
     bottom = height - 28,
     volTop = top + (bottom - top) * 0.8,
-    priceBottom = type === 'renko' ? bottom : volTop - 13
+    priceBottom = isPriceMovement ? bottom : volTop - 13
   const start = view.end - view.count
   let low = Infinity,
     high = -Infinity,
@@ -177,8 +179,8 @@ function draw(
     lowestClose: number
     highestClose: number
   }[] = []
-  if (type === 'renko') {
-    // At dense zoom levels show the last complete brick in each plotted column.
+  if (isPriceMovement) {
+    // At dense zoom levels show the last complete price movement in each plotted column.
     for (let first = start; first < view.end; first += stride) {
       const index = Math.min(first + stride, view.end) - 1
       const brick = bars[index]
@@ -189,7 +191,7 @@ function draw(
       ctx.fillRect(x(index) - width / 2, Math.min(open, close), width, Math.max(1, Math.abs(open - close)))
     }
   }
-  for (let first = start; type !== 'renko' && first < view.end; first += stride) {
+  for (let first = start; !isPriceMovement && first < view.end; first += stride) {
     const last = Math.min(first + stride, view.end) - 1
     let hi = bars[first].high,
       lo = bars[first].low,
@@ -288,8 +290,8 @@ function draw(
   ctx.fillStyle = '#0e1915'
   ctx.fillText(closeLabel, right + 6, at)
   if (drawing) {
-    const first = visibleBarAt(bars, drawing.start.time, 0, bars.length, type === 'renko')
-    const last = visibleBarAt(bars, drawing.end.time, 0, bars.length, type === 'renko')
+    const first = visibleBarAt(bars, drawing.start.time, 0, bars.length, isPriceMovement)
+    const last = visibleBarAt(bars, drawing.end.time, 0, bars.length, isPriceMovement)
     if (first !== null && last !== null) {
       const endpoints = [[x(first), y(drawing.start.ticks / 1e6)], [x(last), y(drawing.end.ticks / 1e6)]]
       ctx.save()
@@ -368,7 +370,7 @@ export function Chart({
   ticks,
   observedAt,
   displayBars,
-  renko,
+  priceMovements,
 }: {
   asset: Asset
   sma: Series
@@ -383,18 +385,18 @@ export function Chart({
   ticks?: TickBar[]
   observedAt?: readonly number[]
   displayBars?: Bar[]
-  renko?: RenkoBrick[]
+  priceMovements?: PriceMovement[]
 }) {
-  const bars = useMemo(() => renko?.map(brick => {
-    const open = Number(brick.openTicks) / 1e6
-    const close = Number(brick.closeTicks) / 1e6
-    return { time: brick.sourceTime, open, close, high: Math.max(open, close),
+  const bars = useMemo(() => priceMovements?.map(movement => {
+    const open = Number(movement.openTicks) / 1e6
+    const close = Number(movement.closeTicks) / 1e6
+    return { time: movement.sourceTime, open, close, high: Math.max(open, close),
       low: Math.min(open, close), volume: 0 }
-  }) ?? asset.bars, [asset.bars, renko])
-  const plottedSma = useMemo(() => renko?.length && sma.length ?
-    renko.map(brick => sma[brick.sourceIndex]) : sma, [renko, sma])
-  const plottedEma = useMemo(() => renko?.length && ema.length ?
-    renko.map(brick => ema[brick.sourceIndex]) : ema, [renko, ema])
+  }) ?? asset.bars, [asset.bars, priceMovements])
+  const plottedSma = useMemo(() => priceMovements?.length && sma.length ?
+    priceMovements.map(movement => sma[movement.sourceIndex]) : sma, [priceMovements, sma])
+  const plottedEma = useMemo(() => priceMovements?.length && ema.length ?
+    priceMovements.map(movement => ema[movement.sourceIndex]) : ema, [priceMovements, ema])
   const n = bars.length
   const [view, setView] = useState<View>(() => defaultView(n)),
     [pointerIndex, setPointerIndex] = useState<number | null>(null)
@@ -411,13 +413,14 @@ export function Chart({
   const drawingCore = drawingTools?.core
   const measurement = useMemo(() => drawing && drawingCore?.measureDrawing(drawing), [drawing, drawingCore])
   const start = view.end - view.count
-  const linkedIndex = linkedTimestamp == null ? null : visibleBarAt(bars, linkedTimestamp, start, view.end, Boolean(renko))
+  const linkedIndex = linkedTimestamp == null ? null : visibleBarAt(bars, linkedTimestamp, start, view.end, Boolean(priceMovements))
   const active = pointerIndex ?? linkedIndex
   const readoutIndex = active ?? view.end - 1
   const plotted = displayBars ?? bars
   const b = plotted[readoutIndex]
-  const brick = renko?.[readoutIndex]
-  const sourceIndex = brick?.sourceIndex ?? readoutIndex
+  const movement = priceMovements?.[readoutIndex]
+  const isRenko = type === 'renko'
+  const sourceIndex = movement?.sourceIndex ?? readoutIndex
   const coverage = timeframe?.buckets[sourceIndex]
   const session = timeframe?.mode === 'session' ? timeframe.buckets[sourceIndex] : undefined
   const tick = ticks?.[sourceIndex]
@@ -429,8 +432,8 @@ export function Chart({
     setDrawingError('')
   }
   function editDrawing() {
-    const lastIndex = renko?.[view.end - 1].sourceIndex ?? view.end - 1
-    const firstIndex = renko ? Math.max(0, lastIndex - 1) : Math.max(start, view.end - 2)
+    const lastIndex = priceMovements?.[view.end - 1].sourceIndex ?? view.end - 1
+    const firstIndex = priceMovements ? Math.max(0, lastIndex - 1) : Math.max(start, view.end - 2)
     const before = asset.bars[firstIndex]
     const after = asset.bars[lastIndex]
     drawingBeforeEdit.current = drawing
@@ -540,16 +543,16 @@ export function Chart({
     setDrawingError('')
   }
   return (
-    <section className="plot" aria-label={renko ? 'Renko chart' : 'Price and volume chart'}
+    <section className="plot" aria-label={priceMovements ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : bars[active].time}>
-      <div className="ohlc" role={displayBars || brick ? 'group' : undefined}
-        aria-label={brick ? 'Renko brick' : displayBars ? 'Heikin-Ashi prices' : undefined}>
+      <div className="ohlc" role={displayBars || movement ? 'group' : undefined}
+        aria-label={movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') : displayBars ? 'Heikin-Ashi prices' : undefined}>
         <time>{timeLabel(b.time)} UTC</time>
-        {brick ? <>
-          <span><small>Brick</small> {readoutIndex + 1}</span>
-          <span><small>Open</small> {fixed(brick.openTicks, 6)}</span>
-          <span><small>Close</small> {fixed(brick.closeTicks, 6)}</span>
-          <span><small>Observed close</small> {fixed(brick.sourceCloseTicks, 6)}</span>
+        {movement ? <>
+          <span><small>{isRenko ? 'Brick' : 'Line'}</small> {readoutIndex + 1}</span>
+          <span><small>Open</small> {fixed(movement.openTicks, 6)}</span>
+          <span><small>Close</small> {fixed(movement.closeTicks, 6)}</span>
+          {isRenko && <span><small>Observed close</small> {fixed(movement.sourceCloseTicks, 6)}</span>}
         </> : <>
           {(['open', 'high', 'low', 'close'] as const).map((k) => (
             <span key={k}>
@@ -591,7 +594,7 @@ export function Chart({
       <div ref={zone} className={picking ? 'canvas-zone picking-endpoint' : 'canvas-zone'}>
         <canvas
           tabIndex={0}
-          aria-label={asset.symbol + ' interactive ' + chartNames[type] + (renko ? ' chart' : ' and volume chart')}
+          aria-label={asset.symbol + ' interactive ' + chartNames[type] + (priceMovements ? ' chart' : ' and volume chart')}
           ref={ref}
           onPointerDown={(e) => {
             if (e.button !== 0) return
@@ -628,7 +631,7 @@ export function Chart({
       </div>
       <div className="chart-foot">
         <div className="range">
-          <span>{renko ? 'Bricks' : 'Bars'}</span>
+          <span>{isRenko ? 'Bricks' : priceMovements ? 'Lines' : 'Bars'}</span>
           {([30, 60, 120, 'All'] as const).map((r) => (
             <button
               key={r}
@@ -715,8 +718,8 @@ export function Chart({
         </div>
       )}
       {exportOptions && (
-        <ChartExport asset={asset} visible={renko ? {
-          start: renko[start].sourceIndex, end: renko[view.end - 1].sourceIndex + 1,
+        <ChartExport asset={asset} visible={priceMovements ? {
+          start: priceMovements[start].sourceIndex, end: priceMovements[view.end - 1].sourceIndex + 1,
         } : { start, end: view.end }} metadata={exportOptions.metadata}
           timeframe={timeframe}
           overlays={periods ? ([

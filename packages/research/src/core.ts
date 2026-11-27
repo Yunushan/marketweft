@@ -8,13 +8,15 @@ export interface Bar {
   volume: number;
 }
 
-export interface RenkoBrick {
+export interface PriceMovement {
   sourceTime: number;
   sourceIndex: number;
   openTicks: bigint;
   closeTicks: bigint;
   sourceCloseTicks: bigint;
 }
+
+export type RenkoBrick = PriceMovement;
 
 export interface FormulaResult {
   version: number;
@@ -802,6 +804,7 @@ export interface MarketCore {
   parseCsv(csv: string): Bar[];
   heikinAshi(bars: readonly Bar[]): Bar[];
   renko(bars: readonly Bar[], brickTicks: bigint): RenkoBrick[];
+  threeLineBreak(bars: readonly Bar[]): PriceMovement[];
   recordedTickBars(instrument: string, csv: string, targetTrades: number, knownAt?: string): TickBar[];
   footprintWindow(instrument: string, csv: string): FootprintWindow;
   recordedFootprint(instrument: string, csv: string, query: FootprintQuery): FootprintBar[];
@@ -886,6 +889,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_parse(): number;
   mw_heikin_ashi(): number;
   mw_renko(brickTicks: bigint): number;
+  mw_three_line_break(): number;
   mw_tick_bars(targetTrades: number): number;
   mw_footprint_window(): number;
   mw_trade_footprint(bucketSeconds: number): number;
@@ -1262,6 +1266,19 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       low: fixed(24), close: fixed(32), volume: fixed(40) };
   }
 
+  function decodePriceMovements(rows: DataView): PriceMovement[] {
+    return Array.from({ length: rows.byteLength / 40 }, (_, index) => {
+      const offset = index * 40;
+      return {
+        sourceTime: Number(rows.getBigInt64(offset, true)),
+        sourceIndex: Number(rows.getBigInt64(offset + 8, true)),
+        openTicks: rows.getBigInt64(offset + 16, true),
+        closeTicks: rows.getBigInt64(offset + 24, true),
+        sourceCloseTicks: rows.getBigInt64(offset + 32, true),
+      };
+    });
+  }
+
   function decodeBars(out: DataView): Bar[] {
     return Array.from({ length: out.byteLength / 48 }, (_, i) => decodeBar(out, i * 48));
   }
@@ -1511,16 +1528,14 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const dest = input(bars.length * 48);
       for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Renko');
       const rows = output(api.mw_renko(brickTicks));
-      return Array.from({ length: rows.byteLength / 40 }, (_, index) => {
-        const offset = index * 40;
-        return {
-          sourceTime: Number(rows.getBigInt64(offset, true)),
-          sourceIndex: Number(rows.getBigInt64(offset + 8, true)),
-          openTicks: rows.getBigInt64(offset + 16, true),
-          closeTicks: rows.getBigInt64(offset + 24, true),
-          sourceCloseTicks: rows.getBigInt64(offset + 32, true),
-        };
-      });
+      return decodePriceMovements(rows);
+    },
+    threeLineBreak(bars) {
+      if (bars.length > 100_000)
+        throw new Error('Three Line Break supports up to 100,000 source bars.');
+      const dest = input(bars.length * 48);
+      for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, 'Three Line Break');
+      return decodePriceMovements(output(api.mw_three_line_break()));
     },
     aggregateTimeframe(bars, sourceSeconds, targetSeconds) {
       putTimeframeInput(bars, sourceSeconds, targetSeconds);

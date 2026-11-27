@@ -55,6 +55,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   ohlc: 'OHLC bars',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
+  'three-line-break': 'Three Line Break',
 }
 
 function Dialog({
@@ -766,7 +767,8 @@ export function App({
               <span>
                 <i className="candle-key" />
                 {ws.chartTypes?.primary === 'heikin-ashi' ? 'Heikin-Ashi · observed volume' :
-                  ws.chartTypes?.primary === 'renko' ? 'Renko · close-based' : 'OHLCV'}
+                  ws.chartTypes?.primary === 'renko' ? 'Renko · close-based' :
+                  ws.chartTypes?.primary === 'three-line-break' ? 'Three Line Break · close-based' : 'OHLCV'}
               </span>
               {ws.sma && (
                 <span>

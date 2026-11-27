@@ -4,11 +4,11 @@ import { Chart } from './Chart'
 import { ChartExport } from './ChartExport'
 import { DEFAULT_RENKO_TICKS, MAX_RENKO_TICKS } from './catalog-schema'
 import { fixed } from './fixed-point'
-import type { RenkoBrick } from './market-core'
+import type { PriceMovement } from './market-core'
 import type { TimeframeView } from './chart-export'
 import type { MarketCore } from './market-core'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'timeframe' | 'displayBars' | 'renko'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'timeframe' | 'displayBars' | 'priceMovements'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -60,14 +60,15 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
     { ...asset, bars: timeframe.buckets.map(entry => entry.bar) } : asset, [asset, timeframe])
   const displayBars = useMemo(() => chart.type === 'heikin-ashi' ?
     core.heikinAshi(display.bars) : undefined, [core, chart.type, display.bars])
-  const renko = useMemo<{ bricks: RenkoBrick[]; error?: string } | undefined>(() => {
-    if (chart.type !== 'renko') return undefined
+  const isRenko = chart.type === 'renko'
+  const priceMovements = useMemo<{ lines: PriceMovement[]; error?: string } | undefined>(() => {
+    if (!isRenko && chart.type !== 'three-line-break') return undefined
     try {
-      return { bricks: core.renko(display.bars, BigInt(renkoTicks)) }
+      return { lines: isRenko ? core.renko(display.bars, BigInt(renkoTicks)) : core.threeLineBreak(display.bars) }
     } catch (cause) {
-      return { bricks: [], error: cause instanceof Error ? cause.message : 'Could not construct Renko bricks.' }
+      return { lines: [], error: cause instanceof Error ? cause.message : 'Could not construct the chart.' }
     }
-  }, [core, chart.type, display.bars, renkoTicks])
+  }, [core, chart.type, display.bars, isRenko, renkoTicks])
   const sma = useMemo(() => activeSma && periods ?
     core.indicator('sma', periods.sma, display.bars) : [], [core, activeSma, periods?.sma, display.bars])
   const ema = useMemo(() => activeEma && periods ?
@@ -131,22 +132,23 @@ export function TimeframeChart({ core, activeSma, activeEma, asset, periods, onT
           {error && <p role="alert">{error}</p>}
         </form>
       </details>
-      {renko && onRenkoTicks && <RenkoSize key={renkoTicks} ticks={renkoTicks} saving={renkoSaving}
+      {isRenko && onRenkoTicks && <RenkoSize key={renkoTicks} ticks={renkoTicks} saving={renkoSaving}
         apply={ticks => {
           onTimestamp?.(null)
           onRenkoTicks(ticks)
         }} />}
-      {renko && !renko.bricks.length ? <>
-        {renko.error ? <p role="alert">{renko.error}</p> :
-          <p role="status">No source close has moved far enough to form a brick at this size.</p>}
+      {priceMovements && !priceMovements.lines.length ? <>
+        {priceMovements.error ? <p role="alert">{priceMovements.error}</p> :
+          <p role="status">{isRenko ? 'No source close has moved far enough to form a brick at this size.' :
+            'No source close has moved beyond the first close to form a line.'}</p>}
         {chart.exportOptions && <ChartExport asset={display} visible={{ start: 0, end: display.bars.length }}
           metadata={chart.exportOptions.metadata} timeframe={timeframe}
           overlays={periods ? [
             { name: 'sma_' + periods.sma, series: sma },
             { name: 'ema_' + periods.ema, series: ema },
           ].filter(overlay => overlay.series.length > 0) : []} />}
-      </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${renko ? renkoTicks + ':' + renko.bricks.length : 'bars'}`}
-        asset={display} displayBars={displayBars} renko={renko?.bricks} sma={sma} ema={ema} periods={periods}
+      </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceMovements ? chart.type + ':' + priceMovements.lines.length : 'bars'}:${isRenko ? renkoTicks : ''}`}
+        asset={display} displayBars={displayBars} priceMovements={priceMovements?.lines} sma={sma} ema={ema} periods={periods}
         timeframe={timeframe} onTimestamp={onTimestamp} />}
     </>
   )

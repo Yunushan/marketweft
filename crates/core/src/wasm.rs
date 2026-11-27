@@ -2265,24 +2265,30 @@ pub extern "C" fn mw_heikin_ashi() -> u32 {
     process(|input| Ok(encode_bars(crate::heikin_ashi(&decode_bars(input)?)?)))
 }
 
+fn encode_price_movements(movements: Vec<crate::PriceMovement>) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(40 * movements.len());
+    for movement in movements {
+        for value in [
+            movement.source_time,
+            i64::from(movement.source_index),
+            movement.open,
+            movement.close,
+            movement.source_close,
+        ] {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+    }
+    bytes
+}
+
 #[no_mangle]
 pub extern "C" fn mw_renko(brick_ticks: i64) -> u32 {
-    process(|input| {
-        let bricks = crate::renko(&decode_bars(input)?, brick_ticks)?;
-        let mut bytes = Vec::with_capacity(40 * bricks.len());
-        for brick in bricks {
-            for value in [
-                brick.source_time,
-                i64::from(brick.source_index),
-                brick.open,
-                brick.close,
-                brick.source_close,
-            ] {
-                bytes.extend_from_slice(&value.to_le_bytes());
-            }
-        }
-        Ok(bytes)
-    })
+    process(|input| crate::renko(&decode_bars(input)?, brick_ticks).map(encode_price_movements))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_three_line_break() -> u32 {
+    process(|input| crate::three_line_break(&decode_bars(input)?).map(encode_price_movements))
 }
 
 #[no_mangle]

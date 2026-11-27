@@ -3,6 +3,7 @@
 mod actions;
 mod alerts;
 mod backtest;
+mod chart_movement;
 mod cross_section;
 mod cross_section_liquidity;
 mod delisting;
@@ -16,6 +17,7 @@ mod fundamentals;
 mod heikin_ashi;
 mod history;
 mod indicator;
+mod line_break;
 mod macro_calendar;
 mod option_cash;
 mod option_chain;
@@ -51,6 +53,7 @@ pub use backtest::{
     BacktestSignal, FormulaBacktestConfig, FormulaBacktestReport, FormulaBacktestSignal,
     RecordedBacktestCutoffs,
 };
+pub use chart_movement::PriceMovement;
 pub use cross_section::{
     CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,
     CrossSectionDelistingClaim, CrossSectionDelistingPosting, CrossSectionDividendPosting,
@@ -80,6 +83,7 @@ pub use fundamentals::{
 pub use heikin_ashi::heikin_ashi;
 pub use history::{exact_utc as parse_exact_utc, parse_csv, Bar};
 pub use indicator::{indicator, Average};
+pub use line_break::three_line_break;
 pub use macro_calendar::{MacroCalendar, ReleaseRecord, ReleaseSnapshot, ReportKind};
 pub use option_cash::CashOptionDividend;
 pub use option_chain::{
@@ -104,7 +108,8 @@ pub use portfolio::{
     PortfolioState,
 };
 pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
-pub use renko::{renko, RenkoBrick};
+pub use renko::renko;
+pub type RenkoBrick = PriceMovement;
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};
 pub use screen::{

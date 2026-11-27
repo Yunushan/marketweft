@@ -1,21 +1,11 @@
 use crate::{
     history::{validate_bar_time, validate_ohlcv},
-    Bar, MAX_BARS, MAX_TICKS,
+    Bar, PriceMovement, MAX_BARS, MAX_TICKS,
 };
-
-/// A fixed-size chart brick derived from the close of one source bar.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct RenkoBrick {
-    pub source_time: i64,
-    pub source_index: u32,
-    pub open: i64,
-    pub close: i64,
-    pub source_close: i64,
-}
 
 /// Anchor at the first close. Continuation needs one brick of movement and reversal needs two.
 /// A source bar may contribute several distinct bricks, all keyed to that source bar.
-pub fn renko(bars: &[Bar], brick_ticks: i64) -> Result<Vec<RenkoBrick>, String> {
+pub fn renko(bars: &[Bar], brick_ticks: i64) -> Result<Vec<PriceMovement>, String> {
     if !(1..=MAX_TICKS).contains(&brick_ticks) || bars.len() > MAX_BARS {
         return Err("Use a positive six-place brick size and at most 100,000 source bars.".into());
     }
@@ -47,7 +37,7 @@ pub fn renko(bars: &[Bar], brick_ticks: i64) -> Result<Vec<RenkoBrick>, String> 
         for _ in 0..count {
             let open = edge;
             edge += step;
-            bricks.push(RenkoBrick {
+            bricks.push(PriceMovement {
                 source_time: bar.time,
                 source_index: index as u32,
                 open,

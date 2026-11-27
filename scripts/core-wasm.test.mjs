@@ -1139,3 +1139,18 @@ test('Renko Wasm keeps source identity and exact brick prices through gaps and r
   assert.deepEqual(core.renko(bars.slice(0, 5), 2000000n), bricks.slice(0, 4));
   assert.throws(() => core.renko(bars, 1n), /Increase the brick size/);
 });
+test('three-line break uses strict six-place thresholds with a prefix-stable source map', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-three-line-break.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const lines = core.threeLineBreak(bars);
+  assert.deepEqual(lines.map(line => line.sourceIndex), [2, 4, 6, 7, 9, 11, 12, 14, 15, 16, 18, 19, 20, 22]);
+  assert.deepEqual(lines[4], {
+    sourceTime: bars[9].time, sourceIndex: 9, openTicks: 106_000_000n,
+    closeTicks: 101_999_999n, sourceCloseTicks: 101_999_999n,
+  });
+  assert.deepEqual(lines.at(-1), {
+    sourceTime: bars[22].time, sourceIndex: 22, openTicks: 100_000_000n,
+    closeTicks: 111_000_001n, sourceCloseTicks: 111_000_001n,
+  });
+  assert.deepEqual(core.threeLineBreak(bars.slice(0, 9)), lines.slice(0, 4));
+});
