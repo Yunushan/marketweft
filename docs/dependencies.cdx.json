@@ -6,7 +6,7 @@
     "component": {
       "type": "application",
       "name": "MarketWeft",
-      "version": "0.175.0"
+      "version": "0.176.0"
     }
   },
   "components": [
@@ -13841,6 +13841,294 @@
         {
           "alg": "SHA-512",
           "content": "825148243bcb343b49853f6aacc1562cf6ef4beb24c60b782f42bc122d98b6784fcac0099ec23b9f2c522712a3e000de297d0e2e30b89ed464c292cea12debc0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli-darwin-arm64",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli-darwin-arm64@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli-darwin-arm64@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "5289309358457c9a06e78fa40fc894d12b77de300890dbe88e78c47c167a51b2f9ae7335d00885c144bfd831d327d478fca6dae14e38bfb7637ccb961534207a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli-darwin-x64",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli-darwin-x64@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli-darwin-x64@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "5a16a1ab37321c2a42ce1e1369fd196c19ba9c692fb8e4a1e5f7eb80e3bb11d61a61ef910502bc2ce945bbe6db8ee979bfd71d2c38b791ca3ed3eec8959b5354"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli-linux-arm-gnueabihf",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli-linux-arm-gnueabihf@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli-linux-arm-gnueabihf@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "181eb078dfa2147c62159f5238a5ba7c8362b3b827c688683a5751eecaf205eeee69abe414668c09ad3242ce678de5cf5afce513d593435df3f280e39aa2be5b"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli-linux-arm64-gnu",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli-linux-arm64-gnu@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli-linux-arm64-gnu@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "99d1e850560a7f3b54b4f284d02da1846904a3b8fab305e383ee724512920fb03680b9113d01485d60ff0c062188975e024c80f0c08fea7bef2af83fe18af259"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli-linux-arm64-musl",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli-linux-arm64-musl@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli-linux-arm64-musl@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "d81c41fbd6b7251374789d2dd2a19ef082897e004b3990c4f1ae3df4e5c7fb283827d6cca522b5a075c1c671ee48715685bcb842743fb7eb017fbb510b451978"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli-linux-riscv64-gnu",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli-linux-riscv64-gnu@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli-linux-riscv64-gnu@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "b1be7c46c3477b1f5056a1dd37571ff4c3256a651602d935373bb14d96a55270541df6e521b7bbd617e6748eb084367ce0cb9f80e75e83f6f3be1adb652d6bd3"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli-linux-x64-gnu",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli-linux-x64-gnu@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli-linux-x64-gnu@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "6406f8fc21d199adc4ae32f64467c78c84d350122ce33c927f4848962f4175d3ad11d4b1d337b484483197e1df0557393845bf4266e2676136f829241dcf0f72"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli-linux-x64-musl",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli-linux-x64-musl@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli-linux-x64-musl@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "b9e4b33360eeeabe22d5dfe56f2f6412fae13e75f0e7333f558bdc5b595d1164a9914c95a21b015e4983f94eef32c9045b9b5778251e9e48bb9d8571c86046a5"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli-win32-arm64-msvc",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli-win32-arm64-msvc@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli-win32-arm64-msvc@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "e9b98eb7605049ed016dafb908971329230bed53980f1ca200ac81ae3a3ce95c4c742d6eb08426925bb75dcf37b374282b5ace330c1b00d94f17a8b94769af22"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli-win32-ia32-msvc",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli-win32-ia32-msvc@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli-win32-ia32-msvc@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "f6af5914db85ade05ccf0c89ba1865ac4381cc60a5c165188ab43618197ae98e8468d975ec874b1fc4d1aa863dc180752e772d3418be15afd6306b4503806d15"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli-win32-x64-msvc",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli-win32-x64-msvc@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli-win32-x64-msvc@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "8a89fb0a16e3db544ec4c4698d0ec6f2bcf9b0839a23b228050ba6d68ab9b25d55e73196c9cfe86270ab42156a3b64f12bf9410d6c6deb8f01ccb8b4d926375e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "web-build"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@tauri-apps/cli",
+      "version": "2.12.6",
+      "bom-ref": "pkg:npm/%40tauri-apps/cli@2.12.6",
+      "purl": "pkg:npm/%40tauri-apps/cli@2.12.6",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "fdc39e420aaaf0f0433ce0ce8e34f4607b38ab12821dc40c58c8819b8acb33724dafd99913e3c734a38ae3302484852d60c34bff47f0796e3c54dbf30f501ba8"
         }
       ],
       "properties": [

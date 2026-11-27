@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.175.0
+# Platform support · MarketWeft 0.176.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
@@ -10,11 +10,17 @@ A successful web test validates a specific browser, build and host. Producing a 
 | macOS Apple Silicon / Intel | Per-architecture app archives and read-only disk images. Hosted tests import CSV through the production app's native file picker and verify in-place upgrades with a saved WKWebView workspace in packaged test builds. | Developer ID signing and notarization. |
 | Linux x64 | Ubuntu 24.04 x64 package installation and native CSV import. Debian 12 native window and chart rendering observed through AT-SPI. See [verification](verification.md) and the [advisory review](native-advisories.md). | Broader upgrade coverage, continued backport maintenance and validation on other supported distributions. |
 | Linux ARM64 | Browser route and Ubuntu 24.04 ARM64 package installation, native X11 launch and CSV import smoke test. | Broader upgrade coverage and validation on other supported distributions. |
-| Android | Responsive browser path. Phone-sized desktop viewport tested. | Physical-device browser/PWA acceptance. Android wrapper project and signing remain future work. |
+| Android | Experimental x86_64 debug APK. Hosted Android 35 emulator verifies the installed terminal opens offline in Android System WebView. | Physical devices, ARM64, interactive import, upgrade and backup checks, and distribution signing. |
 | iOS / iPadOS | Responsive browser route. | Safari storage/import, installation and device tests. Native wrapper and Apple signing remain future work. |
 | FreeBSD / OpenBSD / NetBSD / DragonFly BSD | The complete static browser build uses standard web APIs, with no wrapper or server OS dependency. A BSD user may serve the ZIP's dist/ from any static server or open it on an HTTPS host. | Each BSD/browser combination needs its own offline and import tests. No native BSD wrapper has a release claim. |
 | Headless servers | Serve the same dist/ using a static web server. The bundled Node launcher binds loopback. The Node observation package and local MCP formula server run without a GUI. The MCP stdio process and the scoped localhost REST, WebSocket and gRPC service were exercised on Linux x64. CI packages the research service with bundled SQLite for Ubuntu 24.04 x64 and exercises local audit recovery and explicitly configured TLS. [Local REST research](local-rest-research.md). | 0.59.0 exercises TLS and scoped credentials from an isolated second client. Enterprise deployment and credentials-provider integration. |
 | OCI / Kubernetes / enterprise | A non-root Linux x64 OCI image was verified with private Compose and Kubernetes deployments. A separate Compose project recovered an audit snapshot onto fresh storage and continued its receipt sequence. A portable audit command reports receipt counts and can require a trusted SHA-256 before restore. [Research OCI image](local-rest-research.md#research-oci-image) · [Kubernetes](local-rest-research.md#private-kubernetes-deployment) · [Fresh-volume recovery](local-rest-research.md#recover-audit-in-a-separate-compose-project). | Hosted recovery and enterprise authentication. |
+
+## Android terminal
+
+The Android job builds the same terminal through the shared Tauri entry point. It uses the pinned Tauri CLI and Android NDK, verifies the APK signature, x86_64 ELF library, source revision and dependency notices, and installs the APK on an Android 35 Google APIs emulator. With airplane mode enabled, it opens the app and checks the bundled chart and CSV action in Android System WebView. [Tauri Android distribution](https://v2.tauri.app/distribute/google-play/) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
+Download `android-terminal-x86_64-attempt-N` from a successful run and verify the SHA-256 sidecar before installing the debug APK on a compatible emulator. The evidence artifact contains the launch result, WebView provider and UI hierarchy.
 
 ## Windows native verification
 

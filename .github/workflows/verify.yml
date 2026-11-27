@@ -525,6 +525,50 @@ jobs:
           path: reports/marketweft-desktop_*.deb*
           if-no-files-found: error
 
+  android-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.8.2
+          cache: npm
+      - name: Set isolated Gradle and Android directories
+        run: |
+          mkdir -p "$RUNNER_TEMP/marketweft-android"
+          printf 'GRADLE_USER_HOME=%s\nANDROID_USER_HOME=%s\n' \
+            "$RUNNER_TEMP/marketweft-gradle" "$RUNNER_TEMP/marketweft-android" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run build
+      - name: Build the x86_64 MarketWeft Android test APK
+        run: |
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          export NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+          if [[ ! -d "$NDK_HOME" ]]; then
+            sdkmanager --install 'ndk;29.0.14206865'
+          fi
+          if [[ ! -d "$ANDROID_HOME/platforms/android-37" || ! -x "$ANDROID_HOME/build-tools/36.0.0/apksigner" ]]; then
+            sdkmanager --install 'platforms;android-37' 'build-tools;36.0.0'
+          fi
+          bash scripts/build_android_terminal.sh
+      - name: Verify the installed Android terminal offline
+        run: bash scripts/verify_android_terminal.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-terminal-x86_64-attempt-${{ github.run_attempt }}
+          path: reports/MarketWeft-android-*-x86_64-debug.apk*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: success() || failure()
+        with:
+          name: android-terminal-evidence-attempt-${{ github.run_attempt }}
+          path: reports/android-*
+          if-no-files-found: ignore
+
   native-advisories:
     runs-on: ubuntu-24.04
     steps:

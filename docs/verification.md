@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.176.0 · Android terminal startup
+
+- The hosted Ubuntu x64 job builds the terminal into an x86_64 Android APK from the shared Tauri Rust entry point and bundled frontend.
+- The job verifies the debug signature, APK package metadata and native ELF ABI. It installs the APK on an Android 35 emulator, disables networking and checks the terminal chart and CSV action in the system WebView.
+- A successful job uploads the tested APK and checksum. The launch, provider and UI hierarchy are available as test evidence.
+
+[Android terminal](platforms.md#android-terminal) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.175.0 · macOS production file picker
 
 - The Intel and Apple Silicon jobs verify the release archive checksum, source revision, bundle signature and executable architecture before launching the app with XCUIAutomation.

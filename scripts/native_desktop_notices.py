@@ -12,6 +12,10 @@ PROJECT_NOTICES = {
     ("alloc-stdlib", "0.3.0"): ("0a81fd6928ea3b33c8cd484aa4575d50ffb98012", "alloc-stdlib-BSD-3-Clause.txt"),
     ("dlopen2", "0.8.2"): ("cc80e4a0a90d499b677fdf7743699b4b3a43a989", "dlopen2-MIT.txt"),
     ("dlopen2_derive", "0.4.3"): ("cc80e4a0a90d499b677fdf7743699b4b3a43a989", "dlopen2-MIT.txt"),
+    ("jni-sys-macros", "0.4.1"): ("64d77b7a5f119d7b55b4e2c169a4668067ff59e6", "jni-sys-MIT.txt"),
+    ("ndk", "0.9.0"): ("49bbbba16c58ff63cb8a0ad0eca5a9fb7ecaec25", "rust-mobile-ndk-MIT.txt"),
+    ("ndk-context", "0.1.1"): ("10f2ba388fca20f7349996ebae26ccda7a6fda5c", "rust-mobile-ndk-MIT.txt"),
+    ("ndk-sys", "0.6.0+11769913"): ("49bbbba16c58ff63cb8a0ad0eca5a9fb7ecaec25", "rust-mobile-ndk-MIT.txt"),
     ("webview2-com", "0.39.1"): ("edc2caf886175ccaebe86078c9cfe1ae2a187328", "webview2-rs-MIT.txt"),
     ("webview2-com-macros", "0.8.1"): ("dffa41a8a46d3f5565eefbff2de57d38d399f158", "webview2-rs-MIT.txt"),
     ("webview2-com-sys", "0.39.1"): ("edc2caf886175ccaebe86078c9cfe1ae2a187328", "webview2-rs-MIT.txt"),
@@ -91,9 +95,10 @@ def missing_crate_notices(package, packages):
         parent = packages["libappindicator", "0.9.0"]
         if package["license"] == parent["license"] and vcs_revision(package) == vcs_revision(parent):
             return crate_files(parent)
-    if key == ("selectors", "0.38.0"):
+    cssparser_version = {"0.38.0": "0.37.0", "0.41.0": "0.38.0"}.get(key[1])
+    if key[0] == "selectors" and cssparser_version is not None:
         # selectors declares MPL-2.0 in its source headers. cssparser ships the license text.
-        cssparser = packages["cssparser", "0.37.0"]
+        cssparser = packages["cssparser", cssparser_version]
         if package["license"] == cssparser["license"] == "MPL-2.0":
             license_path = Path(cssparser["manifest_path"]).with_name("LICENSE")
             return [license_path]
