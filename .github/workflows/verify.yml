@@ -579,6 +579,21 @@ jobs:
             ${{ runner.temp }}/marketweft-gradle/caches/modules-2/files-2.1
             ${{ runner.temp }}/marketweft-gradle/caches/modules-2/metadata-*
           key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+      - name: Build and inspect the ARM64 MarketWeft Android test APK
+        run: |
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          export NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+          bash scripts/build_android_terminal.sh arm64-v8a
+          version=$(node -p 'require("./package.json").version')
+          name="MarketWeft-android-$version-arm64-v8a-debug.apk"
+          bash scripts/verify_android_package.sh "reports/$name" arm64-v8a
+          (cd reports && sha256sum "$name" >"$name.sha256")
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-terminal-arm64-v8a-attempt-${{ github.run_attempt }}
+          path: reports/MarketWeft-android-*-arm64-v8a-debug.apk*
+          if-no-files-found: error
       - name: Retrieve the verified Android upgrade baseline
         env:
           GITHUB_TOKEN: ${{ github.token }}

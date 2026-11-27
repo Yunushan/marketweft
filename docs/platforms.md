@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.183.0
+# Platform support · MarketWeft 0.184.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
@@ -10,7 +10,7 @@ A successful web test validates a specific browser, build and host. Producing a 
 | macOS Apple Silicon / Intel | Per-architecture app archives and read-only disk images. Hosted tests import CSV through the production app's native file picker and verify in-place upgrades with a saved WKWebView workspace in packaged test builds. | Developer ID signing and notarization. |
 | Linux x64 | Ubuntu 24.04 x64 package installation and native CSV import. Debian 12 native window and chart rendering observed through AT-SPI. See [verification](verification.md) and the [advisory review](native-advisories.md). | Broader upgrade coverage, continued backport maintenance and validation on other supported distributions. |
 | Linux ARM64 | Browser route and Ubuntu 24.04 ARM64 package installation, native X11 launch and CSV import smoke test. | Broader upgrade coverage and validation on other supported distributions. |
-| Android | Experimental x86_64 debug APK. Hosted Android 35 emulator covers offline startup, native CSV selection, exact chart recovery, an in-place upgrade from 0.177.0, and backup restoration into a fresh installation. | Physical devices, ARM64 and distribution signing. |
+| Android | Experimental x86_64 and ARM64 debug APK build routes. The x86_64 emulator covers offline startup, native CSV selection, exact chart recovery, an in-place upgrade from 0.177.0, and backup restoration into a fresh installation. | ARM64 runtime and physical-device evidence, and distribution signing. |
 | iOS / iPadOS | Responsive browser route and experimental ARM64 Simulator bundle. Hosted iPhone 16 and iPad (A16) simulators cover Files import, exact chart recovery, backup restoration into a fresh installation, and in-place upgrade from 0.178.0. | Full network disconnection, physical devices and Apple distribution signing. |
 | FreeBSD / OpenBSD / NetBSD / DragonFly BSD | The complete static browser build uses standard web APIs, with no wrapper or server OS dependency. A BSD user may serve the ZIP's dist/ from any static server or open it on an HTTPS host. | Each BSD/browser combination needs its own offline and import tests. No native BSD wrapper has a release claim. |
 | Headless servers | Serve the same dist/ using a static web server. The bundled Node launcher binds loopback. The Node observation package and local MCP formula server run without a GUI. The MCP stdio process and the scoped localhost REST, WebSocket and gRPC service were exercised on Linux x64. CI packages the research service with bundled SQLite for Ubuntu 24.04 x64 and exercises local audit recovery and explicitly configured TLS. [Local REST research](local-rest-research.md). | 0.59.0 exercises TLS and scoped credentials from an isolated second client. Enterprise deployment and credentials-provider integration. |
@@ -29,6 +29,15 @@ The import test places the synthetic fixture in Downloads. It opens the native d
 The upgrade check uses a disposable certificate for copies of the verified 0.177.0 and candidate debug APKs. It checks both signatures and confirms the payload bytes match the original packages. In airplane mode it imports and reopens the baseline workspace, installs the candidate over the same app, and checks the saved quote and document. The verification artifact includes the baseline and upgraded UI hierarchies. [Android app updates](https://developer.android.com/google/play/app-updates).
 
 On Android, choose **Workspace backup**, then **Export workspace**. Choose a location in the system save dialog and select **Save**. To restore the backup, select the resulting `.marketweft.json` file in the backup panel, review the checksum confirmation and choose **Restore workspace**. The emulator test saves to Downloads, verifies the exported bytes and restores the same backup after reinstalling the APK. [Android Storage Access Framework](https://developer.android.com/training/data-storage/shared/documents-files).
+
+The `android-terminal-arm64-v8a-attempt-N` artifact from a successful run contains the cross-compiled debug APK and SHA-256 sidecar. Its package checks verify the Android signature, the single ARM64 ABI, 16 KB ELF and ZIP alignment, and the embedded source revision and notices. ARM64 runtime acceptance requires a separate test on an ARM64 device. [Android 16 KB page size guide](https://developer.android.com/guide/practices/page-sizes).
+
+From a checkout at the APK's source revision, use Android SDK Build Tools 37.0.0 and ADB to test a dedicated ARM64 device. Use an unlocked device in airplane mode with Wi-Fi off and a clean test workspace. The test records the actual Android API level and page size, installs the APK, and runs the same native CSV and backup checks as the x86_64 emulator. [Android Debug Bridge](https://developer.android.com/tools/adb).
+
+```sh
+bash scripts/verify_android_on_device.sh "$ANDROID_SERIAL" arm64-v8a \
+  MarketWeft-android-0.184.0-arm64-v8a-debug.apk reports/android-arm64-device
+```
 
 ## iOS and iPadOS Simulator
 

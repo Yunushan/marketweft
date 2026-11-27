@@ -7,25 +7,14 @@ if [[ $# != 0 && $# != 3 ]]; then
 fi
 
 version=$(node -p 'require("./package.json").version')
-package=$(node -p 'require("./apps/desktop/tauri.conf.json").identifier')
 name="MarketWeft-android-$version-x86_64-debug.apk"
 apk="reports/$name"
-sdk_tools="$ANDROID_HOME/build-tools/37.0.0"
 image='system-images;android-35;google_apis;x86_64'
 emulator="$ANDROID_HOME/emulator/emulator"
 test -c /dev/kvm
 if [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; then
     sudo setfacl -m "u:$(id -un):rw" /dev/kvm
 fi
-
-"$sdk_tools/apksigner" verify --verbose "$apk"
-badging=$("$sdk_tools/aapt2" dump badging "$apk")
-package_line=$(grep '^package:' <<<"$badging")
-[[ "$package_line" == "package: name='$package' versionCode='"*"' versionName='$version'"* ]]
-grep -Fq "native-code: 'x86_64'" <<<"$badging"
-python3 -B scripts/verify_android_terminal.py apk "$apk" "$(git rev-parse HEAD)"
-activity=$(sed -n "s/^launchable-activity: name='\([^']*\)'.*/\1/p" <<<"$badging")
-[[ "$activity" == "$package".* ]]
 
 work=$(mktemp -d)
 serial='emulator-5554'
@@ -67,33 +56,5 @@ test "$("${device[@]}" shell getprop ro.product.cpu.abi | tr -d '\r')" = x86_64
 "${device[@]}" shell cmd connectivity airplane-mode enable
 "${device[@]}" shell svc wifi disable
 "${device[@]}" shell svc data disable
-test "$("${device[@]}" shell settings get global airplane_mode_on | tr -d '\r')" = 1
-"${device[@]}" install "$apk"
-"${device[@]}" shell dumpsys webviewupdate >reports/android-webview.txt
-grep -Eq 'Current WebView package \(name, version\): \([^,]+, [^)]+\)' reports/android-webview.txt
-"${device[@]}" shell am start -W -n "$package/$activity" | tee reports/android-launch.txt
-grep -q '^Status: ok' reports/android-launch.txt
-
-for _ in {1..15}; do
-    if "${device[@]}" shell uiautomator dump /sdcard/marketweft-terminal.xml >"$work/dump.log" 2>&1 &&
-        "${device[@]}" exec-out cat /sdcard/marketweft-terminal.xml >reports/android-terminal.xml &&
-        python3 -B scripts/verify_android_terminal.py hierarchy reports/android-terminal.xml "$package" >"$work/hierarchy.log" 2>&1; then
-        python3 -B scripts/verify_android_csv.py "$serial" "$package" "$activity" \
-            apps/desktop/tests/fixtures/native-verification.csv reports/android-import-latest.xml
-        python3 -B scripts/verify_android_workspace_backup.py "$serial" "$package" "$activity" "$apk" \
-            apps/desktop/tests/fixtures/native-verification.csv reports/android-backup
-        if [[ $# == 3 ]]; then
-            python3 -B scripts/verify_android_terminal.py apk "$1" "$3"
-            python3 -B scripts/verify_android_upgrade.py "$serial" "$package" "$activity" "$sdk_tools" \
-                apps/desktop/tests/fixtures/native-verification.csv reports/android-upgrade \
-                "$1" "$2" "$apk" "$version"
-        fi
-        (cd reports && sha256sum "$name" >"$name.sha256")
-        printf 'Verified MarketWeft %s offline in Android 35 x86_64 System WebView.\n' "$version"
-        exit 0
-    fi
-    sleep 2
-done
-if [[ -f "$work/hierarchy.log" ]]; then cat "$work/hierarchy.log" >&2; fi
-cat "$work/dump.log" >&2
-exit 1
+bash scripts/verify_android_on_device.sh "$serial" x86_64 "$apk" reports "$@"
+(cd reports && sha256sum "$name" >"$name.sha256")

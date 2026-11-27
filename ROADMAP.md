@@ -1,6 +1,6 @@
 # Prioritized implementation backlog
 
-0.183.0 adds workspace backup export through Android's system save dialog and checks the exact restored chart in a fresh installation. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for the acceptance checks. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
+0.184.0 adds an ARM64 Android debug APK build and package checks for its native libraries and 16 KB page alignment. See [coverage](docs/coverage.md) for the full requirement register and [verification](docs/verification.md) for the acceptance checks. Feature budgets such as 600 indicators, 150 tools and 35 chart types are long-term coverage targets. Each implementation counts once across its names and parameter presets.
 
 | Priority | Milestone / requirements | Deliverable and exit condition |
 | --- | --- | --- |
@@ -142,6 +142,7 @@
 | Delivered · 0.137.0 | Rights-aware alert event export (MW-027, MW-029) | Verify source identity, grants and expiry, earlier inbox compatibility, exact webhook JSON, and delivery against a local receiver. [Webhook event export](docs/replay-alerts.md#export-a-webhook-event). |
 | Delivered · 0.138.0 | Resumable webhook receipts (MW-027, MW-030) | Verify interruption recovery, exclusive access, unchanged delivery identity, rejection of changed evidence, exhausted attempt budgets, and receiver idempotency keys. [Resume a pending delivery](docs/local-webhook-delivery.md#resume-a-pending-delivery). |
 | Delivered · 0.139.0 | Close-area and step-line charts (MW-012) | Verify area geometry, close transitions, independent pane settings, unchanged source bars, and version 38 backups with saved annotations. [Close area and step line](docs/chart-workspace.md#close-area-and-step-line). |
+| Package · 0.184.0 | Android ARM64 test APK (MW-010, MW-011) | Build with the locked Android NDK and verify the ARM64 ELF libraries, 16 KB alignment, signature, source revision and checksum. ARM64 startup and workspace acceptance require a compatible test device. [Android terminal](docs/platforms.md#android-terminal). |
 | Delivered · 0.183.0 | Android workspace backup and restore (MW-007, MW-010) | Save through Android's system picker, check cancellation and the original bytes, and reopen the exact chart after a fresh-install restore. [Android terminal](docs/platforms.md#android-terminal). |
 | Delivered · 0.182.0 | In-place Android emulator upgrades (MW-007, MW-010, MW-011) | Install the signed test copy of the verified 0.177.0 APK, import a fixture through the Android picker, upgrade in airplane mode, and reopen the saved chart and original document. [Android terminal](docs/platforms.md#android-terminal). |
 | Delivered · 0.181.0 | In-place iPhone and iPad Simulator upgrades (MW-007, MW-010, MW-011) | Import and reopen in the verified 0.178.0 build, upgrade the same installation, and verify the exact chart, saved EMA preference and document bytes on both profiles. [iOS and iPadOS Simulator](docs/platforms.md#ios-and-ipados-simulator). |
@@ -197,5 +198,5 @@
 
 ## Handoff for the next change
 
-Extend Android verification to ARM64. Full iOS network disconnection and physical-device checks remain open.
+Run the offline terminal checks on an ARM64 Android test device. Full iOS network disconnection and physical-device checks also remain open.
 

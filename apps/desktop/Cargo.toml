@@ -1,6 +1,6 @@
 [package]
 name = "marketweft-desktop"
-version = "0.183.0"
+version = "0.184.0"
 edition = "2021"
 license = "0BSD"
 publish = false

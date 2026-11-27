@@ -25,9 +25,19 @@ python3 -B scripts/stage_native_application_notices.py \
 bash scripts/build_android_apk_with_retry.sh "$tauri_target"
 git diff --exit-code -- apps/desktop/Cargo.lock
 
-mapfile -d '' -t packages < <(find apps/desktop/gen/android/app/build/outputs/apk -name "*-$abi-debug.apk" -type f -print0)
-test "${#packages[@]}" -eq 1
+sdk_tools="$ANDROID_HOME/build-tools/37.0.0"
+packages=()
+while IFS= read -r -d '' candidate; do
+    badging=$("$sdk_tools/aapt2" dump badging "$candidate")
+    if grep -Eq "^native-code: '$abi'[[:space:]]*$" <<<"$badging"; then
+        packages+=("$candidate")
+    fi
+done < <(find apps/desktop/gen/android/app/build/outputs/apk -name '*-debug.apk' -type f -print0)
+if [[ ${#packages[@]} != 1 ]]; then
+    printf 'Expected one %s debug APK, found %s.\n' "$abi" "${#packages[@]}" >&2
+    exit 1
+fi
 name="MarketWeft-android-$version-$abi-debug.apk"
 mkdir -p reports
 cp "${packages[0]}" "reports/$name"
-printf 'Staged %s for Android emulator verification.\n' "$name"
+printf 'Staged %s for Android verification.\n' "$name"

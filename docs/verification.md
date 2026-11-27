@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.184.0 · Android ARM64 debug package
+
+- CI cross-compiles the Android terminal with the locked NDK, verifies the APK signature and ARM64 ELF machine, and checks both native segment and ZIP alignment for 16 KB pages.
+- The package carries its source revision, native dependency inventory and SHA-256 sidecar. The ARM64 artifact has its own name and path.
+- The attached-device check runs the existing native workspace acceptance on the ARM64 APK and records the actual Android API level and page size. ARM64 execution and Android distribution signing remain open.
+
+[Android terminal](platforms.md#android-terminal) · [Hosted verification](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+
 ## 0.183.0 · Android workspace backup
 
 - The installed APK opens Android's system document picker to save the workspace. The emulator checks cancellation and then saves to Downloads with the original fixture bytes and selected instrument.
