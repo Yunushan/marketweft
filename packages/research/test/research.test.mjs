@@ -9,6 +9,22 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK replays reported withholding without altering legacy dividend fields', async () => {
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8')
+  const [source, legacy] = await Promise.all([fixture('synthetic-dividend-withholding'), fixture('synthetic-cash-dividends')])
+  const engine = await createResearchEngine(wasm)
+  const events = engine.dividendLedger('DEMO:DIVIDEND', source, 100)
+  const initial = events.find(event => event.kind === 'pay')
+  assert.equal(initial.withholdingPerShare, 100000n)
+  assert.deepEqual([initial.movements[0].cash, initial.movements[0].withholding], [40000000n, 10000000n])
+  const transfer = events.find(event => event.currency === 'CAD')
+  assert.deepEqual(transfer.movements.map(row => [row.currency, row.cashDelta, row.withholdingDelta]),
+    [['USD', -43000000n, -7000000n], ['CAD', 48000000n, 12000000n]])
+  const earlier = engine.dividendLedger('DEMO:DIVIDEND', legacy, 100)
+  assert.ok(earlier.every(event => !Object.hasOwn(event, 'withholdingPerShare')))
+  assert.ok(earlier.flatMap(event => event.movements).every(row => !Object.hasOwn(row, 'withholding')))
+})
+
 test('the public SDK returns exact medians and percent ranks with duplicate closes', async () => {
   const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-close-order-statistics.csv', import.meta.url), 'utf8')
   const engine = await createResearchEngine(wasm)

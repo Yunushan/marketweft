@@ -10,6 +10,33 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('reported dividend withholding reconciles gross and net balances at each observed cutoff', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-dividend-withholding.csv', import.meta.url), 'utf8');
+  const events = core.dividendLedger('DEMO:DIVIDEND', source, 100);
+  const at = (known, currency) => events.filter(event => event.at <= Date.parse(known) / 1000)
+    .flatMap(event => event.movements).filter(row => row.currency === currency).at(-1);
+  const amounts = row => row && [row.receivable, row.cash, row.withholding];
+  assert.equal(events[0].withholdingPerShare, 100000n);
+  assert.equal(at('2025-06-03T13:59:59Z', 'USD'), undefined);
+  assert.deepEqual(amounts(at('2025-06-03T14:00:00Z', 'USD')), [50000000n, 0n, 0n]);
+  const pay = amounts(at('2025-06-04T14:00:00Z', 'USD'));
+  assert.deepEqual(pay, [0n, 40000000n, 10000000n]);
+  assert.deepEqual(amounts(at('2025-06-04T14:20:00Z', 'USD')), [0n, 43000000n, 7000000n]);
+  assert.deepEqual(amounts(at('2025-06-04T14:40:00Z', 'USD')), [0n, 0n, 0n]);
+  assert.deepEqual(amounts(at('2025-06-04T14:40:00Z', 'CAD')), [0n, 48000000n, 12000000n]);
+  assert.deepEqual(amounts(at('2025-06-04T15:00:00Z', 'CAD')), [0n, 0n, 60000000n]);
+  assert.equal(at('2025-06-04T15:15:00Z', 'CAD').withholdingDelta, -60000000n);
+  assert.deepEqual(amounts(at('2025-06-04T14:00:00Z', 'USD')), pay);
+  const positions = 'instrument,effective_at,observed_at,shares\n' +
+    'DEMO:DIVIDEND,2025-06-03T13:50:00Z,2025-06-03T13:55:00Z,100\n' +
+    'DEMO:DIVIDEND,2025-06-03T13:50:00Z,2025-06-04T14:30:00Z,120\n';
+  const revised = core.dividendPositionLedger('DEMO:DIVIDEND', source, positions).find(event => event.kind === 'entitlement');
+  assert.equal(revised.entitledShares, 120);
+  assert.equal(revised.withholdingPerShare, 70000n);
+  assert.deepEqual([revised.movements[0].cashDelta, revised.movements[0].withholdingDelta], [8600000n, 1400000n]);
+  assert.throws(() => core.dividendLedger('DEMO:DIVIDEND', source.replace('0.100000', '0.500001'), 100), /between zero/);
+});
+
 test('rolling close order statistics preserve signed exact medians, ties and observed prefixes', async () => {
   const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-close-order-statistics.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(source);

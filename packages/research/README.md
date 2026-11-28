@@ -92,3 +92,5 @@ Call `replayCandlePatterns(calendarCsv, 60, bars, knownAt)` to classify complete
 Call `observedTimeUnderwater(bars)` for elapsed UTC seconds since the most recent running peak. Each observation returns the peak UTC second, exact peak close as `bigint` millionths and elapsed seconds. [Time Underwater](../../docs/chart-workspace.md#time-underwater)
 
 Call `rollingCloseOrderStatistics(20, bars)` for the median and the current close's percentile rank in each complete trailing window. Both results use `bigint` millionths, in price units and percentage points respectively. The warm-up values are `null`. [Rolling Median and Close Percentile Rank](../../docs/chart-workspace.md#rolling-median-and-close-percentile-rank)
+
+Call `dividendLedger(instrument, csv, shares)` for fixed whole-share entitlements, or `dividendPositionLedger(instrument, csv, positions)` for dated positions. Each event gives its observation time and signed currency movements as `bigint` millionths. Reports with `withholding_per_share` include net cash and withheld amounts. [Reported dividend withholding](../../docs/cash-dividends.md#reported-withholding)

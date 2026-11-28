@@ -1,10 +1,12 @@
 use marketweft_core::{
-    parse_csv, parse_dividend_positions, parse_dividends, parse_sessions, replay, Dividend,
-    DividendBook, DividendKind, DividendPositions, Instrument, PositionObservation,
+    parse_csv, parse_dividend_positions, parse_dividends, parse_replay_dividends, parse_sessions,
+    replay, Dividend, DividendBook, DividendKind, DividendPositions, Instrument,
+    PositionObservation,
 };
 use std::collections::BTreeMap;
 
 const REPORTS: &str = include_str!("fixtures/synthetic-cash-dividends.csv");
+const WITHHOLDING: &str = include_str!("fixtures/synthetic-dividend-withholding.csv");
 const POSITIONS: &str = include_str!("fixtures/synthetic-dividend-positions.csv");
 const BARS: &str = include_str!("fixtures/synthetic-split-ohlcv.csv");
 const CALENDAR: &str = include_str!("fixtures/synthetic-split-sessions.csv");
@@ -18,6 +20,121 @@ fn utc(time: &str) -> i64 {
     ))
     .unwrap()[0]
         .time
+}
+
+#[test]
+fn reported_withholding_keeps_exact_gross_receivable_net_and_withheld_by_cutoff() {
+    let instrument = instrument();
+    let events = parse_replay_dividends(WITHHOLDING, &instrument)
+        .unwrap()
+        .ledger(100)
+        .unwrap();
+    let through = |time, currency: &str| {
+        events
+            .iter()
+            .take_while(|event| event.at <= utc(time))
+            .flat_map(|event| &event.movements)
+            .filter(|movement| movement.currency == currency)
+            .last()
+            .map(|movement| (movement.receivable, movement.cash, movement.withholding))
+    };
+    assert_eq!(through("2025-06-03T13:59:59Z", "USD"), None);
+    assert_eq!(
+        through("2025-06-03T14:00:00Z", "USD"),
+        Some((50_000_000, 0, 0))
+    );
+    assert_eq!(
+        through("2025-06-04T13:59:59Z", "USD"),
+        Some((50_000_000, 0, 0))
+    );
+    assert_eq!(
+        through("2025-06-04T14:00:00Z", "USD"),
+        Some((0, 40_000_000, 10_000_000))
+    );
+    assert_eq!(
+        through("2025-06-04T14:20:00Z", "USD"),
+        Some((0, 43_000_000, 7_000_000))
+    );
+    assert_eq!(through("2025-06-04T14:39:59Z", "CAD"), None);
+    assert_eq!(through("2025-06-04T14:40:00Z", "USD"), Some((0, 0, 0)));
+    assert_eq!(
+        through("2025-06-04T14:40:00Z", "CAD"),
+        Some((0, 48_000_000, 12_000_000))
+    );
+    assert_eq!(
+        through("2025-06-04T15:00:00Z", "CAD"),
+        Some((0, 0, 60_000_000))
+    );
+    assert_eq!(through("2025-06-04T15:15:00Z", "CAD"), Some((0, 0, 0)));
+    let reversal = &events[4].movements;
+    assert_eq!(
+        reversal
+            .iter()
+            .map(|row| (row.currency.as_str(), row.cash_delta, row.withholding_delta))
+            .collect::<Vec<_>>(),
+        [
+            ("USD", -43_000_000, -7_000_000),
+            ("CAD", 48_000_000, 12_000_000)
+        ]
+    );
+    assert_eq!(
+        (
+            events[6].movements[0].cash_delta,
+            events[6].movements[0].withholding_delta
+        ),
+        (0, -60_000_000)
+    );
+    assert_eq!(
+        through("2025-06-04T14:00:00Z", "USD"),
+        Some((0, 40_000_000, 10_000_000))
+    );
+}
+
+#[test]
+fn withheld_and_net_amounts_follow_late_entitlement_and_reject_invalid_terms() {
+    let instrument = instrument();
+    let source = "instrument,effective_at,observed_at,shares\n\
+      DEMO:DIVIDEND,2025-06-03T13:50:00Z,2025-06-03T13:55:00Z,100\n\
+      DEMO:DIVIDEND,2025-06-03T13:50:00Z,2025-06-04T14:30:00Z,120";
+    let positions = parse_dividend_positions(source, &instrument).unwrap();
+    let events = parse_replay_dividends(WITHHOLDING, &instrument)
+        .unwrap()
+        .position_ledger(&positions)
+        .unwrap();
+    let late = events
+        .iter()
+        .find(|event| event.kind == DividendKind::Entitlement)
+        .unwrap();
+    assert_eq!(late.at, utc("2025-06-04T14:30:00Z"));
+    assert_eq!(late.entitled_shares, Some(120));
+    assert_eq!(late.withholding_per_share, Some(70_000));
+    assert_eq!(
+        (
+            late.movements[0].cash_delta,
+            late.movements[0].withholding_delta
+        ),
+        (8_600_000, 1_400_000)
+    );
+    assert!(parse_dividends(WITHHOLDING, &instrument).is_err());
+    for bad in ["-0.001", "0.500001", "0.1000001", ""] {
+        let invalid = WITHHOLDING.replace("0.500000,0.100000", &format!("0.500000,{bad}"));
+        assert!(
+            parse_replay_dividends(&invalid, &instrument).is_err(),
+            "{bad}"
+        );
+    }
+    let legacy = parse_dividends(REPORTS, &instrument)
+        .unwrap()
+        .ledger(100)
+        .unwrap();
+    let replay = parse_replay_dividends(REPORTS, &instrument)
+        .unwrap()
+        .ledger(100)
+        .unwrap();
+    assert_eq!(legacy, replay);
+    assert!(replay
+        .iter()
+        .all(|event| event.withholding_per_share.is_none()));
 }
 
 #[test]

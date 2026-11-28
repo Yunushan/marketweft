@@ -39,6 +39,7 @@ export function DividendLedger({
   current: readonly DividendEvent[]
 }) {
   const visible = through(events, cutoff)
+  const reportsWithholding = visible > 0 && events[0].withholdingPerShare !== undefined
   const { balances, postings, entitlements } = useMemo(() => {
     const balances = new Map<string, DividendMovement>()
     const entitlements = new Map<string, DividendEvent>()
@@ -47,17 +48,20 @@ export function DividendLedger({
       id: string
       currency: string
       delta: bigint
+      withholdingDelta: bigint
     }[] = []
     for (const event of events.slice(0, visible)) {
       if (shares === null) entitlements.set(event.id, event)
       for (const movement of event.movements) {
         balances.set(movement.currency, movement)
-        if (movement.cashDelta !== 0n) {
+        const withholdingDelta = movement.withholdingDelta ?? 0n
+        if (movement.cashDelta !== 0n || withholdingDelta !== 0n) {
           postings.push({
             at: event.at,
             id: event.id,
             currency: movement.currency,
             delta: movement.cashDelta,
+            withholdingDelta,
           })
         }
       }
@@ -96,6 +100,10 @@ export function DividendLedger({
                   {event.currency} {money(event.amountPerShare)}
                 </dd>
               </div>
+              {event.withholdingPerShare !== undefined && <div>
+                <dt>Withholding per share</dt>
+                <dd>{event.currency} {money(event.withholdingPerShare)}</dd>
+              </div>}
               <div>
                 <dt>Announced</dt>
                 <dd>{utc(event.announcedAt)}</dd>
@@ -139,7 +147,9 @@ export function DividendLedger({
               <tr>
                 <th scope="col">Currency</th>
                 <th scope="col">Receivable</th>
-                <th scope="col">Cash received</th>
+                {reportsWithholding && <th scope="col">Gross paid</th>}
+                {reportsWithholding && <th scope="col">Withheld</th>}
+                <th scope="col">{reportsWithholding ? 'Net cash received' : 'Cash received'}</th>
               </tr>
             </thead>
             <tbody>
@@ -147,6 +157,8 @@ export function DividendLedger({
                 <tr key={row.currency}>
                   <th scope="row">{row.currency}</th>
                   <td>{money(row.receivable)}</td>
+                  {reportsWithholding && <td>{money(row.cash + (row.withholding ?? 0n))}</td>}
+                  {reportsWithholding && <td>{money(row.withholding ?? 0n)}</td>}
                   <td>{money(row.cash)}</td>
                 </tr>
               ))}
@@ -166,7 +178,8 @@ export function DividendLedger({
                   <th scope="col">Observed at</th>
                   <th scope="col">Distribution</th>
                   <th scope="col">Currency</th>
-                  <th scope="col">Cash movement</th>
+                  <th scope="col">{reportsWithholding ? 'Net cash movement' : 'Cash movement'}</th>
+                  {reportsWithholding && <th scope="col">Withholding movement</th>}
                 </tr>
               </thead>
               <tbody>
@@ -176,6 +189,7 @@ export function DividendLedger({
                     <td>{row.id}</td>
                     <td>{row.currency}</td>
                     <td>{money(row.delta)}</td>
+                    {reportsWithholding && <td>{money(row.withholdingDelta)}</td>}
                   </tr>
                 ))}
               </tbody>

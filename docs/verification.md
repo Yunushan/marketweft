@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.298.0 · Reported dividend withholding
+
+- Rust and Wasm verify gross receivables, exact net cash, reported withholding, revised currency reversals, late holdings corrections and cancellation after full withholding. The legacy eight-column path preserves gross balances.
+- Offline Chromium and the installed TypeScript SDK verify the exact payment and correction evidence, including the zero net cash movement on cancellation.
+
 ## 0.297.0 · Rolling Median and Close Percentile Rank
 
 - Rust checks both rolling results against direct sorts across signed values, duplicate closes, expired observations and a 100,000-bar window. Wasm and TypeScript verify exact warm-up, fixed-point output and observed prefixes.

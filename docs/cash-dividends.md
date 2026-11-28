@@ -17,7 +17,7 @@ The ledger starts at zero and includes only dividend movements from the input. C
 
 ## Replay your own dividend reports
 
-Import your historical candle file and select its instrument and session calendar. Upload **Cash dividends CSV (optional)**. Supply **Entitled shares per distribution** for a fixed scenario, or upload **Dividend positions CSV (optional)** to resolve each entitlement from dated positions. The model leaves withholding, broker settlement, due bills, reinvestment and FX to later work. [Investor.gov explanation of ex-dividend and payable dates](https://www.investor.gov/introduction-investing/investing-basics/glossary/ex-dividend-dates-when-are-you-entitled-stock-and) · [FINRA treatment of distributions and exceptions](https://www.finra.org/rules-guidance/notices/24-04).
+Import your historical candle file and select its instrument and session calendar. Upload **Cash dividends CSV (optional)**. Supply **Entitled shares per distribution** for a fixed scenario, or upload **Dividend positions CSV (optional)** to resolve each entitlement from dated positions. Extend the file with a reported withholding amount when the source provides one. [Reported withholding](#reported-withholding) · [Investor.gov explanation of ex-dividend and payable dates](https://www.investor.gov/introduction-investing/investing-basics/glossary/ex-dividend-dates-when-are-you-entitled-stock-and) · [FINRA treatment of distributions and exceptions](https://www.finra.org/rules-guidance/notices/24-04).
 
 ```csv
 instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share
@@ -52,3 +52,11 @@ At each inclusive cutoff use the latest observed report per ID. Gross value equa
 Each new target creates only the difference from the previous target. A later revision can change the pending amount, reverse a prior cash posting or rebook it under another currency. The original posting remains visible at its original observation. A revision at the exact time of an older scheduled transition supersedes that transition. All dividend changes at the same UTC second apply before market events at that second. Currencies remain separate throughout. The Rust engine calculates exact amounts and currency balances. The browser preserves them as BigInt through display.
 
 The current replay keeps dividend files and entitlement assumptions in the open view. Reproduce a run by retaining the exact source candles, calendar, action files, interval, share input and application revision. The workspace retains its original candle data and backup format. [Stock split replay](corporate-actions.md) · [Session-aware replay](historical-replay.md).
+
+## Reported withholding
+
+Append `withholding_per_share` to the historical replay header to supply an amount already reported in the same currency as the dividend. Each report supplies a decimal amount from zero through its gross per-share dividend, with up to six fractional places. Supply an explicit zero for a report with zero withholding. The eight-column historical format presents the gross ledger.
+
+The ex-date records a gross receivable. At payment, the ledger separates gross paid, withholding and net cash received. Corrections post the signed differences when their reports become known. A currency correction reverses both movements in the prior currency before recording the current amounts in the new currency. Dated holdings corrections use the same entitlement and cutoff rules for all three amounts.
+
+With 100 entitled shares in the sample, the June 4 payment at 14:00 UTC reports 50 USD gross, 10 USD withheld and 40 USD net. At 14:20 a revised report leaves 7 USD withheld and 43 USD net. At 14:40 the USD balances reverse, and the replay shows 60 CAD gross, 12 CAD withheld and 48 CAD net. At 15:00 the report withholds the entire 60 CAD. Cancellation at 15:15 reverses that withholding. The historical ledger uses the supplied amounts and keeps currencies separate. [Withholding reports](../crates/core/tests/fixtures/synthetic-dividend-withholding.csv)

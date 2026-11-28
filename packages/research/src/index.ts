@@ -3,6 +3,7 @@ import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, Form
 
 export type {
   AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, CandlePatternHit, CloseOrderStatistics, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
+  DividendEvent, DividendMovement,
   EquityConcentration, EquityTargetDrift, Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, NotionalBar, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   JointScenarioPath, JointScenarioQuery, JointScenarioReport, PortfolioAllocationQuery, PortfolioAllocationReport, PortfolioVarianceQuery, ScenarioAllocation,
@@ -79,6 +80,8 @@ export interface MarketResearch {
   leastSquaresMovingAverage: MarketCore['leastSquaresMovingAverage']
   replayCandlePatterns: MarketCore['replayCandlePatterns']
   observedTimeUnderwater: MarketCore['observedTimeUnderwater']
+  dividendLedger: MarketCore['dividendLedger']
+  dividendPositionLedger: MarketCore['dividendPositionLedger']
   classifyRecordedTrades: MarketCore['classifyRecordedTrades']
   paperDepthIndex: MarketCore['paperDepthIndex']
   paperDepthReplay: MarketCore['paperDepthReplay']
@@ -140,6 +143,8 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     leastSquaresMovingAverage: core.leastSquaresMovingAverage,
     replayCandlePatterns: core.replayCandlePatterns,
     observedTimeUnderwater: core.observedTimeUnderwater,
+    dividendLedger: core.dividendLedger,
+    dividendPositionLedger: core.dividendPositionLedger,
     classifyRecordedTrades: core.classifyRecordedTrades,
     paperDepthIndex: core.paperDepthIndex,
     paperDepthReplay: core.paperDepthReplay,

@@ -8,8 +8,8 @@ use crate::{
 };
 use crate::{history::exact_utc, parse_universe, FinancialBook, MacroCalendar, PriceBook};
 use crate::{
-    indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
-    Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
+    indicator, parse_csv, parse_dividends, parse_replay_dividends, parse_sessions, parse_splits,
+    replay, Average, Bar, Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
 };
 use crate::{
     parse_paper_config, PaperAction, PaperError, PaperOrderStatus, PaperRejection, PaperReplay,
@@ -33,7 +33,7 @@ pub extern "C" fn mw_dividend_ledger(shares: u32) -> u32 {
         let (venue, symbol) = identity
             .split_once(':')
             .ok_or("Missing replay instrument.")?;
-        let book = parse_dividends(csv, &Instrument::new(venue, symbol)?)?;
+        let book = parse_replay_dividends(csv, &Instrument::new(venue, symbol)?)?;
         Ok(encode_dividend_ledger(book.ledger(shares)?, false))
     })
 }
@@ -45,7 +45,7 @@ pub extern "C" fn mw_dividend_position_ledger(dividend_bytes: usize) -> u32 {
         let (dividends, positions) = csv
             .split_at_checked(dividend_bytes)
             .ok_or("Supply a dividend and a position history CSV.")?;
-        let book = parse_dividends(dividends, &instrument)?;
+        let book = parse_replay_dividends(dividends, &instrument)?;
         let positions = crate::parse_dividend_positions(positions, &instrument)?;
         Ok(encode_dividend_ledger(
             book.position_ledger(&positions)?,
@@ -79,6 +79,9 @@ fn encode_dividend_ledger(events: Vec<crate::DividendEvent>, include_positions: 
                 write!(&mut text, "{shares}").unwrap();
             }
         }
+        if let Some(withholding) = event.withholding_per_share {
+            write!(&mut text, "\tW={withholding}").unwrap();
+        }
         for movement in event.movements {
             write!(
                 &mut text,
@@ -90,6 +93,14 @@ fn encode_dividend_ledger(events: Vec<crate::DividendEvent>, include_positions: 
                 movement.cash
             )
             .unwrap();
+            if event.withholding_per_share.is_some() {
+                write!(
+                    &mut text,
+                    ",{},{}",
+                    movement.withholding_delta, movement.withholding
+                )
+                .unwrap();
+            }
         }
         text.push('\n');
     }

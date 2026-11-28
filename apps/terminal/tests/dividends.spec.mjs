@@ -81,6 +81,60 @@ test('offline dividend replay reconciles every cutoff and rewinds cash correctio
   )
 })
 
+test('offline dividend replay shows reported withholding, revisions and currency reversals', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+  await openImport(page, 'WITHHOLD', await fixture('synthetic-split-ohlcv.csv'))
+  await submitImport(page, 'WITHHOLD')
+  await page.getByRole('button', { name: 'Historical replay' }).click()
+  const upload = (label, text) => page.getByLabel(label, { exact: true }).setInputFiles({
+    name: 'fixture.csv', mimeType: 'text/csv', buffer: Buffer.from(text),
+  })
+  await upload('Session calendar CSV', await fixture('synthetic-split-sessions.csv'))
+  await upload('Cash dividends CSV (optional)', (await fixture('synthetic-dividend-withholding.csv'))
+    .replaceAll('DEMO:DIVIDEND', 'LOCAL:WITHHOLD'))
+  await page.getByLabel('Entitled shares per distribution').fill('100')
+  await page.getByLabel('Bar interval in seconds').fill('600')
+  await page.getByRole('button', { name: 'Start replay', exact: true }).click()
+
+  const ledger = page.getByRole('region', { name: 'Dividend ledger' })
+  const next = page.getByRole('button', { name: 'Next event', exact: true })
+  const previous = page.getByRole('button', { name: 'Previous event', exact: true })
+  const time = page.locator('.replay-state time').last()
+  const balance = currency => ledger.getByRole('table', { name: 'Dividend balances', exact: true })
+    .getByRole('row', { name: new RegExp('^' + currency) })
+  async function through(utc) {
+    for (let step = 0; step < 50; step++) {
+      if (await time.count() && await time.getAttribute('datetime') === utc) return
+      await next.click()
+    }
+    throw new Error('Replay did not reach ' + utc)
+  }
+  await through('2025-06-02T14:05:00Z')
+  await expect(balance('USD')).toHaveCount(0)
+  await expect(ledger.getByText('USD 0.10', { exact: true })).toBeVisible()
+  await through('2025-06-03T14:00:00Z')
+  await expect(balance('USD').getByRole('cell')).toHaveText(['50.00', '0.00', '0.00', '0.00'])
+  await through('2025-06-04T14:00:00Z')
+  await expect(balance('USD').getByRole('cell')).toHaveText(['0.00', '50.00', '10.00', '40.00'])
+  await through('2025-06-04T14:20:00Z')
+  await expect(balance('USD').getByRole('cell')).toHaveText(['0.00', '50.00', '7.00', '43.00'])
+  await through('2025-06-04T14:40:00Z')
+  await expect(balance('USD').getByRole('cell')).toHaveText(['0.00', '0.00', '0.00', '0.00'])
+  await expect(balance('CAD').getByRole('cell')).toHaveText(['0.00', '60.00', '12.00', '48.00'])
+  await through('2025-06-04T15:00:00Z')
+  await expect(balance('CAD').getByRole('cell')).toHaveText(['0.00', '60.00', '60.00', '0.00'])
+  await through('2025-06-04T15:15:00Z')
+  await expect(balance('CAD').getByRole('cell')).toHaveText(['0.00', '0.00', '0.00', '0.00'])
+  await ledger.getByText('Cash postings (6)', { exact: true }).click()
+  const lastPost = ledger.getByRole('table', { name: 'Dividend cash postings', exact: true }).locator('tbody tr').first()
+  await expect(lastPost.getByRole('cell')).toHaveText(['2025-06-04T15:15:00Z', 'WITHHOLD', 'CAD', '0.00', '−60.00'])
+  await previous.click()
+  await expect(balance('CAD').getByRole('cell')).toHaveText(['0.00', '60.00', '60.00', '0.00'])
+})
+
 test('offline dated positions give each dividend its own entitlement and apply late corrections', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()

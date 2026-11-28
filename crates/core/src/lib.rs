@@ -139,8 +139,8 @@ pub use depth::{
 pub use directional::{adx_rating, directional_movement, DirectionalMovement};
 pub use displaced_price_and_mass::{detrended_price_oscillator, mass_index};
 pub use dividend::{
-    parse_dividend_positions, parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind,
-    DividendMovement, DividendPositions, PositionObservation,
+    parse_dividend_positions, parse_dividends, parse_replay_dividends, Dividend, DividendBook,
+    DividendEvent, DividendKind, DividendMovement, DividendPositions, PositionObservation,
 };
 pub use donchian::donchian_channels;
 pub use drawing::{

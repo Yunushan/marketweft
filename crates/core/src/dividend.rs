@@ -9,6 +9,10 @@ const MAX_SHARES: u32 = 1_000_000;
 const MAX_POSITIONS: usize = 5_000;
 const MAX_ENTITLEMENT_CHECKS: usize = 2_000_000;
 const MAX_LEDGER_EVENTS: usize = 50_000;
+const GROSS_HEADER: &str =
+    "instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share";
+const WITHHOLDING_HEADER: &str =
+    "instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share,withholding_per_share";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Dividend {
@@ -37,6 +41,8 @@ pub struct DividendMovement {
     pub cash_delta: i128,
     pub receivable: i128,
     pub cash: i128,
+    pub withholding_delta: i128,
+    pub withholding: i128,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -45,6 +51,7 @@ pub struct DividendEvent {
     pub kind: DividendKind,
     pub revision: Dividend,
     pub entitled_shares: Option<u32>,
+    pub withholding_per_share: Option<i64>,
     pub movements: Vec<DividendMovement>,
 }
 
@@ -91,6 +98,7 @@ impl DividendPositions {
 pub struct DividendBook {
     instrument: Option<Instrument>,
     rows: Vec<Dividend>,
+    withholding: BTreeMap<String, BTreeMap<i64, i64>>,
 }
 
 pub(crate) struct DividendSchedule<'a> {
@@ -101,6 +109,7 @@ pub(crate) struct DividendSchedule<'a> {
 
 struct DividendState<'a> {
     row: &'a Dividend,
+    withholding_per_share: Option<i64>,
     previous: Option<(&'a str, Amounts)>,
     shares: Option<u32>,
 }
@@ -141,10 +150,14 @@ impl DividendBook {
         {
             return Err("Dividend revisions need distinct observation times for one ID.".into());
         }
-        Ok(Self { instrument, rows })
+        Ok(Self {
+            instrument,
+            rows,
+            withholding: BTreeMap::new(),
+        })
     }
 
-    /// Gross cash events for a supplied whole-share entitlement per distribution.
+    /// Cash events for a supplied whole-share entitlement per distribution.
     /// Apply events through the inclusive cutoff to reconstruct a replay snapshot.
     pub fn ledger(&self, entitled_shares: u32) -> Result<Vec<DividendEvent>, String> {
         if entitled_shares > MAX_SHARES {
@@ -230,10 +243,16 @@ impl DividendBook {
             {
                 let state = active.entry(&row.id).or_insert(DividendState {
                     row,
+                    withholding_per_share: None,
                     previous: None,
                     shares: None,
                 });
                 state.row = row;
+                state.withholding_per_share = self
+                    .withholding
+                    .get(&row.id)
+                    .and_then(|revisions| revisions.get(&row.observed_at))
+                    .copied();
                 events.push(state.post(at, kind, shares_for(row.ex_at)));
             }
             if let Some(effective) = earliest_change {
@@ -269,8 +288,10 @@ impl DividendBook {
                 let balance = totals.entry(movement.currency.clone()).or_default();
                 balance.receivable += movement.receivable_delta;
                 balance.cash += movement.cash_delta;
+                balance.withholding += movement.withholding_delta;
                 movement.receivable = balance.receivable;
                 movement.cash = balance.cash;
+                movement.withholding = balance.withholding;
             }
         }
         Ok(events)
@@ -280,16 +301,20 @@ impl DividendBook {
 impl<'a> DividendState<'a> {
     fn post(&mut self, at: i64, kind: DividendKind, shares: Option<u32>) -> DividendEvent {
         let row = self.row;
-        let gross = i128::from(row.amount_per_share) * i128::from(shares.unwrap_or_default());
+        let quantity = i128::from(shares.unwrap_or_default());
+        let gross = i128::from(row.amount_per_share) * quantity;
+        let withholding = i128::from(self.withholding_per_share.unwrap_or_default()) * quantity;
         let target = if at >= row.pay_at {
             Amounts {
                 receivable: 0,
-                cash: gross,
+                cash: gross - withholding,
+                withholding,
             }
         } else if at >= row.ex_at {
             Amounts {
                 receivable: gross,
                 cash: 0,
+                withholding: 0,
             }
         } else {
             Amounts::default()
@@ -313,6 +338,7 @@ impl<'a> DividendState<'a> {
             kind,
             revision: row.clone(),
             entitled_shares: shares,
+            withholding_per_share: self.withholding_per_share,
             movements,
         }
     }
@@ -322,6 +348,7 @@ impl<'a> DividendState<'a> {
 struct Amounts {
     receivable: i128,
     cash: i128,
+    withholding: i128,
 }
 
 impl Amounts {
@@ -329,18 +356,21 @@ impl Amounts {
         Self {
             receivable: self.receivable - other.receivable,
             cash: self.cash - other.cash,
+            withholding: self.withholding - other.withholding,
         }
     }
 }
 
 fn push_movement(movements: &mut Vec<DividendMovement>, currency: &str, delta: Amounts) {
-    if delta.receivable != 0 || delta.cash != 0 {
+    if delta.receivable != 0 || delta.cash != 0 || delta.withholding != 0 {
         movements.push(DividendMovement {
             currency: currency.to_owned(),
             receivable_delta: delta.receivable,
             cash_delta: delta.cash,
             receivable: 0,
             cash: 0,
+            withholding_delta: delta.withholding,
+            withholding: 0,
         });
     }
 }
@@ -407,6 +437,20 @@ pub(crate) fn parse_report<'a>(
 pub(crate) const MAX_CASH_DIVIDEND_CSV_BYTES: usize = 1024 * 1024;
 
 pub fn parse_dividends(csv: &str, instrument: &Instrument) -> Result<DividendBook, String> {
+    parse_book(csv, instrument, false)
+}
+
+/// Read standalone historical replay reports, including the optional header
+/// with an explicitly reported withholding amount per share.
+pub fn parse_replay_dividends(csv: &str, instrument: &Instrument) -> Result<DividendBook, String> {
+    parse_book(csv, instrument, true)
+}
+
+fn parse_book(
+    csv: &str,
+    instrument: &Instrument,
+    allow_withholding: bool,
+) -> Result<DividendBook, String> {
     if csv.len() > MAX_CASH_DIVIDEND_CSV_BYTES {
         return Err("Cash dividends CSV exceeds 1 MiB.".into());
     }
@@ -415,25 +459,56 @@ pub fn parse_dividends(csv: &str, instrument: &Instrument) -> Result<DividendBoo
         .lines()
         .enumerate()
         .filter(|(_, line)| !line.trim().is_empty());
-    if lines.next().map(|(_, line)| line.trim()) !=
-        Some("instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share")
-    {
-        return Err("Expected cash dividends header instrument,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share.".into());
-    }
+    let with_withholding = match lines.next().map(|(_, line)| line.trim()) {
+        Some(GROSS_HEADER) => false,
+        Some(WITHHOLDING_HEADER) if allow_withholding => true,
+        _ => return Err(format!("Expected cash dividends header {GROSS_HEADER}.")),
+    };
     let expected = instrument.to_string();
     let mut rows = Vec::new();
+    let mut withholding = BTreeMap::<String, BTreeMap<i64, i64>>::new();
     for (line, content) in lines {
         let error = |reason: &str| format!("Cash dividends line {}: {reason}", line + 1);
         if rows.len() == MAX_ROWS {
             return Err(error("Supply at most 1,000 dividend reports."));
         }
-        let mut fields = content.split(',').map(str::trim);
+        let (report, withheld) = if with_withholding {
+            let (report, value) = content
+                .rsplit_once(',')
+                .ok_or_else(|| error("Expected exactly nine fields."))?;
+            let withheld = decimal(value.trim()).ok_or_else(|| {
+                error("Use a decimal withholding amount with up to six fractional places.")
+            })?;
+            (report, Some(withheld))
+        } else {
+            (content, None)
+        };
+        let mut fields = report.split(',').map(str::trim);
         if fields.next() != Some(expected.as_str()) {
             return Err(error("Instrument must match the selected VENUE:SYMBOL."));
         }
-        rows.push(parse_report(&mut fields, "Expected exactly eight fields.").map_err(error)?);
+        let extra_fields = if with_withholding {
+            "Expected exactly nine fields."
+        } else {
+            "Expected exactly eight fields."
+        };
+        let row = parse_report(&mut fields, extra_fields).map_err(error)?;
+        if let Some(amount) = withheld {
+            if !(0..=row.amount_per_share).contains(&amount) {
+                return Err(error(
+                    "Withholding per share must be between zero and the gross dividend.",
+                ));
+            }
+            withholding
+                .entry(row.id.clone())
+                .or_default()
+                .insert(row.observed_at, amount);
+        }
+        rows.push(row);
     }
-    DividendBook::for_instrument(instrument.clone(), rows)
+    let mut book = DividendBook::for_instrument(instrument.clone(), rows)?;
+    book.withholding = withholding;
+    Ok(book)
 }
 
 pub fn parse_dividend_positions(

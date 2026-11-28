@@ -359,6 +359,8 @@ export interface DividendMovement {
   cashDelta: bigint;
   receivable: bigint;
   cash: bigint;
+  withholdingDelta?: bigint;
+  withholding?: bigint;
 }
 export interface DividendEvent {
   at: number;
@@ -371,6 +373,7 @@ export interface DividendEvent {
   currency: string;
   amountPerShare: bigint;
   entitledShares?: number | null;
+  withholdingPerShare?: bigint;
   movements: DividendMovement[];
 }
 
@@ -1828,17 +1831,21 @@ export function validRsiPeriod(period: unknown): period is number {
 function decodeDividendEvents(text: string, withPositions = false): DividendEvent[] {
   return text.slice(0, -1).split('\n').map(line => {
     const [at, kind, id, announcedAt, exAt, payAt, observedAt, currency, perShare, ...fields] = line.split('\t');
+    let next = withPositions ? 1 : 0;
+    const withholding = fields[next]?.startsWith('W=') ? BigInt(fields[next++].slice(2)) : undefined;
     const event: DividendEvent = {
       at: Number(at), kind: dividendKinds[Number(kind)], id,
       announcedAt: Number(announcedAt), exAt: Number(exAt), payAt: Number(payAt),
       observedAt: Number(observedAt), currency, amountPerShare: BigInt(perShare),
-      movements: (withPositions ? fields.slice(1) : fields).map(change => {
-        const [currency, receivableDelta, cashDelta, receivable, cash] = change.split(',');
+      movements: fields.slice(next).map(change => {
+        const [currency, receivableDelta, cashDelta, receivable, cash, withholdingDelta, withheld] = change.split(',');
         return { currency, receivableDelta: BigInt(receivableDelta), cashDelta: BigInt(cashDelta),
-          receivable: BigInt(receivable), cash: BigInt(cash) };
+          receivable: BigInt(receivable), cash: BigInt(cash),
+          ...(withholding === undefined ? {} : { withholdingDelta: BigInt(withholdingDelta), withholding: BigInt(withheld) }) };
       }),
     };
     if (withPositions) event.entitledShares = fields[0] === '' ? null : Number(fields[0]);
+    if (withholding !== undefined) event.withholdingPerShare = withholding;
     return event;
   });
 }
