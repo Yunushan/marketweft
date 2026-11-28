@@ -10,6 +10,8 @@ A backup contains plain JSON, including the contents of imported CSV files. Keep
 
 ## Format versions
 
+A workspace with a Close waterfall chart uses version 94. It stores `close-waterfall` for the selected pane and preserves that pane's saved close-change interval.
+
 A workspace with either of the volume movement studies uses version 93. The `ease_of_movement` entry stores an independent period of 1–100,000 observed moves for each pane. The `negative_volume_index` entry stores its enabled flag. The same terminal reads earlier workspace versions.
 
 A workspace with Rolling Median or Close Percentile Rank settings uses version 92 and stores `rolling_median` or `close_percentile_rank` with a period of 2–100,000. A workspace with a Time Underwater chart uses version 91 and stores `time-underwater` for that pane. A workspace with Least Squares Moving Average settings uses version 90 and stores the `lsma` study with a period of 2–100,000. Close Standard Deviation settings use version 89 and store `close_stddev` with a period of 1–100,000. A workspace with a True Range histogram uses version 88. A workspace with saved Acceleration Bands settings uses version 87. Saved recorded notional targets use version 86 when no newer settings are present.

@@ -6,7 +6,11 @@ import type { Asset } from './workspace'
 
 export type BarRange = { start: number; end: number }
 export type ExportOverlay = { name: string; series: readonly (number | bigint | null)[] }
-export type CloseChangeSeries = { intervalSeconds: number; values: readonly (bigint | null)[] }
+export type CloseChangeSeries = {
+  intervalSeconds: number
+  values: readonly (bigint | null)[]
+  waterfall?: { cutoff?: number }
+}
 export type OpeningGapSeries = { cutoff?: number; values: readonly (OpeningGap | null)[] }
 export type TrueRangeSeries = { cutoff?: number; values: readonly (TrueRangePoint | null)[] }
 export type RebasedReturnSeries = { anchorAt?: number; baseClose?: number; values: readonly (bigint | null)[] }
@@ -52,6 +56,7 @@ export function chartCsv(
     if (analysis.timeframe?.mode === 'session') {
       fields.push('bucket_close_utc', 'session_open_utc', 'session_kind', 'session_calendar')
     }
+    if (analysis.closeChanges?.waterfall) fields.push('close_waterfall_known_through')
     if (analysis.closeChanges)
       fields.push('close_change_interval_seconds', 'previous_close_time', 'previous_close', 'close_change')
     if (analysis.openingGaps)
@@ -107,6 +112,7 @@ export function chartCsv(
       }
       if (analysis.closeChanges) {
         const value = analysis.closeChanges.values[index]
+        if (analysis.closeChanges.waterfall) row += ',' + (analysis.closeChanges.waterfall.cutoff ?? '')
         row += ',' + analysis.closeChanges.intervalSeconds + ','
         if (value == null) {
           row += ',,'

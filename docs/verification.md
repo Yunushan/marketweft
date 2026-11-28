@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.304.0 · Close waterfall
+
+- Offline Chromium verifies the Canvas bar coordinates, upward and downward moves, a true zero mark and a missing interval. Adjacent bars meet at their shared close on the price axis.
+- Independent pane cutoffs verify source observations, complete rolled buckets, blank transitions around incomplete buckets, exact CSV rewind and version 94 restore.
+
 ## 0.303.0 · Ease of Movement and Negative Volume Index
 
 - Rust checks signed half-tick rounding, zero volume and range, every observed prefix and an exact 100,000-bar Ease of Movement calculation. The Negative Volume Index tests cover rising, equal and falling volume, an unavailable zero-close update and an out-of-range cumulative result.

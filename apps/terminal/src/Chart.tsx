@@ -91,6 +91,7 @@ const chartNames: Record<ChartType, string> = {
   'step-line': 'step line',
   baseline: 'baseline',
   'close-change': 'close-change histogram',
+  'close-waterfall': 'close waterfall',
   'true-range': 'True Range histogram',
   'opening-gap': 'Opening gaps',
   'high-low-band': 'high-low band',
@@ -110,7 +111,7 @@ function hollowCandleColor(close: number, previousClose: number | undefined) {
   if (previousClose === undefined || close === previousClose) return UNCHANGED
   return close > previousClose ? UP : DOWN
 }
-function openingGapColor(difference?: bigint) {
+function priceMoveColor(difference?: bigint) {
   if (difference === undefined || difference === 0n) return UNCHANGED
   return difference > 0n ? UP : DOWN
 }
@@ -235,6 +236,7 @@ function draw(
   const baseline = type === 'baseline' ? baselineTicks / 1e6 : undefined
   const rangeHistogram = type === 'true-range'
   const histogram = type === 'close-change' || rangeHistogram
+  const waterfall = type === 'close-waterfall'
   const histogramTicks = (index: number) =>
     rangeHistogram ? trueRanges?.values[index]?.rangeTicks : closeChanges?.values[index]
   const openingGapChart = type === 'opening-gap'
@@ -283,6 +285,10 @@ function draw(
       low = Math.min(low, tickPrice(prior))
       high = Math.max(high, tickPrice(prior))
     }
+    if (waterfall && closeChanges?.values[i] != null) {
+      low = Math.min(low, bars[i - 1].close)
+      high = Math.max(high, bars[i - 1].close)
+    }
     const pivot = swings?.values[i]
     if (pivot) {
       low = Math.min(low, tickPrice(pivot.close))
@@ -293,7 +299,7 @@ function draw(
       low = Math.min(low, tickPrice(distribution.minimum))
       high = Math.max(high, tickPrice(distribution.maximum))
     }
-    const closeBounds = closeTrace || distributionChart
+    const closeBounds = closeTrace || distributionChart || waterfall
     low = Math.min(low, openingGapChart ? b.open : closeBounds ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
     high = Math.max(high, openingGapChart ? b.open : closeBounds ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
     for (const { series } of priceLines) {
@@ -557,7 +563,7 @@ function draw(
       } else {
         line(bodyLeft, bodyTop, axis + w / 2, bodyTop, col)
       }
-    } else if (!closeTrace && !derivedAxis && !rangeBand && !swingChart && !distributionChart && !openingGapChart) {
+    } else if (!closeTrace && !derivedAxis && !rangeBand && !swingChart && !distributionChart && !openingGapChart && !waterfall) {
       line(axis, y(b.high), axis, y(b.low), col)
       const open = y(b.open), close = y(b.close)
       if (type === 'ohlc') {
@@ -582,7 +588,7 @@ function draw(
       const axis = x(index)
       const open = y(bars[index].open)
       const gap = openingGaps?.values[index]
-      const color = openingGapColor(gap?.difference)
+      const color = priceMoveColor(gap?.difference)
       if (!gap) {
         ctx.fillStyle = color
         ctx.beginPath()
@@ -740,6 +746,20 @@ function draw(
         barWidth, Math.max(1, Math.abs(level - zero)))
     }
   }
+  if (waterfall && closeChanges) {
+    const half = Math.max(1, dx * 0.68) / 2
+    for (let index = Math.max(start, 1); index < view.end; index++) {
+      const change = closeChanges.values[index]
+      if (change == null) continue
+      const from = y(bars[index - 1].close)
+      const to = y(bars[index].close)
+      const left = x(index) - half
+      if (index > start && closeChanges.values[index - 1] != null)
+        line(x(index - 1) + half, from, left, from, UNCHANGED)
+      ctx.fillStyle = priceMoveColor(change)
+      ctx.fillRect(left, change === 0n ? from - 0.5 : Math.min(from, to), half * 2, Math.max(1, Math.abs(from - to)))
+    }
+  }
   if (closeTrace) {
     ctx.beginPath()
     ctx.strokeStyle = CLOSE_LINE
@@ -823,7 +843,8 @@ function draw(
     const lastGroup = groups.at(-1)
     if (hollowCandles && lastGroup) tag = hollowCandleColor(last.close, bars[lastGroup.first - 1]?.close)
     if (equi) tag = hollowCandleColor(last.close, bars[view.end - 2]?.close)
-    if (openingGapChart) tag = openingGapColor(openingGaps?.values[view.end - 1]?.difference)
+    if (openingGapChart) tag = priceMoveColor(openingGaps?.values[view.end - 1]?.difference)
+    if (waterfall) tag = priceMoveColor(closeChanges?.values[view.end - 1] ?? undefined)
     ctx.setLineDash([3, 4])
     ctx.lineWidth = 0.8
     line(left, at, right, at, tag)
@@ -1456,6 +1477,7 @@ export function Chart({
   }
   const change = closeChanges?.values[sourceIndex]
   const histogram = type === 'close-change'
+  const waterfall = type === 'close-waterfall'
   const rangeHistogram = type === 'true-range'
   const trueRange = trueRanges?.values[sourceIndex]
   const openingGapChart = type === 'opening-gap'
@@ -1627,14 +1649,14 @@ export function Chart({
     picker.accept({ ticks, time: original ?? observed?.sourceTime ?? bars[index].time })
     setAnnotationPicker(null)
   }
-  const priceReadout = !swingChart && !distributionChart && !percentAxis && !durationAxis && !histogram && !rangeHistogram && !openingGapChart && !box && !segment && !movement && !displayBars
+  const priceReadout = !swingChart && !distributionChart && !percentAxis && !durationAxis && !histogram && !waterfall && !rangeHistogram && !openingGapChart && !box && !segment && !movement && !displayBars
     ? `${asset.symbol} OHLCV. Open ${price(b.open)}, high ${price(b.high)}, low ${price(b.low)}, close ${price(b.close)}, volume ${volume(b.volume)}`
     : undefined
   return (
-    <section className="plot" aria-label={closeBased || scatterChart || histogram || rangeHistogram || percentAxis || durationAxis || swingChart || distributionChart || openingGapChart || type === 'equivolume' ? chartNames[type] + ' chart' : 'Price and volume chart'}
+    <section className="plot" aria-label={closeBased || scatterChart || histogram || waterfall || rangeHistogram || percentAxis || durationAxis || swingChart || distributionChart || openingGapChart || type === 'equivolume' ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : time}>
-      <div className="ohlc" role={scatterChart || displayBars || movement || selectedObservation || priceReadout || distributionChart || openingGapChart || rangeHistogram || durationAxis ? 'group' : undefined}
-        aria-label={scatterChart ? 'Close and volume point' : openingGapChart ? 'Opening gap prices' : rangeHistogram ? 'True Range evidence' : durationAxis ? 'Time Underwater evidence' : distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
+      <div className="ohlc" role={scatterChart || displayBars || movement || selectedObservation || priceReadout || distributionChart || openingGapChart || rangeHistogram || durationAxis || waterfall ? 'group' : undefined}
+        aria-label={scatterChart ? 'Close and volume point' : openingGapChart ? 'Opening gap prices' : rangeHistogram ? 'True Range evidence' : waterfall ? 'Close waterfall evidence' : durationAxis ? 'Time Underwater evidence' : distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
           displayBars ? 'Heikin-Ashi prices' : priceReadout}>
         <time>{timeLabel(time)} UTC</time>
         {scatterChart ? <>
@@ -1690,7 +1712,7 @@ export function Chart({
             <span><small>Prior UTC</small> {utc(trueRange.prior.at)}</span>
           </>}
           <span className="ohlc-vol"><small>Vol</small> {volume(b.volume)}</span>
-        </> : histogram ? <>
+        </> : histogram || waterfall ? <>
           <span><small>Close change</small> {change == null ? 'Missing' : fixed(change, 6)}</span>
           <span><small>Observed close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>
           {change != null && <span><small>Previous close</small> {fixed(BigInt(Math.round(prior.close * 1e6)), 6)}

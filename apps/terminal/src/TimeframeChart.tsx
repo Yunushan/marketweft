@@ -231,8 +231,11 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
   const [gapCutoff, setGapCutoff] = useState<number>()
   const [rangeCutoff, setRangeCutoff] = useState<number>()
   const [underwaterCutoff, setUnderwaterCutoff] = useState<number>()
+  const [waterfallCutoff, setWaterfallCutoff] = useState<number>()
+  const waterfall = type === 'close-waterfall'
+  const closeChangeChart = type === 'close-change' || waterfall
   const cutoff = type === 'confirmed-swings' ? swingCutoff : type === 'opening-gap' ? gapCutoff :
-    type === 'true-range' ? rangeCutoff : type === 'time-underwater' ? underwaterCutoff : undefined
+    type === 'true-range' ? rangeCutoff : type === 'time-underwater' ? underwaterCutoff : waterfall ? waterfallCutoff : undefined
   const timeframe = useMemo(() => {
     if (!rolled || rolled.sourceBars !== asset.bars) return undefined
     if (cutoff === undefined) return rolled
@@ -253,7 +256,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
   const sourceInterval = (type === 'high-low-band' ? highLowSeconds : closeChangeSeconds) ?? defaultInterval
   const changeInterval = timeframe?.targetSeconds ?? sourceInterval
   const changes = useMemo<{ series?: CloseChangeSeries; error?: string }>(() => {
-    if (type !== 'close-change' || changeInterval === undefined) return {}
+    if (!closeChangeChart || changeInterval === undefined) return {}
     try {
       const values = core.closeChanges(changeInterval, display.bars)
       if (timeframe) {
@@ -263,11 +266,11 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
             values[index] = null
         })
       }
-      return { series: { intervalSeconds: changeInterval, values } }
+      return { series: { intervalSeconds: changeInterval, values, ...(waterfall ? { waterfall: { cutoff } } : {}) } }
     } catch (cause) {
       return { error: cause instanceof Error ? cause.message : 'Could not calculate close changes.' }
     }
-  }, [core, type, changeInterval, display.bars, timeframe])
+  }, [core, closeChangeChart, changeInterval, display.bars, timeframe, waterfall, cutoff])
   const opening = useMemo<{ series?: OpeningGapSeries; error?: string }>(() => {
     if (type !== 'opening-gap') return {}
     try {
@@ -515,14 +518,21 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         }} />}
       {type === 'baseline' && onBaselineTicks &&
         <BaselinePrice key={baselineTicks} ticks={baselineTicks} saving={priceSizeSaving} apply={onBaselineTicks} />}
-      {type === 'close-change' && !timeframe && onCloseChangeSeconds &&
+      {closeChangeChart && !timeframe && onCloseChangeSeconds &&
         <ChartInterval key={sourceInterval} label="Close-change" seconds={sourceInterval}
           saving={priceSizeSaving} apply={onCloseChangeSeconds} />}
       {type === 'high-low-band' && !timeframe && onHighLowSeconds &&
         <ChartInterval key={sourceInterval} label="High-low band" seconds={sourceInterval}
           saving={priceSizeSaving} apply={onHighLowSeconds} />}
-      {type === 'close-change' && changeInterval === undefined &&
+      {closeChangeChart && changeInterval === undefined &&
         <p role="status">Set an interval to calculate changes between consecutive closes.</p>}
+      {waterfall && <>
+        <ChartCutoff key={'waterfall:' + (cutoff ?? 'latest')} label="Close waterfall history cutoff" cutoff={cutoff} apply={value => {
+          onTimestamp?.(null)
+          setWaterfallCutoff(value)
+        }} />
+        {!display.bars.length && <p role="status">No observed closes through this cutoff.</p>}
+      </>}
       {changes.error && <p role="alert">{changes.error}</p>}
       {type === 'rebased-percent' && onRebaseTime &&
         <RebaseAnchor key={rebaseTime ?? rebased.series?.anchorAt} time={rebaseTime ?? rebased.series?.anchorAt}

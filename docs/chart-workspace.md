@@ -42,6 +42,14 @@ Set **Close-change interval (seconds)** separately in each pane. Built-in sample
 
 Version 40 backups preserve the chart selection and any explicitly saved interval. Choose **Bars, provenance and enabled indicators** in **Export CSV** for the interval, previous close time, previous close and signed change. The CSV leaves the three change fields empty for missing values. The OHLCV reimport CSV continues to contain observed bars.
 
+### Close waterfall
+
+Choose **Close waterfall** to draw each eligible price change as a floating bar from the previous close to the current close. Rising and falling moves have separate colors. An exact zero has a flat mark, and a connector joins adjacent eligible moves at their shared close. The chart keeps a close-price axis and the observed volume track.
+
+The waterfall shares the pane's **Close-change interval (seconds)** setting. It skips the first close and the first close after a missing interval. With a rolled timeframe, both adjacent buckets need complete source coverage. **Close waterfall history cutoff** includes observations through the selected UTC second. A rolled bucket first appears at its closing time.
+
+The pointer readout shows the previous close, its UTC time, the current observed close and the exact signed change. The analysis CSV includes the selected cutoff and the same close evidence. Workspace backup version 94 stores the chart type and the pane's interval. The cutoff belongs to the current session. [Waterfall fixture](../crates/core/tests/fixtures/synthetic-close-waterfall.csv)
+
 ### True Range histogram
 
 Choose **True Range histogram** to plot the span that contains the current bar’s high, low and preceding observed close. The first bar uses its own high minus low. Zero ranges draw a small neutral mark. A missing UTC observation has no column. The cursor retains the earlier close and its exact UTC time across a gap.
