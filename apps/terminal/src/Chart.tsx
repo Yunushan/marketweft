@@ -16,7 +16,7 @@ import { fanRays, fibonacciChannelRays, pitchforkRays } from './annotation-rays'
 import { equivolumeLayout, volumeOffsets } from './equivolume'
 import { drawPriceVolumeScatter, priceVolumeScatter } from './price-volume-scatter'
 import { ChartExport } from './ChartExport'
-import type { AnchoredTwapSeries, AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { AnchoredTwapSeries, AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView, TrueRangeSeries } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, utc, volume } from './workspace'
@@ -91,6 +91,7 @@ const chartNames: Record<ChartType, string> = {
   'step-line': 'step line',
   baseline: 'baseline',
   'close-change': 'close-change histogram',
+  'true-range': 'True Range histogram',
   'opening-gap': 'Opening gaps',
   'high-low-band': 'high-low band',
   'rebased-percent': 'rebased percent change',
@@ -206,6 +207,7 @@ function draw(
   baselineTicks: number,
   closeChanges: CloseChangeSeries | undefined,
   openingGaps: OpeningGapSeries | undefined,
+  trueRanges: TrueRangeSeries | undefined,
   percentPlot: Series | undefined,
   swings: SwingSeries | undefined,
   closeDistributions: CloseDistributionSeries | undefined,
@@ -230,11 +232,14 @@ function draw(
     return scatter
   }
   const baseline = type === 'baseline' ? baselineTicks / 1e6 : undefined
-  const histogram = type === 'close-change'
+  const rangeHistogram = type === 'true-range'
+  const histogram = type === 'close-change' || rangeHistogram
+  const histogramTicks = (index: number) =>
+    rangeHistogram ? trueRanges?.values[index]?.rangeTicks : closeChanges?.values[index]
   const openingGapChart = type === 'opening-gap'
   const percentAxis = type === 'rebased-percent' || type === 'drawdown'
   const derivedAxis = histogram || percentAxis
-  const derivedValue = (index: number) => histogram ? plotValue(closeChanges?.values[index] ?? null) :
+  const derivedValue = (index: number) => histogram ? plotValue(histogramTicks(index) ?? null) :
     percentPlot?.[index] ?? null
   const volumeWeighted = type === 'volume-candles'
   const hollowCandles = type === 'hollow-candles'
@@ -720,10 +725,10 @@ function draw(
     const zero = y(0)
     const barWidth = Math.max(1, dx * 0.68)
     for (let index = start; index < view.end; index++) {
-      const ticks = closeChanges?.values[index]
+      const ticks = histogramTicks(index)
       if (ticks == null) continue
       const level = y(tickPrice(ticks))
-      ctx.fillStyle = ticks > 0n ? UP : ticks < 0n ? DOWN : '#a2b4af'
+      ctx.fillStyle = ticks > 0n ? (rangeHistogram ? CLOSE_LINE : UP) : ticks < 0n ? DOWN : '#a2b4af'
       ctx.fillRect(x(index) - barWidth / 2, ticks === 0n ? zero - 0.5 : Math.min(level, zero),
         barWidth, Math.max(1, Math.abs(level - zero)))
     }
@@ -1233,6 +1238,7 @@ export function Chart({
   baselineTicks = 0,
   closeChanges,
   openingGaps,
+  trueRanges,
   rebasedReturns,
   drawdowns,
   swings,
@@ -1267,6 +1273,7 @@ export function Chart({
   baselineTicks?: number
   closeChanges?: CloseChangeSeries
   openingGaps?: OpeningGapSeries
+  trueRanges?: TrueRangeSeries
   rebasedReturns?: RebasedReturnSeries
   drawdowns?: DrawdownSeries
   swings?: SwingSeries
@@ -1435,6 +1442,8 @@ export function Chart({
   }
   const change = closeChanges?.values[sourceIndex]
   const histogram = type === 'close-change'
+  const rangeHistogram = type === 'true-range'
+  const trueRange = trueRanges?.values[sourceIndex]
   const openingGapChart = type === 'opening-gap'
   const openingGap = openingGaps?.values[sourceIndex]
   const indicatorValues = sma.length > 0 || ema.length > 0
@@ -1509,6 +1518,7 @@ export function Chart({
           baselineTicks,
           closeChanges,
           openingGaps,
+          trueRanges,
           percentPlot,
           swings,
           closeDistributions,
@@ -1522,7 +1532,7 @@ export function Chart({
           activeStudyPlotValues,
           scatter,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, drawingLevels, type, equivolumeOffsets, baselineTicks, closeChanges, openingGaps, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues, scatter])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, drawingLevels, type, equivolumeOffsets, baselineTicks, closeChanges, openingGaps, trueRanges, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues, scatter])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -1603,14 +1613,14 @@ export function Chart({
     picker.accept({ ticks, time: original ?? observed?.sourceTime ?? bars[index].time })
     setAnnotationPicker(null)
   }
-  const priceReadout = !swingChart && !distributionChart && !percentAxis && !histogram && !openingGapChart && !box && !segment && !movement && !displayBars
+  const priceReadout = !swingChart && !distributionChart && !percentAxis && !histogram && !rangeHistogram && !openingGapChart && !box && !segment && !movement && !displayBars
     ? `${asset.symbol} OHLCV. Open ${price(b.open)}, high ${price(b.high)}, low ${price(b.low)}, close ${price(b.close)}, volume ${volume(b.volume)}`
     : undefined
   return (
-    <section className="plot" aria-label={closeBased || scatterChart || histogram || percentAxis || swingChart || distributionChart || openingGapChart || type === 'equivolume' ? chartNames[type] + ' chart' : 'Price and volume chart'}
+    <section className="plot" aria-label={closeBased || scatterChart || histogram || rangeHistogram || percentAxis || swingChart || distributionChart || openingGapChart || type === 'equivolume' ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : time}>
-      <div className="ohlc" role={scatterChart || displayBars || movement || selectedObservation || priceReadout || distributionChart || openingGapChart ? 'group' : undefined}
-        aria-label={scatterChart ? 'Close and volume point' : openingGapChart ? 'Opening gap prices' : distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
+      <div className="ohlc" role={scatterChart || displayBars || movement || selectedObservation || priceReadout || distributionChart || openingGapChart || rangeHistogram ? 'group' : undefined}
+        aria-label={scatterChart ? 'Close and volume point' : openingGapChart ? 'Opening gap prices' : rangeHistogram ? 'True Range evidence' : distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
           displayBars ? 'Heikin-Ashi prices' : priceReadout}>
         <time>{timeLabel(time)} UTC</time>
         {scatterChart ? <>
@@ -1649,6 +1659,15 @@ export function Chart({
           <span><small>Observed close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>
           {baseAt !== undefined && baseClose !== undefined && time >= baseAt &&
             <span><small>{drawdown ? 'Peak close' : 'Base close'}</small> {baseClose} · {timeLabel(baseAt)} UTC</span>}
+          <span className="ohlc-vol"><small>Vol</small> {volume(b.volume)}</span>
+        </> : rangeHistogram ? <>
+          <span><small>True Range</small> {trueRange ? fixed(trueRange.rangeTicks, 6) : 'Missing'}</span>
+          <span><small>High</small> {fixed(BigInt(Math.round(b.high * 1e6)), 6)}</span>
+          <span><small>Low</small> {fixed(BigInt(Math.round(b.low * 1e6)), 6)}</span>
+          {trueRange?.prior && <>
+            <span><small>Prior close</small> {fixed(trueRange.prior.close, 6)}</span>
+            <span><small>Prior UTC</small> {utc(trueRange.prior.at)}</span>
+          </>}
           <span className="ohlc-vol"><small>Vol</small> {volume(b.volume)}</span>
         </> : histogram ? <>
           <span><small>Close change</small> {change == null ? 'Missing' : fixed(change, 6)}</span>
@@ -1934,7 +1953,8 @@ export function Chart({
       )}
       {exportOptions && (
         <ChartExport asset={asset} visible={{ start: sourceStart, end: sourceEnd }} metadata={exportOptions.metadata}
-          timeframe={timeframe} closeChanges={closeChanges} openingGaps={openingGaps} rebasedReturns={rebasedReturns} drawdowns={drawdowns} swings={swings}
+          timeframe={timeframe} closeChanges={closeChanges} openingGaps={openingGaps} trueRanges={trueRanges}
+          rebasedReturns={rebasedReturns} drawdowns={drawdowns} swings={swings}
           closeDistributions={closeDistributions} anchoredVwaps={anchoredVwaps} anchoredTwaps={anchoredTwaps}
           overlays={[
             ...(periods ? [

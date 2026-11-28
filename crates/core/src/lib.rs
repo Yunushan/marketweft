@@ -99,7 +99,7 @@ pub use alerts::{
 pub use anchored_twap::{anchored_twap, AnchoredTwapPoint};
 pub use anchored_vwap::{anchored_vwap, AnchoredVwapPoint};
 pub use aroon::{aroon, AroonValue};
-pub use atr::average_true_range;
+pub use atr::{average_true_range, observed_true_ranges, TrueRangePoint};
 pub use atr_overlays::{chandelier_exit, supertrend, ChandelierExit, SupertrendPoint};
 pub use backtest::{
     backtest, backtest_with_formulas, backtest_with_trades, validate_formula_strategy,

@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.288.0 · 0BSD**
+**0.289.0 · 0BSD**
 
 **নথির ভাষা**
 
@@ -15,14 +15,14 @@
 
 MarketWeft বিশ্লেষক, ডেভেলপার ও অপারেটরের জন্য স্থানীয় গবেষণা টার্মিনাল। অনুমোদিত OHLCV খুলে ক্যান্ডেল ও ভলিউম দেখায়, নির্দিষ্ট দশমিক এককে SMA ও EMA গণনা করে এবং নজরদারি তালিকা, নির্বাচিত ইন্সট্রুমেন্ট ও সূচক IndexedDB-তে রাখে। সম্পদ ক্যাশ হলে অফলাইনে চলে। সঙ্গে দেওয়া দাম ও ভলিউম কৃত্রিম, অ্যাকাউন্ট লাগে না।
 
-MarketWeft 0.288.0 প্রমাণীকৃত REST, WebSocket, gRPC এবং শুধু-পাঠযোগ্য MCP দিয়ে নির্দিষ্ট সময়ে জানা নিম্নমুখী ঝুঁকি দেয়। MarketWeft 0.7.0 নির্দিষ্ট সময়ে জানা তথ্য দিয়ে দামের রিটার্ন অনুযায়ী ইউনিভার্স স্ক্রিনিং যোগ করে। সেশনভিত্তিক রিপ্লেতে স্টক স্প্লিট, নগদ লভ্যাংশ, সদস্যপদ এবং তালিকা থেকে বাদ পড়া রয়েছে। আলাদা trading-bot পরিষেবার জন্য শুধু পড়ার TypeScript অবজারভার ও পরীক্ষামূলক Tauri র‍্যাপারও আছে। ডেটা ফিড, অর্ডার, স্বাক্ষরিত ইনস্টলার এবং বহু ব্যবহারকারীর হোস্টিং রোডম্যাপে আছে।
+MarketWeft 0.289.0 আগের ক্লোজের নির্ভুল প্রমাণ, UTC কাটঅফ ও গবেষণা CSV সহ True Range হিস্টোগ্রাম যোগ করে। MarketWeft 0.7.0 নির্দিষ্ট সময়ে জানা তথ্য দিয়ে দামের রিটার্ন অনুযায়ী ইউনিভার্স স্ক্রিনিং যোগ করে। সেশনভিত্তিক রিপ্লেতে স্টক স্প্লিট, নগদ লভ্যাংশ, সদস্যপদ এবং তালিকা থেকে বাদ পড়া রয়েছে। আলাদা trading-bot পরিষেবার জন্য শুধু পড়ার TypeScript অবজারভার ও পরীক্ষামূলক Tauri র‍্যাপারও আছে। ডেটা ফিড, অর্ডার, স্বাক্ষরিত ইনস্টলার এবং বহু ব্যবহারকারীর হোস্টিং রোডম্যাপে আছে।
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Listing downside risk service](../local-rest-research.md#listing-downside-risk) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [True Range histogram](../chart-workspace.md#true-range-histogram) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
 
 <!-- section:02 -->
 ## বহনযোগ্য টার্মিনাল চালান
 
-সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.288.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
+সফল GitHub যাচাই থেকে browser-terminal-attempt-N ডাউনলোড করে MarketWeft-browser-0.289.0.zip খুলুন। dist/ ও serve-terminal.mjs এক ফোল্ডারে রেখে সেখানে কমান্ড চালান। WebAssembly, Canvas, BigInt ও IndexedDB সমর্থিত ব্রাউজারে http://127.0.0.1:4173/ খুলুন। Node.js 22.12 বা নতুন চাই। npm ইনস্টল লাগে না। নেট বন্ধের আগে Offline ready দেখুন।
 
 ```sh
 node serve-terminal.mjs

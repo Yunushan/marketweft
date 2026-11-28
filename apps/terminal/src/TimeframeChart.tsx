@@ -8,12 +8,12 @@ import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, DE
 import type { SwingSettings } from './catalog-schema'
 import { fixed, parsePriceSize, tickPrice } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
-import type { AnchoredTwapSeries, AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { AnchoredTwapSeries, AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView, TrueRangeSeries } from './chart-export'
 import type { Bar, MarketCore } from './market-core'
 import { computeStudies, studyOverlays } from './studies'
 import type { StudySet } from './studies'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'openingGaps' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings' | 'closeDistributions' | 'anchoredVwaps' | 'anchoredTwaps' | 'sourceObservationTimes' | 'regressionDrawings'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'openingGaps' | 'trueRanges' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings' | 'closeDistributions' | 'anchoredVwaps' | 'anchoredTwaps' | 'sourceObservationTimes' | 'regressionDrawings'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -229,7 +229,9 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
   const type = chart.type
   const [swingCutoff, setSwingCutoff] = useState<number>()
   const [gapCutoff, setGapCutoff] = useState<number>()
-  const cutoff = type === 'confirmed-swings' ? swingCutoff : type === 'opening-gap' ? gapCutoff : undefined
+  const [rangeCutoff, setRangeCutoff] = useState<number>()
+  const cutoff = type === 'confirmed-swings' ? swingCutoff : type === 'opening-gap' ? gapCutoff :
+    type === 'true-range' ? rangeCutoff : undefined
   const timeframe = useMemo(() => {
     if (!rolled || rolled.sourceBars !== asset.bars) return undefined
     if (cutoff === undefined) return rolled
@@ -276,6 +278,18 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       return { series: { cutoff, values } }
     } catch (cause) {
       return { error: cause instanceof Error ? cause.message : 'Could not calculate opening gaps.' }
+    }
+  }, [core, type, display.bars, timeframe, cutoff])
+  const trueRange = useMemo<{ series?: TrueRangeSeries; error?: string }>(() => {
+    if (type !== 'true-range') return {}
+    try {
+      const points = core.observedTrueRanges(display.bars)
+      const complete = timeframe?.buckets.map(bucket => bucket.observedBars === bucket.expectedBars)
+      const values = complete ? points.map((point, index) =>
+        complete[index] && (index === 0 || complete[index - 1]) ? point : null) : points
+      return { series: { cutoff, values } }
+    } catch (cause) {
+      return { error: cause instanceof Error ? cause.message : 'Could not calculate True Range.' }
     }
   }, [core, type, display.bars, timeframe, cutoff])
   const rebased = useMemo<{ series?: RebasedReturnSeries; status?: string; error?: string }>(() => {
@@ -352,7 +366,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       return { error: cause instanceof Error ? cause.message : 'Could not calculate close distributions.' }
     }
   }, [core, type, display.bars, timeframe])
-  const drawingTools = type === 'close-change' || type === 'rebased-percent' || type === 'drawdown' ?
+  const drawingTools = type === 'close-change' || type === 'true-range' || type === 'rebased-percent' || type === 'drawdown' ?
     undefined : chart.drawingTools
   const annotations = drawingTools?.annotations
   const sourceWindows = useMemo(() => timeframe ? timeframeSourceWindows(asset.bars, timeframe) : undefined,
@@ -525,6 +539,14 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         {opening.error ? <p role="alert">{opening.error}</p> : !display.bars.length &&
           <p role="status">No observations are known at this cutoff.</p>}
       </>}
+      {type === 'true-range' && <>
+        <ChartCutoff key={'range:' + (cutoff ?? 'latest')} label="True Range history cutoff" cutoff={cutoff} apply={value => {
+          onTimestamp?.(null)
+          setRangeCutoff(value)
+        }} />
+        {trueRange.error ? <p role="alert">{trueRange.error}</p> : !display.bars.length &&
+          <p role="status">No observations are known at this cutoff.</p>}
+      </>}
       {!display.bars.length ? null : transformed && !count ? <>
         {transformed.error ? <p role="alert">{transformed.error}</p> :
           <p role="status">{type === 'renko' ? 'No source close has moved far enough to form a brick at this size.' :
@@ -544,7 +566,8 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceChartKey}:${cutoff ?? 'latest'}`}
         asset={display} displayBars={displayBars} priceMovements={transformed?.priceMovements} kagiSegments={transformed?.kagiSegments}
         pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6} baselineTicks={baselineTicks}
-        closeChanges={changes.series} openingGaps={opening.series} bandSeconds={type === 'high-low-band' ? changeInterval : undefined}
+        closeChanges={changes.series} openingGaps={opening.series} trueRanges={trueRange.series}
+        bandSeconds={type === 'high-low-band' ? changeInterval : undefined}
         rebasedReturns={rebased.series} drawdowns={drawdown.series} swings={swing.series}
         closeDistributions={closeDistributions.series}
         anchoredVwaps={anchoredVwaps} anchoredTwaps={anchoredTwaps} sourceObservationTimes={sourceObservationTimes}

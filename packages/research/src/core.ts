@@ -1341,6 +1341,7 @@ export type VortexValue = { positive: bigint; negative: bigint };
 export type ElderRayValue = { bull: bigint; bear: bigint };
 export type RelativeVigorValue = { vigor: bigint | null; signal: bigint | null };
 export type OpeningGap = { priorAt: number; priorClose: bigint; difference: bigint };
+export type TrueRangePoint = { rangeTicks: bigint; prior: { at: number; close: bigint } | null };
 export type FloorPivotLevels = { priorCloseAt: number; pivot: bigint; supportOne: bigint; supportTwo: bigint;
   resistanceOne: bigint; resistanceTwo: bigint };
 export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; rewardPerRiskMicros: bigint };
@@ -1394,6 +1395,7 @@ export interface MarketCore {
   commodityChannelIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   closeChanges(intervalSeconds: number, bars: readonly Bar[]): (bigint | null)[];
   openingGaps(bars: readonly Bar[]): (OpeningGap | null)[];
+  observedTrueRanges(bars: readonly Bar[]): TrueRangePoint[];
   rebasedPercentChanges(anchorAt: number, bars: readonly Bar[]): (bigint | null)[];
   anchoredVwap(anchorAt: number, bars: readonly Bar[]): (AnchoredVwapPoint | null)[];
   anchoredTwap(anchorAt: number, bars: readonly Bar[]): (AnchoredTwapPoint | null)[];
@@ -1605,6 +1607,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_commodity_channel_index(period: number): number;
   mw_close_changes(intervalSeconds: number): number;
   mw_opening_gaps(): number;
+  mw_observed_true_ranges(): number;
   mw_rebased_percent_changes(anchorAt: bigint): number;
   mw_observed_drawdown(): number;
   mw_monthly_returns(firstYear: number, lastYear: number, knownThrough: bigint): number;
@@ -2971,6 +2974,20 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         if (priorAt === MISSING) return null;
         return { priorAt: Number(priorAt), priorClose: data.getBigInt64(offset + 8, true),
           difference: data.getBigInt64(offset + 16, true) };
+      });
+    },
+    observedTrueRanges(bars) {
+      validateIndicatorHistory(1, bars.length);
+      putIndicatorBars(bars, 'True Range');
+      const data = output(api.mw_observed_true_ranges());
+      if (data.byteLength !== bars.length * 24) throw new Error('Invalid True Range response size.');
+      return Array.from({ length: bars.length }, (_, index) => {
+        const offset = index * 24;
+        const at = data.getBigInt64(offset, true);
+        return {
+          rangeTicks: data.getBigInt64(offset + 16, true),
+          prior: at === MISSING ? null : { at: Number(at), close: data.getBigInt64(offset + 8, true) },
+        };
       });
     },
     rebasedPercentChanges(anchorAt, bars) {

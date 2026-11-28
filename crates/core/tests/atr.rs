@@ -51,3 +51,30 @@ fn atr_accepts_the_full_signed_price_span_and_rejects_invalid_history() {
     assert!(average_true_range(0, &[]).is_err());
     assert!(average_true_range(MAX_BARS + 1, &[]).is_err());
 }
+#[test]
+fn true_range_retains_the_previous_observation_across_gaps() {
+    use marketweft_core::{observed_true_ranges, parse_csv, TrueRangePoint, MAX_TICKS};
+
+    let bars = parse_csv(include_str!("fixtures/synthetic-true-range.csv")).unwrap();
+    let expected: Vec<_> = [4, 7, 0, 8, 0, 5, 0]
+        .into_iter()
+        .enumerate()
+        .map(|(index, range)| TrueRangePoint {
+            range_ticks: range * 1_000_000,
+            prior_close: index
+                .checked_sub(1)
+                .map(|prior| (bars[prior].time, bars[prior].close)),
+        })
+        .collect();
+    for end in 0..=bars.len() {
+        assert_eq!(observed_true_ranges(&bars[..end]).unwrap(), expected[..end]);
+    }
+    assert!(observed_true_ranges(&[bars[0], bars[0]]).is_err());
+    let mut wide = bars[0];
+    wide.high = MAX_TICKS;
+    wide.low = -MAX_TICKS;
+    assert_eq!(
+        observed_true_ranges(&[wide]).unwrap()[0].range_ticks,
+        2 * MAX_TICKS
+    );
+}

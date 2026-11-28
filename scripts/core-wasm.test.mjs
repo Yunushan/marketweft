@@ -10,6 +10,22 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('True Range keeps exact previous observations, including through UTC gaps', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-true-range.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const values = core.observedTrueRanges(bars);
+  assert.deepEqual(values.map(row => row.rangeTicks), [4000000n, 7000000n, 0n, 8000000n, 0n, 5000000n, 0n]);
+  assert.equal(values[0].prior, null);
+  assert.deepEqual(values[1].prior, { at: 1748872800, close: -3000000n });
+  assert.deepEqual(values[2].prior, { at: 1748872860, close: 3000000n });
+  assert.deepEqual(values.at(-1).prior, { at: 1748873160, close: 0n });
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.observedTrueRanges(bars.slice(0, end)), values.slice(0, end));
+  }
+  assert.throws(() => core.observedTrueRanges([bars[0], bars[0]]), /later/);
+  assert.equal(core.observedTrueRanges([{ ...bars[0], high: 2000000000, low: -2000000000 }])[0].rangeTicks, 4000000000000000n);
+});
+
 test('Acceleration Bands preserve observed prefixes, zero and signed prices, and wide ticks', async () => {
   const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-acceleration-bands.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(source);

@@ -48,6 +48,8 @@ Import triangular-t3.csv to try symmetric TRIMA windows and the Tillson T3
 factor in the Indicators menu. Use a two-bar T3 and a factor of 7000 bp.
 Import acceleration-bands.csv and enable Acceleration Bands with a two-bar
 window. The all-zero bar leaves a gap until two supported bars are observed.
+Import true-range.csv and choose True Range histogram to inspect exact
+range and prior close evidence. Try a cutoff at 14:04 UTC on June 2, 2025.
 Choose Close line to plot observed closing prices, or Candles for OHLC.
 Choose OHLC bars for a high-low stem with left-open and right-close ticks.
 Choose a chart type independently in each pane.
@@ -315,6 +317,7 @@ def main():
     files["harami.csv"] = (fixture / "synthetic-harami.csv").read_bytes()
     files["triangular-t3.csv"] = (fixture / "synthetic-triangular-t3.csv").read_bytes()
     files["acceleration-bands.csv"] = (fixture / "synthetic-acceleration-bands.csv").read_bytes()
+    files["true-range.csv"] = (fixture / "synthetic-true-range.csv").read_bytes()
     files["candle-pattern-sessions.csv"] = (fixture / "synthetic-candle-pattern-sessions.csv").read_bytes()
     for kind in ("underlying", "quotes"):
         files[f"option-{kind}.csv"] = (fixture / f"synthetic-option-{kind}.csv").read_bytes()

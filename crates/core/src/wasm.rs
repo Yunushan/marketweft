@@ -4349,6 +4349,21 @@ pub extern "C" fn mw_opening_gaps() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_observed_true_ranges() -> u32 {
+    process(|input| {
+        let rows = crate::observed_true_ranges(&decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 24);
+        for row in rows {
+            let (prior_at, prior_close) = row.prior_close.unwrap_or((i64::MIN, 0));
+            for value in [prior_at, prior_close, row.range_ticks] {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_rate_of_change(period: usize) -> u32 {
     process(|input| {
         let values = crate::rate_of_change(period, &indicator_closes(input)?)?;

@@ -6,7 +6,7 @@
     "component": {
       "type": "application",
       "name": "MarketWeft",
-      "version": "0.288.0"
+      "version": "0.289.0"
     }
   },
   "components": [

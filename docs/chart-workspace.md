@@ -42,6 +42,14 @@ Set **Close-change interval (seconds)** separately in each pane. Built-in sample
 
 Version 40 backups preserve the chart selection and any explicitly saved interval. Choose **Bars, provenance and enabled indicators** in **Export CSV** for the interval, previous close time, previous close and signed change. The CSV leaves the three change fields empty for missing values. The OHLCV reimport CSV continues to contain observed bars.
 
+### True Range histogram
+
+Choose **True Range histogram** to plot the span that contains the current bar’s high, low and preceding observed close. The first bar uses its own high minus low. Zero ranges draw a small neutral mark. A missing UTC observation has no column. The cursor retains the earlier close and its exact UTC time across a gap.
+
+Use **True Range history cutoff** to replay the source series through a UTC second, inclusive. On a rolled timeframe, a bucket first appears at its closing UTC time. The range is blank if that bucket or its observed predecessor is incomplete. The first complete bucket can use its own high and low when it has no observed predecessor.
+
+The analysis CSV includes the cutoff, prior timestamp, prior close and range in price units. Each pane saves its chart choice in backup version 88. Cutoffs stay in the current session.
+
 ### Opening gaps
 
 Choose **Opening gaps** to connect each observed open with the preceding observed close. A green stem rises to an opening above that close. A red stem falls to an opening below it. A flat marker shows a genuine zero gap. The readout lists the exact open, preceding close, its UTC time, and the signed difference. A first observation without a prior close shows its open and an unavailable gap.

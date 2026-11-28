@@ -90,6 +90,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   'step-line': 'Step line',
   baseline: 'Baseline',
   'close-change': 'Close-change histogram',
+  'true-range': 'True Range histogram',
   'opening-gap': 'Opening gaps',
   'close-distribution': 'Close distribution',
   'high-low-band': 'High-low band',

@@ -10,6 +10,32 @@ pub(crate) fn true_range(bar: &Bar, previous: Option<i64>) -> i64 {
     })
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TrueRangePoint {
+    pub range_ticks: i64,
+    /// The preceding observed bar's UTC time and close in price millionths.
+    pub prior_close: Option<(i64, i64)>,
+}
+
+/// True Range at each observed bar with the previous close used in the calculation.
+pub fn observed_true_ranges(bars: &[Bar]) -> Result<Vec<TrueRangePoint>, String> {
+    if bars.len() > MAX_BARS {
+        return Err("True Range supports up to 100,000 observed bars.".into());
+    }
+    let mut previous: Option<&Bar> = None;
+    let mut output = Vec::with_capacity(bars.len());
+    for (index, bar) in bars.iter().enumerate() {
+        validate_ohlcv(bar, index)?;
+        validate_bar_time(bar.time, previous.map(|prior| prior.time), index)?;
+        output.push(TrueRangePoint {
+            range_ticks: true_range(bar, previous.map(|prior| prior.close)),
+            prior_close: previous.map(|prior| (prior.time, prior.close)),
+        });
+        previous = Some(bar);
+    }
+    Ok(output)
+}
+
 /// Wilder Average True Range in signed price units encoded as millionths.
 /// The first bar uses its observed high minus low because no preceding close exists.
 pub fn average_true_range(period: usize, bars: &[Bar]) -> Result<Vec<Option<i64>>, String> {

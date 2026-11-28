@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.289.0 · True Range histogram
+
+- Rust and Wasm verify exact nonnegative spans across signed prices and UTC gaps, genuine zeros, full signed price bounds and unchanged observed prefixes.
+- Offline Chromium verifies bar geometry, prior close evidence, rolled bucket close cutoffs and missing coverage, byte-identical CSV after rewind and independent chart choices through version 88 restore.
+
 ## 0.288.0 · Listing downside risk over research transports
 
 - REST, resumed WebSocket and typed gRPC verify screen authorization, matching pages and genuine zeros after the late close. The tests also verify missing evidence, the removal and the same earlier page on rewind.
