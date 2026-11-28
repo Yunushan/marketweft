@@ -2332,6 +2332,9 @@ test('portfolio income keeps dividend and delisting subtotals separate across ob
   assert.equal(open.totals.find(row => row.currency === 'USD').receivable, 70_000_000n);
   assert.equal(open.income.totals.find(row => row.currency === 'USD').receivable, 7_500_000n);
   const paid = query('55', '55');
+  assert.equal(Object.hasOwn(paid.income, 'hasReportedWithholding'), false);
+  assert.equal(Object.hasOwn(paid.income.dividends[0], 'withholdingPerShare'), false);
+  assert.equal(Object.hasOwn(paid.income.totals[0], 'withholding'), false);
   assert.equal(paid.income.totals.find(row => row.currency === 'EUR').cash, 8_000_000n);
   assert.equal(paid.income.totals.find(row => row.currency === 'USD').cash, 5_000_000n);
   const corrected = query('55', '58');
@@ -2339,6 +2342,28 @@ test('portfolio income keeps dividend and delisting subtotals separate across ob
   const repeated = paid.income.dividends.filter(row => row.id === 'BETA-PAYOUT');
   assert.deepEqual(repeated.map(row => [row.listing, row.entitledShares]), [['BETA-001', 10], ['BETA-002', 3]]);
   assert.deepEqual(query('55', '55'), paid);
+});
+
+test('portfolio Wasm decodes reported dividend withholding, zero net and cutoff rewind', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, holdings, prices, terms, dividends] = await Promise.all(
+    ['universe', 'portfolio-holdings', 'universe-prices', 'delisting-terms', 'portfolio-dividend-withholding'].map(fixture));
+  const time = minute => '2025-06-02T14:' + minute + ':00Z';
+  const query = (effective, known = effective) => core.portfolioAsOf(membership, holdings, prices, terms, time(effective), time(known), dividends).income;
+  assert.deepEqual(query('09', '10'), { totals: [], dividends: [], hasReportedWithholding: true });
+  const ex = query('10').dividends[0];
+  assert.deepEqual([ex.amount, ex.withholdingPerShare, ex.paidWithholding, ex.netPaid], [2_500_000n, 250_000n, null, null]);
+  const paid = query('50');
+  const full = paid.dividends.find(row => row.listing === 'BETA-001');
+  assert.deepEqual([full.state, full.paidWithholding, full.netPaid], ['paid', 5_000_000n, 0n]);
+  assert.deepEqual(paid.totals.find(row => row.currency === 'USD'), {
+    currency: 'USD', receivable: 0n, cash: 2_300_000n, withholding: 5_200_000n,
+  });
+  const revised = query('55', '58');
+  assert.deepEqual(revised.totals.map(row => [row.currency, row.cash, row.withholding]), [
+    ['CAD', 1_600_000n, 400_000n], ['EUR', 5_400_000n, 600_000n], ['USD', 0n, 4_000_000n],
+  ]);
+  assert.deepEqual(query('50'), paid);
 });
 
 test('portfolio Wasm keeps late closes and delisting cash separate by listing and currency', async () => {

@@ -361,6 +361,64 @@ test('offline portfolio rolls dividends by stable listing and by independent cut
   expect(await catalogContents(page)).toEqual(saved)
 })
 
+test('offline portfolio shows gross, withheld and net dividends across report revisions', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  const saved = await catalogContents(page)
+  await context.setOffline(true)
+  await open(page)
+  await page.getByRole('button', { name: 'Start universe demo' }).click()
+  const panel = page.getByRole('region', { name: 'Portfolio replay' })
+  for (const [label, name] of [
+    ['Portfolio holdings CSV', 'synthetic-portfolio-holdings.csv'],
+    ['Portfolio closes CSV', 'synthetic-universe-prices.csv'],
+    ['Portfolio delisting terms CSV (optional)', 'synthetic-delisting-terms.csv'],
+    ['Portfolio dividends CSV (optional)', 'synthetic-portfolio-dividend-withholding.csv'],
+  ]) {
+    const buffer = await readFile(new URL('../../../crates/core/tests/fixtures/' + name, import.meta.url))
+    await panel.getByLabel(label, { exact: true }).setInputFiles({ name, mimeType: 'text/csv', buffer })
+  }
+  await panel.getByRole('button', { name: 'Load portfolio reports' }).click()
+  const income = panel.getByRole('table', { name: 'Portfolio dividend entitlement' })
+  const totals = panel.getByRole('table', { name: 'Portfolio currency subtotals' })
+  const cells = (table, name) => table.getByRole('row', { name: new RegExp('^' + name) }).getByRole('cell')
+  const query = async (effective, known = effective) => {
+    await page.getByLabel('Effective time (UTC)').fill(utc(effective))
+    await page.getByLabel('Known time (UTC)').fill(utc(known))
+    await page.getByRole('button', { name: 'Run as-of query' }).click()
+  }
+  await query('14:10:00', '14:02:00')
+  await expect(income).toHaveCount(0)
+  await query('14:10:00')
+  const alfa = cells(income, 'ALFA-001')
+  await expect(alfa.nth(6)).toHaveText('2.5 USD')
+  await expect(alfa.nth(7)).toHaveText('0.25 USD')
+  await expect(alfa.nth(8)).toHaveText('—')
+  await expect(cells(totals, 'USD').nth(3)).toHaveText('2.5')
+  await query('14:45:00')
+  await expect(cells(totals, 'USD').nth(4)).toHaveText('2')
+  await expect(cells(totals, 'USD').nth(5)).toHaveText('0.5')
+  await query('14:50:00')
+  await expect(cells(income, 'BETA-001').nth(8)).toHaveText('5 USD')
+  await expect(cells(income, 'BETA-001').nth(9)).toHaveText('0 USD')
+  await expect(cells(totals, 'USD').nth(4)).toHaveText('2.3')
+  await expect(cells(totals, 'USD').nth(5)).toHaveText('5.2')
+  await query('14:55:00', '14:58:00')
+  await expect(cells(totals, 'USD').nth(5)).toHaveText('4')
+  await expect(cells(totals, 'CAD').nth(4)).toHaveText('1.6')
+  await expect(cells(totals, 'CAD').nth(5)).toHaveText('0.4')
+  await expect(cells(totals, 'EUR').nth(4)).toHaveText('5.4')
+  await expect(cells(totals, 'EUR').nth(5)).toHaveText('0.6')
+  await query('14:55:00', '15:01:00')
+  await expect(cells(income, 'BETA-001').nth(5)).toHaveText('No payment')
+  await expect(totals.getByRole('row', { name: /^USD/ })).toHaveCount(0)
+  await query('14:45:00')
+  await expect(cells(totals, 'USD').nth(4)).toHaveText('2')
+  await expect(cells(totals, 'USD').nth(5)).toHaveText('0.5')
+  expect(await catalogContents(page)).toEqual(saved)
+})
+
 test('offline successor shares follow the known delisting, delivery revisions and prior holdings', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()

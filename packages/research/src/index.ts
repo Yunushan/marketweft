@@ -9,6 +9,7 @@ export type {
   JointScenarioPath, JointScenarioQuery, JointScenarioReport, PortfolioAllocationQuery, PortfolioAllocationReport, PortfolioVarianceQuery, ScenarioAllocation,
   ListingDownsideRiskPoint, ListingRiskQuery,
   FxAmount, FxCurrencyValue, FxTranslation,
+  PortfolioSnapshot,
   OptionUnavailable, OptionUnderlying, PaperConfig, PaperDepthSnapshot, PaperSnapshot, QuarterlyValuation,
   ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
   ScalarPluginPoint, ScreenPrice, ScreenRow, TradeClassification, TradeClassificationQuery, TradeSideBasis, TrailingFourQuarters,
@@ -68,6 +69,7 @@ export interface MarketResearch {
     query: PortfolioAllocationQuery): PortfolioAllocationSnapshot
   portfolioScenarios: MarketCore['portfolioScenarios']
   portfolioFxAsOf: MarketCore['portfolioFxAsOf']
+  portfolioAsOf: MarketCore['portfolioAsOf']
   equityConcentrationAsOf(membership: string, holdings: string, closes: string,
     effectiveAt: string, knownAt: string): EquityConcentrationSnapshot
   equityTargetDriftAsOf(membership: string, holdings: string, closes: string, terms: string, targets: string,
@@ -126,6 +128,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     },
     portfolioScenarios: core.portfolioScenarios,
     portfolioFxAsOf: core.portfolioFxAsOf,
+    portfolioAsOf: core.portfolioAsOf,
     equityConcentrationAsOf(membership, holdings, closes, effectiveAt, knownAt) {
       const report = core.portfolioAsOf(membership, holdings, closes, '', effectiveAt, knownAt)
       return { effectiveAt: report.effectiveAt, knownAt: report.knownAt, groups: report.equityConcentration }

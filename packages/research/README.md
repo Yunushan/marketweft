@@ -34,6 +34,8 @@ Call `portfolioScenarios(membershipCsv, pricesCsv, allocations, settings)` to re
 
 Call `portfolioFxAsOf(ratesCsv, reporting, effectiveAt, knownAt, amounts)` for exact foreign exchange conversions and source quote evidence. Supply known subtotals as `bigint` integer millionths. [Portfolio FX research SDKs](../../docs/portfolio-replay.md#portfolio-fx-research-sdks).
 
+Call `portfolioAsOf(membership, holdings, closes, delistingTerms, effectiveAt, knownAt, dividends)` for the portfolio's point-in-time holdings, currency subtotals and optional dividends. With a reported withholding column, the same `bigint` income figures distinguish gross receivables, net payments and withholding. [Portfolio dividend withholding](../../docs/portfolio-replay.md#reported-portfolio-dividend-withholding)
+
 Call `equityConcentrationAsOf(membershipCsv, holdingsCsv, pricesCsv, effectiveAt, knownAt)` for ranked source-currency groups and known gross marked share values. Both marks and weights use `bigint`. [Equity concentration SDKs](../../docs/portfolio-replay.md#equity-concentration-sdks).
 
 Call `equityTargetDriftAsOf(membershipCsv, holdingsCsv, pricesCsv, termsCsv, targetsCsv, effectiveAt, knownAt)` to compare actual equity weights with reported targets. The result includes both cutoffs and exact `bigint` weights and drift. [Equity target research SDKs](../../docs/portfolio-replay.md#equity-target-research-sdks)

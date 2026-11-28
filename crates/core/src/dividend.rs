@@ -123,6 +123,35 @@ impl DividendBook {
         Self::validated(Some(instrument), rows)
     }
 
+    pub(crate) fn with_reported_terms(
+        instrument: Option<Instrument>,
+        reports: Vec<(Dividend, Option<i64>)>,
+    ) -> Result<Self, String> {
+        let mut withholding = BTreeMap::<String, BTreeMap<i64, i64>>::new();
+        let rows = reports
+            .into_iter()
+            .map(|(row, amount)| {
+                if let Some(amount) = amount {
+                    withholding
+                        .entry(row.id.clone())
+                        .or_default()
+                        .insert(row.observed_at, amount);
+                }
+                row
+            })
+            .collect();
+        let mut book = Self::validated(instrument, rows)?;
+        book.withholding = withholding;
+        Ok(book)
+    }
+
+    pub(crate) fn withholding_for(&self, report: &Dividend) -> Option<i64> {
+        self.withholding
+            .get(&report.id)
+            .and_then(|revisions| revisions.get(&report.observed_at))
+            .copied()
+    }
+
     pub(crate) fn known_reports(&self, known_at: i64) -> impl Iterator<Item = &Dividend> {
         self.rows
             .chunk_by(|left, right| left.id == right.id)
@@ -248,11 +277,7 @@ impl DividendBook {
                     shares: None,
                 });
                 state.row = row;
-                state.withholding_per_share = self
-                    .withholding
-                    .get(&row.id)
-                    .and_then(|revisions| revisions.get(&row.observed_at))
-                    .copied();
+                state.withholding_per_share = self.withholding_for(row);
                 events.push(state.post(at, kind, shares_for(row.ex_at)));
             }
             if let Some(effective) = earliest_change {
@@ -400,8 +425,9 @@ fn validate(row: &Dividend) -> Result<(), &'static str> {
 
 pub(crate) fn parse_report<'a>(
     fields: &mut impl Iterator<Item = &'a str>,
+    with_withholding: bool,
     extra_fields_error: &'static str,
-) -> Result<Dividend, &'static str> {
+) -> Result<(Dividend, Option<i64>), &'static str> {
     let id = fields.next().unwrap_or_default().to_owned();
     let mut time = || {
         fields
@@ -418,6 +444,18 @@ pub(crate) fn parse_report<'a>(
         .next()
         .and_then(decimal)
         .ok_or("Use a decimal amount with up to six fractional places.")?;
+    let withholding = if with_withholding {
+        let amount = fields.next().ok_or(extra_fields_error).and_then(|value| {
+            decimal(value)
+                .ok_or("Use a decimal withholding amount with up to six fractional places.")
+        })?;
+        if !(0..=amount_per_share).contains(&amount) {
+            return Err("Withholding per share must be between zero and the gross dividend.");
+        }
+        Some(amount)
+    } else {
+        None
+    };
     if fields.next().is_some() {
         return Err(extra_fields_error);
     }
@@ -431,7 +469,7 @@ pub(crate) fn parse_report<'a>(
         amount_per_share,
     };
     validate(&row)?;
-    Ok(row)
+    Ok((row, withholding))
 }
 
 pub(crate) fn write_ledger_rows(
@@ -521,24 +559,12 @@ fn parse_book(
     };
     let expected = instrument.to_string();
     let mut rows = Vec::new();
-    let mut withholding = BTreeMap::<String, BTreeMap<i64, i64>>::new();
     for (line, content) in lines {
         let error = |reason: &str| format!("Cash dividends line {}: {reason}", line + 1);
         if rows.len() == MAX_ROWS {
             return Err(error("Supply at most 1,000 dividend reports."));
         }
-        let (report, withheld) = if with_withholding {
-            let (report, value) = content
-                .rsplit_once(',')
-                .ok_or_else(|| error("Expected exactly nine fields."))?;
-            let withheld = decimal(value.trim()).ok_or_else(|| {
-                error("Use a decimal withholding amount with up to six fractional places.")
-            })?;
-            (report, Some(withheld))
-        } else {
-            (content, None)
-        };
-        let mut fields = report.split(',').map(str::trim);
+        let mut fields = content.split(',').map(str::trim);
         if fields.next() != Some(expected.as_str()) {
             return Err(error("Instrument must match the selected VENUE:SYMBOL."));
         }
@@ -547,23 +573,9 @@ fn parse_book(
         } else {
             "Expected exactly eight fields."
         };
-        let row = parse_report(&mut fields, extra_fields).map_err(error)?;
-        if let Some(amount) = withheld {
-            if !(0..=row.amount_per_share).contains(&amount) {
-                return Err(error(
-                    "Withholding per share must be between zero and the gross dividend.",
-                ));
-            }
-            withholding
-                .entry(row.id.clone())
-                .or_default()
-                .insert(row.observed_at, amount);
-        }
-        rows.push(row);
+        rows.push(parse_report(&mut fields, with_withholding, extra_fields).map_err(error)?);
     }
-    let mut book = DividendBook::for_instrument(instrument.clone(), rows)?;
-    book.withholding = withholding;
-    Ok(book)
+    DividendBook::with_reported_terms(Some(instrument.clone()), rows)
 }
 
 pub fn parse_dividend_positions(

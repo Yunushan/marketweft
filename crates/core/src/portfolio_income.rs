@@ -5,6 +5,8 @@ use std::ops::Bound::Excluded;
 
 const HEADER: &str =
     "universe,listing_id,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share";
+const WITHHOLDING_HEADER: &str =
+    "universe,listing_id,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share,withholding_per_share";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PortfolioDividendState {
@@ -21,12 +23,16 @@ pub struct PortfolioDividendRow<'a> {
     pub entitled_shares: Option<u32>,
     pub state: PortfolioDividendState,
     pub amount: Option<i128>,
+    pub withholding_per_share: Option<i64>,
+    pub paid_withholding: Option<i128>,
+    pub net_paid: Option<i128>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PortfolioIncomeCurrency {
     pub receivable: i128,
     pub cash: i128,
+    pub withholding: i128,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -34,10 +40,12 @@ pub struct PortfolioIncomeSnapshot<'a> {
     pub portfolio: PortfolioSnapshot<'a>,
     pub dividends: Vec<PortfolioDividendRow<'a>>,
     pub totals: BTreeMap<&'a str, PortfolioIncomeCurrency>,
+    pub has_reported_withholding: bool,
 }
 
 pub(crate) struct PortfolioIncomeReports {
     listings: BTreeMap<String, (UniverseBook, DividendBook)>,
+    has_reported_withholding: bool,
 }
 
 impl PortfolioIncomeReports {
@@ -45,11 +53,25 @@ impl PortfolioIncomeReports {
         Self::parse_named(universe, csv, HEADER, "dividend")
     }
 
+    pub(super) fn parse_replay(universe: &UniverseBook, csv: &str) -> Result<Self, String> {
+        Self::parse_inner(universe, csv, HEADER, "dividend", true)
+    }
+
     pub(super) fn parse_named(
         universe: &UniverseBook,
         csv: &str,
         header: &str,
         name: &str,
+    ) -> Result<Self, String> {
+        Self::parse_inner(universe, csv, header, name, false)
+    }
+
+    fn parse_inner(
+        universe: &UniverseBook,
+        csv: &str,
+        header: &str,
+        name: &str,
+        allow_withholding: bool,
     ) -> Result<Self, String> {
         if csv.len() > 1024 * 1024 {
             return Err(format!("Portfolio {name}s CSV exceeds 1 MiB."));
@@ -59,11 +81,18 @@ impl PortfolioIncomeReports {
             .lines()
             .enumerate()
             .filter(|(_, line)| !line.trim().is_empty());
-        if lines.next().map(|(_, line)| line.trim()) != Some(header) {
-            return Err(format!("Expected portfolio {name}s header {header}."));
-        }
+        let has_reported_withholding = match lines.next().map(|(_, line)| line.trim()) {
+            Some(value) if value == header => false,
+            Some(WITHHOLDING_HEADER) if allow_withholding => true,
+            _ => return Err(format!("Expected portfolio {name}s header {header}.")),
+        };
+        let extra_fields = if has_reported_withholding {
+            "Expected exactly ten fields."
+        } else {
+            "Expected exactly nine fields."
+        };
         let listing_ids = universe.listing_ids();
-        let mut reports: BTreeMap<&str, Vec<Dividend>> = BTreeMap::new();
+        let mut reports = BTreeMap::<&str, Vec<_>>::new();
         for (index, (line, record)) in lines.enumerate() {
             let error = |reason: &str| format!("Portfolio {name} line {}: {reason}", line + 1);
             if index == 1_000 {
@@ -82,7 +111,7 @@ impl PortfolioIncomeReports {
                 return Err(error("Use a listing ID from the supplied universe."));
             }
             let report =
-                parse_report(&mut fields, "Expected exactly nine fields.").map_err(error)?;
+                parse_report(&mut fields, has_reported_withholding, extra_fields).map_err(error)?;
             reports.entry(listing).or_default().push(report);
         }
         if reports.is_empty() {
@@ -94,12 +123,15 @@ impl PortfolioIncomeReports {
                 let listing = universe
                     .for_listing(id)
                     .ok_or("Missing dividend listing.")?;
-                let book =
-                    DividendBook::new(rows).map_err(|cause| format!("Listing {id}: {cause}"))?;
+                let book = DividendBook::with_reported_terms(None, rows)
+                    .map_err(|cause| format!("Listing {id}: {cause}"))?;
                 Ok((id.to_owned(), (listing, book)))
             })
             .collect::<Result<_, String>>()?;
-        Ok(Self { listings })
+        Ok(Self {
+            listings,
+            has_reported_withholding,
+        })
     }
 
     pub(crate) fn dividend_books(&self) -> impl Iterator<Item = (&str, &DividendBook)> {
@@ -127,10 +159,12 @@ impl PortfolioBook<'_> {
             portfolio: self.as_of(effective_at, known_at),
             dividends: Vec::new(),
             totals: BTreeMap::new(),
+            has_reported_withholding: false,
         };
         let Some(reports) = &self.income else {
             return snapshot;
         };
+        snapshot.has_reported_withholding = reports.has_reported_withholding;
         for (listing_id, (listing, book)) in &reports.listings {
             for report in book
                 .known_reports(known_at)
@@ -148,13 +182,25 @@ impl PortfolioBook<'_> {
                     entitled_shares
                         .map(|shares| i128::from(shares) * i128::from(report.amount_per_share))
                 };
+                let withholding_per_share = book.withholding_for(report);
+                let mut paid_withholding = None;
+                let mut net_paid = None;
                 let state = match amount {
                     None => PortfolioDividendState::UnknownPosition,
                     Some(0) => PortfolioDividendState::NoPayment,
                     Some(amount) => {
                         let total = snapshot.totals.entry(report.currency.as_str()).or_default();
                         if report.pay_at <= effective_at {
-                            total.cash += amount;
+                            paid_withholding = withholding_per_share.zip(entitled_shares).map(
+                                |(withholding, shares)| {
+                                    i128::from(withholding) * i128::from(shares)
+                                },
+                            );
+                            let withheld = paid_withholding.unwrap_or_default();
+                            let net = amount - withheld;
+                            net_paid = Some(net);
+                            total.cash += net;
+                            total.withholding += withheld;
                             PortfolioDividendState::Paid
                         } else {
                             total.receivable += amount;
@@ -168,6 +214,9 @@ impl PortfolioBook<'_> {
                     entitled_shares,
                     state,
                     amount,
+                    withholding_per_share,
+                    paid_withholding,
+                    net_paid,
                 });
             }
         }

@@ -250,7 +250,7 @@ impl<'a> PortfolioBook<'a> {
     ) -> Result<Self, String> {
         let mut book = Self::parse(universe, holdings, prices, delisting_terms)?;
         if !dividends.is_empty() {
-            book.income = Some(PortfolioIncomeReports::parse(universe, dividends)?);
+            book.income = Some(PortfolioIncomeReports::parse_replay(universe, dividends)?);
         }
         Ok(book)
     }

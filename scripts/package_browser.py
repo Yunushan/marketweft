@@ -173,6 +173,9 @@ for the USD receivable, and 14:50 for the first cash posting.
 Portfolio replay combines portfolio-holdings.csv and universe-prices.csv.
 Add delisting-terms.csv for delisting proceeds and portfolio-dividends.csv
 for gross dividend income at the universe replay cutoffs.
+Use portfolio-dividend-withholding.csv to compare gross receivables, net
+payments and reported withholding. At effective and known 14:45 UTC, ALFA
+pays 2 USD net. Advance knowledge to 14:48 for the revised 2.30 USD amount.
 Expand Equity allocation targets and load equity-targets.csv or its demo.
 Pin the target baseline and run another query to download the drift comparison.
 Keep effective time at 14:10 UTC and advance knowledge from 14:11 to 14:12
@@ -314,6 +317,7 @@ def main():
     files["capital-returns.csv"] = (fixture / "synthetic-capital-returns.csv").read_bytes()
     files["capital-return-basis.csv"] = (fixture / "synthetic-capital-return-basis.csv").read_bytes()
     files["portfolio-dividends.csv"] = (fixture / "synthetic-portfolio-dividends.csv").read_bytes()
+    files["portfolio-dividend-withholding.csv"] = (fixture / "synthetic-portfolio-dividend-withholding.csv").read_bytes()
     files["split-revisions.csv"] = (fixture / "synthetic-split-revisions.csv").read_bytes()
     files["universe-prices.csv"] = (fixture / "synthetic-universe-prices.csv").read_bytes()
     files["listing-risk-membership.csv"] = (fixture / "synthetic-listing-risk-membership.csv").read_bytes()

@@ -303,3 +303,95 @@ fn portfolio_dividends_keep_unknown_holdings_distinct_and_validate_report_identi
     )
     .is_err());
 }
+
+#[test]
+fn portfolio_replays_reported_dividend_withholding_and_net_cash_at_each_cutoff() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let dividends = include_str!("fixtures/synthetic-portfolio-dividend-withholding.csv");
+    let book = PortfolioBook::parse_with_income(&universe, HOLDINGS, PRICES, DELISTING, dividends)
+        .unwrap();
+    let before_ex = book.as_of_with_income(t(9), t(10));
+    assert!(before_ex.has_reported_withholding);
+    assert!(before_ex.dividends.is_empty());
+    assert!(book.as_of_with_income(t(10), t(2)).dividends.is_empty());
+
+    let ex = book.as_of_with_income(t(10), t(10));
+    let alfa = &ex.dividends[0];
+    assert_eq!(alfa.state, PortfolioDividendState::Receivable);
+    assert_eq!(alfa.withholding_per_share, Some(250_000));
+    assert_eq!(
+        (alfa.amount, alfa.paid_withholding, alfa.net_paid),
+        (Some(2_500_000), None, None)
+    );
+    assert_eq!(income(&ex, "USD"), (2_500_000, 0));
+    assert_eq!(ex.totals["USD"].withholding, 0);
+
+    let first_pay = book.as_of_with_income(t(45), t(45));
+    assert_eq!(income(&first_pay, "USD"), (5_000_000, 2_000_000));
+    assert_eq!(first_pay.totals["USD"].withholding, 500_000);
+    let refunded = book.as_of_with_income(t(45), t(48));
+    assert_eq!(income(&refunded, "USD"), (5_000_000, 2_300_000));
+    assert_eq!(refunded.totals["USD"].withholding, 200_000);
+    assert_eq!(book.as_of_with_income(t(45), t(45)), first_pay);
+
+    let full_withholding = book.as_of_with_income(t(50), t(50));
+    let beta = &full_withholding.dividends[1];
+    assert_eq!(beta.state, PortfolioDividendState::Paid);
+    assert_eq!(beta.amount, Some(5_000_000));
+    assert_eq!(beta.paid_withholding, Some(5_000_000));
+    assert_eq!(beta.net_paid, Some(0));
+    assert_eq!(income(&full_withholding, "USD"), (0, 2_300_000));
+    assert_eq!(full_withholding.totals["USD"].withholding, 5_200_000);
+
+    let rebooked = book.as_of_with_income(t(55), t(55));
+    assert_eq!(income(&rebooked, "CAD"), (0, 1_600_000));
+    assert_eq!(rebooked.totals["CAD"].withholding, 400_000);
+    assert_eq!(income(&rebooked, "EUR"), (0, 5_400_000));
+    assert_eq!(rebooked.totals["EUR"].withholding, 600_000);
+    assert_eq!(income(&rebooked, "USD"), (0, 0));
+    assert_eq!(rebooked.totals["USD"].withholding, 5_000_000);
+    let late_holdings = book.as_of_with_income(t(55), t(58));
+    assert_eq!(late_holdings.dividends[1].entitled_shares, Some(8));
+    assert_eq!(late_holdings.totals["USD"].withholding, 4_000_000);
+    let cancelled = book.as_of_with_income(t(55), t(61));
+    assert_eq!(
+        cancelled.dividends[1].state,
+        PortfolioDividendState::NoPayment
+    );
+    assert!(!cancelled.totals.contains_key("USD"));
+    assert_eq!(book.as_of_with_income(t(55), t(55)), rebooked);
+
+    let unknown_holdings = HOLDINGS
+        .lines()
+        .filter(|line| !line.contains("ALFA-001"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let unknown = PortfolioBook::parse_with_income(
+        &universe,
+        &unknown_holdings,
+        PRICES,
+        DELISTING,
+        dividends,
+    )
+    .unwrap();
+    let snapshot = unknown.as_of_with_income(t(45), t(45));
+    let alfa = &snapshot.dividends[0];
+    assert_eq!(alfa.state, PortfolioDividendState::UnknownPosition);
+    assert_eq!(
+        (alfa.amount, alfa.paid_withholding, alfa.net_paid),
+        (None, None, None)
+    );
+
+    for invalid in [
+        ",USD,1.25,1.26",
+        ",USD,1.25,-0.01",
+        ",USD,1.25",
+        ",USD,1.25,0.25,0",
+    ] {
+        let input = dividends.replacen(",USD,1.25,0.25", invalid, 1);
+        assert!(
+            PortfolioBook::parse_with_income(&universe, HOLDINGS, PRICES, DELISTING, &input)
+                .is_err()
+        );
+    }
+}

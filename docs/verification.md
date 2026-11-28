@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.301.0 · Reported portfolio dividend withholding
+
+- Rust, Wasm and the public TypeScript SDK verify the gross receivable, net cash and reported withholding across two independent cutoffs. The fixtures cover a same-currency withholding revision, USD-to-CAD restatement, a fully withheld payment with zero net, a late holding correction, cancellation and exact rewind.
+- Offline Chromium opens the extended CSV alongside the nine-column, foreign exchange and single-listing regressions. It verifies an unobserved dividend, a fully withheld payment, a cancellation, and separate CAD, EUR and USD subtotals.
+
 ## 0.300.0 · Dividend ledger transports
 
 - REST, resumed WebSocket and typed gRPC verify screen authorization, matching pages, fixed and dated entitlements, exact cash and withholding, and reproducible rewind.

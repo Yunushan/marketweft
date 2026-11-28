@@ -9,6 +9,25 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK values net portfolio dividends with the withholding known at each cutoff', async () => {
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8')
+  const [membership, holdings, closes, terms, dividends] = await Promise.all(
+    ['universe', 'portfolio-holdings', 'universe-prices', 'delisting-terms', 'portfolio-dividend-withholding'].map(fixture))
+  const engine = await createResearchEngine(wasm)
+  const query = (minute, known = minute) => engine.portfolioAsOf(membership, holdings, closes, terms,
+    '2025-06-02T14:' + minute + ':00Z', '2025-06-02T14:' + known + ':00Z', dividends)
+  const original = query('45')
+  assert.deepEqual(original.income.totals, [{ currency: 'USD', receivable: 5000000n, cash: 2000000n, withholding: 500000n }])
+  const revised = query('55', '58')
+  assert.equal(revised.income.hasReportedWithholding, true)
+  assert.deepEqual(revised.income.dividends.map(row => [row.listing, row.entitledShares, row.amount, row.paidWithholding, row.netPaid]), [
+    ['ALFA-001', 2, 2000000n, 400000n, 1600000n],
+    ['BETA-001', 8, 4000000n, 4000000n, 0n],
+    ['BETA-002', 3, 6000000n, 600000n, 5400000n],
+  ])
+  assert.deepEqual(query('45'), original)
+})
+
 test('the public SDK replays reported withholding without altering legacy dividend fields', async () => {
   const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8')
   const [source, legacy] = await Promise.all([fixture('synthetic-dividend-withholding'), fixture('synthetic-cash-dividends')])

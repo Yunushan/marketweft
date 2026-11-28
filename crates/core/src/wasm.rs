@@ -1194,13 +1194,20 @@ fn portfolio_report(
         )
         .unwrap();
     }
+    if income.has_reported_withholding {
+        text.push_str("W\n");
+    }
     for (currency, totals) in income.totals {
-        writeln!(
+        write!(
             text,
             "I\t{currency}\t{}\t{}",
             totals.receivable, totals.cash
         )
         .unwrap();
+        if income.has_reported_withholding {
+            write!(text, "\t{}", totals.withholding).unwrap();
+        }
+        text.push('\n');
     }
     for row in income.dividends {
         let state = match row.state {
@@ -1210,7 +1217,7 @@ fn portfolio_report(
             crate::PortfolioDividendState::Paid => "paid",
         };
         let report = row.report;
-        writeln!(
+        write!(
             text,
             "D\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{state}\t{}\t{}",
             row.listing_id,
@@ -1229,6 +1236,17 @@ fn portfolio_report(
                 .unwrap_or_default(),
         )
         .unwrap();
+        if let Some(rate) = row.withholding_per_share {
+            write!(text, "\t{rate}\t").unwrap();
+            if let Some(withheld) = row.paid_withholding {
+                write!(text, "{withheld}").unwrap();
+            }
+            text.push('\t');
+            if let Some(net) = row.net_paid {
+                write!(text, "{net}").unwrap();
+            }
+        }
+        text.push('\n');
     }
     Ok(text.into_bytes())
 }

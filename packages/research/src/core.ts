@@ -1135,12 +1135,14 @@ export interface PortfolioSnapshot {
   knownAt: number;
   unvaluedPositions: number;
   income?: {
-    totals: { currency: string; receivable: bigint; cash: bigint }[];
+    hasReportedWithholding?: true;
+    totals: { currency: string; receivable: bigint; cash: bigint; withholding?: bigint }[];
     dividends: {
       listing: string; id: string; announcedAt: number; exAt: number; payAt: number;
       observedAt: number; currency: string; rate: bigint;
       state: 'unknown-position' | 'no-payment' | 'receivable' | 'paid';
       entitledShares: number | null; amount: bigint | null;
+      withholdingPerShare?: bigint; paidWithholding?: bigint | null; netPaid?: bigint | null;
     }[];
   };
   totals: { currency: string; sharesValue: bigint; receivable: bigint; cash: bigint }[];
@@ -3575,15 +3577,22 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         } else if (kind === 'C') {
           const [currency, sharesValue, receivable, cash] = fields;
           report.totals.push({ currency, sharesValue: BigInt(sharesValue), receivable: BigInt(receivable), cash: BigInt(cash) });
+        } else if (kind === 'W' && income) {
+          income.hasReportedWithholding = true;
         } else if (kind === 'I' && income) {
-          const [currency, receivable, cash] = fields;
-          income.totals.push({ currency, receivable: BigInt(receivable), cash: BigInt(cash) });
+          const [currency, receivable, cash, withholding] = fields;
+          income.totals.push({ currency, receivable: BigInt(receivable), cash: BigInt(cash),
+            ...(withholding === undefined ? {} : { withholding: BigInt(withholding) }) });
         } else if (kind === 'D' && income) {
-          const [listing, id, announced, ex, pay, observed, currency, rate, state, shares, amount] = fields;
+          const [listing, id, announced, ex, pay, observed, currency, rate, state, shares, amount,
+            withholding, paidWithholding, netPaid] = fields;
           income.dividends.push({ listing, id, announcedAt: Number(announced), exAt: Number(ex),
             payAt: Number(pay), observedAt: Number(observed), currency, rate: BigInt(rate),
             state: state as typeof income.dividends[number]['state'],
-            entitledShares: shares === '' ? null : Number(shares), amount: amount === '' ? null : BigInt(amount) });
+            entitledShares: shares === '' ? null : Number(shares), amount: amount === '' ? null : BigInt(amount),
+            ...(withholding === undefined ? {} : { withholdingPerShare: BigInt(withholding),
+              paidWithholding: paidWithholding === '' ? null : BigInt(paidWithholding),
+              netPaid: netPaid === '' ? null : BigInt(netPaid) }) });
         } else if (kind === 'H') {
           const [listing, instrument, shares, effective, observed, state, currency,
             value, price, priceAt, delisting, termsAt] = fields;

@@ -645,6 +645,7 @@ function PortfolioResult({ snapshot, core, source, membership, demo, effective, 
   snapshot: PortfolioSnapshot; core: MarketCore; source: Source; membership: string; demo: boolean; effective: string; known: string
 }) {
   const count = snapshot.holdings.length
+  const hasWithholding = snapshot.income?.hasReportedWithholding
   const currencies = useMemo(() => {
     const base = new Map(snapshot.totals.map(row => [row.currency, row]))
     const incomeTotals = new Map(snapshot.income?.totals.map(row => [row.currency, row]))
@@ -656,7 +657,8 @@ function PortfolioResult({ snapshot, core, source, membership, demo, effective, 
       const delistingCash = row?.cash ?? 0n
       const dividendReceivable = income?.receivable ?? 0n
       const dividendCash = income?.cash ?? 0n
-      return { currency, shares, delistingReceivable, delistingCash, dividendReceivable, dividendCash,
+      const withholding = income?.withholding ?? 0n
+      return { currency, shares, delistingReceivable, delistingCash, dividendReceivable, dividendCash, withholding,
         subtotal: shares + delistingReceivable + delistingCash + dividendReceivable + dividendCash }
     })
   }, [snapshot])
@@ -667,13 +669,16 @@ function PortfolioResult({ snapshot, core, source, membership, demo, effective, 
         <table className="universe-table" aria-label="Portfolio currency subtotals">
           <thead><tr><th scope="col">Currency</th><th scope="col">Share value</th>
             <th scope="col">Delisting receivable</th><th scope="col">Delisting cash</th>
-            {snapshot.income && <><th scope="col">Dividend receivable</th><th scope="col">Dividend cash</th></>}
+            {snapshot.income && <><th scope="col">Dividend receivable</th>
+              <th scope="col">{hasWithholding ? 'Net dividend cash' : 'Dividend cash'}</th></>}
+            {hasWithholding && <th scope="col">Withheld dividends</th>}
             <th scope="col">Known subtotal</th></tr></thead>
-          <tbody>{currencies.map(({ currency, shares, delistingReceivable, delistingCash, dividendReceivable, dividendCash, subtotal }) =>
+          <tbody>{currencies.map(({ currency, shares, delistingReceivable, delistingCash, dividendReceivable, dividendCash, withholding, subtotal }) =>
             <tr key={currency}>
               <th scope="row">{currency}</th><td>{money(shares)}</td>
               <td>{money(delistingReceivable)}</td><td>{money(delistingCash)}</td>
               {snapshot.income && <><td>{money(dividendReceivable)}</td><td>{money(dividendCash)}</td></>}
+              {hasWithholding && <td>{money(withholding)}</td>}
               <td>{money(subtotal)}</td>
             </tr>
           )}</tbody>
@@ -687,13 +692,19 @@ function PortfolioResult({ snapshot, core, source, membership, demo, effective, 
         <table className="universe-table" aria-label="Portfolio dividend entitlement">
           <thead><tr><th scope="col">Listing</th><th scope="col">Dividend</th><th scope="col">Ex date (UTC)</th>
             <th scope="col">Pay date (UTC)</th><th scope="col">Terms observed (UTC)</th>
-            <th scope="col">Entitled shares</th><th scope="col">State</th><th scope="col">Amount</th></tr></thead>
+            <th scope="col">Entitled shares</th><th scope="col">State</th>
+            <th scope="col">{hasWithholding ? 'Gross amount' : 'Amount'}</th>
+            {hasWithholding && <><th scope="col">Withholding per share</th><th scope="col">Withheld at payment</th>
+              <th scope="col">Net paid</th></>}</tr></thead>
           <tbody>{snapshot.income.dividends.map(row => (
             <tr key={row.listing + ':' + row.id}>
               <th scope="row">{row.listing}</th><td>{row.id}</td><td>{utc(row.exAt)}</td>
               <td>{utc(row.payAt)}</td><td>{utc(row.observedAt)}</td><td>{row.entitledShares ?? '—'}</td>
               <td>{dividendStates[row.state]}</td>
               <td>{row.amount === null ? '—' : money(row.amount) + ' ' + row.currency}</td>
+              {hasWithholding && <>{[row.withholdingPerShare, row.paidWithholding, row.netPaid].map((value, index) =>
+                <td key={index}>{value == null ? '—' : money(value) + ' ' + row.currency}</td>
+              )}</>}
             </tr>
           ))}</tbody>
         </table>

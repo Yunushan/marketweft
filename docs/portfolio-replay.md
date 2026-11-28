@@ -143,6 +143,21 @@ Use exact UTC timestamps and at most 1,000 reports in 1 MiB. Revisions share a u
 
 Choose **Load dividend income demo**. At 14:37 UTC the portfolio has 7.50 USD of dividend receivables and a separate 70 USD delisting receivable. At 14:55 the dividend cash totals are 5 USD and 8 EUR. Keeping the effective cutoff fixed and advancing knowledge to 14:58 restates the USD amount to 4. [Dividend fixture](../crates/core/tests/fixtures/synthetic-portfolio-dividends.csv)
 
+### Reported portfolio dividend withholding
+
+Add a tenth column, `withholding_per_share`, to replay source-reported withholding in the distribution currency. Each row of the extended file supplies a decimal from zero through the gross amount per share, with up to six fractional places. The nine-column format remains available for gross reports.
+
+```csv
+universe,listing_id,dividend_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share,withholding_per_share
+DEMO-BASKET,ALFA-001,ALFA-INCOME,2025-06-02T14:01:00Z,2025-06-02T14:10:00Z,2025-06-02T14:45:00Z,2025-06-02T14:03:00Z,USD,1.25,0.25
+```
+
+The effective cutoff controls ex-date eligibility and payment. The known cutoff selects the terms revision and the latest visible holding effective strictly before ex. An unpaid entitlement contributes gross receivable. At pay time the view posts net cash and separately discloses withholding. The currency subtotal and any FX translation include net dividend cash. A fully withheld positive distribution is paid with zero net cash. Unavailable entitlement stays blank until holdings evidence is known.
+
+Load the extended fixture with the membership, holdings, close and delisting fixtures above. At 14:45 UTC ALFA pays 2 USD net and withholds 0.50 USD. With the effective cutoff fixed, knowledge at 14:48 shows 2.30 USD net and 0.20 USD withheld. Knowledge at 14:52 restates the payment to 1.60 CAD net and 0.40 CAD withheld. At effective 14:55 and known 14:58, the BETA-001 position correction leaves 4 USD withheld and zero net. Returning to both cutoffs at 14:45 restores the original result. [Extended dividend fixture](../crates/core/tests/fixtures/synthetic-portfolio-dividend-withholding.csv)
+
+The TypeScript research SDK exposes the same view with `portfolioAsOf(membership, holdings, prices, terms, effectiveAt, knownAt, dividends)`. Amounts use `bigint` millionths. For the extended format, `income.totals` separates gross `receivable`, net `cash` and `withholding`. Each eligible dividend exposes `withholdingPerShare`, `paidWithholding` and `netPaid`. The last two fields are `null` when no settlement amount is available. [TypeScript SDK](../packages/research/README.md)
+
 ## Portfolio spin-off CSV
 
 ```csv
