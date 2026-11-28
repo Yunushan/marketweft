@@ -2574,10 +2574,10 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       });
     },
     recordedTradePrints(instrument, csv, knownAt = '') {
-      if (/[\r\n]/.test(instrument + knownAt) ||
-        (knownAt && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(knownAt))) {
-        throw new Error('Use a single instrument and an exact UTC observation cutoff.');
-      }
+      if (!/^[A-Z0-9._\/-]{1,32}:[A-Z0-9._\/-]{1,32}$/.test(instrument) || /[\r\n]/.test(instrument))
+        throw new Error('Use a canonical recorded instrument.');
+      if (knownAt && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(knownAt) || /[\r\n]/.test(knownAt)))
+        throw new Error('Use an exact UTC observation cutoff.');
       textInput([instrument, knownAt, csv].join('\n'));
       const out = output(api.mw_recorded_trade_prints());
       if (out.byteLength % 41 !== 0) throw new Error('Invalid recorded trade print response size.');

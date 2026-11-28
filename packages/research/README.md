@@ -80,3 +80,5 @@ Set `maximumWeightBasisPoints` on the query for a uniform per-listing ceiling. T
 Call `recordedNotionalBars('NASDAQ:NVDA', tradesCsv, 5_000_000n, '2025-06-02T14:00:02Z')` to build notional bars with an inclusive cutoff and a five-unit target. Each row includes `grossNotionalTrillionths` and both capture sequences as `bigint`. [Recorded notional bar SDKs](../../docs/recorded-tick-bars.md#recorded-notional-bar-sdks)
 
 Call `listingDownsideRiskAsOf(membershipCsv, closesCsv, 'A', 'B', query)` with `from`, `through`, `known`, `intervalSeconds`, `windowPeriods` and `volatilityPeriods`. The result preserves each window’s observed loss counts and risk metrics. [Downside risk SDKs](../../docs/listing-risk.md#downside-risk-sdks)
+
+Call `recordedTradePrints('NASDAQ:NVDA', tradesCsv, '2025-06-02T14:00:00Z')` to query prints in capture order. Each row retains separate execution and observation seconds, exact sequence, price and size as `bigint`, and reported side. [Recorded print SDKs](../../docs/recorded-tick-bars.md#recorded-print-sdks)

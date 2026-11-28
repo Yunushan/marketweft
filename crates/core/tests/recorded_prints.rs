@@ -50,3 +50,36 @@ fn six_field_reports_have_unknown_side_and_other_instruments_are_rejected() {
     );
     assert!(TradeTape::parse_execution(csv, &Instrument::new("NASDAQ", "MSFT").unwrap()).is_err());
 }
+
+#[test]
+fn native_trade_prints_preserve_cutoffs_and_exact_wide_sequences() {
+    use marketweft_core::research::{
+        recorded_trade_prints_request, MAX_TRADE_PRINTS_REQUEST_BYTES,
+    };
+
+    let input =
+        |known| format!("marketweft-recorded-trade-prints\t1\nNASDAQ:NVDA\n{known}\n{SOURCE}");
+    let before = input("2025-06-02T14:00:00Z");
+    let early = recorded_trade_prints_request(before.as_bytes()).unwrap();
+    assert_eq!(
+        early,
+        "marketweft-recorded-trade-prints\t1\t2\nT\tNASDAQ:NVDA\t1748872800\n1748872798\t1748872800\t9007199254740993\t-2000001\t1000001\tbuy\n1748872799\t1748872800\t9007199254740994\t0\t250000\tunknown\n"
+    );
+    let all = recorded_trade_prints_request(input("").as_bytes()).unwrap();
+    assert!(all.contains("1748872797\t1748872802\t9007199254740995\t3000000\t1000000\tsell\n"));
+    assert!(
+        all.ends_with("1748872803\t1748872804\t18446744073709551615\t-10500001\t500000\tsell\n")
+    );
+    assert_eq!(
+        recorded_trade_prints_request(before.as_bytes()).unwrap(),
+        early
+    );
+    for malformed in [
+        before.replacen("\t1\n", "\t2\n", 1),
+        before.replacen("\nNASDAQ:NVDA\n", "\nnasdaq:nvda\n", 1),
+        input("2025-02-29T14:00:00Z"),
+    ] {
+        assert!(recorded_trade_prints_request(malformed.as_bytes()).is_err());
+    }
+    assert!(recorded_trade_prints_request(&vec![0; MAX_TRADE_PRINTS_REQUEST_BYTES + 1]).is_err());
+}

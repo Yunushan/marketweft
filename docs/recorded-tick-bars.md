@@ -34,3 +34,9 @@ The plot’s horizontal positions follow capture order. Larger dots indicate lar
 The input accepts the six-column trade format and the optional seventh `aggressor` column. Values are `buy`, `sell` and `unknown`. An absent aggressor is shown as unknown. [Synthetic time-and-sales fixture](../crates/core/tests/fixtures/synthetic-recorded-prints.csv)
 
 In the fixture, two trades are observable at 14:00:00 UTC on June 2, 2025. A trade executed at 13:59:57 UTC becomes visible at 14:00:02 UTC after both earlier captures. The final trade has capture sequence `18446744073709551615`. Rewind to 14:00:00 UTC to reproduce the earlier CSV.
+
+### Recorded print SDKs
+
+Use Python’s `engine.recorded_trade_prints("NASDAQ:NVDA", trades_csv, known_at="2025-06-02T14:00:00Z")` or TypeScript’s `engine.recordedTradePrints('NASDAQ:NVDA', tradesCsv, '2025-06-02T14:00:00Z')` to get the captured prints at an inclusive cutoff. Omit the cutoff to return all captures. Times are UTC Unix seconds. Python uses integers for the sequence, price and size. TypeScript uses `bigint` for those values. Price and size are millionths.
+
+`marketweft-research trade-prints` accepts UTF-8 input on standard input. The first line is `marketweft-recorded-trade-prints`, a tab and version `1`. The second line contains the canonical instrument. The third line contains the exact UTC cutoff or is blank. Append the trade CSV with either supported header. The output starts with the protocol, version and print count separated by tabs. The next line starts with `T` and echoes the instrument and cutoff in Unix seconds, with an empty cutoff for all records. Each following tab-separated line contains execution time, observation time, sequence, signed price millionths, size millionths and reported side.

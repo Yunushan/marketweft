@@ -9,6 +9,22 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK captures raw prints inclusive of the cutoff and keeps full sequences', async () => {
+  const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-recorded-prints.csv', import.meta.url), 'utf8')
+  const engine = await createResearchEngine(wasm)
+  const at = cutoff => engine.recordedTradePrints('NASDAQ:NVDA', source, cutoff)
+  assert.deepEqual(at('2025-06-02T13:59:59Z'), [])
+  const early = at('2025-06-02T14:00:00Z')
+  assert.deepEqual(early.map(row => [row.sequence, row.priceTicks, row.reportedSide]),
+    [[9007199254740993n, -2000001n, 'buy'], [9007199254740994n, 0n, 'unknown']])
+  const late = at('2025-06-02T14:00:02Z').at(-1)
+  assert.deepEqual([late.executedAt, late.observedAt, late.reportedSide], [1748872797, 1748872802, 'sell'])
+  const last = at().at(-1)
+  assert.deepEqual([last.sequence, last.priceTicks, last.sizeTicks], [(1n << 64n) - 1n, -10500001n, 500000n])
+  assert.deepEqual(at('2025-06-02T14:00:00Z'), early)
+  assert.throws(() => engine.recordedTradePrints('nasdaq:nvda', source), /canonical recorded instrument/)
+})
+
 test('the public SDK builds recorded notional bars with exact wide values and cutoff rewind', async () => {
   const csv = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-notional-trades.csv', import.meta.url), 'utf8')
   const engine = await createResearchEngine(wasm)

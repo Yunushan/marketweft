@@ -198,3 +198,5 @@ The read-only MCP tool `recorded_notional_bars` returns the same records in page
 Call `ResearchEngine.listing_downside_risk_as_of(membership_csv, prices_csv, "A", "B", from_at=..., through_at=..., known_at=..., interval_seconds=60, window_periods=3)` to reproduce rolling risk and downside deviations from observed returns. The snapshot carries the two listing IDs, exact cutoff seconds and each window’s loss counts, deviation, volatility and correlation. [Downside risk SDKs](../../docs/listing-risk.md#downside-risk-sdks)
 
 The read-only MCP tool `listing_downside_risk_as_of` exposes the same calculation in pages. [Listing downside risk over MCP](../../docs/local-mcp-research.md#listing-downside-risk)
+
+Call `ResearchEngine.recorded_trade_prints("NASDAQ:NVDA", trades_csv, known_at="2025-06-02T14:00:00Z")` to get individual capture records. The snapshot includes the applied cutoff and prints with exact trade times, full capture sequences, signed prices and sizes in millionths, and reported side. [Recorded print SDKs](../../docs/recorded-tick-bars.md#recorded-print-sdks)

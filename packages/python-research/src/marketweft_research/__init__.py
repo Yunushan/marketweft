@@ -23,6 +23,7 @@ __all__ = [
     "OptionChainAnalytics", "OptionChainQuote", "OptionChainSnapshot", "OptionUnderlyingQuote",
     "PortfolioAllocationListing", "PortfolioAllocationSample", "PortfolioAllocationSnapshot",
     "PortfolioScenarioCoverage", "PortfolioScenarioPath", "PortfolioScenarioResult", "ScenarioAllocation",
+    "RecordedTradePrint", "RecordedTradePrintsSnapshot",
     "ResearchEngine", "ResearchError", "ScalarPluginPoint",
     "ScreenPrice", "ScreenResult", "ScreenRow",
 ]
@@ -43,6 +44,7 @@ _MAX_SCALAR_SERIES = 256
 _MONTHLY_PROTOCOL = "marketweft-monthly-returns"
 _MACRO_PROTOCOL = "marketweft-macro-calendar"
 _NOTIONAL_BARS_PROTOCOL = "marketweft-notional-bars"
+_TRADE_PRINTS_PROTOCOL = "marketweft-recorded-trade-prints"
 _LISTING_DOWNSIDE_RISK_PROTOCOL = "marketweft-listing-downside-risk"
 _ALLOCATION_PROTOCOL = "marketweft-portfolio-allocation"
 _PORTFOLIO_PROTOCOL = "marketweft-portfolio-scenarios"
@@ -226,6 +228,23 @@ class NotionalBarsSnapshot:
     target_notional_ticks: int
     known_at: int | None
     bars: tuple[NotionalBar, ...]
+
+
+@dataclass(frozen=True)
+class RecordedTradePrint:
+    executed_at: int
+    observed_at: int
+    sequence: int
+    price_ticks: int
+    size_ticks: int
+    reported_side: str
+
+
+@dataclass(frozen=True)
+class RecordedTradePrintsSnapshot:
+    instrument: str
+    known_at: int | None
+    prints: tuple[RecordedTradePrint, ...]
 
 
 @dataclass(frozen=True)
@@ -722,6 +741,34 @@ def _notional_bars(output: bytes, instrument: str, target: int, cutoff: int | No
                                 opened, high, low, closed, volume))
         previous_time, previous_sequence = available, last
     return NotionalBarsSnapshot(instrument, target, cutoff, tuple(bars))
+
+
+def _recorded_trade_prints(output: bytes, instrument: str, cutoff: int | None) -> RecordedTradePrintsSnapshot:
+    count, rows = _response(output, _TRADE_PRINTS_PROTOCOL)
+    total = _whole(count)
+    if not 0 <= total <= 100_000 or len(rows) != total + 1:
+        raise ResearchError("Invalid trade print count.")
+    if rows[0].split("\t") != ["T", instrument, "" if cutoff is None else str(cutoff)]:
+        raise ResearchError("Trade print settings differ from the request.")
+    last_observed, last_sequence = _MIN_UTC_SECOND, 0
+    latest = _MAX_UTC_SECOND if cutoff is None else cutoff
+    prints = []
+    for row in rows[1:]:
+        fields = row.split("\t")
+        if len(fields) != 6:
+            raise ResearchError("Invalid trade print row.")
+        executed, observed = map(_whole, fields[:2])
+        sequence = _i128(fields[2])
+        price, size = map(_whole, fields[3:5])
+        side = fields[5]
+        if (not _MIN_UTC_SECOND <= executed <= observed <= latest or observed < last_observed
+                or not last_sequence < sequence < 1 << 64
+                or not -_MAX_PRICE_TICKS <= price <= _MAX_PRICE_TICKS or not 1 <= size <= _MAX_PRICE_TICKS
+                or side not in ("buy", "sell", "unknown")):
+            raise ResearchError("Trade print evidence is inconsistent with the capture or cutoff.")
+        prints.append(RecordedTradePrint(executed, observed, sequence, price, size, side))
+        last_observed, last_sequence = observed, sequence
+    return RecordedTradePrintsSnapshot(instrument, cutoff, tuple(prints))
 
 
 def _listing_downside_risk(
@@ -1460,6 +1507,29 @@ class ResearchEngine:
         header = "\n".join((_NOTIONAL_BARS_PROTOCOL + "\t1", instrument, str(target_notional_ticks), known_at or "", ""))
         output = self._invoke(header.encode("ascii") + source, "notional-bars")
         return _notional_bars(output, instrument, target_notional_ticks, cutoff)
+
+    def recorded_trade_prints(
+        self, instrument: str, trades_csv: str, *, known_at: str | None = None,
+    ) -> RecordedTradePrintsSnapshot:
+        """Return exact trade prints in observation order up to an inclusive cutoff."""
+        if not isinstance(instrument, str) or not _INSTRUMENT.fullmatch(instrument):
+            raise ValueError("Use a canonical recorded instrument.")
+        cutoff = None
+        if known_at is not None:
+            if not isinstance(known_at, str) or not _UTC.fullmatch(known_at):
+                raise ValueError("Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.")
+            try:
+                cutoff = _epoch_second(datetime.fromisoformat(known_at[:-1]))
+            except ValueError as error:
+                raise ValueError("Use a valid UTC observation cutoff.") from error
+        if not isinstance(trades_csv, str):
+            raise TypeError("Supply trade CSV contents as text.")
+        capture = trades_csv.encode("utf-8")
+        if len(capture) > _MAX_CSV:
+            raise ValueError("Trade CSV exceeds 8 MiB.")
+        header = "\n".join((_TRADE_PRINTS_PROTOCOL + "\t1", instrument, known_at or "", "")).encode("ascii")
+        output = self._invoke(header + capture, "trade-prints")
+        return _recorded_trade_prints(output, instrument, cutoff)
 
     def listing_downside_risk_as_of(
         self, membership_csv: str, prices_csv: str, left_listing_id: str, right_listing_id: str, *,

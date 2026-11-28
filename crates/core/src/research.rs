@@ -20,9 +20,9 @@ use crate::portfolio_scenario_wire::{portfolio_scenario_report, portfolio_scenar
 use crate::screen::MAX_PRICE_BYTES;
 use crate::universe::{valid_id, MAX_MEMBERSHIP_BYTES};
 use crate::{
-    parse_csv, parse_dividends, parse_universe, AmericanValuation, AmericanValuationRequest,
-    FinancialBook, Formula, Instrument, ListingRiskQuery, OptionBook, PriceBook,
-    ScreenComparisonRow, ScreenCutoff, TradeTape, FORMULA_VERSION, MAX_AMERICAN_STEPS,
+    parse_csv, parse_dividends, parse_universe, AggressorSide, AmericanValuation,
+    AmericanValuationRequest, FinancialBook, Formula, Instrument, ListingRiskQuery, OptionBook,
+    PriceBook, ScreenComparisonRow, ScreenCutoff, TradeTape, FORMULA_VERSION, MAX_AMERICAN_STEPS,
     MAX_INPUT_BYTES,
 };
 use std::fmt::Write;
@@ -42,6 +42,7 @@ pub const MAX_SCALAR_PLUGIN_SERIES_REQUEST_BYTES: usize =
 pub const MAX_MONTHLY_RETURNS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
 pub const MAX_MACRO_CALENDAR_REQUEST_BYTES: usize = MAX_MACRO_CSV_BYTES + 128;
 pub const MAX_NOTIONAL_BARS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 160;
+pub const MAX_TRADE_PRINTS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
 pub const MAX_LISTING_RISK_REQUEST_BYTES: usize = MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 256;
 pub const MAX_PORTFOLIO_ALLOCATION_REQUEST_BYTES: usize =
     MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 1024;
@@ -147,6 +148,64 @@ pub fn portfolio_fx_request(bytes: &[u8]) -> Result<String, String> {
     ))
 }
 
+fn canonical_recorded_instrument(instrument: &str) -> Result<Instrument, String> {
+    let (venue, symbol) = instrument
+        .split_once(':')
+        .ok_or("Use a canonical recorded instrument.")?;
+    let id = Instrument::new(venue, symbol)?;
+    if instrument != id.to_string() {
+        return Err("Use a canonical recorded instrument.".into());
+    }
+    Ok(id)
+}
+
+fn recorded_observation_cutoff(known: &str) -> Result<Option<i64>, String> {
+    if known.is_empty() {
+        Ok(None)
+    } else {
+        exact_utc(known)
+            .map(Some)
+            .ok_or_else(|| "Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.".into())
+    }
+}
+
+/// Read individual captured trades at an independent observation cutoff.
+pub fn recorded_trade_prints_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_TRADE_PRINTS_REQUEST_BYTES {
+        return Err("Trade prints request exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 trade prints request.")?;
+    let mut fields = request.splitn(4, '\n');
+    let [Some("marketweft-recorded-trade-prints\t1"), Some(instrument), Some(known), Some(csv)] =
+        std::array::from_fn(|_| fields.next())
+    else {
+        return Err("Invalid trade prints request or protocol version.".into());
+    };
+    let id = canonical_recorded_instrument(instrument)?;
+    let cutoff = recorded_observation_cutoff(known)?;
+    let tape = TradeTape::parse_execution(csv, &id)?;
+    let rows = tape.recorded_prints(cutoff)?;
+    let cutoff = cutoff.map_or_else(String::new, |value| value.to_string());
+    let mut result = format!(
+        "marketweft-recorded-trade-prints\t{PROTOCOL_VERSION}\t{}\nT\t{instrument}\t{cutoff}\n",
+        rows.len(),
+    );
+    for row in rows {
+        let side = match row.reported_side {
+            AggressorSide::Buy => "buy",
+            AggressorSide::Sell => "sell",
+            AggressorSide::Unknown => "unknown",
+        };
+        writeln!(
+            result,
+            "{}\t{}\t{}\t{}\t{}\t{side}",
+            row.executed_at, row.observed_at, row.sequence, row.price_ticks, row.size_ticks,
+        )
+        .unwrap();
+    }
+    Ok(result)
+}
+
 /// Aggregate recorded trades at an independent observation cutoff.
 pub fn notional_bars_request(bytes: &[u8]) -> Result<String, String> {
     if bytes.len() > MAX_NOTIONAL_BARS_REQUEST_BYTES {
@@ -159,21 +218,11 @@ pub fn notional_bars_request(bytes: &[u8]) -> Result<String, String> {
     else {
         return Err("Invalid notional bars request or protocol version.".into());
     };
-    let (venue, symbol) = instrument
-        .split_once(':')
-        .ok_or("Use a canonical recorded instrument.")?;
-    let id = Instrument::new(venue, symbol)?;
-    if instrument != id.to_string() {
-        return Err("Use a canonical recorded instrument.".into());
-    }
+    let id = canonical_recorded_instrument(instrument)?;
     let target = target
         .parse::<i64>()
         .map_err(|_| "Use a positive notional target in whole millionths.")?;
-    let cutoff = if known.is_empty() {
-        None
-    } else {
-        Some(exact_utc(known).ok_or("Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.")?)
-    };
+    let cutoff = recorded_observation_cutoff(known)?;
     let bars = TradeTape::parse_execution(csv, &id)?.notional_bars(target, cutoff)?;
     let cutoff = cutoff.map_or_else(String::new, |value| value.to_string());
     let mut report = format!(

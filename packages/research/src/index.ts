@@ -11,6 +11,7 @@ export type {
   OptionUnavailable, OptionUnderlying, PaperConfig, PaperDepthSnapshot, PaperSnapshot, QuarterlyValuation,
   ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
   ScalarPluginPoint, ScreenPrice, ScreenRow, TradeClassification, TradeClassificationQuery, TradeSideBasis, TrailingFourQuarters,
+  RecordedTradePrint,
 } from './core.js'
 
 export const RESEARCH_SDK_VERSION = 1
@@ -71,6 +72,7 @@ export interface MarketResearch {
     effectiveAt: string, knownAt: string): EquityTargetSnapshot
   recordedDepthSweep: MarketCore['recordedDepthSweep']
   recordedNotionalBars: MarketCore['recordedNotionalBars']
+  recordedTradePrints: MarketCore['recordedTradePrints']
   classifyRecordedTrades: MarketCore['classifyRecordedTrades']
   paperDepthIndex: MarketCore['paperDepthIndex']
   paperDepthReplay: MarketCore['paperDepthReplay']
@@ -126,6 +128,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     },
     recordedDepthSweep: core.recordedDepthSweep,
     recordedNotionalBars: core.recordedNotionalBars,
+    recordedTradePrints: core.recordedTradePrints,
     classifyRecordedTrades: core.classifyRecordedTrades,
     paperDepthIndex: core.paperDepthIndex,
     paperDepthReplay: core.paperDepthReplay,

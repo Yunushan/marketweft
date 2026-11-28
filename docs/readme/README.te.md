@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.290.0 · 0BSD**
+**0.291.0 · 0BSD**
 
 **పత్రాల భాషలు**
 
@@ -15,14 +15,14 @@
 
 MarketWeft విశ్లేషకులు, డెవలపర్లు, నిర్వాహకుల కోసం స్థానిక పరిశోధన టెర్మినల్. అనుమతి ఉన్న OHLCV ఫైళ్లను తెరుస్తుంది, క్యాండిళ్లు మరియు పరిమాణం చూపిస్తుంది, స్థిర దశాంశంతో SMA, EMA లెక్కిస్తుంది. గమనిక జాబితా, ఎంచుకున్న సాధనం, సూచికలు IndexedDBలో ఉంటాయి. వనరులు కాష్ అయిన తర్వాత ఆఫ్‌లైన్‌లో పనిచేస్తుంది. అందించిన ధరలు, పరిమాణం కృత్రిమమైనవి. ఖాతా అవసరం లేదు.
 
-MarketWeft 0.290.0 ఖచ్చితమైన ట్రేడ్ సమయాలు, క్యాప్చర్ క్రమసంఖ్యలు, ఎంచుకున్న కటాఫ్ వరకు రీప్లేతో నమోదైన ట్రేడ్‌ల వీక్షణను జోడిస్తుంది. MarketWeft 0.7.0లో ప్రశ్న సమయానికి తెలిసిన ధరల రాబడిని బట్టి సమూహ సభ్యులకు ర్యాంకు ఇవ్వవచ్చు. సెషన్ ఆధారిత రీప్లేలో షేరు విభజనలు, నగదు డివిడెండ్లు, సభ్యత్వం, డీలిస్టింగ్ ఉన్నాయి. వేరే trading-bot సేవ కోసం చదవడానికి మాత్రమే TypeScript అబ్జర్వర్, ప్రయోగాత్మక Tauri ర్యాపర్ కూడా ఉన్నాయి. డేటా ఫీడ్లు, ఆర్డర్లు, సంతకం చేసిన ఇన్‌స్టాలర్లు, బహుళ వినియోగదారుల హోస్టింగ్ రోడ్‌మ్యాప్‌లో ఉన్నాయి.
+MarketWeft 0.291.0 నేటివ్ కమాండ్, Python, TypeScript ద్వారా గమనించిన కటాఫ్ వరకు ఖచ్చితమైన నమోదైన ట్రేడ్‌లను అందిస్తుంది. MarketWeft 0.7.0లో ప్రశ్న సమయానికి తెలిసిన ధరల రాబడిని బట్టి సమూహ సభ్యులకు ర్యాంకు ఇవ్వవచ్చు. సెషన్ ఆధారిత రీప్లేలో షేరు విభజనలు, నగదు డివిడెండ్లు, సభ్యత్వం, డీలిస్టింగ్ ఉన్నాయి. వేరే trading-bot సేవ కోసం చదవడానికి మాత్రమే TypeScript అబ్జర్వర్, ప్రయోగాత్మక Tauri ర్యాపర్ కూడా ఉన్నాయి. డేటా ఫీడ్లు, ఆర్డర్లు, సంతకం చేసిన ఇన్‌స్టాలర్లు, బహుళ వినియోగదారుల హోస్టింగ్ రోడ్‌మ్యాప్‌లో ఉన్నాయి.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Recorded time and sales](../recorded-tick-bars.md#recorded-time-and-sales) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Recorded print SDKs](../recorded-tick-bars.md#recorded-print-sdks) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
 
 <!-- section:02 -->
 ## పోర్టబుల్ టెర్మినల్ ప్రారంభించండి
 
-విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.290.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
+విజయవంతమైన GitHub పరీక్ష నుంచి browser-terminal-attempt-N దిగుమతి చేసుకోండి. MarketWeft-browser-0.291.0.zip విడదీసి dist/ ను serve-terminal.mjs పక్కన ఉంచండి. అక్కడే ఆదేశాన్ని నడపండి. WebAssembly, Canvas, BigInt, IndexedDB ఉన్న బ్రౌజర్‌లో http://127.0.0.1:4173/ తెరవండి. Node.js 22.12 లేదా కొత్తది కావాలి. npm స్థాపన అక్కరలేదు. కనెక్షన్ ఆపేముందు Offline ready కోసం వేచి ఉండండి.
 
 ```sh
 node serve-terminal.mjs

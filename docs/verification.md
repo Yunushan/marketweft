@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.291.0 · Recorded print SDKs
+
+- The native command and installed SDKs verify exact cutoff counts, delayed executions in capture order, signed price millionths, reported side, a full unsigned 64-bit sequence and deterministic rewind.
+- Python checks echoed settings, cutoff bounds, increasing sequences, fixed-point ranges, and the allowed side values before returning the native response.
+
 ## 0.290.0 · Recorded time and sales
 
 - Rust and Wasm verify inclusive observation time, capture order for an earlier execution observed late, exact signed prices and the full unsigned 64-bit sequence range. Six-column reports keep unknown sides.
