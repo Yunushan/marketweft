@@ -400,6 +400,7 @@ export interface JointScenarioQuery {
   seed: bigint;
   paths: number;
   horizon: number;
+  blockSize?: number;
 }
 
 export interface JointScenarioPath {
@@ -411,6 +412,8 @@ export interface JointScenarioPath {
 export interface JointScenarioReport {
   expectedVectors: number;
   eligibleVectors: number;
+  blockSize: number;
+  eligibleBlocks: number;
   lossPaths: number;
   coverage: Array<ScenarioAllocation & { knownReturns: number }>;
   endingValue: [bigint, bigint, bigint];
@@ -3454,22 +3457,24 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return folds;
     },
     portfolioScenarios(membership, prices, allocations, query) {
-      const { from, through, known, intervalSeconds, startingValue, feeBasisPoints, seed, paths, horizon } = query;
+      const { from, through, known, intervalSeconds, startingValue, feeBasisPoints, seed, paths, horizon, blockSize = 1 } = query;
       if (allocations.some(entry => !validListingId(entry.listingId) || !Number.isInteger(entry.weightBasisPoints))) {
         throw new Error('Choose valid listing IDs and whole weights in basis points.');
       }
-      if ([intervalSeconds, feeBasisPoints, paths, horizon].some(value => !Number.isSafeInteger(value)) ||
+      if ([intervalSeconds, feeBasisPoints, paths, horizon, blockSize].some(value => !Number.isSafeInteger(value)) ||
           seed < 0n || seed > 0xffff_ffff_ffff_ffffn || /[\r\n]/.test(startingValue)) {
         throw new Error('Use valid scenario settings and an unsigned 64-bit seed.');
       }
       const weights = allocations.map(entry => entry.listingId + '=' + entry.weightBasisPoints).join('\t');
-      screenInput([from, through, known], [intervalSeconds, startingValue, feeBasisPoints, seed, paths, horizon, weights, ''].join('\n'),
+      const sampling = blockSize === 1 ? horizon : horizon + ':' + blockSize;
+      screenInput([from, through, known], [intervalSeconds, startingValue, feeBasisPoints, seed, paths, sampling, weights, ''].join('\n'),
         membership, prices);
       const text = decoder.decode(output(api.mw_portfolio_scenarios(encoder.encode(membership).length)));
       const [header, ...lines] = text.trimEnd().split('\n');
-      const [tag, expected, eligible, losses] = header.split('\t');
+      const [tag, expected, eligible, losses, block = '1', blocks = eligible] = header.split('\t');
       if (tag !== 'H') throw new Error('Invalid portfolio scenario summary from the calculation engine.');
       const report: JointScenarioReport = { expectedVectors: Number(expected), eligibleVectors: Number(eligible),
+        blockSize: Number(block), eligibleBlocks: Number(blocks),
         lossPaths: Number(losses), coverage: [], endingValue: [0n, 0n, 0n], drawdownMillionths: [0n, 0n, 0n],
         fees: [0n, 0n, 0n], paths: [] };
       for (const line of lines) {

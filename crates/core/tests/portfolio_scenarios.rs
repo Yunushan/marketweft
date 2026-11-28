@@ -1,5 +1,6 @@
 use marketweft_core::{
-    parse_universe, PortfolioScenarioConfig, PriceBook, ScenarioAllocation, ScenarioConfig, SCALE,
+    parse_universe, PortfolioScenarioConfig, PortfolioScenarioPath, PriceBook, ScenarioAllocation,
+    ScenarioConfig, SCALE,
 };
 
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-listing-risk-membership.csv");
@@ -147,4 +148,63 @@ fn a_third_listing_joins_only_when_its_own_adjacent_closes_are_known() {
         .paths
         .iter()
         .all(|path| path.ending_value == 100_000_000));
+}
+
+#[test]
+fn moving_blocks_do_not_bridge_missing_closes_or_known_removals() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let book = PriceBook::parse(&universe, PRICES).unwrap();
+    let start = universe.checkpoints()[0];
+    let run = |known, size| {
+        book.portfolio_scenarios_with_block_size(&ALLOCATIONS, config(start, known), size)
+    };
+    assert_eq!(
+        run(6, 1).unwrap(),
+        book.portfolio_scenarios(&ALLOCATIONS, config(start, 6))
+            .unwrap()
+    );
+    let early = run(6, 2).unwrap();
+    assert_eq!(
+        (
+            early.eligible_vectors,
+            early.block_size,
+            early.eligible_blocks
+        ),
+        (4, 2, 2)
+    );
+    assert_eq!(run(7, 2).unwrap().eligible_blocks, 5);
+    assert_eq!(run(8, 2).unwrap().eligible_blocks, 3);
+    assert_eq!(run(6, 2).unwrap(), early);
+    assert!(run(6, 4).unwrap_err().contains("No complete return block"));
+    assert_eq!(run(7, 4).unwrap().eligible_blocks, 3);
+    assert!(run(6, 0).is_err());
+    assert!(run(6, 13).is_err());
+}
+
+#[test]
+fn a_single_available_block_replays_in_order_and_truncates_at_the_horizon() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let revised = PRICES
+        .replace(
+            "14:04:00Z,2025-06-02T14:04:00Z,121",
+            "14:04:00Z,2025-06-02T14:04:00Z,242",
+        )
+        .replace(
+            "14:04:00Z,2025-06-02T14:04:00Z,81",
+            "14:04:00Z,2025-06-02T14:04:00Z,162",
+        );
+    let book = PriceBook::parse(&universe, &revised).unwrap();
+    let mut query = config(universe.checkpoints()[0], 6);
+    query.fee_basis_points = 100;
+    query.scenario.horizon = 4;
+    let report = book
+        .portfolio_scenarios_with_block_size(&ALLOCATIONS, query, 3)
+        .unwrap();
+    assert_eq!(report.eligible_blocks, 1);
+    assert!(report.paths.iter().all(|path| *path
+        == PortfolioScenarioPath {
+            ending_value: 199_900_000,
+            drawdown_millionths: 500_250,
+            fees: 50_000,
+        }));
 }

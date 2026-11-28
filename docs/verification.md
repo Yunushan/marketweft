@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.243.0 · Portfolio scenario return blocks
+
+- Rust and Wasm verify that a late close changes the count of eligible two-move blocks from two to five and a known membership removal brings it down to three. A single eligible three-move block preserves the drawdown and fees of its ordered moves and truncates the repeated block at a four-move horizon.
+- Offline Chromium tests cutoff changes and rewind, reports unavailable longer blocks, and reproduces the original independent sampling CSV when the block size returns to one.
+
+[Portfolio scenario return blocks](portfolio-scenarios.md#what-each-path-samples)
+
 ## 0.242.0 · Anchored TWAP
 
 - Rust and Wasm check an anchor at an exact source observation, irregular intervals, signed half-tick rounding, absence before elapsed time and the full supported price and time ranges. Each observed prefix matches the corresponding portion of the full calculation.

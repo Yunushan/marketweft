@@ -11,7 +11,12 @@ type Accepted = { allocations: ScenarioAllocation[]; settings: Parameters }
 function simulationsCsv(
   report: JointScenarioReport, query: JointScenarioQuery, membershipSource: string, priceSource: string,
 ) {
-  const header = 'source_membership,source_prices,execution_from_utc,execution_through_utc,known_utc,interval_seconds,starting_value,fee_basis_points,seed,horizon,listing_weights_basis_points,expected_vectors,eligible_vectors,path,ending_value,drawdown_percent,turnover_fees'
+  const blockColumns = report.blockSize > 1 ? ['moves_per_block', 'eligible_blocks'] : []
+  const blockValues = report.blockSize > 1 ? [report.blockSize, report.eligibleBlocks] : []
+  const header = [
+    'source_membership,source_prices,execution_from_utc,execution_through_utc,known_utc,interval_seconds,starting_value,fee_basis_points,seed,horizon,listing_weights_basis_points,expected_vectors,eligible_vectors,path,ending_value,drawdown_percent,turnover_fees',
+    ...blockColumns,
+  ].join(',')
   const weights = report.coverage.map(row => row.listingId + '=' + row.weightBasisPoints).join('|')
   const prefix = [
     ...[membershipSource, priceSource, query.from, query.through, query.known].map(quoteText), query.intervalSeconds,
@@ -19,7 +24,7 @@ function simulationsCsv(
     report.expectedVectors, report.eligibleVectors,
   ]
   const rows = report.paths.map((path, index) => [
-    ...prefix, index + 1, fixed(path.endingValue, 6), fixed(path.drawdownMillionths, 4), fixed(path.fees, 6),
+    ...prefix, index + 1, fixed(path.endingValue, 6), fixed(path.drawdownMillionths, 4), fixed(path.fees, 6), ...blockValues,
   ].join(','))
   return [header, ...rows].join('\r\n') + '\r\n'
 }
@@ -43,7 +48,7 @@ export function JointScenarios({
   const [nextRow, setNextRow] = useState(2)
   const [form, setForm] = useState({
     from: firstCutoff, intervalSeconds: '60', startingValue: '100', feeBasisPoints: '0',
-    seed: '9007199254740993', paths: '10', horizon: '12',
+    seed: '9007199254740993', paths: '10', horizon: '12', blockSize: '1',
   })
   const [accepted, setAccepted] = useState<Accepted | null>(null)
   const [error, setError] = useState('')
@@ -64,7 +69,7 @@ export function JointScenarios({
 
   function apply(event: FormEvent) {
     event.preventDefault()
-    const values = [form.intervalSeconds, form.feeBasisPoints, form.seed, form.paths, form.horizon,
+    const values = [form.intervalSeconds, form.feeBasisPoints, form.seed, form.paths, form.horizon, form.blockSize,
       ...weights.map(entry => entry.weight)]
     if (values.some(value => !/^\d+$/.test(value.trim()))) {
       setError('Use whole nonnegative scenario settings and weights.')
@@ -73,7 +78,7 @@ export function JointScenarios({
     const settings = {
       from: form.from.trim(), intervalSeconds: Number(form.intervalSeconds), startingValue: form.startingValue.trim(),
       feeBasisPoints: Number(form.feeBasisPoints), seed: BigInt(form.seed.trim()), paths: Number(form.paths),
-      horizon: Number(form.horizon),
+      horizon: Number(form.horizon), blockSize: Number(form.blockSize),
     }
     const allocations = weights.map(entry => ({ listingId: entry.id, weightBasisPoints: Number(entry.weight) }))
     try {
@@ -126,6 +131,7 @@ export function JointScenarios({
               ['startingValue', 'Starting portfolio value', 'decimal'], ['feeBasisPoints', 'Rebalance fee (basis points)', 'numeric'],
               ['seed', 'Portfolio scenario seed', 'numeric'], ['paths', 'Portfolio scenario paths', 'numeric'],
               ['horizon', 'Moves per portfolio path', 'numeric'],
+              ['blockSize', 'Moves per sampled block', 'numeric'],
             ] as const).map(([key, label, inputMode]) => (
               <label key={key}>{label}
                 <input required inputMode={inputMode} value={form[key]} maxLength={key === 'seed' ? 20 : undefined}
@@ -139,6 +145,7 @@ export function JointScenarios({
         {report && query && (
           <>
             <p role="status">{report.eligibleVectors} / {report.expectedVectors} complete return vectors · {report.lossPaths} / {report.paths.length} paths ended below starting value</p>
+            {report.blockSize > 1 && <p>Eligible historical blocks of {report.blockSize} moves · {report.eligibleBlocks}</p>}
             <p>Effective through {query.through} · Known through {query.known} · Seed {query.seed.toString()}</p>
             <div className="replay-table-scroll" tabIndex={0} role="region" aria-label="Scrollable scenario listing coverage">
               <table className="universe-table" aria-label="Portfolio scenario coverage">

@@ -1446,6 +1446,10 @@ pub extern "C" fn mw_portfolio_scenarios(membership_bytes: usize) -> u32 {
         let fee_basis_points = fee
             .parse::<u16>()
             .map_err(|_| "Use a whole fee in basis points.")?;
+        let (horizon, block_size) = horizon.split_once(':').unwrap_or((horizon, "1"));
+        let block_size = block_size
+            .parse()
+            .map_err(|_| "Use a whole number of moves per block.")?;
         let scenario = crate::ScenarioConfig {
             seed: seed.parse().map_err(|_| "Use an unsigned 64-bit seed.")?,
             paths: paths
@@ -1476,7 +1480,7 @@ pub extern "C" fn mw_portfolio_scenarios(membership_bytes: usize) -> u32 {
             .ok_or("Supply both membership and price reports.")?;
         let universe = parse_universe(membership)?;
         let prices = PriceBook::parse(&universe, closes)?;
-        let result = prices.portfolio_scenarios(
+        let result = prices.portfolio_scenarios_with_block_size(
             &allocations,
             crate::PortfolioScenarioConfig {
                 from_at,
@@ -1487,14 +1491,24 @@ pub extern "C" fn mw_portfolio_scenarios(membership_bytes: usize) -> u32 {
                 fee_basis_points,
                 scenario,
             },
+            block_size,
         )?;
         let mut text = String::new();
-        writeln!(
+        write!(
             &mut text,
             "H\t{}\t{}\t{}",
             result.expected_vectors, result.eligible_vectors, result.loss_paths
         )
         .unwrap();
+        if result.block_size > 1 {
+            write!(
+                &mut text,
+                "\t{}\t{}",
+                result.block_size, result.eligible_blocks
+            )
+            .unwrap();
+        }
+        text.push('\n');
         for listing in result.listings {
             writeln!(
                 &mut text,

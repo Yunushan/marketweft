@@ -47,6 +47,8 @@ pub struct PortfolioScenarioReport {
     pub config: PortfolioScenarioConfig,
     pub expected_vectors: usize,
     pub eligible_vectors: usize,
+    pub block_size: usize,
+    pub eligible_blocks: usize,
     pub listings: Vec<ScenarioCoverage>,
     pub ending_value: ThreeQuantiles,
     pub drawdown_millionths: ThreeQuantiles,
@@ -57,12 +59,28 @@ pub struct PortfolioScenarioReport {
 
 type PriceMove = (i64, i64);
 
+struct ReturnVector {
+    step: usize,
+    moves: Vec<PriceMove>,
+}
+
 impl PriceBook<'_> {
     /// Resample whole historical return vectors and rebalance to fixed long-only weights.
     pub fn portfolio_scenarios(
         &self,
         allocations: &[ScenarioAllocation<'_>],
         config: PortfolioScenarioConfig,
+    ) -> Result<PortfolioScenarioReport, String> {
+        self.portfolio_scenarios_with_block_size(allocations, config, 1)
+    }
+
+    /// Resample overlapping blocks of consecutive, complete return vectors.
+    /// Draw blocks with replacement and truncate the final block to the path horizon.
+    pub fn portfolio_scenarios_with_block_size(
+        &self,
+        allocations: &[ScenarioAllocation<'_>],
+        config: PortfolioScenarioConfig,
+        block_size: usize,
     ) -> Result<PortfolioScenarioReport, String> {
         if !(2..=MAX_HOLDINGS).contains(&allocations.len())
             || allocations
@@ -122,12 +140,27 @@ impl PriceBook<'_> {
         {
             return Err("Supply 1 to 10,000 paths and 1 to 1,000 moves per path within two million position evaluations.".into());
         }
+        if !(1..=horizon).contains(&block_size) {
+            return Err("Choose a block size from one to the number of moves per path.".into());
+        }
 
         let expected_vectors = (span / interval) as usize;
         let (vectors, known) = self.historical_vectors(&allocations, config, expected_vectors);
         if vectors.is_empty() {
             return Err(
                 "No interval has observed adjacent closes for every selected listing.".into(),
+            );
+        }
+        let block_starts: Vec<_> = vectors
+            .windows(block_size)
+            .enumerate()
+            .filter_map(|(index, block)| {
+                (block[block_size - 1].step - block[0].step == block_size - 1).then_some(index)
+            })
+            .collect();
+        if block_starts.is_empty() {
+            return Err(
+                "No complete return block of this size is visible at the selected cutoffs.".into(),
             );
         }
         let weights: Vec<_> = allocations
@@ -146,9 +179,14 @@ impl PriceBook<'_> {
                 fees: 0,
             };
             let mut peak = start;
-            for _ in 0..horizon {
-                let sample = &vectors[random.uniform_index(vectors.len())];
-                for (value, &(before, after)) in positions.iter_mut().zip(sample) {
+            let samples = (0..horizon.div_ceil(block_size))
+                .flat_map(|_| {
+                    let start = block_starts[random.uniform_index(block_starts.len())];
+                    &vectors[start..start + block_size]
+                })
+                .take(horizon);
+            for sample in samples {
+                for (value, &(before, after)) in positions.iter_mut().zip(&sample.moves) {
                     *value = rounded_div(*value * i128::from(after), i128::from(before));
                 }
                 let marked: i128 = positions.iter().sum();
@@ -183,6 +221,8 @@ impl PriceBook<'_> {
             config,
             expected_vectors,
             eligible_vectors: vectors.len(),
+            block_size,
+            eligible_blocks: block_starts.len(),
             listings: allocations
                 .iter()
                 .zip(known)
@@ -208,7 +248,7 @@ impl PriceBook<'_> {
         allocations: &[ScenarioAllocation<'_>],
         config: PortfolioScenarioConfig,
         intervals: usize,
-    ) -> (Vec<Vec<PriceMove>>, Vec<usize>) {
+    ) -> (Vec<ReturnVector>, Vec<usize>) {
         let mut membership: Vec<_> = allocations
             .iter()
             .map(|_| MembershipCursor::new())
@@ -250,7 +290,10 @@ impl PriceBook<'_> {
                 *before = current;
             }
             if sample.len() == allocations.len() {
-                vectors.push(sample.clone());
+                vectors.push(ReturnVector {
+                    step,
+                    moves: sample.clone(),
+                });
             }
         }
         (vectors, counts)

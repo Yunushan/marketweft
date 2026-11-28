@@ -1195,6 +1195,8 @@ test('portfolio scenarios resample whole vectors and reconcile exact fee paths',
   const earlier = run({});
   assert.equal(earlier.expectedVectors, 6);
   assert.equal(earlier.eligibleVectors, 4);
+  assert.deepEqual([earlier.blockSize, earlier.eligibleBlocks], [1, 4]);
+  assert.deepEqual(run({ blockSize: 1 }), earlier);
   assert.deepEqual(earlier.coverage.map(row => row.knownReturns), [6, 4]);
   assert.ok(earlier.paths.every(path => path.endingValue === 100000000n && path.drawdownMillionths === 0n));
   assert.equal(run({ known: utc(7) }).eligibleVectors, 6);
@@ -1207,6 +1209,22 @@ test('portfolio scenarios resample whole vectors and reconcile exact fee paths',
   assert.equal(fee.lossPaths, 10);
   assert.throws(() => run({ seed: -1n }), /unsigned 64-bit seed/);
   assert.throws(() => run({ known: utc(0) }), /No interval has observed adjacent closes/);
+  const block = run({ blockSize: 2 });
+  assert.deepEqual([block.blockSize, block.eligibleBlocks], [2, 2]);
+  assert.equal(run({ blockSize: 2, known: utc(7) }).eligibleBlocks, 5);
+  assert.equal(run({ blockSize: 2, known: utc(8) }).eligibleBlocks, 3);
+  assert.deepEqual(run({ blockSize: 2 }), block);
+  assert.throws(() => run({ blockSize: 4 }), /No complete return block/);
+  assert.throws(() => run({ blockSize: 13 }), /block size from one/);
+  const revised = prices
+    .replace('14:04:00Z,2025-06-02T14:04:00Z,121', '14:04:00Z,2025-06-02T14:04:00Z,242')
+    .replace('14:04:00Z,2025-06-02T14:04:00Z,81', '14:04:00Z,2025-06-02T14:04:00Z,162');
+  const ordered = core.portfolioScenarios(membership, revised, allocations,
+    { ...defaults, horizon: 4, blockSize: 3, feeBasisPoints: 100 });
+  assert.equal(ordered.eligibleBlocks, 1);
+  assert.deepEqual(ordered.paths, Array(10).fill({
+    endingValue: 199900000n, drawdownMillionths: 500250n, fees: 50000n,
+  }));
 });
 
 test('listing risk pairs exact adjacent intervals and preserves missing and zero-variance values', async () => {
