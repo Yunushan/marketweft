@@ -4152,6 +4152,23 @@ pub extern "C" fn mw_close_changes(interval_seconds: u32) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_opening_gaps() -> u32 {
+    process(|input| {
+        let rows = crate::opening_gaps(&decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 24);
+        for row in rows {
+            let fields = row.map_or([i64::MIN, 0, 0], |gap| {
+                [gap.prior_at, gap.prior_close, gap.difference]
+            });
+            for value in fields {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_rate_of_change(period: usize) -> u32 {
     process(|input| {
         let values = crate::rate_of_change(period, &indicator_closes(input)?)?;

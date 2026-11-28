@@ -42,6 +42,14 @@ Set **Close-change interval (seconds)** separately in each pane. Built-in sample
 
 Version 40 backups preserve the chart selection and any explicitly saved interval. Choose **Bars, provenance and enabled indicators** in **Export CSV** for the interval, previous close time, previous close and signed change. The CSV leaves the three change fields empty for missing values. The OHLCV reimport CSV continues to contain observed bars.
 
+### Opening gaps
+
+Choose **Opening gaps** to connect each observed open with the preceding observed close. A green stem rises to an opening above that close. A red stem falls to an opening below it. A flat marker shows a genuine zero gap. The readout lists the exact open, preceding close, its UTC time, and the signed difference. A first observation without a prior close shows its open and an unavailable gap.
+
+Set **Known through (UTC)** to restrict the pane and its CSV to the evidence at that cutoff. Source observations use their recorded timestamps. A rolled bar qualifies for display when its bucket closes. Both adjacent buckets need complete source coverage to show a gap. Raw observations use the preceding recorded close across UTC timestamp gaps. In dense views the last observation in a display column supplies its marker.
+
+Research CSV includes `opening_gap_known_through`, `opening_gap_prior_time`, `opening_gap_prior_close` and `opening_gap`. The time fields use Unix seconds. Backup version 67 preserves each pane's chart type. A cutoff belongs to the open workspace session.
+
 ### Volume-weighted candles
 
 Choose **Volume-weighted candles** to make each body width proportional to the displayed bar's volume relative to the largest visible volume. Candle bodies stay centered on the original wick. The open and close still define the height. A bar with zero volume keeps its high-low wick.

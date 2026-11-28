@@ -8,12 +8,12 @@ import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, DE
 import type { SwingSettings } from './catalog-schema'
 import { fixed, parsePriceSize, tickPrice } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
-import type { AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import type { Bar, MarketCore } from './market-core'
 import { computeStudies, studyOverlays } from './studies'
 import type { StudySet } from './studies'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings' | 'closeDistributions' | 'anchoredVwaps' | 'sourceObservationTimes' | 'regressionDrawings'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'openingGaps' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings' | 'closeDistributions' | 'anchoredVwaps' | 'sourceObservationTimes' | 'regressionDrawings'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -168,9 +168,9 @@ function SwingWindow({ settings, defaultSeconds, targetSeconds, saving, apply }:
   </form>
 }
 
-function SwingCutoff({ cutoff, apply }: { cutoff?: number; apply: (cutoff?: number) => void }) {
+function ChartCutoff({ label, cutoff, apply }: { label: string; cutoff?: number; apply: (cutoff?: number) => void }) {
   const [error, setError] = useState('')
-  return <form aria-label="Swing history cutoff" className="chart-export price-size-control" onSubmit={event => {
+  return <form aria-label={label} className="chart-export price-size-control" onSubmit={event => {
     event.preventDefault()
     try {
       const value = String(new FormData(event.currentTarget).get('cutoff')).trim()
@@ -218,7 +218,8 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
   const revision = useRef(0)
   const type = chart.type
   const [swingCutoff, setSwingCutoff] = useState<number>()
-  const cutoff = type === 'confirmed-swings' ? swingCutoff : undefined
+  const [gapCutoff, setGapCutoff] = useState<number>()
+  const cutoff = type === 'confirmed-swings' ? swingCutoff : type === 'opening-gap' ? gapCutoff : undefined
   const timeframe = useMemo(() => {
     if (!rolled || rolled.sourceBars !== asset.bars) return undefined
     if (cutoff === undefined) return rolled
@@ -254,6 +255,19 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       return { error: cause instanceof Error ? cause.message : 'Could not calculate close changes.' }
     }
   }, [core, type, changeInterval, display.bars, timeframe])
+  const opening = useMemo<{ series?: OpeningGapSeries; error?: string }>(() => {
+    if (type !== 'opening-gap') return {}
+    try {
+      const values = core.openingGaps(display.bars)
+      const complete = timeframe?.buckets.map(bucket => bucket.observedBars === bucket.expectedBars)
+      complete?.forEach((bar, index) => {
+        if (!bar || !complete[index - 1]) values[index] = null
+      })
+      return { series: { cutoff, values } }
+    } catch (cause) {
+      return { error: cause instanceof Error ? cause.message : 'Could not calculate opening gaps.' }
+    }
+  }, [core, type, display.bars, timeframe, cutoff])
   const rebased = useMemo<{ series?: RebasedReturnSeries; status?: string; error?: string }>(() => {
     if (type !== 'rebased-percent') return {}
     const buckets = timeframe?.buckets
@@ -482,7 +496,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         {onSwingSettings && <SwingWindow key={JSON.stringify([swingSettings, defaultInterval, timeframe?.targetSeconds])}
           settings={swingSettings} defaultSeconds={defaultInterval} targetSeconds={timeframe?.targetSeconds}
           saving={priceSizeSaving} apply={onSwingSettings} />}
-        <SwingCutoff key={cutoff ?? 'latest'} cutoff={cutoff} apply={value => {
+        <ChartCutoff key={cutoff ?? 'latest'} label="Swing history cutoff" cutoff={cutoff} apply={value => {
           onTimestamp?.(null)
           setSwingCutoff(value)
         }} />
@@ -491,6 +505,14 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
             'Set an interval to confirm swings.' : swing.series?.values.some(point => point !== null) ?
               'Pivots appear on their confirming observations.' : 'No confirmed swings at this cutoff.'}
         </p>}
+      </>}
+      {type === 'opening-gap' && <>
+        <ChartCutoff key={'opening:' + (cutoff ?? 'latest')} label="Opening gap history cutoff" cutoff={cutoff} apply={value => {
+          onTimestamp?.(null)
+          setGapCutoff(value)
+        }} />
+        {opening.error ? <p role="alert">{opening.error}</p> : !display.bars.length &&
+          <p role="status">No observations are known at this cutoff.</p>}
       </>}
       {!display.bars.length ? null : transformed && !count ? <>
         {transformed.error ? <p role="alert">{transformed.error}</p> :
@@ -510,7 +532,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       </> : <Chart {...chart} key={`${timeframe?.revision ?? 'source'}:${priceChartKey}:${cutoff ?? 'latest'}`}
         asset={display} displayBars={displayBars} priceMovements={transformed?.priceMovements} kagiSegments={transformed?.kagiSegments}
         pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6} baselineTicks={baselineTicks}
-        closeChanges={changes.series} bandSeconds={type === 'high-low-band' ? changeInterval : undefined}
+        closeChanges={changes.series} openingGaps={opening.series} bandSeconds={type === 'high-low-band' ? changeInterval : undefined}
         rebasedReturns={rebased.series} drawdowns={drawdown.series} swings={swing.series}
         closeDistributions={closeDistributions.series}
         anchoredVwaps={anchoredVwaps} sourceObservationTimes={sourceObservationTimes}

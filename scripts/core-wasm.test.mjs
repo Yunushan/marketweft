@@ -83,6 +83,15 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('opening gaps preserve exact source timestamps, missing history, true zero and signed differences', async () => {
+  const input = await readFile(new URL('../crates/core/tests/fixtures/synthetic-opening-gaps.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(input);
+  const gaps = core.openingGaps(bars);
+  assert.deepEqual(gaps.map(row => row?.difference ?? null), [null, 3000000n, -3000000n, 0n, 4000000n, -9000000n, 2000000n]);
+  assert.deepEqual(gaps[3], { priorAt: bars[2].time, priorClose: -1000000n, difference: 0n });
+  for (let end = 0; end <= bars.length; end++) assert.deepEqual(core.openingGaps(bars.slice(0, end)), gaps.slice(0, end));
+});
+
 test('DeMarker and Relative Vigor preserve exact flat gaps, signed values and signal recovery in Wasm', async () => {
   const input = await readFile(new URL('../crates/core/tests/fixtures/synthetic-demarker-vigor.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(input);

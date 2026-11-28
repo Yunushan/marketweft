@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.234.0 · Point-in-time opening gaps
+
+- Rust and Wasm check exact signed price differences, UTC provenance, stable observed prefixes and a genuine zero across a missing interval. Changing a candle's own close keeps its opening gap and changes the next observation's basis.
+- Offline Chromium verifies rising and falling geometry, empty and zero cutoffs, incomplete rolled buckets, identical exports at the same cutoff and restoration with versions 66 and 67.
+
+[Opening gaps](chart-workspace.md#opening-gaps)
+
 ## 0.233.0 · DeMarker and Relative Vigor
 
 - Rust and Wasm check the exact signed series, observed-time gaps, zero denominators, genuine zeros and recovery of the four-value signal after flat bars. Rust also tests candles spanning the fixed-point price bounds.

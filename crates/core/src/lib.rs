@@ -95,7 +95,7 @@ pub use bollinger_measures::{bollinger_measures, BollingerMeasures};
 pub use candle_patterns::{replay_candle_patterns, CandlePattern, CandlePatternHit};
 pub use chaikin::{chaikin_money_flow, chaikin_oscillator};
 pub use chart_movement::PriceMovement;
-pub use close_change::close_changes;
+pub use close_change::{close_changes, opening_gaps, OpeningGap};
 pub use close_distribution::{observed_close_distributions, CloseDistribution};
 pub use close_swings::{confirmed_close_swings, ConfirmedSwing, SwingSide};
 pub use cross_section::{

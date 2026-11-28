@@ -1,12 +1,13 @@
 import type { SeriesMetadata } from './catalog-schema'
 import { sourcePermissionRestriction } from './catalog-schema'
 import { fixed } from './fixed-point'
-import type { AnchoredVwapPoint, CloseDistribution, ConfirmedSwing, DrawdownPoint, SessionTimeframeBar, TimeframeBar } from './market-core'
+import type { AnchoredVwapPoint, CloseDistribution, ConfirmedSwing, DrawdownPoint, OpeningGap, SessionTimeframeBar, TimeframeBar } from './market-core'
 import type { Asset } from './workspace'
 
 export type BarRange = { start: number; end: number }
 export type ExportOverlay = { name: string; series: readonly (number | bigint | null)[] }
 export type CloseChangeSeries = { intervalSeconds: number; values: readonly (bigint | null)[] }
+export type OpeningGapSeries = { cutoff?: number; values: readonly (OpeningGap | null)[] }
 export type RebasedReturnSeries = { anchorAt?: number; baseClose?: number; values: readonly (bigint | null)[] }
 export type DrawdownSeries = readonly (DrawdownPoint | null)[]
 export type CloseDistributionSeries = { size: number; values: readonly (CloseDistribution | null)[] }
@@ -31,7 +32,7 @@ export function chartCsv(
   asset: Asset,
   range: BarRange,
   metadata: SeriesMetadata | undefined,
-  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries; swings?: SwingSeries; closeDistributions?: CloseDistributionSeries; anchoredVwaps?: readonly AnchoredVwapSeries[] } | undefined,
+  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; openingGaps?: OpeningGapSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries; swings?: SwingSeries; closeDistributions?: CloseDistributionSeries; anchoredVwaps?: readonly AnchoredVwapSeries[] } | undefined,
 ) {
   const restriction = sourcePermissionRestriction(metadata?.sourceRights, 'redistribution')
   if (restriction === 'permission')
@@ -50,6 +51,8 @@ export function chartCsv(
     }
     if (analysis.closeChanges)
       fields.push('close_change_interval_seconds', 'previous_close_time', 'previous_close', 'close_change')
+    if (analysis.openingGaps)
+      fields.push('opening_gap_known_through', 'opening_gap_prior_time', 'opening_gap_prior_close', 'opening_gap')
     if (analysis.rebasedReturns)
       fields.push('rebased_base_time', 'rebased_base_close', 'rebased_return_pct')
     if (analysis.drawdowns)
@@ -100,6 +103,11 @@ export function chartCsv(
           const prior = asset.bars[index - 1]
           row += [prior.time, decimal(prior.close), fixed(value, 6)].join(',')
         }
+      }
+      if (analysis.openingGaps) {
+        const gap = analysis.openingGaps.values[index]
+        row += ',' + (analysis.openingGaps.cutoff ?? '') + ',' +
+          (gap ? [gap.priorAt, fixed(gap.priorClose, 6), fixed(gap.difference, 6)].join(',') : ',,')
       }
       if (analysis.rebasedReturns) {
         const { anchorAt, baseClose, values } = analysis.rebasedReturns

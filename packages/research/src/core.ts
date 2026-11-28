@@ -1195,6 +1195,7 @@ export type FibonacciChannelLevel = { ratioThousandths: number; offsetTicks: big
 export type VortexValue = { positive: bigint; negative: bigint };
 export type ElderRayValue = { bull: bigint; bear: bigint };
 export type RelativeVigorValue = { vigor: bigint | null; signal: bigint | null };
+export type OpeningGap = { priorAt: number; priorClose: bigint; difference: bigint };
 export type FloorPivotLevels = { priorCloseAt: number; pivot: bigint; supportOne: bigint; supportTwo: bigint;
   resistanceOne: bigint; resistanceTwo: bigint };
 export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; rewardPerRiskMicros: bigint };
@@ -1240,6 +1241,7 @@ export interface MarketCore {
   aroon(period: number, bars: readonly Bar[]): (AroonValue | null)[];
   commodityChannelIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   closeChanges(intervalSeconds: number, bars: readonly Bar[]): (bigint | null)[];
+  openingGaps(bars: readonly Bar[]): (OpeningGap | null)[];
   rebasedPercentChanges(anchorAt: number, bars: readonly Bar[]): (bigint | null)[];
   anchoredVwap(anchorAt: number, bars: readonly Bar[]): (AnchoredVwapPoint | null)[];
   regressionChannel(startAt: number, endAt: number, bars: readonly Bar[]): RegressionChannel | null;
@@ -1409,6 +1411,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_aroon(period: number): number;
   mw_commodity_channel_index(period: number): number;
   mw_close_changes(intervalSeconds: number): number;
+  mw_opening_gaps(): number;
   mw_rebased_percent_changes(anchorAt: bigint): number;
   mw_observed_drawdown(): number;
   mw_monthly_returns(firstYear: number, lastYear: number, knownThrough: bigint): number;
@@ -2626,6 +2629,19 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           median: outputBytes.getBigInt64(start + 32, true), upperQuartile: outputBytes.getBigInt64(start + 40, true),
           maximum: outputBytes.getBigInt64(start + 48, true),
         };
+      });
+    },
+    openingGaps(bars) {
+      validateIndicatorHistory(1, bars.length);
+      putIndicatorBars(bars, 'Opening gaps');
+      const data = output(api.mw_opening_gaps());
+      if (data.byteLength !== bars.length * 24) throw new Error('Invalid opening gaps response size.');
+      return Array.from({ length: bars.length }, (_, index) => {
+        const offset = index * 24;
+        const priorAt = data.getBigInt64(offset, true);
+        if (priorAt === MISSING) return null;
+        return { priorAt: Number(priorAt), priorClose: data.getBigInt64(offset + 8, true),
+          difference: data.getBigInt64(offset + 16, true) };
       });
     },
     rebasedPercentChanges(anchorAt, bars) {

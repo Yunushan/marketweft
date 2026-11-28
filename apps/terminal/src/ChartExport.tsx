@@ -1,17 +1,18 @@
 import { useState } from 'react'
 import type { SeriesMetadata } from './catalog-schema'
 import { chartCsv } from './chart-export'
-import type { AnchoredVwapSeries, BarRange, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, ExportOverlay, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { AnchoredVwapSeries, BarRange, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, ExportOverlay, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { downloadFile } from './download'
 import type { Asset } from './workspace'
 
-export function ChartExport({ asset, visible, metadata, overlays, timeframe, closeChanges, rebasedReturns, drawdowns, swings, closeDistributions, anchoredVwaps }: {
+export function ChartExport({ asset, visible, metadata, overlays, timeframe, closeChanges, openingGaps, rebasedReturns, drawdowns, swings, closeDistributions, anchoredVwaps }: {
   asset: Asset
   visible: BarRange
   metadata?: SeriesMetadata
   overlays: ExportOverlay[]
   timeframe?: TimeframeView
   closeChanges?: CloseChangeSeries
+  openingGaps?: OpeningGapSeries
   rebasedReturns?: RebasedReturnSeries
   drawdowns?: DrawdownSeries
   swings?: SwingSeries
@@ -23,7 +24,7 @@ export function ChartExport({ asset, visible, metadata, overlays, timeframe, clo
   const [error, setError] = useState('')
   function download() {
     const interval = range === 'visible' ? visible : { start: 0, end: asset.bars.length }
-    const analysis = format === 'analysis' ? { overlays, timeframe, closeChanges, rebasedReturns, drawdowns, swings, closeDistributions, anchoredVwaps } : undefined
+    const analysis = format === 'analysis' ? { overlays, timeframe, closeChanges, openingGaps, rebasedReturns, drawdowns, swings, closeDistributions, anchoredVwaps } : undefined
     const identity = (asset.venue + '-' + asset.symbol).replace(/[^A-Za-z0-9_.-]/g, '_')
     const intervalName = timeframe ? '-' + timeframe.targetSeconds + 's' : ''
     setError('')

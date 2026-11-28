@@ -15,7 +15,7 @@ import type { PointFigureLayout } from './point-figure-chart'
 import { fanRays, fibonacciChannelRays, pitchforkRays } from './annotation-rays'
 import { equivolumeLayout, volumeOffsets } from './equivolume'
 import { ChartExport } from './ChartExport'
-import type { AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, utc, volume } from './workspace'
@@ -82,6 +82,7 @@ const chartNames: Record<ChartType, string> = {
   'step-line': 'step line',
   baseline: 'baseline',
   'close-change': 'close-change histogram',
+  'opening-gap': 'Opening gaps',
   'high-low-band': 'high-low band',
   'rebased-percent': 'rebased percent change',
   drawdown: 'peak-to-trough drawdown',
@@ -97,6 +98,10 @@ const chartNames: Record<ChartType, string> = {
 function hollowCandleColor(close: number, previousClose: number | undefined) {
   if (previousClose === undefined || close === previousClose) return UNCHANGED
   return close > previousClose ? UP : DOWN
+}
+function openingGapColor(difference?: bigint) {
+  if (difference === undefined || difference === 0n) return UNCHANGED
+  return difference > 0n ? UP : DOWN
 }
 const defaultView = (n: number) => ({ end: n, count: Math.min(n, 60) })
 const clamp = (x: number, min: number, max: number) =>
@@ -190,6 +195,7 @@ function draw(
   equivolumeOffsets: readonly bigint[] | undefined,
   baselineTicks: number,
   closeChanges: CloseChangeSeries | undefined,
+  openingGaps: OpeningGapSeries | undefined,
   percentPlot: Series | undefined,
   swings: SwingSeries | undefined,
   closeDistributions: CloseDistributionSeries | undefined,
@@ -210,6 +216,7 @@ function draw(
   ctx.scale(dpr, dpr)
   const baseline = type === 'baseline' ? baselineTicks / 1e6 : undefined
   const histogram = type === 'close-change'
+  const openingGapChart = type === 'opening-gap'
   const percentAxis = type === 'rebased-percent' || type === 'drawdown'
   const derivedAxis = histogram || percentAxis
   const derivedValue = (index: number) => histogram ? plotValue(closeChanges?.values[index] ?? null) :
@@ -249,6 +256,11 @@ function draw(
       continue
     }
     const b = bars[i]
+    const prior = openingGaps?.values[i]?.priorClose
+    if (prior !== undefined) {
+      low = Math.min(low, tickPrice(prior))
+      high = Math.max(high, tickPrice(prior))
+    }
     const pivot = swings?.values[i]
     if (pivot) {
       low = Math.min(low, tickPrice(pivot.close))
@@ -260,8 +272,8 @@ function draw(
       high = Math.max(high, tickPrice(distribution.maximum))
     }
     const closeBounds = closeTrace || distributionChart
-    low = Math.min(low, closeBounds ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
-    high = Math.max(high, closeBounds ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
+    low = Math.min(low, openingGapChart ? b.open : closeBounds ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
+    high = Math.max(high, openingGapChart ? b.open : closeBounds ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
     for (const { series } of priceLines) {
       const value = series[i]
       if (value != null) {
@@ -312,7 +324,8 @@ function draw(
     return { ...study, low, high, ticks: [...new Set(ticks)].sort((a, b) => a - b), format, guides }
   })
   const studyLabels = studyPanels.flatMap(panel => panel.ticks.map(panel.format))
-  const closeLabel = percentAxis ? '0%' : histogram ? '0' : price(bars[view.end - 1].close)
+  const closeLabel = percentAxis ? '0%' : histogram ? '0' :
+    price(openingGapChart ? bars[view.end - 1].open : bars[view.end - 1].close)
   const axisWidth = Math.max(
     64,
     ...[closeLabel, ...ticksY, ...studyLabels].map(
@@ -517,7 +530,7 @@ function draw(
       } else {
         line(bodyLeft, bodyTop, axis + w / 2, bodyTop, col)
       }
-    } else if (!closeTrace && !derivedAxis && !rangeBand && !swingChart && !distributionChart) {
+    } else if (!closeTrace && !derivedAxis && !rangeBand && !swingChart && !distributionChart && !openingGapChart) {
       line(axis, y(b.high), axis, y(b.low), col)
       const open = y(b.open), close = y(b.close)
       if (type === 'ohlc') {
@@ -533,6 +546,30 @@ function draw(
     ctx.globalAlpha = 0.46
     ctx.fillRect(axis - w / 2, bottom - h, w, h)
     ctx.globalAlpha = 1
+  }
+  if (openingGapChart) {
+    const cap = Math.max(2, Math.min(8, dx * 0.35))
+    ctx.lineWidth = 1.5
+    for (let first = start; first < view.end; first += stride) {
+      const index = Math.min(first + stride, view.end) - 1
+      const axis = x(index)
+      const open = y(bars[index].open)
+      const gap = openingGaps?.values[index]
+      const color = openingGapColor(gap?.difference)
+      if (!gap) {
+        ctx.fillStyle = color
+        ctx.beginPath()
+        ctx.arc(axis, open, 2, 0, Math.PI * 2)
+        ctx.fill()
+        continue
+      }
+      if (gap.difference !== 0n) {
+        const prior = y(tickPrice(gap.priorClose))
+        line(Math.max(left, axis - cap), prior, axis, prior, color)
+        line(axis, prior, axis, open, color)
+      }
+      line(axis, open, Math.min(right, axis + cap), open, color)
+    }
   }
   if (closeDistributions) {
     const width = Math.max(2, Math.min(14, dx * 0.7))
@@ -754,11 +791,12 @@ function draw(
   }
   if (!derivedAxis) {
     const last = bars[view.end - 1]
-    const at = y(last.close)
+    const at = y(openingGapChart ? last.open : last.close)
     let tag = last.close >= last.open ? UP : DOWN
     const lastGroup = groups.at(-1)
     if (hollowCandles && lastGroup) tag = hollowCandleColor(last.close, bars[lastGroup.first - 1]?.close)
     if (equi) tag = hollowCandleColor(last.close, bars[view.end - 2]?.close)
+    if (openingGapChart) tag = openingGapColor(openingGaps?.values[view.end - 1]?.difference)
     ctx.setLineDash([3, 4])
     ctx.lineWidth = 0.8
     line(left, at, right, at, tag)
@@ -1033,7 +1071,7 @@ function draw(
     const axis = x(active)
     const pivot = swings?.values[active]
     const value = derivedAxis ? derivedValue(active) :
-      pivot ? tickPrice(pivot.close) : activePrice ?? bars[active].close
+      pivot ? tickPrice(pivot.close) : openingGapChart ? bars[active].open : activePrice ?? bars[active].close
     ctx.setLineDash([3, 4])
     line(axis, top, axis, bottom, '#bdc9c7')
     if (value !== null) line(left, y(value), right, y(value), '#a2b4af')
@@ -1136,6 +1174,7 @@ export function Chart({
   type = 'candles',
   baselineTicks = 0,
   closeChanges,
+  openingGaps,
   rebasedReturns,
   drawdowns,
   swings,
@@ -1167,6 +1206,7 @@ export function Chart({
   type?: ChartType
   baselineTicks?: number
   closeChanges?: CloseChangeSeries
+  openingGaps?: OpeningGapSeries
   rebasedReturns?: RebasedReturnSeries
   drawdowns?: DrawdownSeries
   swings?: SwingSeries
@@ -1324,6 +1364,8 @@ export function Chart({
   }
   const change = closeChanges?.values[sourceIndex]
   const histogram = type === 'close-change'
+  const openingGapChart = type === 'opening-gap'
+  const openingGap = openingGaps?.values[sourceIndex]
   const indicatorValues = sma.length > 0 || ema.length > 0
   function stopEditing() {
     setDrawingFields(null)
@@ -1395,6 +1437,7 @@ export function Chart({
           equivolumeOffsets,
           baselineTicks,
           closeChanges,
+          openingGaps,
           percentPlot,
           swings,
           closeDistributions,
@@ -1407,7 +1450,7 @@ export function Chart({
           plottedPriceLines,
           activeStudyPlotValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, drawingLevels, type, equivolumeOffsets, baselineTicks, closeChanges, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, drawingLevels, type, equivolumeOffsets, baselineTicks, closeChanges, openingGaps, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -1487,14 +1530,14 @@ export function Chart({
     picker.accept({ ticks, time: original ?? observed?.sourceTime ?? bars[index].time })
     setAnnotationPicker(null)
   }
-  const priceReadout = !swingChart && !distributionChart && !percentAxis && !histogram && !box && !segment && !movement && !displayBars
+  const priceReadout = !swingChart && !distributionChart && !percentAxis && !histogram && !openingGapChart && !box && !segment && !movement && !displayBars
     ? `${asset.symbol} OHLCV. Open ${price(b.open)}, high ${price(b.high)}, low ${price(b.low)}, close ${price(b.close)}, volume ${volume(b.volume)}`
     : undefined
   return (
-    <section className="plot" aria-label={closeBased || histogram || percentAxis || swingChart || distributionChart || type === 'equivolume' ? chartNames[type] + ' chart' : 'Price and volume chart'}
+    <section className="plot" aria-label={closeBased || histogram || percentAxis || swingChart || distributionChart || openingGapChart || type === 'equivolume' ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : time}>
-      <div className="ohlc" role={displayBars || movement || selectedObservation || priceReadout || distributionChart ? 'group' : undefined}
-        aria-label={distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
+      <div className="ohlc" role={displayBars || movement || selectedObservation || priceReadout || distributionChart || openingGapChart ? 'group' : undefined}
+        aria-label={openingGapChart ? 'Opening gap prices' : distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
           displayBars ? 'Heikin-Ashi prices' : priceReadout}>
         <time>{timeLabel(time)} UTC</time>
         {distributionChart ? <>
@@ -1507,6 +1550,14 @@ export function Chart({
             <span><small>Q3</small> {fixed(distribution.upperQuartile, 6)}</span>
             <span><small>Maximum</small> {fixed(distribution.maximum, 6)}</span>
           </> : <span>No completed box at this bar.</span>}
+          <span className="ohlc-vol"><small>Vol</small> {volume(b.volume)}</span>
+        </> : openingGapChart ? <>
+          <span><small>Open</small> {fixed(BigInt(Math.round(b.open * 1e6)), 6)}</span>
+          {openingGap ? <>
+            <span><small>Prior close</small> {fixed(openingGap.priorClose, 6)}</span>
+            <span><small>Prior UTC</small> {utc(openingGap.priorAt)}</span>
+            <span><small>Gap</small> {openingGap.difference > 0n ? '+' : ''}{fixed(openingGap.difference, 6)}</span>
+          </> : <span>No eligible prior close.</span>}
           <span className="ohlc-vol"><small>Vol</small> {volume(b.volume)}</span>
         </> : swingChart ? <>
           <span><small>Observed close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>
@@ -1790,7 +1841,7 @@ export function Chart({
       )}
       {exportOptions && (
         <ChartExport asset={asset} visible={{ start: sourceStart, end: sourceEnd }} metadata={exportOptions.metadata}
-          timeframe={timeframe} closeChanges={closeChanges} rebasedReturns={rebasedReturns} drawdowns={drawdowns} swings={swings}
+          timeframe={timeframe} closeChanges={closeChanges} openingGaps={openingGaps} rebasedReturns={rebasedReturns} drawdowns={drawdowns} swings={swings}
           closeDistributions={closeDistributions} anchoredVwaps={anchoredVwaps}
           overlays={[
             ...(periods ? [
