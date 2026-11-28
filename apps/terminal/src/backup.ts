@@ -76,9 +76,12 @@ const OPENING_GAP_BACKUP_VERSION = 67
 const STOCHASTIC_RSI_AND_ULTIMATE_BACKUP_VERSION = 68
 const NORMALIZED_PRICE_AND_RANGE_BACKUP_VERSION = 69
 const PRICE_VOLUME_SCATTER_BACKUP_VERSION = 70
+const ANCHORED_TWAP_BACKUP_VERSION = 71
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
+  if (Object.values(preferences.annotations ?? {}).some(entries => entries.some(entry => entry.kind === 'anchored-twap')))
+    return ANCHORED_TWAP_BACKUP_VERSION
   if (Object.values(preferences.chartTypes ?? {}).includes('volume-price-scatter')) return PRICE_VOLUME_SCATTER_BACKUP_VERSION
   const studies = Object.values(preferences.studies ?? {})
   if (studies.some(pane => pane?.ppo || pane?.natr)) return NORMALIZED_PRICE_AND_RANGE_BACKUP_VERSION
@@ -266,6 +269,7 @@ export async function verifyWorkspaceBackup(
   if (typeof file.version !== 'number' || ![
     CLOSE_DISTRIBUTION_BACKUP_VERSION,
     MOMENTUM_OSCILLATORS_BACKUP_VERSION,
+    ANCHORED_TWAP_BACKUP_VERSION,
     PRICE_VOLUME_SCATTER_BACKUP_VERSION,
     NORMALIZED_PRICE_AND_RANGE_BACKUP_VERSION,
     STOCHASTIC_RSI_AND_ULTIMATE_BACKUP_VERSION,

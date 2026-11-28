@@ -30,7 +30,7 @@ function pointValue(fields: PointFields): DrawingEndpoint {
 function draftAnnotation(draft: Draft, id: string, core: MarketCore): ChartAnnotation {
   const { kind, points } = draft
   if (kind === 'price') return { id, kind, ticks: parseAnnotationAnchor(kind, points[0].price) }
-  if (kind === 'time' || kind === 'anchored-vwap')
+  if (kind === 'time' || kind === 'anchored-vwap' || kind === 'anchored-twap')
     return { id, kind, time: parseAnnotationAnchor('time', points[0].time) }
   if (hasPointList(kind)) {
     const anchors = points.map(pointValue)
@@ -83,6 +83,7 @@ function describeAnnotation(entry: ChartAnnotation): string {
   switch (entry.kind) {
     case 'price': return name + formatAnnotationAnchor('price', entry.ticks)
     case 'time':
+    case 'anchored-twap':
     case 'anchored-vwap': return name + formatAnnotationAnchor('time', entry.time)
     case 'price-range':
     case 'time-range':
@@ -157,13 +158,15 @@ export function ChartAnnotations({
       points.push({ time: points[1].time, price: original?.kind === 'risk-reward' ?
         formatAnnotationAnchor('price', original.stopTicks) : '' })
     }
-    if (kind === 'anchored-vwap') points[0].time = formatAnnotationAnchor('time', sourceDefaults.end)
+    if (kind === 'anchored-vwap' || kind === 'anchored-twap')
+      points[0].time = formatAnnotationAnchor('time', kind === 'anchored-twap' ? sourceDefaults.start : sourceDefaults.end)
     if (kind === 'regression-channel' || kind === 'fibonacci-time-zones') {
       points[0].time = formatAnnotationAnchor('time', sourceDefaults.start)
       points[1].time = formatAnnotationAnchor('time', sourceDefaults.end)
     }
     if (original?.kind === 'price') points[0].price = formatAnnotationAnchor('price', original.ticks)
-    if (original?.kind === 'time' || original?.kind === 'anchored-vwap') points[0].time = formatAnnotationAnchor('time', original.time)
+    if (original?.kind === 'time' || original?.kind === 'anchored-vwap' || original?.kind === 'anchored-twap')
+      points[0].time = formatAnnotationAnchor('time', original.time)
     if (original && hasRange(original.kind) && 'lower' in original) {
       const coordinate = rangeCoordinate(original.kind)
       points[0][coordinate] = formatAnnotationAnchor(coordinate, original.lower)
@@ -196,7 +199,7 @@ export function ChartAnnotations({
 
   function pick(point: number) {
     if (!draft || picking === point) { setPicker(null); return }
-    setPicker({ point, sourceTime: draft.kind === 'anchored-vwap' || draft.kind === 'regression-channel' ||
+    setPicker({ point, sourceTime: draft.kind === 'anchored-vwap' || draft.kind === 'anchored-twap' || draft.kind === 'regression-channel' ||
       draft.kind === 'fibonacci-extension' || draft.kind === 'fibonacci-time-zones', accept(anchor) {
       setError('')
       setDraft(current => current && {
@@ -224,7 +227,8 @@ export function ChartAnnotations({
       vertex ? 'Point ' + (point + 1) :
       twoPoints ? point === 0 ? 'Start' : 'End' : ANNOTATION_NAMES[kind]
     const pickLabel = plan || vertex || twoPoints ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
-    const coordinates: readonly AnnotationCoordinate[] = plan && point === 2 ? ['price'] : kind === 'price' || kind === 'time' || kind === 'anchored-vwap' ?
+    const coordinates: readonly AnnotationCoordinate[] = plan && point === 2 ? ['price'] :
+      kind === 'price' || kind === 'time' || kind === 'anchored-vwap' || kind === 'anchored-twap' ?
       [kind === 'price' ? 'price' : 'time'] : range ? [rangeCoordinate(kind)] : ['time', 'price']
     return <fieldset key={point}>
       <legend>{label}</legend>

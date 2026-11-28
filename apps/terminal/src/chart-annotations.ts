@@ -7,6 +7,7 @@ export type AnnotationCoordinate = 'price' | 'time'
 export type ChartAnnotation = { id: string } & (
   { kind: 'price'; ticks: number } | { kind: 'time'; time: number } |
   { kind: 'anchored-vwap'; time: number } |
+  { kind: 'anchored-twap'; time: number } |
   { kind: 'ray'; start: DrawingEndpoint } |
   { kind: 'trend'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'rectangle'; start: DrawingEndpoint; end: DrawingEndpoint } |
@@ -40,6 +41,7 @@ export const ANNOTATION_NAMES = {
   price: 'Price line',
   time: 'Time marker',
   'anchored-vwap': 'Anchored VWAP',
+  'anchored-twap': 'Anchored TWAP',
   ray: 'Horizontal ray',
   trend: 'Trend line',
   rectangle: 'Rectangle',
@@ -72,6 +74,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'price': return second.kind === 'price' && first.ticks === second.ticks
     case 'time':
     case 'anchored-vwap':
+    case 'anchored-twap':
       return second.kind === first.kind && first.time === second.time
     case 'ray': return second.kind === 'ray' && sameEndpoint(first.start, second.start)
     case 'price-range':

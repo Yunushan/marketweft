@@ -1188,6 +1188,7 @@ export interface CloseDistribution {
 export type ConfirmedSwing = { pivotAt: number; confirmedAt: number; close: bigint; side: 'high' | 'low' };
 
 export type AnchoredVwapPoint = { price: bigint; cumulativeVolume: bigint };
+export type AnchoredTwapPoint = { price: bigint; elapsedSeconds: number };
 
 export type RiskRewardSide = 'long' | 'short';
 export type GannFanLevel = { priceUnits: number; timeUnits: number; ticks: bigint };
@@ -1244,6 +1245,7 @@ export interface MarketCore {
   openingGaps(bars: readonly Bar[]): (OpeningGap | null)[];
   rebasedPercentChanges(anchorAt: number, bars: readonly Bar[]): (bigint | null)[];
   anchoredVwap(anchorAt: number, bars: readonly Bar[]): (AnchoredVwapPoint | null)[];
+  anchoredTwap(anchorAt: number, bars: readonly Bar[]): (AnchoredTwapPoint | null)[];
   regressionChannel(startAt: number, endAt: number, bars: readonly Bar[]): RegressionChannel | null;
   observedDrawdown(bars: readonly Bar[]): (DrawdownPoint | null)[];
   observedCloseDistributions(bars: readonly Bar[], size: number): CloseDistribution[];
@@ -1422,6 +1424,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_observed_close_distributions(size: number): number;
   mw_regression_channel(startAt: bigint, endAt: bigint): number;
   mw_anchored_vwap(anchorAt: bigint): number;
+  mw_anchored_twap(anchorAt: bigint): number;
   mw_confirmed_close_swings(left: number, right: number, intervalSeconds: number): number;
   mw_rate_of_change(period: number): number;
   mw_coppock_curve(smoothing: number, first: number, second: number): number;
@@ -2581,6 +2584,17 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         const start = index * 24;
         const price = out.getBigInt64(start, true);
         return price === MISSING ? null : { price, cumulativeVolume: signed128(out, start + 8) };
+      });
+    },
+    anchoredTwap(anchorAt, bars) {
+      if (!Number.isSafeInteger(anchorAt) || bars.length > 100_000)
+        throw new Error('Anchored TWAP requires a whole UTC second and up to 100,000 bars.');
+      putIndicatorBars(bars, 'Anchored TWAP');
+      const out = output(api.mw_anchored_twap(BigInt(anchorAt)));
+      return Array.from({ length: bars.length }, (_, index) => {
+        const start = index * 16;
+        const price = out.getBigInt64(start, true);
+        return price === MISSING ? null : { price, elapsedSeconds: Number(out.getBigInt64(start + 8, true)) };
       });
     },
     regressionChannel(startAt, endAt, bars) {

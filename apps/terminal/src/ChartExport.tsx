@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import type { SeriesMetadata } from './catalog-schema'
 import { chartCsv } from './chart-export'
-import type { AnchoredVwapSeries, BarRange, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, ExportOverlay, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { AnchoredTwapSeries, AnchoredVwapSeries, BarRange, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, ExportOverlay, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { downloadFile } from './download'
 import type { Asset } from './workspace'
 
-export function ChartExport({ asset, visible, metadata, overlays, timeframe, closeChanges, openingGaps, rebasedReturns, drawdowns, swings, closeDistributions, anchoredVwaps }: {
+export function ChartExport({ asset, visible, metadata, overlays, timeframe, closeChanges, openingGaps, rebasedReturns, drawdowns, swings, closeDistributions, anchoredVwaps, anchoredTwaps }: {
   asset: Asset
   visible: BarRange
   metadata?: SeriesMetadata
@@ -18,13 +18,14 @@ export function ChartExport({ asset, visible, metadata, overlays, timeframe, clo
   swings?: SwingSeries
   closeDistributions?: CloseDistributionSeries
   anchoredVwaps?: readonly AnchoredVwapSeries[]
+  anchoredTwaps?: readonly AnchoredTwapSeries[]
 }) {
   const [range, setRange] = useState('visible')
   const [format, setFormat] = useState('bars')
   const [error, setError] = useState('')
   function download() {
     const interval = range === 'visible' ? visible : { start: 0, end: asset.bars.length }
-    const analysis = format === 'analysis' ? { overlays, timeframe, closeChanges, openingGaps, rebasedReturns, drawdowns, swings, closeDistributions, anchoredVwaps } : undefined
+    const analysis = format === 'analysis' ? { overlays, timeframe, closeChanges, openingGaps, rebasedReturns, drawdowns, swings, closeDistributions, anchoredVwaps, anchoredTwaps } : undefined
     const identity = (asset.venue + '-' + asset.symbol).replace(/[^A-Za-z0-9_.-]/g, '_')
     const intervalName = timeframe ? '-' + timeframe.targetSeconds + 's' : ''
     setError('')

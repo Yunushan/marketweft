@@ -4319,6 +4319,21 @@ pub extern "C" fn mw_confirmed_close_swings(
 }
 
 #[no_mangle]
+pub extern "C" fn mw_anchored_twap(anchor_at: i64) -> u32 {
+    process(|input| {
+        let results = crate::anchored_twap(anchor_at, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(results.len() * 16);
+        for row in results {
+            let (price, elapsed) =
+                row.map_or((i64::MIN, 0), |point| (point.price, point.elapsed_seconds));
+            bytes.extend_from_slice(&price.to_le_bytes());
+            bytes.extend_from_slice(&elapsed.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_anchored_vwap(anchor_at: i64) -> u32 {
     process(|input| {
         let results = crate::anchored_vwap(anchor_at, &decode_bars(input)?)?;

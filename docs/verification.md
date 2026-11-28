@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.242.0 · Anchored TWAP
+
+- Rust and Wasm check an anchor at an exact source observation, irregular intervals, signed half-tick rounding, absence before elapsed time and the full supported price and time ranges. Each observed prefix matches the corresponding portion of the full calculation.
+- Offline Chromium checks the signed value and elapsed seconds, rejects a missing source timestamp, compares recorded and rolled exports, and restores versions 70 and 71 with the scatter pane retained.
+
+[Anchored TWAP](chart-workspace.md#anchored-twap)
+
 ## 0.241.0 · Close and volume scatter
 
 - Offline Chromium measures the signed close and volume coordinates, checks selection among equal-volume points, and verifies linked UTC, keyboard traversal and a zero-volume axis.

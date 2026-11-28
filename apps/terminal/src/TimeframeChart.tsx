@@ -8,12 +8,12 @@ import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, DE
 import type { SwingSettings } from './catalog-schema'
 import { fixed, parsePriceSize, tickPrice } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
-import type { AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { AnchoredTwapSeries, AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import type { Bar, MarketCore } from './market-core'
 import { computeStudies, studyOverlays } from './studies'
 import type { StudySet } from './studies'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'openingGaps' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings' | 'closeDistributions' | 'anchoredVwaps' | 'sourceObservationTimes' | 'regressionDrawings'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'openingGaps' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings' | 'closeDistributions' | 'anchoredVwaps' | 'anchoredTwaps' | 'sourceObservationTimes' | 'regressionDrawings'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -34,6 +34,16 @@ type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'tim
   onRenkoTicks?: (ticks: number) => void
   onKagiTicks?: (ticks: number) => void
   onPointFigureTicks?: (ticks: number) => void
+}
+
+function projectAnchoredAverage<Point extends object>(
+  values: readonly (Point | null)[], source: readonly Bar[], windows: readonly { last: number }[] | undefined,
+) {
+  const pointAt = (index: number) => {
+    const value = values[index]
+    return value ? { ...value, observedAt: source[index].time } : null
+  }
+  return windows ? windows.map(({ last }) => pointAt(last)) : values.map((_, index) => pointAt(index))
 }
 
 function PriceSize({ ticks, saving, apply, type }: {
@@ -355,13 +365,14 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
   const anchoredVwaps = useMemo<AnchoredVwapSeries[]>(() => annotations?.flatMap(annotation => {
     if (annotation.kind !== 'anchored-vwap') return []
     const values = core.anchoredVwap(annotation.time, sourceBars)
-    const pointAt = (index: number) => {
-      const value = values[index]
-      return value ? { ...value, observedAt: sourceBars[index].time } : null
-    }
     return [{ id: annotation.id, anchorAt: annotation.time,
-      values: sourceWindows ? sourceWindows.map(({ last }) => pointAt(last)) :
-        values.map((_, index) => pointAt(index)) }]
+      values: projectAnchoredAverage(values, sourceBars, sourceWindows) }]
+  }) ?? [], [core, annotations, sourceBars, sourceWindows])
+  const anchoredTwaps = useMemo<AnchoredTwapSeries[]>(() => annotations?.flatMap(annotation => {
+    if (annotation.kind !== 'anchored-twap') return []
+    const values = core.anchoredTwap(annotation.time, sourceBars)
+    return [{ id: annotation.id, anchorAt: annotation.time,
+      values: projectAnchoredAverage(values, sourceBars, sourceWindows) }]
   }) ?? [], [core, annotations, sourceBars, sourceWindows])
   const regressionDrawings = useMemo<RegressionDrawingView[]>(() => annotations?.flatMap<RegressionDrawingView>(annotation => {
     if (annotation.kind !== 'regression-channel') return []
@@ -522,6 +533,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
             'No source close has moved beyond the first close to form a line.'}</p>}
         {chart.exportOptions && <ChartExport asset={display} visible={{ start: 0, end: display.bars.length }}
           metadata={chart.exportOptions.metadata} timeframe={timeframe} anchoredVwaps={anchoredVwaps}
+          anchoredTwaps={anchoredTwaps}
           overlays={[
             ...(periods ? [
               { name: 'sma_' + periods.sma, series: sma },
@@ -535,10 +547,11 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         closeChanges={changes.series} openingGaps={opening.series} bandSeconds={type === 'high-low-band' ? changeInterval : undefined}
         rebasedReturns={rebased.series} drawdowns={drawdown.series} swings={swing.series}
         closeDistributions={closeDistributions.series}
-        anchoredVwaps={anchoredVwaps} sourceObservationTimes={sourceObservationTimes}
+        anchoredVwaps={anchoredVwaps} anchoredTwaps={anchoredTwaps} sourceObservationTimes={sourceObservationTimes}
         regressionDrawings={regressionDrawings}
         drawingTools={drawingTools && { ...drawingTools, async saveAnnotation(before, after) {
-          if (after?.kind === 'anchored-vwap' && !sourceBars.some(bar => bar.time === after.time))
+          if ((after?.kind === 'anchored-vwap' || after?.kind === 'anchored-twap') &&
+              !sourceBars.some(bar => bar.time === after.time))
             throw Error('Choose the exact UTC time of an observed source bar.')
           if (after?.kind === 'regression-channel' &&
               ![after.lower, after.upper].every(time => sourceBars.some(bar => bar.time === time)))

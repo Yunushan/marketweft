@@ -83,6 +83,21 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('anchored TWAP retains signed prices, exact elapsed time and prefix behavior in Wasm', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-anchored-twap.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(source);
+  const point = (price, elapsedSeconds) => ({ price, elapsedSeconds });
+  const expected = [
+    null, point(-3000000n, 60), point(-1666667n, 180), point(600000n, 300), point(166667n, 360), point(0n, 480),
+  ];
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.anchoredTwap(bars[0].time, bars.slice(0, end)), expected.slice(0, end));
+  assert.deepEqual(core.anchoredTwap(bars[2].time, bars),
+    [null, null, null, point(4000000n, 120), point(2000000n, 180), point(1000000n, 300)]);
+  assert.deepEqual(core.anchoredTwap(bars[0].time + 120, bars), Array(6).fill(null));
+  assert.throws(() => core.anchoredTwap(0.5, bars), /whole UTC second/);
+});
+
 test('PPO and normalized ATR preserve signed wide percentages and independent zero behavior', async () => {
   const input = await readFile(new URL('../crates/core/tests/fixtures/synthetic-normalized-indicators.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(input);

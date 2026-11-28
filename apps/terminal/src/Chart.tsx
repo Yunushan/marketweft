@@ -16,7 +16,7 @@ import { fanRays, fibonacciChannelRays, pitchforkRays } from './annotation-rays'
 import { equivolumeLayout, volumeOffsets } from './equivolume'
 import { drawPriceVolumeScatter, priceVolumeScatter } from './price-volume-scatter'
 import { ChartExport } from './ChartExport'
-import type { AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { AnchoredTwapSeries, AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, utc, volume } from './workspace'
@@ -832,7 +832,7 @@ function draw(
         if (price < low || price > high) continue
         const level = y(price)
         line(left, level, right, level, '#e4b96a')
-      } else if (annotation.kind === 'anchored-vwap' || annotation.kind === 'regression-channel') {
+      } else if (annotation.kind === 'anchored-vwap' || annotation.kind === 'anchored-twap' || annotation.kind === 'regression-channel') {
         // These data-derived drawings share the price-line projection.
         continue
       } else if (annotation.kind === 'time') {
@@ -1194,6 +1194,7 @@ export function Chart({
   swings,
   closeDistributions,
   anchoredVwaps,
+  anchoredTwaps,
   sourceObservationTimes,
   regressionDrawings,
   bandSeconds,
@@ -1226,6 +1227,7 @@ export function Chart({
   swings?: SwingSeries
   closeDistributions?: CloseDistributionSeries
   anchoredVwaps?: readonly AnchoredVwapSeries[]
+  anchoredTwaps?: readonly AnchoredTwapSeries[]
   sourceObservationTimes?: readonly number[]
   regressionDrawings?: readonly RegressionDrawingView[]
   bandSeconds?: number
@@ -1266,6 +1268,9 @@ export function Chart({
     ...(anchoredVwaps ?? []).map(line => ({
       color: '#73d4db', series: projectStudyLine(line.values.map(point => point?.price ?? null), sourceIndices),
     })),
+    ...(anchoredTwaps ?? []).map(line => ({
+      color: '#c9a9ed', series: projectStudyLine(line.values.map(point => point?.price ?? null), sourceIndices),
+    })),
     ...(regressionDrawings ?? []).flatMap(({ fit, values }) => {
       if (!fit) return []
       const center = { color: '#decb86', series: projectStudyLine(values, sourceIndices) }
@@ -1275,7 +1280,7 @@ export function Chart({
         color: '#a18e60', series: projectStudyLine(values.map(value => value === null ? null : value + offset), sourceIndices),
       }))]
     }),
-  ], [sourceIndices, priceStudies, anchoredVwaps, regressionDrawings])
+  ], [sourceIndices, priceStudies, anchoredVwaps, anchoredTwaps, regressionDrawings])
   const plottedStudies = useMemo<PlottedStudy[]>(() => panels.map(study => ({
     ...study,
     lines: study.lines.map(line => ({
@@ -1315,7 +1320,7 @@ export function Chart({
     }
     return { fans, boxes, fibonacciChannels }
   }, [annotations, drawingCore])
-  const needsTimeline = annotations.some(annotation => annotation.kind !== 'price' && annotation.kind !== 'price-range' && annotation.kind !== 'anchored-vwap' && annotation.kind !== 'regression-channel')
+  const needsTimeline = annotations.some(annotation => annotation.kind !== 'price' && annotation.kind !== 'price-range' && annotation.kind !== 'anchored-vwap' && annotation.kind !== 'anchored-twap' && annotation.kind !== 'regression-channel')
   const markerTimeline = useMemo(() => {
     if (!needsTimeline) return []
     const columns = new Map<number, number>()
@@ -1664,6 +1669,15 @@ export function Chart({
           {point && point.observedAt !== time && <span><small>Observed through</small> {timeLabel(point.observedAt)} UTC</span>}
         </div>
       })}
+      {!scatterChart && anchoredTwaps?.map(line => {
+        const point = line.values[sourceIndex]
+        return <div key={line.id} className="ohlc chart-overlay-values" role="group" aria-label="Anchored TWAP values">
+          <span><small>Anchored TWAP</small> {point ? fixed(point.price, 6) : 'Missing'}</span>
+          <span><small>Anchor</small> {formatAnnotationAnchor('time', line.anchorAt)}</span>
+          {point && <span><small>Elapsed seconds</small> {point.elapsedSeconds}</span>}
+          {point && point.observedAt !== time && <span><small>Observed through</small> {timeLabel(point.observedAt)} UTC</span>}
+        </div>
+      })}
       {!scatterChart && regressionDrawings?.map(({ id, fit }) =>
         <div key={id} className="ohlc chart-overlay-values" role="group" aria-label="Regression channel values">
           {fit ? <>
@@ -1866,7 +1880,7 @@ export function Chart({
       {exportOptions && (
         <ChartExport asset={asset} visible={{ start: sourceStart, end: sourceEnd }} metadata={exportOptions.metadata}
           timeframe={timeframe} closeChanges={closeChanges} openingGaps={openingGaps} rebasedReturns={rebasedReturns} drawdowns={drawdowns} swings={swings}
-          closeDistributions={closeDistributions} anchoredVwaps={anchoredVwaps}
+          closeDistributions={closeDistributions} anchoredVwaps={anchoredVwaps} anchoredTwaps={anchoredTwaps}
           overlays={[
             ...(periods ? [
               { name: 'sma_' + periods.sma, series: sma },

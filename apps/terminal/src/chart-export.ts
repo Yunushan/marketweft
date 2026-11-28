@@ -1,7 +1,7 @@
 import type { SeriesMetadata } from './catalog-schema'
 import { sourcePermissionRestriction } from './catalog-schema'
 import { fixed } from './fixed-point'
-import type { AnchoredVwapPoint, CloseDistribution, ConfirmedSwing, DrawdownPoint, OpeningGap, SessionTimeframeBar, TimeframeBar } from './market-core'
+import type { AnchoredTwapPoint, AnchoredVwapPoint, CloseDistribution, ConfirmedSwing, DrawdownPoint, OpeningGap, SessionTimeframeBar, TimeframeBar } from './market-core'
 import type { Asset } from './workspace'
 
 export type BarRange = { start: number; end: number }
@@ -14,6 +14,7 @@ export type CloseDistributionSeries = { size: number; values: readonly (CloseDis
 export type SwingSeries = { left: number; right: number; seconds: number; cutoff?: number;
   values: readonly (ConfirmedSwing | null)[] }
 export type AnchoredVwapSeries = { id: string; anchorAt: number; values: readonly ((AnchoredVwapPoint & { observedAt: number }) | null)[] }
+export type AnchoredTwapSeries = { id: string; anchorAt: number; values: readonly ((AnchoredTwapPoint & { observedAt: number }) | null)[] }
 export type TimeframeView = { sourceSeconds: number; targetSeconds: number } & (
   { mode: 'utc'; buckets: TimeframeBar[] } |
   { mode: 'session'; buckets: SessionTimeframeBar[]; calendarName: string }
@@ -32,7 +33,7 @@ export function chartCsv(
   asset: Asset,
   range: BarRange,
   metadata: SeriesMetadata | undefined,
-  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; openingGaps?: OpeningGapSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries; swings?: SwingSeries; closeDistributions?: CloseDistributionSeries; anchoredVwaps?: readonly AnchoredVwapSeries[] } | undefined,
+  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; openingGaps?: OpeningGapSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries; swings?: SwingSeries; closeDistributions?: CloseDistributionSeries; anchoredVwaps?: readonly AnchoredVwapSeries[]; anchoredTwaps?: readonly AnchoredTwapSeries[] } | undefined,
 ) {
   const restriction = sourcePermissionRestriction(metadata?.sourceRights, 'redistribution')
   if (restriction === 'permission')
@@ -66,6 +67,10 @@ export function chartCsv(
     for (const line of analysis.anchoredVwaps ?? []) {
       const prefix = 'anchored_vwap_' + line.id
       fields.push(prefix + '_anchor_at', prefix + '_observed_at', prefix + '_price', prefix + '_cumulative_volume')
+    }
+    for (const line of analysis.anchoredTwaps ?? []) {
+      const prefix = 'anchored_twap_' + line.id
+      fields.push(prefix + '_anchor_at', prefix + '_observed_at', prefix + '_price', prefix + '_elapsed_seconds')
     }
     fields.push(...analysis.overlays.map(item => item.name))
     provenance = ',' + [
@@ -134,6 +139,10 @@ export function chartCsv(
       for (const line of analysis.anchoredVwaps ?? []) {
         const value = line.values[index]
         row += ',' + (value ? [line.anchorAt, value.observedAt, fixed(value.price, 6), fixed(value.cumulativeVolume, 6)].join(',') : ',,,')
+      }
+      for (const line of analysis.anchoredTwaps ?? []) {
+        const value = line.values[index]
+        row += ',' + (value ? [line.anchorAt, value.observedAt, fixed(value.price, 6), value.elapsedSeconds].join(',') : ',,,')
       }
       for (const { series } of analysis.overlays) {
         const value = series[index]

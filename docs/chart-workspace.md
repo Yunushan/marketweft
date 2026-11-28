@@ -258,6 +258,12 @@ From the anchor onward, the drawing weights each source bar's typical price, (hi
 
 The analysis CSV uses the drawing ID to identify columns for the anchor, last observation, calculated price and exact cumulative volume. Chart CSV export applies the source redistribution grant and expiry. A version 46 backup stores the source timestamp and ID. The drawing recalculates from the restored bars.
 
+## Anchored TWAP
+
+Choose **New anchored twap** in **Chart drawings** and select an observed source timestamp. The first plotted value appears at the next observation. That value weights the preceding close by the UTC seconds since the anchor. Later points divide the cumulative time-weighted closes by the total elapsed seconds. The previous close carries forward between observations, including gaps in the recorded series. Volume does not enter the calculation.
+
+A rolled pane shows the source value through each bucket’s last observation. The readout gives the observed UTC, signed price and elapsed seconds. The analysis CSV includes the same fields and the anchor under the drawing ID, with the source redistribution grant and expiry applied. Workspace backup version 71 preserves the anchor.
+
 ## Pitchfork
 
 Choose **New pitchfork** in **Chart drawings**. Set an origin and two rail anchors by entering UTC times and signed prices or by picking three chart points. The three anchors must enclose an area. The median ray starts at the origin and passes through the midpoint of the rail anchors. The midpoint averages their UTC timestamps and prices before projection, so gaps between observations preserve the intended time.
