@@ -4047,6 +4047,40 @@ pub extern "C" fn mw_atr(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_supertrend(period: usize) -> u32 {
+    process(|input| {
+        let values = crate::supertrend(period, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(values.len() * 16);
+        for value in values {
+            let (up, down) = match value {
+                Some(point) if point.rising => (point.ticks, i64::MIN),
+                Some(point) => (i64::MIN, point.ticks),
+                None => (i64::MIN, i64::MIN),
+            };
+            bytes.extend_from_slice(&up.to_le_bytes());
+            bytes.extend_from_slice(&down.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_chandelier_exit(period: usize) -> u32 {
+    process(|input| {
+        let values = crate::chandelier_exit(period, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(values.len() * 16);
+        for value in values {
+            let (long, short) = value
+                .map(|point| (point.long_ticks, point.short_ticks))
+                .unwrap_or((i64::MIN, i64::MIN));
+            bytes.extend_from_slice(&long.to_le_bytes());
+            bytes.extend_from_slice(&short.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_normalized_average_true_range(period: usize) -> u32 {
     process(|input| {
         crate::normalized_average_true_range(period, &decode_bars(input)?)

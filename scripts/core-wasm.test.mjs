@@ -66,6 +66,23 @@ test('scalar plugin series keeps inclusive UTC starting and ending rows and a sh
   assert.deepEqual(run(60, 60), [{ time: 60, close: -5n, value: -4n }]);
 });
 
+test('ATR price overlays preserve signed bands, strict trend switches and exact rolling exits', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-atr-overlays.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const up = [null, 0n, 0n, 0n, null, null, null, null, null, -11000000n];
+  const down = [0n, null, null, null, 5000000n, 5000000n, 5000000n, -7000000n, -7000000n, null];
+  const long = [null, -500000n, -250000n, -125000n, -5562500n, -10281250n, -19140625n, -19070314n, -16035157n, -12517577n];
+  const short = [null, 1500000n, 3250000n, 6125000n, 8562500n, 5281250n, 4140625n, -1929686n, -964843n, 517577n];
+  for (let length = 0; length <= bars.length; length++) {
+    const prefix = bars.slice(0, length);
+    assert.deepEqual(core.supertrend(1, prefix), up.slice(0, length).map((level, index) => ({ up: level, down: down[index] })));
+    assert.deepEqual(core.chandelierExit(2, prefix), long.slice(0, length).map((level, index) => ({ long: level, short: short[index] })));
+  }
+  const wide = core.parseCsv('time,open,high,low,close,volume\n0,0,2000000000,-2000000000,0,0\n');
+  assert.deepEqual(core.chandelierExit(1, wide), [{ long: -10000000000000000n, short: 10000000000000000n }]);
+  assert.deepEqual(core.supertrend(2, bars.slice(0, 1)), [{ up: null, down: null }]);
+});
+
 test('rolling regression keeps exact signed slopes and next-index forecasts across every prefix', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-rolling-regression.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(csv);

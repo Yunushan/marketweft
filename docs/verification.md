@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.265.0 · Supertrend and Chandelier Exit
+
+- Native and Wasm match every observed prefix. The signed fixture crosses above and below the active bands, preserves the direction on equality, and retains a genuine zero on the active band. Both Chandelier Exit levels follow the exact rolling extrema and shared Wilder ATR.
+- Offline Chromium verifies independent trend bands of −11 and −0.929686, long and short levels of −12.517577 and 0.517577, exact CSV and restore of versions 80 and 81.
+
+[Supertrend and Chandelier Exit](chart-workspace.md#supertrend-and-chandelier-exit)
+
 ## 0.264.0 · Rolling regression studies
 
 - Rust and Wasm verify the exact signed slope and next-index estimate for every observed prefix. Half-tick slope rounding does not alter the unrounded fit used by the forecast. Both output fields preserve a true zero on flat bars and support values beyond the input price bounds.

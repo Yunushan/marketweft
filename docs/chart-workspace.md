@@ -484,6 +484,14 @@ Both studies use observed bars and preserve separate pane settings. Research CSV
 
 The studies save independent periods for each pane. Research CSV columns use exact signed values with up to six decimal places, including `ppo_line_12_26_9`, `ppo_signal_12_26_9`, `ppo_histogram_12_26_9` and `natr_14` with the defaults. Workspace backup version 69 stores these settings and reads earlier formats.
 
+### Supertrend and Chandelier Exit
+
+**Supertrend** uses the high-low midpoint and three times the shared Wilder ATR. The adjusted bands carry forward while the previous close stays on their side of the band. The first complete point uses the upper band. A close strictly above the adjusted upper band switches a downtrend to an uptrend, and a close strictly below the adjusted lower band switches it back. Equality preserves the current direction. The midpoint keeps half-tick precision until the active band is rounded for display. The default ATR window is 10 bars. [Supertrend reference](https://www.tradingview.com/support/solutions/43000634738-supertrend/)
+
+**Chandelier Exit** uses the highest high and lowest low over the same window as its Wilder ATR. The long level subtracts three ATRs from the high, and the short level adds three ATRs to the low. The default is 22 observed bars. Both overlays use the shared ATR’s six-place values. [Chandelier Exit reference](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/chandelier-exit)
+
+Research CSV keeps the trend directions in separate columns. A blank direction field indicates the other band was active or the window was incomplete. A genuine zero appears as `0`. Both Chandelier Exit levels appear after the full window is available. Workspace backup version 81 preserves independent pane periods.
+
 ### Linear Regression Slope and Time Series Forecast
 
 Both studies fit a least-squares line to the latest complete window of observed closes, using positions `0` through `N−1` in observation order. Each pane defaults to 14 closes and requires at least two. Gaps between recorded timestamps introduce no samples. Each result rounds once to six decimal places.

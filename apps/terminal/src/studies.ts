@@ -6,6 +6,8 @@ export const STUDIES = {
   rsi: { name: 'RSI', label: 'Relative Strength Index', minPeriod: 2, defaultPeriod: 14, color: '#8eb3fa' },
   atr: { name: 'ATR', label: 'Average True Range', minPeriod: 1, defaultPeriod: 14, color: '#e6ab66' },
   natr: { name: 'Normalized ATR', label: 'Normalized Average True Range', minPeriod: 1, defaultPeriod: 14, color: '#bdb1ef' },
+  supertrend: { name: 'Supertrend', label: 'Supertrend', minPeriod: 1, defaultPeriod: 10 },
+  chandelier_exit: { name: 'Chandelier Exit', label: 'Chandelier Exit', minPeriod: 1, defaultPeriod: 22 },
   choppiness: { name: 'Choppiness Index', label: 'Choppiness Index', minPeriod: 2, defaultPeriod: 14, color: '#a2b4e7' },
   mass_index: { name: 'Mass Index', label: 'Mass Index', minPeriod: 1, defaultPeriod: 9,
     periodLabel: 'Mass Index EMA', color: '#dfbb91' },
@@ -139,7 +141,7 @@ const PRICE_AVERAGES = {
   kama: 'kaufmanAdaptiveMovingAverage',
 } as const
 type PriceAverageKind = keyof typeof PRICE_AVERAGES
-type PriceStudyKind = BandKind | PriceAverageKind | 'daily_pivots' | 'time_series_forecast'
+type PriceStudyKind = BandKind | PriceAverageKind | 'daily_pivots' | 'time_series_forecast' | 'supertrend' | 'chandelier_exit'
 function isPriceAverage(kind: StudyKind): kind is PriceAverageKind {
   return Object.hasOwn(PRICE_AVERAGES, kind)
 }
@@ -385,6 +387,20 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       }]
       return [{ kind, periods: [period], unit: 'price', zeroLine: true, lines: [
         { color: STUDIES[kind].color, series: values.map(point => point.slope) },
+      ] }]
+    }
+    if (kind === 'supertrend') {
+      const values = core.supertrend(period, bars)
+      return [{ kind, periods: [period], heading: STUDIES[kind].name, priceOverlay: true, lines: [
+        { key: 'up', label: 'Up', color: '#72c8a6', series: values.map(point => point.up) },
+        { key: 'down', label: 'Down', color: '#e18d99', series: values.map(point => point.down) },
+      ] }]
+    }
+    if (kind === 'chandelier_exit') {
+      const values = core.chandelierExit(period, bars)
+      return [{ kind, periods: [period], heading: STUDIES[kind].name, priceOverlay: true, lines: [
+        { key: 'long', label: 'Long', color: '#91bcec', series: values.map(point => point.long) },
+        { key: 'short', label: 'Short', color: '#e9bb8a', series: values.map(point => point.short) },
       ] }]
     }
     if (kind === 'vroc') return [{ kind, periods: [period], zeroLine: true, lines: [

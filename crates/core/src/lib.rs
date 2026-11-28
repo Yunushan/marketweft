@@ -6,6 +6,7 @@ mod anchored_twap;
 mod anchored_vwap;
 mod aroon;
 mod atr;
+mod atr_overlays;
 mod backtest;
 mod bollinger;
 mod bollinger_measures;
@@ -93,6 +94,7 @@ pub use anchored_twap::{anchored_twap, AnchoredTwapPoint};
 pub use anchored_vwap::{anchored_vwap, AnchoredVwapPoint};
 pub use aroon::{aroon, AroonValue};
 pub use atr::average_true_range;
+pub use atr_overlays::{chandelier_exit, supertrend, ChandelierExit, SupertrendPoint};
 pub use backtest::{
     backtest, backtest_with_formulas, backtest_with_trades, validate_formula_strategy,
     validate_formula_strategy_with_library, BacktestConfig, BacktestMark, BacktestReport,

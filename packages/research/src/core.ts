@@ -1336,6 +1336,8 @@ export interface MarketCore {
   macd(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
   percentagePriceOscillator(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
   normalizedAverageTrueRange(period: number, bars: readonly Bar[]): (bigint | null)[];
+  supertrend(period: number, bars: readonly Bar[]): { up: bigint | null; down: bigint | null }[];
+  chandelierExit(period: number, bars: readonly Bar[]): { long: bigint | null; short: bigint | null }[];
   williamsPercentR(period: number, bars: readonly Bar[]): (bigint | null)[];
   stochasticOscillator(lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
   stochasticRsi(rsi: number, lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
@@ -1519,6 +1521,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_macd(fast: number, slow: number, signal: number): number;
   mw_percentage_price_oscillator(fast: number, slow: number, signal: number): number;
   mw_normalized_average_true_range(period: number): number;
+  mw_supertrend(period: number): number;
+  mw_chandelier_exit(period: number): number;
   mw_williams_percent_r(period: number): number;
   mw_stochastic_oscillator(lookback: number, smoothing: number, signal: number): number;
   mw_stochastic_rsi(rsi: number, lookback: number, smoothing: number, signal: number): number;
@@ -2992,6 +2996,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       validateIndicatorHistory(period, bars.length);
       putIndicatorBars(bars, 'Normalized ATR');
       return readWideIndicator(output(api.mw_normalized_average_true_range(period)), bars.length);
+    },
+    supertrend(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'Supertrend');
+      return readIndicatorPairs(output(api.mw_supertrend(period)), bars.length, (up, down) => ({ up, down }));
+    },
+    chandelierExit(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'Chandelier Exit');
+      return readIndicatorPairs(output(api.mw_chandelier_exit(period)), bars.length, (long, short) => ({ long, short }));
     },
     williamsPercentR(period, bars) {
       return observedIndicator(api.mw_williams_percent_r, period, bars, 'Williams %R');
