@@ -13,6 +13,7 @@ import type { KagiLayout } from './kagi-chart'
 import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
 import type { PointFigureLayout } from './point-figure-chart'
 import { fanRays, pitchforkRays } from './annotation-rays'
+import { equivolumeLayout, volumeOffsets } from './equivolume'
 import { ChartExport } from './ChartExport'
 import type { AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
@@ -54,7 +55,7 @@ function plotValue(value: StudyValue): number | null {
   return typeof value === 'bigint' ? tickPrice(value) : value
 }
 type ChartObservation = KagiSegment | PointFigureBox
-type Plot = { left: number; right: number; top: number; bottom: number; high: number; low: number }
+type Plot = { left: number; right: number; top: number; bottom: number; high: number; low: number; barAt?: (x: number) => number }
 type DrawingTools = {
   core: MarketCore
   saved?: MeasuredDrawing
@@ -73,6 +74,7 @@ const chartNames: Record<ChartType, string> = {
   candles: 'candlestick',
   'hollow-candles': 'hollow candlestick',
   'volume-candles': 'volume-weighted candlestick',
+  equivolume: 'EquiVolume',
   line: 'close line',
   area: 'close area',
   'step-line': 'step line',
@@ -182,6 +184,7 @@ function draw(
     boxes: ReadonlyMap<string, readonly DrawingEndpoint[]>
   },
   type: ChartType,
+  equivolumeOffsets: readonly bigint[] | undefined,
   baselineTicks: number,
   closeChanges: CloseChangeSeries | undefined,
   percentPlot: Series | undefined,
@@ -228,7 +231,7 @@ function draw(
     top = 19,
     bottom = height - 28 - 110 * studies.length,
     volTop = top + (bottom - top) * 0.8,
-    priceBottom = closeBased ? bottom : volTop - 13
+    priceBottom = closeBased || equivolumeOffsets ? bottom : volTop - 13
   const start = view.end - view.count
   let low = derivedAxis ? 0 : Infinity,
     high = derivedAxis ? 0 : -Infinity,
@@ -317,7 +320,8 @@ function draw(
     dx = (right - left) / view.count
   const y = (v: number) =>
     top + ((high - v) / (high - low)) * (priceBottom - top)
-  const x = (i: number) => left + (i - start + 0.5) * dx
+  const equi = equivolumeOffsets && equivolumeLayout(equivolumeOffsets, start, view.end, left, right)
+  const x = equi?.center ?? ((i: number) => left + (i - start + 0.5) * dx)
   function line(x1: number, y1: number, x2: number, y2: number, color: string) {
     ctx!.strokeStyle = color
     ctx!.beginPath()
@@ -340,11 +344,11 @@ function draw(
   )
   let lastTickTime: number | undefined
   for (let j = 0; j < ticks; j++) {
-    const i =
-        start + Math.floor(((view.count - 1) * j) / Math.max(1, ticks - 1)),
-      at = x(i)
-    line(at, top, at, bottom, '#232b2e')
+    const i = equi ? equi.barAt(left + (right - left) * (j + 0.5) / ticks)
+      : start + Math.floor(((view.count - 1) * j) / Math.max(1, ticks - 1))
+    const at = x(i)
     const tickTime = bars[i].time
+    if (!equi || tickTime !== lastTickTime) line(at, top, at, bottom, '#232b2e')
     if (tickTime === lastTickTime) continue
     lastTickTime = tickTime
     const date = new Date(tickTime * 1000)
@@ -429,7 +433,36 @@ function draw(
       ctx.fillRect(x(index) - width / 2, Math.min(open, close), width, Math.max(1, Math.abs(open - close)))
     }
   }
-  for (let first = start; !closeBased && first < view.end;) {
+  if (equi) {
+    // Merge subpixel boxes sharing a column and retain the contributing price extremes.
+    for (let first = start; first < view.end;) {
+      const left = equi.edge(first)
+      let right = equi.edge(first + 1)
+      if (right === left) {
+        first++
+        continue
+      }
+      const pixel = Math.floor((left + right) / 2)
+      let high = bars[first].high
+      let low = bars[first].low
+      let close = bars[first].close
+      let next = first + 1
+      for (; next < view.end; next++) {
+        const edge = equi.edge(next + 1)
+        if (Math.floor((right + edge) / 2) !== pixel) break
+        if (edge > right) {
+          high = Math.max(high, bars[next].high)
+          low = Math.min(low, bars[next].low)
+          close = bars[next].close
+        }
+        right = edge
+      }
+      ctx.fillStyle = hollowCandleColor(close, bars[first - 1]?.close)
+      ctx.fillRect(left, y(high), right - left, Math.max(1, y(low) - y(high)))
+      first = next
+    }
+  }
+  for (let first = start; !closeBased && !equi && first < view.end;) {
     const end = Math.min(first + stride, view.end)
     let last = end - 1
     if (rangeBand) {
@@ -722,6 +755,7 @@ function draw(
     let tag = last.close >= last.open ? UP : DOWN
     const lastGroup = groups.at(-1)
     if (hollowCandles && lastGroup) tag = hollowCandleColor(last.close, bars[lastGroup.first - 1]?.close)
+    if (equi) tag = hollowCandleColor(last.close, bars[view.end - 2]?.close)
     ctx.setLineDash([3, 4])
     ctx.lineWidth = 0.8
     line(left, at, right, at, tag)
@@ -1041,7 +1075,7 @@ function draw(
       }
     }
   }
-  return { left, right, top, bottom: priceBottom, high, low }
+  return { left, right, top, bottom: priceBottom, high, low, barAt: equi?.barAt }
 }
 
 export function Spark({ bars }: { bars: Bar[] }) {
@@ -1229,6 +1263,7 @@ export function Chart({
   const active = pointerIndex ?? linkedIndex
   const readoutIndex = active ?? view.end - 1
   const plotted = displayBars ?? bars
+  const equivolumeOffsets = useMemo(() => type === 'equivolume' ? volumeOffsets(plotted) : undefined, [type, plotted])
   const b = plotted[readoutIndex]
   const movement = priceMovements?.[readoutIndex]
   const selectedObservation = (pointerIndex !== null ? pointerObservation : linkedIndex !== null ? linkedObservation : undefined) ??
@@ -1342,6 +1377,7 @@ export function Chart({
           markerTimeline,
           gannGeometry,
           type,
+          equivolumeOffsets,
           baselineTicks,
           closeChanges,
           percentPlot,
@@ -1356,7 +1392,7 @@ export function Chart({
           plottedPriceLines,
           activeStudyPlotValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, gannGeometry, type, baselineTicks, closeChanges, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, gannGeometry, type, equivolumeOffsets, baselineTicks, closeChanges, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -1379,7 +1415,7 @@ export function Chart({
   }, [n, onTimestamp])
   function barIndexAt(x: number, bounds: Plot) {
     return x < bounds.left || x > bounds.right ? null :
-      clamp(start + Math.floor((x - bounds.left) / (bounds.right - bounds.left) * view.count),
+      bounds.barAt?.(x) ?? clamp(start + Math.floor((x - bounds.left) / (bounds.right - bounds.left) * view.count),
         start, view.end - 1)
   }
   function move(e: ReactPointerEvent<HTMLCanvasElement>) {
@@ -1440,7 +1476,7 @@ export function Chart({
     ? `${asset.symbol} OHLCV. Open ${price(b.open)}, high ${price(b.high)}, low ${price(b.low)}, close ${price(b.close)}, volume ${volume(b.volume)}`
     : undefined
   return (
-    <section className="plot" aria-label={closeBased || histogram || percentAxis || swingChart || distributionChart ? chartNames[type] + ' chart' : 'Price and volume chart'}
+    <section className="plot" aria-label={closeBased || histogram || percentAxis || swingChart || distributionChart || type === 'equivolume' ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : time}>
       <div className="ohlc" role={displayBars || movement || selectedObservation || priceReadout || distributionChart ? 'group' : undefined}
         aria-label={distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
@@ -1591,7 +1627,7 @@ export function Chart({
         style={panels.length ? { height: `calc(var(--price-chart-height) + ${110 * panels.length}px)` } : undefined}>
         <canvas
           tabIndex={0}
-          aria-label={asset.symbol + ' interactive ' + chartNames[type] + (closeBased ? ' chart' : ' and volume chart')}
+          aria-label={asset.symbol + ' interactive ' + chartNames[type] + (closeBased || type === 'equivolume' ? ' chart' : ' and volume chart')}
           ref={ref}
           onPointerDown={(e) => {
             if (e.button !== 0) return

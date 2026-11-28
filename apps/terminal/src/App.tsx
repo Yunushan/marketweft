@@ -79,6 +79,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   candles: 'Candles',
   'hollow-candles': 'Hollow candles',
   'volume-candles': 'Volume-weighted candles',
+  equivolume: 'EquiVolume',
   line: 'Close line',
   area: 'Close area',
   'step-line': 'Step line',

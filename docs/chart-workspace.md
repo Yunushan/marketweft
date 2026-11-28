@@ -48,6 +48,12 @@ Choose **Volume-weighted candles** to make each body width proportional to the d
 
 When several bars share a display column, the group uses the standard OHLC aggregation and the sum of the underlying volumes. Pan and zoom recalculate widths for the visible range. Crosshairs, annotations, overlays and CSV exports use the original price and time coordinates. Version 41 backups preserve the choice independently for both panes.
 
+### EquiVolume
+
+Choose **EquiVolume** to plot adjacent high-low boxes. Each box uses its share of the total visible volume for its width and uses the previous observed close to determine its color. Higher closes are green, lower closes are red, and ties or a missing previous close are gray. With positive volume present, a zero-volume observation has zero width. An all-zero viewport divides the width evenly. [EquiVolume chart convention](https://chartschool.stockcharts.com/table-of-contents/chart-analysis/chart-types/equivolume).
+
+The pointer selects the observation that occupies the horizontal position. Linked panes still share its exact UTC time. The chart uses the active pane's observed bars or aggregated buckets for volume and high-low bounds. Dense views combine boxes in the same display column and preserve their highest and lowest prices. The readout and CSV preserve the source OHLCV. Workspace backup version 64 saves the chart type for each pane.
+
 ### High-low band
 
 Choose **High-low band** to shade the range between observed highs and lows with a close line inside it. Set **High-low band interval (seconds)** to join consecutive observations. The line and band break where observations are missing. An isolated bar shows its range and close as a column and point.

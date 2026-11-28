@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.231.0 · EquiVolume charts
+
+- Offline Chromium measures adjacent widths in the ratio 1:6:3, high-low box heights, direction colors and the exact crosshair UTC time picked from a wide box. The comparison pane follows the linked timestamp.
+- Rolled bars use their aggregated 7:3 volume ratio. An all-zero viewport divides the available width evenly. A 1,440-bar dense view retains its price spike. Versions 63 and 64 restore the saved settings and preserve the source history.
+
+[EquiVolume charts](chart-workspace.md#equivolume)
+
 ## 0.230.0 · Elder-Ray Index and Coppock Curve
 
 - Rust and Wasm check exact signed Bull Power and Bear Power from a shared EMA, both Coppock change windows, and renewed smoothing after an undefined zero baseline. Fixtures cover values beyond signed 64-bit percentage storage and prefix stability.
