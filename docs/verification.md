@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.276.0 · Schiff pitchfork variants
+
+- Offline Chromium checks the two median origins, three parallel rays for each variant, a half-second UTC midpoint through an observed gap, and a signed half-tick price.
+- Editing one drawing preserves the other geometry. A zero-direction Schiff drawing is rejected, and version 84 preserves both variants together with classic pitchforks after version 47 restoration and reload.
+
 ## 0.275.0 · Candle body and price-range studies
 
 - Rust and Wasm verify signed candle bodies, accumulation through gaps and equal closes, and the midpoint-based oscillator's exact zero and undefined sum. Cumulative and weighted values beyond signed 64-bit range stay exact.

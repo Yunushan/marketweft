@@ -290,6 +290,12 @@ Choose **New pitchfork** in **Chart drawings**. Set an origin and two rail ancho
 
 The two outer rays start at their own anchors and run parallel to the median in the chart. Each pane clips the three rays to its visible price plot. Pan and zoom preserve the saved anchors. A version 47 backup retains the three points in order and restores earlier drawings alongside them.
 
+### Schiff pitchfork variants
+
+Choose **New schiff pitchfork** or **New modified schiff pitchfork** in **Chart drawings**, then set three UTC and price anchors. Schiff places the median origin at the first anchor's time and halfway between the first and second prices. Modified Schiff takes the midpoint of the first two anchors in both time and price. Both medians pass through the midpoint of the second and third anchors, with parallel outer rays starting at those anchors. [Ensign pitchfork guide](https://www.ensignsupport.org/bb/pdfs/Tools-AndrewsPitchfork.pdf)
+
+The drawing list shows the derived median origin with half-second and half-tick precision. Edit any saved anchor to recalculate it. Version 84 backups retain the drawing type and the three entered anchors. Restoring a version 47 backup also restores classic pitchforks.
+
 ## Risk/reward drawing
 
 Choose **New risk/reward** in **Chart drawings**, then set **Direction**, **Entry**, **Target**, and **Stop**. Enter exact prices or pick on the chart. Entry and target times set the horizontal range. The target time must follow the entry time. For a long plan, the stop must be below entry and the target above it. A short plan reverses those price comparisons.

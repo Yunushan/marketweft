@@ -5,6 +5,8 @@ import {
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint, MarketCore, RiskRewardMeasurement, RiskRewardSide } from './market-core'
+import { pitchforkOrigin } from './pitchfork-geometry'
+import { utc } from './workspace'
 
 type PointFields = Record<AnnotationCoordinate, string>
 type Draft = {
@@ -115,6 +117,12 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'fibonacci-extension':
     case 'fibonacci-channel':
       return name + entry.points.map(describePoint).join(', ')
+    case 'schiff-pitchfork':
+    case 'modified-schiff-pitchfork': {
+      const origin = pitchforkOrigin(entry.kind, entry.points[0], entry.points[1])
+      const price = fixed(BigInt(origin.ticks * 2) * 5n, 7)
+      return name + entry.points.map(describePoint).join(', ') + ' · Median origin ' + price + ' at ' + utc(origin.time)
+    }
     case 'trend':
     case 'rectangle':
     case 'ellipse':

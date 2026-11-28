@@ -1,5 +1,6 @@
 import { fixed, MAX_CHART_PRICE_TICKS, parsePriceSize } from './fixed-point'
 import type { DrawingEndpoint, MarketCore, RiskRewardSide } from './market-core'
+import { pitchforkOrigin } from './pitchfork-geometry'
 import { utc } from './workspace'
 
 type TrianglePoints = [DrawingEndpoint, DrawingEndpoint, DrawingEndpoint]
@@ -24,6 +25,8 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'ellipse'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'triangle'; points: TrianglePoints } |
   { kind: 'pitchfork'; points: TrianglePoints } |
+  { kind: 'schiff-pitchfork'; points: TrianglePoints } |
+  { kind: 'modified-schiff-pitchfork'; points: TrianglePoints } |
   { kind: 'note'; start: DrawingEndpoint; text: string } |
   { kind: 'arrow'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'risk-reward'; side: RiskRewardSide; start: DrawingEndpoint; end: DrawingEndpoint; stopTicks: number } |
@@ -63,6 +66,8 @@ export const ANNOTATION_NAMES = {
   ellipse: 'Ellipse',
   triangle: 'Triangle',
   pitchfork: 'Pitchfork',
+  'schiff-pitchfork': 'Schiff pitchfork',
+  'modified-schiff-pitchfork': 'Modified Schiff pitchfork',
   note: 'Chart note',
   arrow: 'Directional arrow',
   'risk-reward': 'Risk/reward',
@@ -104,6 +109,8 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'polyline':
     case 'triangle':
     case 'pitchfork':
+    case 'schiff-pitchfork':
+    case 'modified-schiff-pitchfork':
     case 'fibonacci-extension':
     case 'fibonacci-channel':
       return second.kind === first.kind && first.points.length === second.points.length &&
@@ -121,7 +128,9 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
 }
 
 export function hasPointList(kind: AnnotationKind): kind is 'polyline' | ThreePointKind {
-  return kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork' || kind === 'fibonacci-extension' || kind === 'fibonacci-channel'
+  return kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork' ||
+    kind === 'schiff-pitchfork' || kind === 'modified-schiff-pitchfork' ||
+    kind === 'fibonacci-extension' || kind === 'fibonacci-channel'
 }
 
 export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
@@ -215,6 +224,11 @@ export function validateThreePoints(points: DrawingEndpoint[], kind: ThreePointK
   const firstProduct = BigInt(second.time - origin.time) * BigInt(third.ticks - origin.ticks)
   const secondProduct = BigInt(third.time - origin.time) * BigInt(second.ticks - origin.ticks)
   if (firstProduct === secondProduct) throw Error(ANNOTATION_NAMES[kind] + ' points must enclose a nonzero area.')
+  if (kind === 'schiff-pitchfork') {
+    const shifted = pitchforkOrigin(kind, origin, second)
+    if (shifted.time === (second.time + third.time) / 2 && shifted.ticks === (second.ticks + third.ticks) / 2)
+      throw Error('Schiff pitchfork needs a distinct median origin and midpoint.')
+  }
 }
 
 const RETRACEMENT_LEVELS = [

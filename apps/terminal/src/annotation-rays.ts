@@ -1,6 +1,8 @@
 import { markerColumn } from './chart-annotations'
 import type { TimeColumn } from './chart-annotations'
 import type { DrawingEndpoint, FibonacciChannelLevel } from './market-core'
+import { pitchforkOrigin } from './pitchfork-geometry'
+import type { PitchforkKind } from './pitchfork-geometry'
 
 type Point = [number, number]
 type Bounds = { left: number; right: number; top: number; bottom: number }
@@ -26,15 +28,16 @@ function visibleRay(origin: Point, direction: Point, bounds: Bounds): [Point, Po
   return [[x + enter * dx, y + enter * dy], [x + leave * dx, y + leave * dy]]
 }
 
-export function pitchforkRays(points: readonly [DrawingEndpoint, DrawingEndpoint, DrawingEndpoint],
+export function pitchforkRays(kind: PitchforkKind, points: readonly [DrawingEndpoint, DrawingEndpoint, DrawingEndpoint],
   timeline: readonly TimeColumn[], x: (column: number) => number, y: (price: number) => number, bounds: Bounds) {
-  const [origin, second, third] = points
+  const [first, second, third] = points
+  const origin = pitchforkOrigin(kind, first, second)
   const startColumn = markerColumn(timeline, origin.time)
   const midpointColumn = markerColumn(timeline, (second.time + third.time) / 2)
   if (startColumn === null || midpointColumn === null) return []
   const midPrice = (second.ticks + third.ticks) / 2e6
   const direction: Point = [x(midpointColumn) - x(startColumn), y(midPrice) - y(origin.ticks / 1e6)]
-  return points.map(point => {
+  return [origin, second, third].map(point => {
     const column = markerColumn(timeline, point.time)
     return column === null ? null : visibleRay([x(column), y(point.ticks / 1e6)], direction, bounds)
   })

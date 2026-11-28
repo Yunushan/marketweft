@@ -985,12 +985,17 @@ function draw(
           const [[startX, startY], [endX, endY]] = ray
           line(startX, startY, endX, endY, index === 0 ? '#69b7c7' : '#978dc2')
         })
-      } else if (annotation.kind === 'pitchfork') {
-        const rays = pitchforkRays(annotation.points, markerTimeline, x, y, { left, right, top, bottom: priceBottom })
+      } else if (annotation.kind === 'pitchfork' || annotation.kind === 'schiff-pitchfork' || annotation.kind === 'modified-schiff-pitchfork') {
+        const rays = pitchforkRays(annotation.kind, annotation.points, markerTimeline, x, y, { left, right, top, bottom: priceBottom })
+        const colors = {
+          pitchfork: ['#bea2f2', '#8874af'],
+          'schiff-pitchfork': ['#e8c076', '#b28c53'],
+          'modified-schiff-pitchfork': ['#63cbc1', '#428e8c'],
+        }[annotation.kind]
         rays.forEach((ray, index) => {
           if (!ray) return
           const [[startX, startY], [endX, endY]] = ray
-          line(startX, startY, endX, endY, index === 0 ? '#bea2f2' : '#8874af')
+          line(startX, startY, endX, endY, colors[index === 0 ? 0 : 1])
         })
       } else {
         const from = markerColumn(markerTimeline, annotation.start.time)
