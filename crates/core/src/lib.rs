@@ -50,6 +50,7 @@ mod paper;
 mod paper_replay;
 mod point_figure;
 mod portfolio;
+mod portfolio_scenario_wire;
 mod price_momentum;
 mod provider_history;
 mod range_bars;

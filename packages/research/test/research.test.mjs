@@ -9,6 +9,25 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public TypeScript SDK runs exact contiguous portfolio paths at independent cutoffs', async () => {
+  const reports = kind => readFile(new URL(
+    '../../../crates/core/tests/fixtures/synthetic-listing-risk-' + kind + '.csv', import.meta.url,
+  ), 'utf8')
+  const [research, membership, prices] = await Promise.all([createResearchEngine(wasm), reports('membership'), reports('prices')])
+  const utc = minute => '2025-06-02T14:0' + minute + ':00Z'
+  const allocations = [{ listingId: 'A', weightBasisPoints: 5000 }, { listingId: 'B', weightBasisPoints: 5000 }]
+  const run = known => research.portfolioScenarios(membership, prices, allocations, {
+    from: utc(0), through: utc(6), known: utc(known), intervalSeconds: 60, startingValue: '100',
+    feeBasisPoints: 100, seed: 9007199254740993n, paths: 5, horizon: 4, blockSize: 3,
+  })
+  const original = run(6)
+  assert.equal(original.eligibleBlocks, 1)
+  assert.deepEqual(original.paths, Array(5).fill({ endingValue: 99950000n, drawdownMillionths: 500n, fees: 50000n }))
+  assert.equal(run(7).eligibleBlocks, 4)
+  assert.equal(run(8).eligibleBlocks, 2)
+  assert.deepEqual(run(6), original)
+})
+
 test('the TypeScript SDK uses the shipped Wasm and preserves exact formula prefixes', async () => {
   assert.deepEqual(wasm, expectedWasm)
   const research = await createResearchEngine(wasm)

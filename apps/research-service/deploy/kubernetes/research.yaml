@@ -30,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: research
-          image: marketweft-research:0.243.0
+          image: marketweft-research:0.244.0
           imagePullPolicy: Never
           securityContext:
             allowPrivilegeEscalation: false

@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.244.0 · Portfolio scenario research SDKs
+
+- The native CLI and both SDKs check five exact paths ending at 99.95 with 0.05% drawdown and 0.05 fees per path. The three-move block count follows a late close and a known membership removal from one to four to two, then rewinds to one.
+- The installed Python wheel checks protocol versions, UTF-8 and CSV boundaries, duplicate evidence and truncated output. The packaged TypeScript SDK loads its bundled Wasm and preserves all integer path values.
+
+[Portfolio scenario research SDKs](portfolio-scenarios.md#research-sdks)
+
 ## 0.243.0 · Portfolio scenario return blocks
 
 - Rust and Wasm verify that a late close changes the count of eligible two-move blocks from two to five and a known membership removal brings it down to three. A single eligible three-move block preserves the drawdown and fees of its ordered moves and truncates the repeated block at a four-move horizon.

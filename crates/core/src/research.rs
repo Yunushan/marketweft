@@ -10,6 +10,7 @@ use crate::macro_wire::macro_snapshot_rows;
 use crate::option_chain::MAX_OPTION_CSV_BYTES;
 use crate::option_price::MAX_VOLATILITY;
 use crate::option_wire::{option_cash_status, option_dividend_rows, option_snapshot_rows};
+use crate::portfolio_scenario_wire::{portfolio_scenario_report, portfolio_scenario_rows};
 use crate::screen::MAX_PRICE_BYTES;
 use crate::universe::{valid_id, MAX_MEMBERSHIP_BYTES};
 use crate::{
@@ -33,6 +34,35 @@ pub const MAX_SCALAR_PLUGIN_SERIES_REQUEST_BYTES: usize =
     MAX_SCALAR_PLUGIN_REQUEST_BYTES + MAX_INPUT_BYTES;
 pub const MAX_MONTHLY_RETURNS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
 pub const MAX_MACRO_CALENDAR_REQUEST_BYTES: usize = MAX_MACRO_CSV_BYTES + 128;
+pub const MAX_PORTFOLIO_SCENARIOS_REQUEST_BYTES: usize =
+    MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 1024;
+
+/// Sample point-in-time joint return paths from supplied membership and close reports.
+pub fn portfolio_scenarios_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_PORTFOLIO_SCENARIOS_REQUEST_BYTES {
+        return Err("Portfolio scenarios request exceeds its byte limit.".into());
+    }
+    let request =
+        std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 portfolio scenarios request.")?;
+    let (header, payload) = request
+        .split_once('\n')
+        .ok_or("Missing portfolio scenarios request header.")?;
+    let mut fields = header.split('\t');
+    let (Some("marketweft-portfolio-scenarios"), Some("1"), Some(length), None) =
+        (fields.next(), fields.next(), fields.next(), fields.next())
+    else {
+        return Err("Invalid portfolio scenarios request or protocol version.".into());
+    };
+    let membership_bytes = length
+        .parse::<usize>()
+        .map_err(|_| "Supply the membership CSV byte length.")?;
+    let report = portfolio_scenario_report(payload, membership_bytes)?;
+    Ok(format!(
+        "marketweft-portfolio-scenarios\t{PROTOCOL_VERSION}\t{}\n{}",
+        report.paths.len(),
+        portfolio_scenario_rows(&report)
+    ))
+}
 
 /// Replay visible economic reports through independent publication and knowledge times.
 pub fn macro_calendar_request(bytes: &[u8]) -> Result<String, String> {

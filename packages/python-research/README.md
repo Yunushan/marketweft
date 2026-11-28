@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.16.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.17.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -37,6 +37,8 @@ Use `evaluate_scalar_plugin_series(module, history, from_second=..., through_sec
 Call `monthly_returns(history, first_year=2024, last_year=2024, observed_through="2024-02-29T16:00:00Z")` to select the same close evidence as the terminal calendar. Each result has an exact UTC window state, both close timestamps and price ticks when available, and a signed return in millionths of a percentage point. [Native monthly returns](../../docs/chart-workspace.md#native-and-python-monthly-returns).
 
 Call `macro_as_of(reports, published_through=..., known_at=...)` with an authorized economic calendar CSV and two exact UTC timestamp strings. Each release retains its schedule, frozen pre-release forecast when available, and the actual revision chain visible at both cutoffs. Values are signed integer millionths in the declared units. [Economic calendar SDK and native protocol](../../docs/macro-calendar.md#research-sdks)
+
+Call `portfolio_scenarios(membership_csv, prices_csv, allocations, ...)` with a `ScenarioAllocation` for each listing and a `block_size` when sampling contiguous moves. The result keeps the scenario coverage and exact integer values for each path. [Portfolio scenario settings and CLI](../../docs/portfolio-scenarios.md#research-sdks).
 
 The local MCP server exposes the same visible evidence in the read-only `macro_calendar_as_of` tool, with independently paged records and exact decimal-string values. [Economic releases over MCP](../../docs/local-mcp-research.md#economic-releases)
 

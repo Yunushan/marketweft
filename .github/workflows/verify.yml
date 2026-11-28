@@ -115,6 +115,17 @@ jobs:
           ).map(row => [row.listingId, row.rank, row.returnUnits])
           assert.deepEqual(rank('2025-06-02T14:10:00Z'), [['ALFA-001', 1, 20000n], ['BETA-001', null, null]])
           assert.deepEqual(rank('2025-06-02T14:12:00Z'), [['BETA-001', 1, 120000n], ['ALFA-001', 2, 20000n]])
+          const [jointMembership, jointPrices] = await Promise.all([
+            fixture('synthetic-listing-risk-membership.csv'), fixture('synthetic-listing-risk-prices.csv'),
+          ])
+          const joint = research.portfolioScenarios(jointMembership, jointPrices,
+            [{ listingId: 'A', weightBasisPoints: 5000 }, { listingId: 'B', weightBasisPoints: 5000 }], {
+              from: '2025-06-02T14:00:00Z', through: '2025-06-02T14:06:00Z', known: '2025-06-02T14:06:00Z',
+              intervalSeconds: 60, startingValue: '100', feeBasisPoints: 100,
+              seed: 9007199254740993n, paths: 1, horizon: 4, blockSize: 3,
+            })
+          assert.equal(joint.eligibleBlocks, 1)
+          assert.deepEqual(joint.paths, [{ endingValue: 99950000n, drawdownMillionths: 500n, fees: 50000n }])
 
           const [underlying, quotes, cash] = await Promise.all([
             fixture('synthetic-option-underlying.csv'), fixture('synthetic-option-exercise-quotes.csv'),

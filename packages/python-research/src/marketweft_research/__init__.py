@@ -16,6 +16,7 @@ __all__ = [
     "MacroRecord", "MacroRelease",
     "MonthlyClose", "MonthlyReturn",
     "OptionChainAnalytics", "OptionChainQuote", "OptionChainSnapshot", "OptionUnderlyingQuote",
+    "PortfolioScenarioCoverage", "PortfolioScenarioPath", "PortfolioScenarioResult", "ScenarioAllocation",
     "ResearchEngine", "ResearchError", "ScalarPluginPoint",
     "ScreenPrice", "ScreenResult", "ScreenRow",
 ]
@@ -35,6 +36,7 @@ _MAX_SCALAR_PLUGIN = 64 * 1024
 _MAX_SCALAR_SERIES = 256
 _MONTHLY_PROTOCOL = "marketweft-monthly-returns"
 _MACRO_PROTOCOL = "marketweft-macro-calendar"
+_PORTFOLIO_PROTOCOL = "marketweft-portfolio-scenarios"
 _MAX_MACRO_CSV = 1024 * 1024
 _MAX_MACRO_REPORTS = 10_000
 _MAX_MACRO_TICKS = 10 ** 27
@@ -145,6 +147,40 @@ class ScreenRow:
 class ScreenResult:
     universe: str
     rows: tuple[ScreenRow, ...]
+
+
+@dataclass(frozen=True)
+class ScenarioAllocation:
+    listing_id: str
+    weight_basis_points: int
+
+
+@dataclass(frozen=True)
+class PortfolioScenarioCoverage:
+    listing_id: str
+    weight_basis_points: int
+    known_returns: int
+
+
+@dataclass(frozen=True)
+class PortfolioScenarioPath:
+    ending_value: int
+    drawdown_millionths: int
+    fees: int
+
+
+@dataclass(frozen=True)
+class PortfolioScenarioResult:
+    expected_vectors: int
+    eligible_vectors: int
+    block_size: int
+    eligible_blocks: int
+    loss_paths: int
+    coverage: tuple[PortfolioScenarioCoverage, ...]
+    ending_value: tuple[int, int, int]
+    drawdown_millionths: tuple[int, int, int]
+    fees: tuple[int, int, int]
+    paths: tuple[PortfolioScenarioPath, ...]
 
 
 @dataclass(frozen=True)
@@ -312,6 +348,48 @@ def _response(output: bytes, protocol: str) -> tuple[str, list[str]]:
     if body and not body.endswith("\n"):
         raise ResearchError("Incomplete research result.")
     return fields[2], body[:-1].split("\n") if body else []
+
+
+def _scenario_values(row: str, tag: str) -> tuple[int, int, int]:
+    fields = row.split("\t")
+    if len(fields) != 4 or fields[0] != tag:
+        raise ResearchError("Invalid portfolio scenario result row.")
+    values = (_whole(fields[1]), _whole(fields[2]), _whole(fields[3]))
+    if any(value < 0 for value in values):
+        raise ResearchError("Portfolio scenario values must be nonnegative.")
+    return values
+
+
+def _portfolio_scenarios(
+    output: bytes, allocations: tuple[ScenarioAllocation, ...], paths: int, block_size: int,
+) -> PortfolioScenarioResult:
+    count, rows = _response(output, _PORTFOLIO_PROTOCOL)
+    if _whole(count) != paths or len(rows) != 4 + len(allocations) + paths:
+        raise ResearchError("Invalid portfolio scenario path or result count.")
+    header = rows[0].split("\t")
+    if header[0] != "H" or len(header) != (4 if block_size == 1 else 6):
+        raise ResearchError("Invalid portfolio scenario summary.")
+    expected, eligible, losses = map(_whole, header[1:4])
+    size, blocks = (1, eligible) if block_size == 1 else tuple(map(_whole, header[4:]))
+    if not (1 <= blocks <= eligible <= expected <= 100_000 and size == block_size and 0 <= losses <= paths):
+        raise ResearchError("Portfolio scenario coverage is outside its requested bounds.")
+
+    end_coverage = 1 + len(allocations)
+    coverage = []
+    for allocation, row in zip(sorted(allocations, key=lambda entry: entry.listing_id), rows[1:end_coverage]):
+        fields = row.split("\t")
+        if len(fields) != 4 or fields[:3] != ["A", allocation.listing_id, str(allocation.weight_basis_points)]:
+            raise ResearchError("Portfolio scenario coverage must match the requested allocations.")
+        known = _whole(fields[3])
+        if not eligible <= known <= expected:
+            raise ResearchError("Invalid portfolio scenario listing coverage.")
+        coverage.append(PortfolioScenarioCoverage(allocation.listing_id, allocation.weight_basis_points, known))
+
+    ending, drawdown, fees = (_scenario_values(row, tag)
+                              for row, tag in zip(rows[end_coverage:end_coverage + 3], "VDF"))
+    outcomes = tuple(PortfolioScenarioPath(*_scenario_values(row, "P")) for row in rows[end_coverage + 3:])
+    return PortfolioScenarioResult(expected, eligible, size, blocks, losses, tuple(coverage),
+                                   ending, drawdown, fees, outcomes)
 
 
 def _result(output: bytes) -> FormulaResult:
@@ -888,6 +966,39 @@ class ResearchEngine:
             raise ValueError("Membership and prices CSV exceed the screen input limits.")
         header = "\t".join(("marketweft-rank-comparison", "1", str(len(membership)), *times)).encode("ascii") + b"\n"
         return _rank_comparison_result(self._invoke(header + membership + prices, "rank-compare"))
+
+    def portfolio_scenarios(
+        self, membership_csv: str, prices_csv: str, allocations: Sequence[ScenarioAllocation], *,
+        from_at: str, through_at: str, known_at: str, interval_seconds: int, starting_value: str,
+        fee_basis_points: int, seed: int, paths: int, horizon: int, block_size: int = 1,
+    ) -> PortfolioScenarioResult:
+        """Sample joint return vectors or contiguous blocks using independent UTC cutoffs."""
+        times = (from_at, through_at, known_at)
+        if any(not isinstance(value, str) or not _UTC.fullmatch(value) for value in times):
+            raise ValueError("Scenario times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+        if type(seed) is not int or not 0 <= seed < 1 << 64:
+            raise ValueError("Use an unsigned 64-bit seed.")
+        settings = (interval_seconds, fee_basis_points, paths, horizon, block_size)
+        if (any(type(value) is not int or not 0 <= value <= 0xFFFFFFFF for value in settings)
+                or not isinstance(starting_value, str)
+                or not re.fullmatch(r"[0-9]{1,20}(?:\.[0-9]{1,6})?", starting_value)):
+            raise ValueError("Use whole scenario settings and a starting value with up to six fractional digits.")
+        weights = tuple(allocations)
+        if not 2 <= len(weights) <= 16 or any(
+                not isinstance(entry, ScenarioAllocation) or not isinstance(entry.listing_id, str)
+                or not _IDENTITY.fullmatch(entry.listing_id) or type(entry.weight_basis_points) is not int
+                or not 1 <= entry.weight_basis_points <= 10_000 for entry in weights):
+            raise ValueError("Choose 2 to 16 stable listing IDs with positive whole weights in basis points.")
+        membership, prices = membership_csv.encode("utf-8"), prices_csv.encode("utf-8")
+        if len(membership) > 1024 * 1024 or len(prices) > 2 * 1024 * 1024:
+            raise ValueError("Membership and prices CSV exceed the scenario input limits.")
+        sampling = str(horizon) if block_size == 1 else f"{horizon}:{block_size}"
+        weight_field = "\t".join(f"{entry.listing_id}={entry.weight_basis_points}" for entry in weights)
+        settings_header = "\t".join((_PORTFOLIO_PROTOCOL, "1", str(len(membership))))
+        request = "\n".join((settings_header, *times, str(interval_seconds), starting_value,
+                             str(fee_basis_points), str(seed), str(paths), sampling, weight_field, ""))
+        output = self._invoke(request.encode("ascii") + membership + prices, "portfolio-scenarios")
+        return _portfolio_scenarios(output, weights, paths, block_size)
 
     def financial_snapshot(
         self,

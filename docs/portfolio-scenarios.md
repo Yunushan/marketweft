@@ -29,3 +29,41 @@ With two moves per block, the same cutoffs give 2, 5 and 3 eligible blocks. At 1
 For a fee check, set both cutoffs to 14:01 UTC, choose one move per path and set a fee of 100 basis points. Each path ends at 99.95, with fees of 0.05 and a drawdown of 0.05%. Repeating the same configuration reproduces the exported CSV.
 
 The simulator works offline once the terminal cache is ready. [Listing risk demo fixtures](listing-risk.md).
+
+## Research SDKs
+
+The TypeScript SDK exposes `research.portfolioScenarios` through the bundled Wasm. Pass both CSV strings, a list of weights by stable listing ID and the scenario settings.
+
+```ts
+const report = research.portfolioScenarios(membership, prices, [
+  { listingId: 'A', weightBasisPoints: 5000 },
+  { listingId: 'B', weightBasisPoints: 5000 },
+], {
+  from: '2025-06-02T14:00:00Z',
+  through: '2025-06-02T14:06:00Z',
+  known: '2025-06-02T14:06:00Z',
+  intervalSeconds: 60,
+  startingValue: '100',
+  feeBasisPoints: 100,
+  seed: 9007199254740993n,
+  paths: 5,
+  horizon: 4,
+  blockSize: 3,
+})
+```
+
+Use the synthetic pair from the listing risk guide to reproduce one eligible block and five paths ending at 99.95 with a 0.05% drawdown and 0.05 in fees each. The corresponding integer values are `99950000n`, `500n`, and `50000n`. Ending value and fees use millionths of portfolio currency. Drawdown uses millionths of the portfolio's peak value. Percentile arrays contain the 5th, 50th and 95th percentiles.
+
+The Python SDK exposes `ResearchEngine.portfolio_scenarios` and returns frozen result records with exact Python integers. Use `ScenarioAllocation("A", 5000)` and `ScenarioAllocation("B", 5000)` as the allocations. The equivalent keyword arguments are `from_at`, `through_at`, `known_at`, `interval_seconds`, `starting_value`, `fee_basis_points`, `seed`, `paths`, `horizon`, and `block_size`. Omitting the block size in either SDK uses one move per sample. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md).
+
+### Native portfolio scenarios protocol
+
+Run `marketweft-research portfolio-scenarios` and send the UTF-8 request through standard input. The initial line is the tab-separated protocol name `marketweft-portfolio-scenarios`, version `1`, and membership CSV byte length. Send the following fields on separate lines in this order.
+
+1. The baseline, effective end and knowledge cutoff, each on its own line as an exact UTC timestamp.
+2. The interval in seconds, starting value as a decimal, rebalance fee in basis points, unsigned seed, and path count.
+3. The horizon as a whole number, or `horizon:block_size` for a longer block.
+4. The allocations as tab-separated `listing_id=weight_basis_points` pairs.
+5. The membership CSV bytes followed immediately by the price CSV bytes.
+
+The first response line contains the same name and version followed by the path count. Tab-separated `H` fields give expected vectors, eligible vectors and loss paths, followed by block size and eligible blocks for sizes greater than one. `A` rows contain sorted listing IDs, weights and known return counts. `V`, `D` and `F` report value, drawdown and fee percentiles. `P` rows give the exact ending value, drawdown and fees for each seeded path. The command reports malformed requests on standard error with a nonzero exit status.
