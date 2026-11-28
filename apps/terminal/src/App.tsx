@@ -59,6 +59,10 @@ const VolumeBarsResearch = lazy(async () => {
   const module = await import('./TickBarsResearch')
   return { default: module.VolumeBarsResearch }
 })
+const NotionalBarsResearch = lazy(async () => {
+  const module = await import('./TickBarsResearch')
+  return { default: module.NotionalBarsResearch }
+})
 const DepthResearch = lazy(async () => {
   const module = await import('./DepthResearch')
   return { default: module.DepthResearch }
@@ -439,7 +443,7 @@ export function App({
   const [saved, setSaved] = useState(initial)
   const [replaying, setReplaying] = useState(false)
   const [marketResearch, setMarketResearch] = useState<
-    'tick-bars' | 'range-bars' | 'volume-bars' | 'depth' | 'footprint' | 'formula' | 'monthly-returns' | 'provider-revisions' | null
+    'tick-bars' | 'range-bars' | 'volume-bars' | 'notional-bars' | 'depth' | 'footprint' | 'formula' | 'monthly-returns' | 'provider-revisions' | null
   >(null)
   const replayButton = useRef<HTMLButtonElement>(null)
   const tickResearchButton = useRef<HTMLButtonElement>(null)
@@ -448,6 +452,8 @@ export function App({
   const comparisonRangeButton = useRef<HTMLButtonElement>(null)
   const volumeResearchButton = useRef<HTMLButtonElement>(null)
   const comparisonVolumeButton = useRef<HTMLButtonElement>(null)
+  const notionalResearchButton = useRef<HTMLButtonElement>(null)
+  const comparisonNotionalButton = useRef<HTMLButtonElement>(null)
   const depthResearchButton = useRef<HTMLButtonElement>(null)
   const footprintResearchButton = useRef<HTMLButtonElement>(null)
   const formulaResearchButton = useRef<HTMLButtonElement>(null)
@@ -466,6 +472,7 @@ export function App({
       const button = {
         'tick-bars': tickResearchButton, 'range-bars': tradePane === 'primary' ? rangeResearchButton : comparisonRangeButton,
         'volume-bars': tradePane === 'primary' ? volumeResearchButton : comparisonVolumeButton,
+        'notional-bars': tradePane === 'primary' ? notionalResearchButton : comparisonNotionalButton,
         depth: depthResearchButton, footprint: footprintResearchButton,
         formula: formulaResearchButton, 'monthly-returns': monthlyReturnsButton, 'provider-revisions': providerResearchButton,
       }[restoreResearchFocus.current]
@@ -771,14 +778,17 @@ export function App({
       restoreResearchFocus.current = marketResearch
       setMarketResearch(null)
     }
-    if (marketResearch === 'range-bars' || marketResearch === 'volume-bars') {
+    if (marketResearch === 'range-bars' || marketResearch === 'volume-bars' || marketResearch === 'notional-bars') {
       const series = tradePane === 'primary' ? asset : other
       if (!series) return <main className="replay-page">
         <p role="status">The comparison instrument is unavailable.</p>
         <button className="outline" onClick={closeResearch}>Return to workspace</button>
       </main>
-      const Research = marketResearch === 'range-bars' ? RangeBarsResearch : VolumeBarsResearch
-      const sizeSetting = marketResearch === 'range-bars' ? 'rangeTicks' : 'volumeTicks'
+      const [Research, sizeSetting] = ({
+        'range-bars': [RangeBarsResearch, 'rangeTicks'],
+        'volume-bars': [VolumeBarsResearch, 'volumeTicks'],
+        'notional-bars': [NotionalBarsResearch, 'notionalTicks'],
+      } as const)[marketResearch]
       return <Suspense fallback={researchLoading}>
         <Research key={series.id} core={core} asset={series} close={closeResearch}
           savedSizeTicks={saved.preferences[sizeSetting]?.[tradePane]} saveSizeTicks={ticks =>
@@ -858,6 +868,8 @@ export function App({
               onClick={() => { setTradePane('primary'); setMarketResearch('range-bars') }}>Recorded range bars</button>
             <button ref={volumeResearchButton} className="outline" disabled={saving}
               onClick={() => { setTradePane('primary'); setMarketResearch('volume-bars') }}>Recorded volume bars</button>
+            <button ref={notionalResearchButton} className="outline" disabled={saving}
+              onClick={() => { setTradePane('primary'); setMarketResearch('notional-bars') }}>Recorded notional bars</button>
             <button ref={depthResearchButton} className="outline" disabled={saving}
               onClick={() => setMarketResearch('depth')}>Recorded market depth</button>
             <button ref={footprintResearchButton} className="outline" disabled={saving}
@@ -1014,6 +1026,8 @@ export function App({
                     onClick={() => { setTradePane('comparison'); setMarketResearch('range-bars') }}>Comparison range bars</button>
                   <button ref={comparisonVolumeButton} className="outline" disabled={saving}
                     onClick={() => { setTradePane('comparison'); setMarketResearch('volume-bars') }}>Comparison volume bars</button>
+                  <button ref={comparisonNotionalButton} className="outline" disabled={saving}
+                    onClick={() => { setTradePane('comparison'); setMarketResearch('notional-bars') }}>Comparison notional bars</button>
                   <TimeframeChart key={`${other.id}:${other.bars.length}`} asset={other}
                     core={core} activeSma={comparison.sma} activeEma={comparison.ema}
                     linkedTimestamp={cursor} onTimestamp={comparison.linked ? onCrosshair : undefined}

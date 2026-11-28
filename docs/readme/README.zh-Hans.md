@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.280.0 · 0BSD**
+**0.281.0 · 0BSD**
 
 **文档语言**
 
@@ -15,14 +15,14 @@
 
 MarketWeft 是面向分析师、开发人员和运维人员的本地优先研究终端。它读取有权使用的 OHLCV 文件，绘制交互式蜡烛图与成交量，用定点数计算 SMA 和 EMA，并把自选列表、选中标的和指标保存在 IndexedDB。应用资源缓存后即可离线使用。内置价格与成交量均为合成数据，无需行情商账户。
 
-MarketWeft 0.280.0 为离线图表加入三角移动平均线和可配置的 Tillson T3 指标。 MarketWeft 0.7.0 新增按价格收益率进行的时点股票池筛选。基于交易时段的回放支持拆股、现金股息、成分变动和退市。仓库还提供独立 trading-bot 服务的只读 TypeScript 观察器和实验性 Tauri 封装。数据源接入、下单、签名原生安装包及多用户托管仍在路线图上。
+MarketWeft 0.281.0 按观测时点使用已记录的成交生成成交金额柱，保留精确的计价金额，并支持各图表窗格独立设置阈值。 MarketWeft 0.7.0 新增按价格收益率进行的时点股票池筛选。基于交易时段的回放支持拆股、现金股息、成分变动和退市。仓库还提供独立 trading-bot 服务的只读 TypeScript 观察器和实验性 Tauri 封装。数据源接入、下单、签名原生安装包及多用户托管仍在路线图上。
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Triangular average and Tillson T3](../chart-workspace.md#triangular-moving-average-and-tillson-t3) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Recorded notional bars](../chart-workspace.md#recorded-notional-bars) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
 
 <!-- section:02 -->
 ## 启动便携终端
 
-从 GitHub 成功的验证运行中下载 browser-terminal-attempt-N，解压其中的 MarketWeft-browser-0.280.0.zip。让 dist/ 与 serve-terminal.mjs 位于同一目录，在该目录运行下列命令。使用支持 WebAssembly、Canvas、BigInt 和 IndexedDB 的新版浏览器打开 http://127.0.0.1:4173/。启动器需要 Node.js 22.12 或更高版本，无需通过 npm 安装。断网前等待显示 Offline ready。
+从 GitHub 成功的验证运行中下载 browser-terminal-attempt-N，解压其中的 MarketWeft-browser-0.281.0.zip。让 dist/ 与 serve-terminal.mjs 位于同一目录，在该目录运行下列命令。使用支持 WebAssembly、Canvas、BigInt 和 IndexedDB 的新版浏览器打开 http://127.0.0.1:4173/。启动器需要 Node.js 22.12 或更高版本，无需通过 npm 安装。断网前等待显示 Offline ready。
 
 ```sh
 node serve-terminal.mjs

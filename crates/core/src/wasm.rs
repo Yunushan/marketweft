@@ -3566,6 +3566,27 @@ pub extern "C" fn mw_volume_bars(target_volume: i64) -> u32 {
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_notional_bars(target_notional: i64) -> u32 {
+    process(|input| {
+        let (instrument, cutoff, csv) = trade_bar_input(input)?;
+        let rolled = crate::TradeTape::parse_execution(csv, &instrument)?
+            .notional_bars(target_notional, cutoff)?;
+        let mut bytes = Vec::with_capacity(104 * rolled.len());
+        for entry in rolled {
+            push_bar(&mut bytes, entry.bar);
+            bytes.extend_from_slice(&entry.available_at.to_le_bytes());
+            bytes.extend_from_slice(&entry.first_sequence.to_le_bytes());
+            bytes.extend_from_slice(&entry.last_sequence.to_le_bytes());
+            bytes.extend_from_slice(&entry.observed_trades.to_le_bytes());
+            bytes.extend_from_slice(&u32::from(entry.complete()).to_le_bytes());
+            bytes.extend_from_slice(&entry.target_notional.to_le_bytes());
+            bytes.extend_from_slice(&entry.gross_notional.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
 fn recorded_source(input: &[u8]) -> Result<(Instrument, &str), String> {
     let (id, rest) = utf8(input)?
         .split_once('\n')

@@ -57,6 +57,9 @@ clip the final bucket at each listed close. Try the supplied split-sessions.csv.
 Open Recorded tick bars with NASDAQ:NVDA selected and load tick-trades.csv.
 Use two trades per bar and compare cutoffs at 2025-06-02T14:00:00Z and
 2025-06-02T14:00:05Z. The complete first bar is identical at both cutoffs.
+For recorded notional bars, load notional-trades.csv for NASDAQ:NVDA and set
+a target of 5 quote units. Advance from 14:00:01 to 14:00:02 UTC on June 2,
+2025 to see the provisional bar complete on the next observed trade.
 
 Choose Historical replay and Start demo for the NYSE session example. Replay
 reveals each bar at its scheduled close and marks missing intervals in-session.
@@ -263,6 +266,7 @@ def main():
     files["replay-sessions.csv"] = (fixture / "nyse-2025-replay-sessions.csv").read_bytes()
     files["replay-ohlcv.csv"] = (fixture / "nyse-2025-replay-ohlcv.csv").read_bytes()
     files["tick-trades.csv"] = (fixture / "synthetic-tick-trades.csv").read_bytes()
+    files["notional-trades.csv"] = (fixture / "synthetic-notional-trades.csv").read_bytes()
     files["formula-bars.csv"] = (fixture / "synthetic-formula-bars.csv").read_bytes()
     files["formula-strategy.mwstrategy.json"] = (fixture / "synthetic-formula-strategy.mwstrategy.json").read_bytes()
     files["formula-library.mwformula.json"] = (fixture / "synthetic-formula-library.mwformula.json").read_bytes()

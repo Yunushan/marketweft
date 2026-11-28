@@ -647,6 +647,14 @@ A completed bar contains exactly the entered volume. When a trade crosses the bo
 
 Hover a bar to inspect its volume, status, date and capture sequences. The CSV also reports the volume contributed by the first and last trades and the number of contributing trades in each bar. One capture sequence can contribute to multiple bars. **Save volume target for this pane** saves the setting in the workspace backup. Select the trade file when you reopen the tool.
 
+## Recorded notional bars
+
+Open **Recorded notional bars** for the primary instrument or **Comparison notional bars** for the comparison instrument. Select a [recorded trade CSV](recorded-tick-bars.md) and enter a positive target in the instrument's quote units with up to six decimal places. The optional UTC cutoff includes trades observed at that second, in capture sequence order.
+
+Each trade contributes its absolute price times its size to the gross notional. The trade that reaches or crosses the target completes the bar and stays whole in that bar. A later trade starts a fresh bar. Any remaining bar below the target is provisional. The calculation preserves each product exactly to twelve decimal places. [Mlfin.py standard bars](https://mlfinpy.readthedocs.io/en/stable/FinancialDataStructure.html#standard-bars)
+
+With NASDAQ:NVDA selected, try the packaged `notional-trades.csv` and a target of 5. The first bar is provisional at 14:00:01 UTC with 2.000003000001 in quote units. It completes at 14:00:02 UTC with 5.000003000001. The chart and CSV include the gross and target amounts, status, observation times, exact capture sequences and OHLCV. **Save notional target for this pane** keeps the target in version 86 backups. Select the trade file whenever you reopen the tool. [Synthetic trades](../crates/core/tests/fixtures/synthetic-notional-trades.csv)
+
 ## Recorded trades
 
 The **Recorded tick bars** tool builds an independent chart from captured trades using an observation cutoff and trade count. [Recorded tick bars](recorded-tick-bars.md)

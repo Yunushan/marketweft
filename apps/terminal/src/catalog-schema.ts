@@ -26,6 +26,7 @@ export type Preferences = {
   pointFigureTicks?: Partial<Record<ChartPane, number>>
   rangeTicks?: Partial<Record<ChartPane, number>>
   volumeTicks?: Partial<Record<ChartPane, number>>
+  notionalTicks?: Partial<Record<ChartPane, number>>
   baselineTicks?: Partial<Record<ChartPane, number>>
   closeChangeSeconds?: Partial<Record<ChartPane, number>>
   highLowSeconds?: Partial<Record<ChartPane, number>>
@@ -156,7 +157,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
   for (const key of intervalSettings) {
     if (value && typeof value === 'object' && Object.hasOwn(value, key)) keys.push(key)
   }
-  const tickSettings = ['renkoTicks', 'kagiTicks', 'pointFigureTicks', 'rangeTicks', 'volumeTicks', 'baselineTicks'] as const
+  const tickSettings = ['renkoTicks', 'kagiTicks', 'pointFigureTicks', 'rangeTicks', 'volumeTicks', 'notionalTicks', 'baselineTicks'] as const
   for (const key of tickSettings) {
     if (value && typeof value === 'object' && Object.hasOwn(value, key)) keys.push(key)
   }

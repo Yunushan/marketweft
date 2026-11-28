@@ -47,6 +47,7 @@ mod macro_wire;
 mod monthly_returns;
 mod moving_averages;
 mod normalized_indicators;
+mod notional_bars;
 mod option_cash;
 mod option_chain;
 mod option_price;
@@ -179,6 +180,7 @@ pub use moving_averages::{
 pub use normalized_indicators::{
     normalized_average_true_range, percentage_price_oscillator, PpoValue,
 };
+pub use notional_bars::NotionalBar;
 pub use option_cash::CashOptionDividend;
 pub use option_chain::{
     AmericanCashImpliedRequest, AmericanCashImpliedValuation, AmericanCashRequest,

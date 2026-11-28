@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.281.0 · Recorded notional bars
+
+- Rust and Wasm verify exact trillionth-scale products, the capture order of same-second trades, signed and zero prices, inclusive cutoffs and unchanged completed prefixes. One test keeps a product above signed 64-bit range exact.
+- Offline Chromium verifies provisional, exact-target and overshoot bars, twelve-place CSV evidence, a byte-identical rewind, and independent pane targets through version 86 restore.
+
 ## 0.280.0 · Triangular Moving Average and Tillson T3
 
 - Rust and Wasm verify exact signed odd and even triangular windows, half-tick rounding, a genuine zero, and six successive EMA warm-up stages at factors 0, 7,000, and 10,000 basis points.

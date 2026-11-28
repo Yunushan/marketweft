@@ -140,6 +140,18 @@ export interface VolumeBar {
   lastContributionTicks: bigint;
 }
 
+export interface NotionalBar {
+  bar: Bar;
+  availableAt: number;
+  firstSequence: bigint;
+  lastSequence: bigint;
+  observedTrades: number;
+  complete: boolean;
+  volumeTicks: bigint;
+  targetNotionalTicks: bigint;
+  grossNotionalTrillionths: bigint;
+}
+
 export interface TimeframeBar {
   bar: Bar;
   observedBars: number;
@@ -1343,6 +1355,7 @@ export interface MarketCore {
   recordedTickBars(instrument: string, csv: string, targetTrades: number, knownAt?: string): TickBar[];
   recordedRangeBars(instrument: string, csv: string, targetRangeTicks: bigint, knownAt?: string): RangeBar[];
   recordedVolumeBars(instrument: string, csv: string, targetVolumeTicks: bigint, knownAt?: string): VolumeBar[];
+  recordedNotionalBars(instrument: string, csv: string, targetNotionalTicks: bigint, knownAt?: string): NotionalBar[];
   footprintWindow(instrument: string, csv: string): FootprintWindow;
   recordedFootprint(instrument: string, csv: string, query: FootprintQuery): FootprintBar[];
   recordedPriceProfile(instrument: string, csv: string, query: FootprintQuery, valueAreaBasisPoints: number): PriceProfile;
@@ -1544,6 +1557,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_tick_bars(targetTrades: number): number;
   mw_range_bars(targetRangeTicks: bigint): number;
   mw_volume_bars(targetVolumeTicks: bigint): number;
+  mw_notional_bars(targetNotionalTicks: bigint): number;
   mw_footprint_window(): number;
   mw_trade_footprint(bucketSeconds: number): number;
   mw_price_profile(bucketSeconds: number, valueAreaBasisPoints: number): number;
@@ -2483,6 +2497,27 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           targetVolumeTicks: out.getBigInt64(start + 80, true),
           firstContributionTicks: out.getBigInt64(start + 88, true),
           lastContributionTicks: out.getBigInt64(start + 96, true),
+        };
+      });
+    },
+    recordedNotionalBars(instrument, csv, targetNotionalTicks, knownAt = '') {
+      if (targetNotionalTicks < 1n || targetNotionalTicks > 2_000_000_000_000_000n)
+        throw new Error('Use a positive six-place notional target.');
+      if (/[\r\n]/.test(instrument + knownAt)) throw new Error('Use a single instrument and UTC cutoff.');
+      textInput([instrument, knownAt, csv].join('\n'));
+      const out = output(api.mw_notional_bars(targetNotionalTicks));
+      return Array.from({ length: out.byteLength / 104 }, (_, index) => {
+        const start = index * 104;
+        return {
+          bar: decodeBar(out, start),
+          availableAt: Number(out.getBigInt64(start + 48, true)),
+          firstSequence: out.getBigUint64(start + 56, true),
+          lastSequence: out.getBigUint64(start + 64, true),
+          observedTrades: out.getUint32(start + 72, true),
+          complete: out.getUint32(start + 76, true) === 1,
+          volumeTicks: out.getBigInt64(start + 40, true),
+          targetNotionalTicks: out.getBigInt64(start + 80, true),
+          grossNotionalTrillionths: signed128(out, start + 88),
         };
       });
     },

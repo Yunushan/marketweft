@@ -21,7 +21,7 @@ import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, utc, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar, DrawingEndpoint, FibonacciChannelLevel, FibonacciCircleLevel, GannFanLevel, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, RegressionChannel, TickBar, VolumeBar } from './market-core'
+import type { Bar, DrawingEndpoint, FibonacciChannelLevel, FibonacciCircleLevel, GannFanLevel, KagiSegment, MarketCore, MeasuredDrawing, NotionalBar, PointFigureBox, PriceMovement, RangeBar, RegressionChannel, TickBar, VolumeBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 export type RegressionDrawingView = {
@@ -1246,6 +1246,7 @@ export function Chart({
   ticks,
   ranges,
   volumes,
+  notionals,
   observedAt,
   displayBars,
   priceMovements,
@@ -1279,6 +1280,7 @@ export function Chart({
   ticks?: TickBar[]
   ranges?: RangeBar[]
   volumes?: VolumeBar[]
+  notionals?: NotionalBar[]
   observedAt?: readonly number[]
   displayBars?: Bar[]
   priceMovements?: PriceMovement[]
@@ -1411,6 +1413,7 @@ export function Chart({
   const tick = ticks?.[sourceIndex]
   const range = ranges?.[sourceIndex]
   const volumeBar = volumes?.[sourceIndex]
+  const notional = notionals?.[sourceIndex]
   const observation = observedAt?.[sourceIndex]
   const percentPlot = useMemo(() => drawdowns ? drawdowns.map(point => plotValue(point?.percent ?? null)) :
     rebasedReturns?.values.map(plotValue), [drawdowns, rebasedReturns])
@@ -1704,6 +1707,12 @@ export function Chart({
           {' · '}{volumeBar.complete ? 'Complete' : 'Provisional'} · {volumeBar.contributingTrades} contributing trades
           {' · '}Observed through {timeLabel(volumeBar.availableAt)} UTC
           {' · '}Capture sequence {volumeBar.firstSequence.toString()}–{volumeBar.lastSequence.toString()}
+        </span>}
+        {notional && <span className="timeframe-coverage">
+          Notional {fixed(notional.grossNotionalTrillionths, 12)} / {fixed(notional.targetNotionalTicks, 6)}
+          {' · '}{notional.complete ? 'Complete' : 'Provisional'} · {notional.observedTrades} {notional.observedTrades === 1 ? 'trade' : 'trades'}
+          {' · '}Observed through {timeLabel(notional.availableAt)} UTC
+          {' · '}Capture sequence {notional.firstSequence.toString()}–{notional.lastSequence.toString()}
         </span>}
       </div>
       {!scatterChart && anchoredVwaps?.map(line => {

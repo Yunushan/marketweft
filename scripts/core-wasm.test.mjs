@@ -2595,6 +2595,27 @@ test('recorded volume bars keep exact split contributions and cutoff evidence', 
   assert.throws(() => core.recordedVolumeBars('LOCAL:VOLUME', csv, 1n), /100,000/);
 });
 
+test('recorded notional bars preserve whole trades and exact 128-bit quote products', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-notional-trades.csv', import.meta.url), 'utf8');
+  const at = cutoff => core.recordedNotionalBars('NASDAQ:NVDA', csv, 5_000_000n, String(1748872800 + cutoff));
+  assert.deepEqual(at(-1), []);
+  const provisional = at(0);
+  assert.equal(provisional[0].grossNotionalTrillionths, 2_000_003_000_001n);
+  assert.equal(provisional[0].complete, false);
+  assert.equal(provisional[0].lastSequence, 9_007_199_254_740_994n);
+  const full = at(5);
+  assert.deepEqual(full.map(bar => [bar.grossNotionalTrillionths, bar.complete, bar.volumeTicks]), [
+    [5_000_003_000_001n, true, 2_250_001n], [5_000_000_000_000n, true, 1_000_000n],
+    [5_250_000_500_000n, true, 500_000n], [800_000_800_000n, false, 800_000n],
+  ]);
+  for (let cutoff = 2; cutoff <= 5; cutoff++) assert.deepEqual(at(cutoff), full.slice(0, cutoff - 1));
+  assert.equal(full[2].firstSequence, full[2].lastSequence);
+  assert.deepEqual(at(0), provisional);
+  assert.throws(() => core.recordedNotionalBars('NASDAQ:NVDA', csv, 0n), /positive six-place notional/);
+  const wide = csv.split('\n')[0] + '\nNASDAQ:NVDA,1748872800,1748872800,1,-2000000000,2000000000\n';
+  assert.equal(core.recordedNotionalBars('NASDAQ:NVDA', wide, 1n)[0].grossNotionalTrillionths, (2_000_000_000_000_000n) ** 2n);
+});
+
 test('Wilder RSI uses a full window of changes, exact scaled values and neutral flat prices', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-rsi.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(csv);
