@@ -71,7 +71,8 @@ class McpTest(unittest.TestCase):
                           mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME, mcp.MONTHLY_RETURNS_TOOL_NAME,
                           mcp.MACRO_CALENDAR_TOOL_NAME, mcp.PORTFOLIO_SCENARIOS_TOOL_NAME, mcp.PORTFOLIO_FX_TOOL_NAME,
                           mcp.EQUITY_CONCENTRATION_TOOL_NAME, mcp.EQUITY_TARGET_TOOL_NAME,
-                          mcp.PORTFOLIO_ALLOCATION_TOOL_NAME, mcp.NOTIONAL_BARS_TOOL_NAME])
+                          mcp.PORTFOLIO_ALLOCATION_TOOL_NAME, mcp.NOTIONAL_BARS_TOOL_NAME,
+                          mcp.LISTING_DOWNSIDE_RISK_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -571,6 +572,65 @@ class McpTest(unittest.TestCase):
             self.assertEqual(replies[request_id]["error"]["code"], -32602)
         self.assertTrue(replies["bad-date"]["result"]["isError"])
         self.assertEqual(data("rewind"), before)
+        self.assertEqual(replies["ping"]["result"], {})
+
+    def test_listing_downside_risk_pages_preserve_losses_and_rewind(self):
+        fixtures = ROOT / "crates/core/tests/fixtures"
+        time = lambda minute: f"2025-06-02T14:0{minute}:00Z"
+        arguments = {
+            "membership_csv": (fixtures / "synthetic-listing-risk-membership.csv").read_text(encoding="utf-8"),
+            "prices_csv": (fixtures / "synthetic-listing-risk-prices.csv").read_text(encoding="utf-8"),
+            "left_listing_id": "A", "right_listing_id": "B",
+            "from_at": time(0), "through_at": time(6), "known_at": time(6),
+            "interval_seconds": 60, "window_periods": 3,
+        }
+
+        def query(request_id, **changes):
+            return rpc("tools/call", request_id, {
+                "name": mcp.LISTING_DOWNSIDE_RISK_TOOL_NAME, "arguments": arguments | changes,
+            })
+
+        process = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(
+                rpc("initialize", "init", INITIALIZE), rpc("notifications/initialized"), rpc("tools/list", "tools"),
+                query("early", limit=2), query("next", limit=2, offset=2),
+                query("late", limit=2, known_at=time(7)), query("missing", known_at=time(0)),
+                query("removed", known_at=time(8)), query("overrun", offset=100_000),
+                query("invalid-limit", limit=1001), query("null-scale", volatility_periods=None),
+                query("unknown", price_path="prices.csv"), query("grid", interval_seconds=70),
+                query("rewind", limit=2), rpc("ping", "ping"),
+            ),
+            timeout=15, capture_output=True, check=True,
+        )
+        self.assertEqual(process.stderr, b"")
+        replies = {item["id"]: item for item in map(json.loads, process.stdout.splitlines())}
+        tool = next(item for item in replies["tools"]["result"]["tools"]
+                    if item["name"] == mcp.LISTING_DOWNSIDE_RISK_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertFalse(tool["annotations"]["openWorldHint"])
+        self.assertNotIn("volatility_periods", tool["inputSchema"]["required"])
+
+        def data(request_id):
+            result = replies[request_id]["result"]
+            self.assertEqual(json.loads(result["content"][0]["text"]), result["structuredContent"])
+            return result["structuredContent"]
+
+        first = data("early")
+        self.assertEqual((first["known_at"], first["total_windows"], first["next_offset"], first["volatility_periods"]),
+                         (time(6), 4, 2, 1))
+        self.assertEqual((first["rows"][0]["left_downside"], first["rows"][0]["right_loss_returns"]), (0, 1))
+        self.assertAlmostEqual(first["rows"][0]["right_downside"], 0.1, places=14)
+        self.assertEqual(data("next")["next_offset"], None)
+        self.assertEqual(data("late")["rows"][0]["right_loss_returns"], 2)
+        self.assertAlmostEqual(data("late")["rows"][0]["right_downside"], 0.0816496580927726, places=14)
+        self.assertIsNone(data("missing")["rows"][0]["left_downside"])
+        self.assertEqual(data("removed")["rows"][-1]["left_returns"], 1)
+        self.assertEqual(data("overrun")["rows"], [])
+        for request_id in ("invalid-limit", "null-scale", "unknown"):
+            self.assertEqual(replies[request_id]["error"]["code"], -32602)
+        self.assertTrue(replies["grid"]["result"]["isError"])
+        self.assertEqual(data("rewind"), first)
         self.assertEqual(replies["ping"]["result"], {})
 
     def test_tool_and_protocol_errors_preserve_the_session(self):

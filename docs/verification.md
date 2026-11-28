@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.288.0 · Listing downside risk over research transports
+
+- REST, resumed WebSocket and typed gRPC verify screen authorization, matching pages and genuine zeros after the late close. The tests also verify missing evidence, the removal and the same earlier page on rewind.
+- The installed MCP wheel and a protocol client verify read-only discovery, matching text and structured pages, unavailable metrics and recovery after invalid input.
+
 ## 0.287.0 · Rolling downside risk SDKs
 
 - The native command verifies byte-bounded input, independent UTC cutoffs, version checks, exact window coverage and deterministic output after rewind.

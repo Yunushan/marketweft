@@ -3,9 +3,10 @@ use crate::{
         AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close,
         EquityConcentrationPage, EquityConcentrationQuery, EquityConcentrationRow,
         EquityTargetDriftPage, EquityTargetDriftQuery, EquityTargetDriftRow, EquityTargetEvidence,
-        FormulaPage, FormulaQuery, FormulaRow, MacroCalendarPage, MacroCalendarQuery,
-        MacroCalendarRow, MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery,
-        MonthlyReturnsRow, OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying,
+        FormulaPage, FormulaQuery, FormulaRow, ListingDownsideRiskPage, ListingDownsideRiskQuery,
+        ListingDownsideRiskRow, MacroCalendarPage, MacroCalendarQuery, MacroCalendarRow,
+        MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery, MonthlyReturnsRow,
+        OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying,
         PortfolioAllocationListing, PortfolioAllocationQuery, PortfolioAllocationResponse,
         PortfolioAllocationSample, PortfolioFxPage, PortfolioFxQuery, PortfolioFxRate,
         PortfolioFxRow, PortfolioScenarioCoverage, PortfolioScenarioPath,
@@ -20,11 +21,11 @@ use axum::http::StatusCode;
 use marketweft_core::{
     monthly_returns, parse_csv, parse_dividends, parse_exact_utc, parse_universe,
     AmericanValuationRequest, CashOptionError, EquityTargetBook, ExerciseStyle, Formula,
-    FormulaFunctionDefinition, FormulaLibrary, FxAmount, FxBook, Instrument, MacroCalendar,
-    MonthWindow, MonthlyClose, OptionAnalytics, OptionBook, OptionSide, PortfolioBook,
-    PortfolioScenarioConfig, PortfolioVarianceQuery, PriceBook, PriceObservation, ReportKind,
-    ScenarioAllocation, ScenarioConfig, ScreenComparisonLeg, ScreenCutoff, ThreeQuantiles,
-    TradeTape, UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_BARS,
+    FormulaFunctionDefinition, FormulaLibrary, FxAmount, FxBook, Instrument, ListingRiskQuery,
+    MacroCalendar, MonthWindow, MonthlyClose, OptionAnalytics, OptionBook, OptionSide,
+    PortfolioBook, PortfolioScenarioConfig, PortfolioVarianceQuery, PriceBook, PriceObservation,
+    ReportKind, ScenarioAllocation, ScenarioConfig, ScreenComparisonLeg, ScreenCutoff,
+    ThreeQuantiles, TradeTape, UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_BARS,
     MAX_MONTHLY_RETURN_YEARS,
 };
 use serde::de::DeserializeOwned;
@@ -43,6 +44,7 @@ pub(crate) enum ResearchPage {
     Screen(ScreenPage),
     RankComparison(RankComparisonPage),
     RecordedNotionalBars(RecordedNotionalBarsPage),
+    ListingDownsideRisk(ListingDownsideRiskPage),
     PortfolioAllocation(PortfolioAllocationResponse),
     PortfolioScenarios(PortfolioScenariosPage),
     PortfolioFx(PortfolioFxPage),
@@ -738,6 +740,88 @@ pub(crate) fn evaluate_recorded_notional_bars(
                     low_ticks: row.bar.low.to_string(),
                     close_ticks: row.bar.close.to_string(),
                     volume_ticks: row.bar.volume.to_string(),
+                })
+                .collect(),
+        },
+    );
+    Ok(())
+}
+
+pub(crate) fn listing_downside_risk(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_listing_downside_risk(request(bytes)?, &mut |page| {
+        emit(ResearchPage::ListingDownsideRisk(page))
+    })
+}
+
+pub(crate) fn evaluate_listing_downside_risk(
+    query: ListingDownsideRiskQuery,
+    emit: &mut dyn FnMut(ListingDownsideRiskPage) -> bool,
+) -> Result<(), ApiError> {
+    let (offset, limit) = pagination(query.offset, query.limit, MAX_BARS as u64)?;
+    let [Some(from_at), Some(through_at), Some(known_at)] =
+        [&query.from_at, &query.through_at, &query.known_at].map(|time| parse_exact_utc(time))
+    else {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use YYYY-MM-DDTHH:MM:SSZ listing risk cutoffs.",
+        ));
+    };
+    let volatility_periods = query.volatility_periods.unwrap_or(1);
+    let universe = parse_universe(&query.membership_csv).map_err(analytical_error)?;
+    let prices = PriceBook::parse(&universe, &query.prices_csv).map_err(analytical_error)?;
+    let rows = prices
+        .listing_downside_risk(
+            &query.left_listing_id,
+            &query.right_listing_id,
+            ListingRiskQuery {
+                from_at,
+                through_at,
+                known_at,
+                interval_seconds: query.interval_seconds,
+                window_periods: query.window_periods,
+                volatility_periods,
+            },
+        )
+        .map_err(analytical_error)?;
+    pages(
+        offset,
+        limit,
+        rows.len(),
+        emit,
+        |offset, range, next_offset| ListingDownsideRiskPage {
+            left_listing_id: query.left_listing_id.clone(),
+            right_listing_id: query.right_listing_id.clone(),
+            from_at: query.from_at.clone(),
+            through_at: query.through_at.clone(),
+            known_at: query.known_at.clone(),
+            interval_seconds: query.interval_seconds,
+            window_periods: query.window_periods,
+            volatility_periods,
+            total_windows: rows.len() as u32,
+            offset,
+            next_offset,
+            rows: rows[range]
+                .iter()
+                .map(|point| {
+                    let risk = point.risk;
+                    ListingDownsideRiskRow {
+                        from_at: risk.from_at,
+                        through_at: risk.through_at,
+                        expected_returns: risk.expected_returns,
+                        left_returns: risk.left_returns,
+                        right_returns: risk.right_returns,
+                        paired_returns: risk.paired_returns,
+                        left_loss_returns: point.left_loss_returns,
+                        right_loss_returns: point.right_loss_returns,
+                        left_volatility: risk.left_volatility,
+                        right_volatility: risk.right_volatility,
+                        correlation: risk.correlation,
+                        left_downside: point.left_downside,
+                        right_downside: point.right_downside,
+                    }
                 })
                 .collect(),
         },

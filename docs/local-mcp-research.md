@@ -60,6 +60,12 @@ The tool returns common and per-listing coverage at every cutoff. With at least 
 
 Pass the optional integer `maximum_weight_basis_points` to bound each listing's weight. The tool echoes the supplied ceiling, including on a coverage-only result.
 
+## Listing downside risk
+
+Call the read-only `listing_downside_risk_as_of` tool with membership and prices CSV contents, two listing IDs, three exact UTC cutoffs and a rolling window on the chosen price grid. The optional volatility scale defaults to one. Each page echoes the cutoffs and grid settings and returns available counts, loss counts, volatility, correlation and downside deviation as fractional returns. Missing metrics use `null`.
+
+Use `offset` and `limit` to page the windows in chronological order. The default page contains up to 200 windows and the maximum is 1,000. Pass `next_offset` with the same inputs to continue. With the sample reports, moving knowledge from 14:06 to 14:07 UTC reveals the late B close and changes the first downside deviation from 10% to 8.164966%. Rewinding returns the earlier page. [Listing risk inputs and fixture](listing-risk.md#verify-the-demo) · [Shared service fields](local-rest-research.md#listing-downside-risk)
+
 ## Recorded notional bars
 
 Call the read-only `recorded_notional_bars` tool with the canonical `instrument`, the contents of `trades_csv`, and a positive integer `target_notional_ticks` in quote millionths. Supply an optional exact UTC `known_at` cutoff to evaluate recorded observations through that second. Omit it to use every recorded trade. [Trade CSV and SDKs](recorded-tick-bars.md#recorded-notional-bar-sdks)

@@ -20,7 +20,7 @@ from . import (
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.18.0"
+SERVER_VERSION = "0.19.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -36,6 +36,7 @@ MACRO_CALENDAR_TOOL_NAME = "macro_calendar_as_of"
 PORTFOLIO_SCENARIOS_TOOL_NAME = "portfolio_scenarios_as_of"
 PORTFOLIO_ALLOCATION_TOOL_NAME = "portfolio_allocation_as_of"
 NOTIONAL_BARS_TOOL_NAME = "recorded_notional_bars"
+LISTING_DOWNSIDE_RISK_TOOL_NAME = "listing_downside_risk_as_of"
 PORTFOLIO_FX_TOOL_NAME = "portfolio_fx_as_of"
 EQUITY_CONCENTRATION_TOOL_NAME = "equity_concentration_as_of"
 EQUITY_TARGET_TOOL_NAME = "equity_target_drift_as_of"
@@ -736,6 +737,48 @@ NOTIONAL_BARS_TOOL = {
     "outputSchema": NOTIONAL_BARS_OUTPUT,
 }
 
+_RISK_QUERY_TEXT = {
+    **_ALLOCATION_QUERY_TEXT,
+    "left_listing_id": _IDENTIFIER_SCHEMA,
+    "right_listing_id": _IDENTIFIER_SCHEMA,
+}
+_RISK_GRID = {
+    "interval_seconds": {"type": "integer", "minimum": 1, "maximum": _U32_MAX},
+    "window_periods": {"type": "integer", "minimum": 2, "maximum": 100_000},
+    "volatility_periods": {"type": "integer", "minimum": 1, "maximum": _U32_MAX},
+}
+LISTING_DOWNSIDE_RISK_INPUT = _object_schema({
+    **_RISK_QUERY_TEXT,
+    **_RISK_GRID,
+    "offset": INPUT_SCHEMA["properties"]["offset"],
+    "limit": INPUT_SCHEMA["properties"]["limit"],
+}, optional=("volatility_periods", "offset", "limit"))
+_RISK_METRIC = {"type": ["number", "null"], "minimum": 0}
+_RISK_COUNT = {"type": "integer", "minimum": 0, "maximum": 100_000}
+LISTING_DOWNSIDE_RISK_OUTPUT = _object_schema({
+    **_PORTFOLIO_TIMES,
+    **_RISK_GRID,
+    "left_listing_id": _IDENTIFIER_SCHEMA,
+    "right_listing_id": _IDENTIFIER_SCHEMA,
+    "total_windows": _RISK_COUNT,
+    "offset": _RISK_COUNT,
+    "next_offset": {**_RISK_COUNT, "type": ["integer", "null"]},
+    "rows": {"type": "array", "maxItems": MAX_ROWS, "items": _object_schema({
+        "from_at": _TIME_SCHEMA, "through_at": _TIME_SCHEMA,
+        **dict.fromkeys(("expected_returns", "left_returns", "right_returns", "paired_returns",
+                         "left_loss_returns", "right_loss_returns"), _RISK_COUNT),
+        **dict.fromkeys(("left_volatility", "right_volatility", "left_downside", "right_downside"), _RISK_METRIC),
+        "correlation": {"type": ["number", "null"], "minimum": -1, "maximum": 1},
+    })},
+})
+LISTING_DOWNSIDE_RISK_TOOL = {
+    "name": LISTING_DOWNSIDE_RISK_TOOL_NAME,
+    "description": "Calculate rolling listing risk and downside deviation from returns known at a selected UTC cutoff.",
+    "annotations": TOOL["annotations"],
+    "inputSchema": LISTING_DOWNSIDE_RISK_INPUT,
+    "outputSchema": LISTING_DOWNSIDE_RISK_OUTPUT,
+}
+
 
 class RequestError(Exception):
     def __init__(self, code: int, message: str):
@@ -864,7 +907,7 @@ class ResearchServer:
             return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL,
                               AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL, MACRO_CALENDAR_TOOL, PORTFOLIO_SCENARIOS_TOOL,
                               PORTFOLIO_FX_TOOL, EQUITY_CONCENTRATION_TOOL, EQUITY_TARGET_TOOL, PORTFOLIO_ALLOCATION_TOOL,
-                              NOTIONAL_BARS_TOOL]}
+                              NOTIONAL_BARS_TOOL, LISTING_DOWNSIDE_RISK_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -888,6 +931,8 @@ class ResearchServer:
                 return self._portfolio_allocation(arguments)
             if name == NOTIONAL_BARS_TOOL_NAME:
                 return self._notional_bars(arguments)
+            if name == LISTING_DOWNSIDE_RISK_TOOL_NAME:
+                return self._listing_downside_risk(arguments)
             if name == PORTFOLIO_SCENARIOS_TOOL_NAME:
                 return self._portfolio_scenarios(arguments)
             if name == PORTFOLIO_FX_TOOL_NAME:
@@ -1018,6 +1063,36 @@ class ResearchServer:
             "instrument": report.instrument, "target_notional_ticks": report.target_notional_ticks, "known_at": known,
             "total_bars": len(report.bars), "offset": offset, "next_offset": end if end < len(report.bars) else None,
             "bars": bars,
+        })
+
+    def _listing_downside_risk(self, arguments) -> dict:
+        if (not isinstance(arguments, dict)
+                or set(arguments) - LISTING_DOWNSIDE_RISK_INPUT["properties"].keys()
+                or set(LISTING_DOWNSIDE_RISK_INPUT["required"]) - arguments.keys()):
+            raise RequestError(-32602, "Supply the documented listing downside risk arguments.")
+        fields = {name: arguments[name] for name in _RISK_QUERY_TEXT}
+        if not all(isinstance(value, str) and value for value in fields.values()):
+            raise RequestError(-32602, "Supply membership and prices CSV, two listing IDs and three UTC cutoffs as text.")
+        interval = _integer(arguments, "interval_seconds", 0, 1, _U32_MAX)
+        window = _integer(arguments, "window_periods", 0, 2, 100_000)
+        scale = _integer(arguments, "volatility_periods", 1, 1, _U32_MAX)
+        offset = _integer(arguments, "offset", 0, 0, 100_000)
+        limit = _integer(arguments, "limit", 200, 1, MAX_ROWS)
+        try:
+            report = self._engine.listing_downside_risk_as_of(
+                **fields, interval_seconds=interval, window_periods=window, volatility_periods=scale,
+            )
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+        page = report.rows[offset:offset + limit]
+        end = offset + len(page)
+        return _structured({
+            **{name: fields[name] for name in _PORTFOLIO_TIMES},
+            "left_listing_id": report.left_listing_id, "right_listing_id": report.right_listing_id,
+            "interval_seconds": interval, "window_periods": window, "volatility_periods": scale,
+            "total_windows": len(report.rows), "offset": offset,
+            "next_offset": end if end < len(report.rows) else None,
+            "rows": [asdict(row) for row in page],
         })
 
     def _portfolio_allocation(self, arguments) -> dict:

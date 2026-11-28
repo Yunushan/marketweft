@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.287.0 · 0BSD**
+**0.288.0 · 0BSD**
 
 **Ngôn ngữ tài liệu**
 
@@ -15,14 +15,14 @@
 
 MarketWeft là terminal nghiên cứu ưu tiên chạy cục bộ cho nhà phân tích, lập trình viên và người vận hành. Terminal mở OHLCV được cấp quyền, vẽ nến và khối lượng, tính SMA và EMA bằng số dấu phẩy cố định, lưu danh sách theo dõi, tài sản và chỉ báo vào IndexedDB. Sau khi lưu tài nguyên vào bộ đệm, ứng dụng chạy ngoại tuyến. Giá và khối lượng đi kèm là dữ liệu tổng hợp và không cần tài khoản.
 
-MarketWeft 0.287.0 cung cấp rủi ro giảm và số kỳ thua lỗ đã quan sát tại thời điểm chốt qua lệnh gốc, Python và TypeScript. MarketWeft 0.7.0 bổ sung sàng lọc tập mã theo tỷ suất thay đổi giá dựa trên dữ liệu đã biết tại thời điểm truy vấn. Phát lại theo phiên bao gồm chia tách cổ phiếu, cổ tức tiền mặt, thay đổi thành viên và hủy niêm yết. Kho mã còn có trình quan sát TypeScript chỉ đọc cho dịch vụ trading-bot riêng biệt và lớp bọc Tauri thử nghiệm. Luồng dữ liệu từ nhà cung cấp, đặt lệnh, trình cài đặt có chữ ký và lưu trữ đa người dùng vẫn nằm trong lộ trình.
+MarketWeft 0.288.0 cung cấp rủi ro giảm tại thời điểm chốt qua REST, WebSocket và gRPC có xác thực và MCP chỉ đọc. MarketWeft 0.7.0 bổ sung sàng lọc tập mã theo tỷ suất thay đổi giá dựa trên dữ liệu đã biết tại thời điểm truy vấn. Phát lại theo phiên bao gồm chia tách cổ phiếu, cổ tức tiền mặt, thay đổi thành viên và hủy niêm yết. Kho mã còn có trình quan sát TypeScript chỉ đọc cho dịch vụ trading-bot riêng biệt và lớp bọc Tauri thử nghiệm. Luồng dữ liệu từ nhà cung cấp, đặt lệnh, trình cài đặt có chữ ký và lưu trữ đa người dùng vẫn nằm trong lộ trình.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Downside risk SDKs](../listing-risk.md#downside-risk-sdks) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Listing downside risk service](../local-rest-research.md#listing-downside-risk) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
 
 <!-- section:02 -->
 ## Khởi động terminal di động
 
-Tải browser-terminal-attempt-N từ lần kiểm chứng GitHub thành công. Giải nén MarketWeft-browser-0.287.0.zip, giữ dist/ cùng thư mục với serve-terminal.mjs và chạy lệnh tại đó. Mở http://127.0.0.1:4173/ trên trình duyệt hỗ trợ WebAssembly, Canvas, BigInt và IndexedDB. Dùng Node.js 22.12 trở lên. Không phải cài npm. Chờ Offline ready trước khi ngắt mạng.
+Tải browser-terminal-attempt-N từ lần kiểm chứng GitHub thành công. Giải nén MarketWeft-browser-0.288.0.zip, giữ dist/ cùng thư mục với serve-terminal.mjs và chạy lệnh tại đó. Mở http://127.0.0.1:4173/ trên trình duyệt hỗ trợ WebAssembly, Canvas, BigInt và IndexedDB. Dùng Node.js 22.12 trở lên. Không phải cài npm. Chờ Offline ready trước khi ngắt mạng.
 
 ```sh
 node serve-terminal.mjs

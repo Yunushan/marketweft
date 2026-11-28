@@ -93,6 +93,14 @@ The result echoes the instrument, target and cutoff and returns `total_bars`, `o
 
 Connect to `/v1/trades/notional-bars/stream` for paged WebSocket results. Reuse the same tape, cutoff and target with `next_offset` to resume. The typed gRPC method `marketweft.research.v1.Research/GetRecordedNotionalBars` returns one matching page. Both use the screen authorization, admission and audit rules shared with REST. [Research Protobuf schema](../apps/research-service/proto/research.proto)
 
+## Listing downside risk
+
+Send `POST /v1/risk/listings/downside` with a screen bearer credential. Supply `membership_csv`, `prices_csv`, `left_listing_id`, `right_listing_id`, `from_at`, `through_at`, `known_at`, `interval_seconds` and `window_periods`. The reports accept up to 1 MiB and 2 MiB respectively. Use distinct listing IDs and whole-second UTC cutoffs, with the end on the chosen grid. `volatility_periods` defaults to one. [How downside deviation is calculated](listing-risk.md#downside-deviation)
+
+Each page echoes the inputs that define the risk windows. It gives `total_windows`, `offset`, `next_offset` and its `rows`. Each row has UTC start and end in Unix seconds, each listing’s available returns and losses, common coverage, volatility, correlation and downside deviation. Volatility and downside deviation are fractional returns. A missing metric is `null`, and a computed zero is numeric zero. Set `limit` from 1 to 1,000, with a default of 200. Pass `next_offset` with the same inputs to continue.
+
+Connect to `/v1/risk/listings/downside/stream` to stream REST-shaped pages. On reconnect, send `next_offset` from the last accepted page. The unary gRPC method `marketweft.research.v1.Research/GetListingDownsideRisk` returns one matching page with optional metrics. Both use the screen credential and the same admission and audit rules as REST. [Research Protobuf schema](../apps/research-service/proto/research.proto)
+
 ## Portfolio currency conversion
 
 Send `POST /v1/portfolio/fx` with a screen bearer credential. Supply the contents of the FX report in `rates_csv`, the three-letter uppercase `reporting_currency` and exact UTC `effective_at` and `known_at` cutoffs. Use `amounts` to send one `currency` and `subtotal_ticks` object per source currency. Subtotals are signed 128-bit integer millionths sent as decimal strings. The report accepts up to 1 MiB and 10,000 rate observations. [Portfolio FX inputs and rate selection](portfolio-replay.md#portfolio-currency-translation)

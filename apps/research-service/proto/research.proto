@@ -10,6 +10,7 @@ service Research {
   rpc ScreenUniverse(ScreenQuery) returns (ScreenPage);
   rpc CompareUniverseRanks(RankComparisonQuery) returns (RankComparisonPage);
   rpc GetRecordedNotionalBars(RecordedNotionalBarsQuery) returns (RecordedNotionalBarsPage);
+  rpc GetListingDownsideRisk(ListingDownsideRiskQuery) returns (ListingDownsideRiskPage);
   rpc GetPortfolioAllocation(PortfolioAllocationQuery) returns (PortfolioAllocationResponse);
   rpc GetPortfolioScenarios(PortfolioScenariosQuery) returns (PortfolioScenariosPage);
   rpc GetPortfolioFx(PortfolioFxQuery) returns (PortfolioFxPage);
@@ -211,6 +212,52 @@ message RecordedNotionalBarsPage {
   uint32 offset = 5;
   optional uint32 next_offset = 6;
   repeated RecordedNotionalBar bars = 7;
+}
+
+message ListingDownsideRiskQuery {
+  string membership_csv = 1;
+  string prices_csv = 2;
+  string left_listing_id = 3;
+  string right_listing_id = 4;
+  string from_at = 5;
+  string through_at = 6;
+  string known_at = 7;
+  uint32 interval_seconds = 8;
+  uint32 window_periods = 9;
+  optional uint32 volatility_periods = 10;
+  optional uint64 offset = 11;
+  optional uint64 limit = 12;
+}
+
+message ListingDownsideRiskRow {
+  sint64 from_at = 1;
+  sint64 through_at = 2;
+  uint32 expected_returns = 3;
+  uint32 left_returns = 4;
+  uint32 right_returns = 5;
+  uint32 paired_returns = 6;
+  uint32 left_loss_returns = 7;
+  uint32 right_loss_returns = 8;
+  optional double left_volatility = 9;
+  optional double right_volatility = 10;
+  optional double correlation = 11;
+  optional double left_downside = 12;
+  optional double right_downside = 13;
+}
+
+message ListingDownsideRiskPage {
+  string left_listing_id = 1;
+  string right_listing_id = 2;
+  string from_at = 3;
+  string through_at = 4;
+  string known_at = 5;
+  uint32 interval_seconds = 6;
+  uint32 window_periods = 7;
+  uint32 volatility_periods = 8;
+  uint32 total_windows = 9;
+  uint32 offset = 10;
+  optional uint32 next_offset = 11;
+  repeated ListingDownsideRiskRow rows = 12;
 }
 
 message PortfolioAllocationQuery {
