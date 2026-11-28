@@ -1012,6 +1012,17 @@ export interface EquityConcentration {
   positions: { listing: string; mark: bigint | null; rank: number | null; weightMicros: bigint | null }[];
 }
 
+type ConcentrationSide = Omit<EquityConcentration['positions'][number], 'listing'>;
+export type PortfolioCutoff = { effectiveAt: string; knownAt: string };
+export interface EquityConcentrationChange {
+  currency: string | null;
+  listing: string;
+  before: ConcentrationSide | null;
+  after: ConcentrationSide | null;
+  weightChangeMicros: bigint | null;
+  rankImprovement: number | null;
+}
+
 export interface PortfolioSnapshot {
   effectiveAt: number;
   knownAt: number;
@@ -1349,6 +1360,8 @@ export interface MarketCore {
   portfolioRightsExercisesAsOf(membership: string, holdings: string, rights: string, exercises: string, effectiveAt: string, knownAt: string): PortfolioRightsExercise[];
   portfolioRightsSettlementJournal(membership: string, rights: string, exercises: string, effectiveAt: string, knownAt: string): RightsSettlementPosting[];
   portfolioCapitalReturnsAsOf(membership: string, holdings: string, returns: string, basis: string, effectiveAt: string, knownAt: string): PortfolioCapitalReturn[];
+  compareEquityConcentration(membership: string, holdings: string, prices: string, terms: string,
+    before: PortfolioCutoff, after: PortfolioCutoff): EquityConcentrationChange[];
   comparePortfolioCapitalReturns(membership: string, holdings: string, returns: string, basis: string, baseline: CapitalReturnCutoff, comparison: CapitalReturnCutoff): CapitalReturnComparison[];
   portfolioSuccessorDeliveryLedger(membership: string, holdings: string, terms: string,
     effectiveAt: string, knownAt: string): PortfolioSuccessorDeliveryPosting[];
@@ -1529,6 +1542,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_rights_exercises_as_of(membershipBytes: number, holdingsBytes: number, rightsBytes: number): number;
   mw_portfolio_rights_settlement_journal(membershipBytes: number, rightsBytes: number): number;
   mw_portfolio_capital_returns_as_of(membershipBytes: number, holdingBytes: number, returnsBytes: number): number;
+  mw_compare_equity_concentration(membershipBytes: number, holdingBytes: number, priceBytes: number): number;
   mw_compare_portfolio_capital_returns(membershipBytes: number, holdingBytes: number, returnsBytes: number): number;
   mw_portfolio_successor_delivery_ledger(membershipBytes: number, holdingsBytes: number): number;
   mw_portfolio_spin_offs_as_of(membershipBytes: number, holdingsBytes: number): number;
@@ -3233,6 +3247,25 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
             remaining: BigInt(remaining), excess: BigInt(excess),
           },
         };
+      });
+    },
+    compareEquityConcentration(membership, holdings, prices, terms, before, after) {
+      portfolioTimesInput([before.effectiveAt, before.knownAt, after.effectiveAt, after.knownAt],
+        membership, holdings, prices, terms);
+      const text = decoder.decode(output(api.mw_compare_equity_concentration(encoder.encode(membership).length,
+        encoder.encode(holdings).length, encoder.encode(prices).length)));
+      if (!text) return [];
+      const side = (present: string, mark: string, rank: string, weight: string): ConcentrationSide | null =>
+        present ? { mark: mark ? BigInt(mark) : null, rank: rank ? Number(rank) : null,
+          weightMicros: weight ? BigInt(weight) : null } : null;
+      return text.slice(0, -1).split('\n').map(line => {
+        const [currency, listing, hasBefore, beforeMark, beforeRank, beforeWeight,
+          hasAfter, afterMark, afterRank, afterWeight, change, improvement] = line.split('\t');
+        return { currency: currency || null, listing,
+          before: side(hasBefore, beforeMark, beforeRank, beforeWeight),
+          after: side(hasAfter, afterMark, afterRank, afterWeight),
+          weightChangeMicros: change ? BigInt(change) : null,
+          rankImprovement: improvement ? Number(improvement) : null };
       });
     },
     comparePortfolioCapitalReturns(membership, holdings, returns, basis, baseline, comparison) {

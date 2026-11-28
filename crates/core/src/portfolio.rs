@@ -166,6 +166,23 @@ pub struct EquityConcentration<'a> {
     pub positions: Vec<EquityConcentrationPosition<'a>>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EquityConcentrationChange<'a> {
+    pub currency: Option<&'a str>,
+    pub listing_id: &'a str,
+    pub before: Option<EquityConcentrationPosition<'a>>,
+    pub after: Option<EquityConcentrationPosition<'a>>,
+    pub weight_change_micros: Option<i64>,
+    /// Positive when the listing moves closer to rank one.
+    pub rank_improvement: Option<i64>,
+}
+
+#[derive(Default)]
+struct ConcentrationSides<'a> {
+    before: Option<EquityConcentrationPosition<'a>>,
+    after: Option<EquityConcentrationPosition<'a>>,
+}
+
 struct PositionSeries {
     currency: String,
     quantities: BTreeMap<i64, BTreeMap<i64, u32>>,
@@ -297,6 +314,51 @@ impl<'a> PortfolioBook<'a> {
 }
 
 impl<'a> PortfolioSnapshot<'a> {
+    /// Compare independent cutoffs by quote currency and stable listing ID.
+    /// A missing position and a held position with an unavailable mark differ.
+    pub fn compare_equity_concentration(&self, after: &Self) -> Vec<EquityConcentrationChange<'a>> {
+        let mut positions = BTreeMap::<_, ConcentrationSides<'a>>::new();
+        for group in self.equity_concentration() {
+            for row in group.positions {
+                positions
+                    .entry((group.currency, row.listing_id))
+                    .or_default()
+                    .before = Some(row);
+            }
+        }
+        for group in after.equity_concentration() {
+            for row in group.positions {
+                positions
+                    .entry((group.currency, row.listing_id))
+                    .or_default()
+                    .after = Some(row);
+            }
+        }
+        positions
+            .into_iter()
+            .map(
+                |((currency, listing_id), ConcentrationSides { before, after })| {
+                    let weight_change_micros = before
+                        .and_then(|row| row.weight_micros)
+                        .zip(after.and_then(|row| row.weight_micros))
+                        .map(|(from, to)| to - from);
+                    let rank_improvement = before
+                        .and_then(|row| row.rank)
+                        .zip(after.and_then(|row| row.rank))
+                        .map(|(from, to)| from as i64 - to as i64);
+                    EquityConcentrationChange {
+                        currency,
+                        listing_id,
+                        before,
+                        after,
+                        weight_change_micros,
+                        rank_improvement,
+                    }
+                },
+            )
+            .collect()
+    }
+
     /// Rank live share holdings by absolute observed mark within each quote
     /// currency. Keep unpriced holdings visible and exclude delisting claims.
     pub fn equity_concentration(&self) -> Vec<EquityConcentration<'a>> {

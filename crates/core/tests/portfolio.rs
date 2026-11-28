@@ -88,6 +88,50 @@ fn equity_concentration_reranks_late_marks_and_keeps_delisted_cash_outside_share
 }
 
 #[test]
+fn concentration_comparison_keeps_unknown_marks_and_absent_positions_distinct() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let portfolio = PortfolioBook::parse(&universe, HOLDINGS, PRICES, DELISTING).unwrap();
+    let missing = portfolio.as_of(t(10), t(10));
+    let late = portfolio.as_of(t(10), t(12));
+    let corrected = portfolio.as_of(t(10), t(16));
+    let first = missing.compare_equity_concentration(&late);
+    let [alfa, beta] = first.as_slice() else {
+        panic!("expected two USD listings");
+    };
+    assert_eq!(alfa.listing_id, "ALFA-001");
+    assert_eq!(alfa.rank_improvement, Some(-1));
+    assert_eq!(alfa.weight_change_micros, Some(-73_298_429));
+    assert_eq!(beta.listing_id, "BETA-001");
+    assert_eq!(beta.before.unwrap().mark, None);
+    assert_eq!(beta.after.unwrap().mark, Some(560 * MILLION));
+    assert_eq!(beta.weight_change_micros, None);
+
+    let revision = late.compare_equity_concentration(&corrected);
+    assert_eq!(revision[0].weight_change_micros, Some(2_071_349));
+    assert_eq!(revision[1].weight_change_micros, Some(-2_071_349));
+    assert_eq!(revision[1].rank_improvement, Some(0));
+    let reverse = corrected.compare_equity_concentration(&late);
+    assert_eq!(reverse[1].weight_change_micros, Some(2_071_349));
+
+    let reused = late.compare_equity_concentration(&portfolio.as_of(t(45), t(45)));
+    let [new_beta, _alfa, old_beta] = reused.as_slice() else {
+        panic!("expected the EUR and USD listings");
+    };
+    assert_eq!(
+        (new_beta.currency, new_beta.listing_id),
+        (Some("EUR"), "BETA-002")
+    );
+    assert_eq!(new_beta.before, None);
+    assert_eq!(new_beta.after.unwrap().weight_micros, Some(100_000_000));
+    assert_eq!(
+        (old_beta.currency, old_beta.listing_id),
+        (Some("USD"), "BETA-001")
+    );
+    assert_eq!(old_beta.after, None);
+    assert_eq!(old_beta.weight_change_micros, None);
+}
+
+#[test]
 fn concentration_keeps_signed_marks_equal_magnitudes_and_all_zero_exposure_distinct() {
     let universe = parse_universe(MEMBERSHIP).unwrap();
     let portfolio = PortfolioBook::parse(&universe, HOLDINGS, PRICES, DELISTING).unwrap();

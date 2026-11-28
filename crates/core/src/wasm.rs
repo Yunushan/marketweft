@@ -566,6 +566,62 @@ fn portfolio_action_input(
 }
 
 #[no_mangle]
+pub extern "C" fn mw_compare_equity_concentration(
+    membership_bytes: usize,
+    holding_bytes: usize,
+    price_bytes: usize,
+) -> u32 {
+    use crate::EquityConcentrationPosition;
+    use std::fmt::Write;
+    process(|input| {
+        let (before_effective, before_known, rest) = portfolio_input(input)?;
+        let PortfolioActionInput {
+            effective,
+            known,
+            universe,
+            holdings,
+            terms: reports,
+        } = portfolio_action_input(rest.as_bytes(), membership_bytes, holding_bytes)?;
+        let (prices, terms) = reports
+            .split_at_checked(price_bytes)
+            .ok_or("Supply price and delisting reports.")?;
+        let book = crate::PortfolioBook::parse(&universe, holdings, prices, terms)?;
+        let before = book.as_of(before_effective, before_known);
+        let after = book.as_of(effective, known);
+        let format_side = |row: Option<EquityConcentrationPosition<'_>>| {
+            row.map(|row| {
+                format!(
+                    "1\t{}\t{}\t{}",
+                    row.mark.map(|v| v.to_string()).unwrap_or_default(),
+                    row.rank.map(|v| v.to_string()).unwrap_or_default(),
+                    row.weight_micros.map(|v| v.to_string()).unwrap_or_default(),
+                )
+            })
+            .unwrap_or_else(|| "\t\t\t".to_owned())
+        };
+        let mut text = String::new();
+        for row in before.compare_equity_concentration(&after) {
+            writeln!(
+                text,
+                "{}\t{}\t{}\t{}\t{}\t{}",
+                row.currency.unwrap_or_default(),
+                row.listing_id,
+                format_side(row.before),
+                format_side(row.after),
+                row.weight_change_micros
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+                row.rank_improvement
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_portfolio_capital_returns_as_of(
     membership_bytes: usize,
     holding_bytes: usize,

@@ -31,6 +31,14 @@ The concentration uses exact closes at the selected effective time, including re
 
 In **Load portfolio demo**, keep the effective time at 14:10 UTC on 2025-06-02. At the 14:10 knowledge cutoff, the known USD gross is 204 and BETA-001 has no rank. At 14:12, BETA-001 has 73.298429% of 764 USD. At 14:16, its revised mark gives it 71.22708% of 709 USD. Returning knowledge to 14:10 restores the missing mark. At both 14:45 cutoffs, BETA-002 has 100% of the 225 EUR in marked equity.
 
+### Compare two equity cutoffs
+
+Open **Equity concentration** and select **Pin equity baseline**. Set a different effective time, knowledge time, or both and run the as-of query. The comparison lines up positions by stable listing ID and quote currency. It shows the signed mark, exact weight and rank at each cutoff, with a weight change in percentage points and a rank improvement when both sides have ranks. A positive improvement means the listing moved closer to rank one.
+
+**Mark unavailable** means the holding is in the comparison group and has no observed mark. **Outside equity** means the holding is absent from that currency’s equity group at that cutoff. Zero marks and zero changes appear as zero. A missing weight or rank leaves its change unavailable.
+
+Pin the demo at effective 14:10 and known 14:12 UTC, then change knowledge to 14:16. BETA-001’s USD weight falls by 2.071349 percentage points and its rank stays at 1. At effective and known 14:45, the old USD listing is outside equity and BETA-002 appears in EUR. Rewind to the pinned cutoffs to see zero changes. Choose **Replace equity baseline** to pin the current result or **Clear equity baseline** to remove the comparison. Opening a new set of reports clears the baseline.
+
 ### Equity concentration SDKs
 
 The TypeScript SDK exposes `equityConcentrationAsOf(membershipCsv, holdingsCsv, pricesCsv, effectiveAt, knownAt)`. Python exposes `ResearchEngine.equity_concentration_as_of` with the same three CSV contents and the `effective_at` and `known_at` keyword cutoffs. Both return the applied cutoffs in whole Unix seconds and the same ranked groups shown by the terminal. Marks and weights are integer millionths. TypeScript uses `bigint` for both, and Python uses integers. Missing values are `null` in TypeScript and `None` in Python. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md)

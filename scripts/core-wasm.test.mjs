@@ -2026,6 +2026,37 @@ test('portfolio Wasm keeps late closes and delisting cash separate by listing an
   assert.equal(value('15:05').holdings[1].value, 0n);
 });
 
+test('Wasm compares exact equity concentration fields across independent cutoffs', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
+  const reports = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices', 'delisting-terms'].map(fixture));
+  const time = minute => '2025-06-02T14:' + minute + ':00Z';
+  const cutoff = (effective, known = effective) => ({ effectiveAt: time(effective), knownAt: time(known) });
+  const missing = cutoff('10');
+  const late = cutoff('10', '12');
+  const revised = cutoff('10', '16');
+  const change = (before, after) => core.compareEquityConcentration(...reports, before, after);
+  assert.deepEqual(change(missing, late)[1], {
+    currency: 'USD', listing: 'BETA-001',
+    before: { mark: null, rank: null, weightMicros: null },
+    after: { mark: 560000000n, rank: 1, weightMicros: 73298429n },
+    weightChangeMicros: null, rankImprovement: null,
+  });
+  assert.equal(change(late, revised)[1].weightChangeMicros, -2071349n);
+  assert.equal(change(revised, late)[1].weightChangeMicros, 2071349n);
+  assert.equal(change(late, late)[1].rankImprovement, 0);
+  const [successor, , predecessor] = change(late, cutoff('45'));
+  assert.equal(successor.before, null);
+  assert.equal(successor.currency, 'EUR');
+  assert.equal(successor.listing, 'BETA-002');
+  assert.equal(predecessor.after, null);
+  assert.equal(predecessor.listing, 'BETA-001');
+  assert.deepEqual(change(cutoff('00'), { effectiveAt: '2025-06-02T13:59:59Z', knownAt: time('00') })
+    .map(row => [row.listing, row.after]), [['ALFA-001', null]]);
+  const empty = { effectiveAt: '2025-06-02T13:59:59Z', knownAt: time('00') };
+  assert.deepEqual(change(empty, empty), []);
+  assert.throws(() => change({ ...late, knownAt: '2025-02-29T14:12:00Z' }, revised), /portfolio cutoffs/);
+});
+
 test('delisting Wasm separates the two cutoffs and preserves exact cash reversals', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
   const [membership, reports] = await Promise.all([fixture('universe'), fixture('delisting-terms')]);

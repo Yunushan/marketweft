@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { EquityConcentration, FxAmount, MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash, PortfolioSuccessorShare } from './market-core'
+import type { EquityConcentration, EquityConcentrationChange, FxAmount, MarketCore, PortfolioCutoff, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash, PortfolioSuccessorShare } from './market-core'
 import { SuccessorDeliveryLedger, shareText } from './SuccessorDeliveryLedger'
 import { PortfolioRights } from './PortfolioRights'
 import { PortfolioRightsExercises } from './PortfolioRightsExercises'
@@ -76,7 +76,31 @@ const successorShareStates: Record<PortfolioSuccessorShare['state'], string> = {
 }
 const money = (value: bigint) => fixed(value, 6)
 
-function EquityConcentrationValues({ groups }: { groups: EquityConcentration[] }) {
+type ConcentrationSources = Pick<Source, 'holdings' | 'prices' | 'terms'>
+
+function concentrationSide(side: EquityConcentrationChange['before']): string {
+  if (!side) return 'Outside equity'
+  if (side.mark === null) return 'Mark unavailable'
+  if (side.weightMicros === null) return money(side.mark) + ' · Weight unavailable'
+  return money(side.mark) + ' · ' + money(side.weightMicros) + '% · Rank ' + side.rank
+}
+
+function EquityConcentrationValues({ groups, core, source, membership, effective, known }: {
+  groups: EquityConcentration[]; core: MarketCore; source: ConcentrationSources; membership: string
+  effective: string; known: string
+}) {
+  const [saved, saveBaseline] = useState<{ source: ConcentrationSources; membership: string; cutoff: PortfolioCutoff } | null>(null)
+  const baseline = saved?.source === source && saved.membership === membership ? saved.cutoff : null
+  const comparison = useMemo(() => {
+    if (!baseline) return null
+    try {
+      const rows = core.compareEquityConcentration(membership, source.holdings, source.prices, source.terms,
+        baseline, { effectiveAt: effective, knownAt: known })
+      return { rows }
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : 'The equity concentration comparison failed.' }
+    }
+  }, [core, membership, source, baseline, effective, known])
   return <details className="research-details">
     <summary>Equity concentration</summary>
     <section aria-label="Portfolio equity concentration">
@@ -95,6 +119,30 @@ function EquityConcentrationValues({ groups }: { groups: EquityConcentration[] }
           </table>
         </div>
       })}
+      <div className="replay-controls">
+        <button className="outline" type="button"
+          onClick={() => saveBaseline({ source, membership, cutoff: { effectiveAt: effective, knownAt: known } })}>
+          {baseline ? 'Replace equity baseline' : 'Pin equity baseline'}
+        </button>
+        {baseline && <button className="outline" type="button" onClick={() => saveBaseline(null)}>Clear equity baseline</button>}
+      </div>
+      {baseline && <p>Baseline effective {baseline.effectiveAt} · Known {baseline.knownAt}</p>}
+      {comparison?.error && <p role="alert" className="warning replay-error">{comparison.error}</p>}
+      {comparison?.rows && (comparison.rows.length === 0
+        ? <p>No equity holdings at either cutoff.</p>
+        : <div className="replay-table-scroll">
+          <table className="universe-table" aria-label="Equity concentration comparison">
+            <thead><tr><th scope="col">Listing</th><th scope="col">Currency</th>
+              <th scope="col">Baseline value, weight and rank</th><th scope="col">Current value, weight and rank</th>
+              <th scope="col">Weight change (pp)</th><th scope="col">Rank improvement</th></tr></thead>
+            <tbody>{comparison.rows.map(row => <tr key={JSON.stringify([row.listing, row.currency])}>
+              <th scope="row">{row.listing}</th><td>{row.currency ?? 'Unavailable'}</td>
+              <td>{concentrationSide(row.before)}</td><td>{concentrationSide(row.after)}</td>
+              <td>{row.weightChangeMicros === null ? '—' : money(row.weightChangeMicros)}</td>
+              <td>{row.rankImprovement ?? '—'}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>)}
     </section>
   </details>
 }
@@ -322,7 +370,8 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
         <button className="outline" disabled={busy || !holdings || (needsPrices && !prices)}>Load portfolio reports</button>
       </form>
       {error && <p role="alert" className="warning replay-error">{error}</p>}
-      {snapshot && <PortfolioResult snapshot={snapshot} core={core} fx={source?.fx} effective={effective} known={known} />}
+      {snapshot && source && <PortfolioResult snapshot={snapshot} core={core} source={source}
+        membership={membership} effective={effective} known={known} />}
       {rightOfferings && source?.rights && <PortfolioRights rows={rightOfferings} effective={effective} known={known}
         reportsSource={source.rights.reportsName} holdingsSource={source.rights.holdingsName} />}
       {exerciseReports && source?.rights?.exercises && <PortfolioRightsExercises rows={exerciseReports}
@@ -469,8 +518,8 @@ function PortfolioFxValues({ core, reports, effective, known, amounts }: {
   </details>
 }
 
-function PortfolioResult({ snapshot, core, fx, effective, known }: {
-  snapshot: PortfolioSnapshot; core: MarketCore; fx?: string; effective: string; known: string
+function PortfolioResult({ snapshot, core, source, membership, effective, known }: {
+  snapshot: PortfolioSnapshot; core: MarketCore; source: Source; membership: string; effective: string; known: string
 }) {
   const count = snapshot.holdings.length
   const currencies = useMemo(() => {
@@ -507,8 +556,9 @@ function PortfolioResult({ snapshot, core, fx, effective, known }: {
           )}</tbody>
         </table>
       </div>}
-      {fx && <PortfolioFxValues core={core} reports={fx} effective={effective} known={known} amounts={currencies} />}
-      {snapshot.equityConcentration.length > 0 && <EquityConcentrationValues groups={snapshot.equityConcentration} />}
+      {source.fx && <PortfolioFxValues core={core} reports={source.fx} effective={effective} known={known} amounts={currencies} />}
+      <EquityConcentrationValues groups={snapshot.equityConcentration} core={core} source={source}
+        membership={membership} effective={effective} known={known} />
       {snapshot.income && snapshot.income.dividends.length > 0 && <div className="replay-table-scroll">
         <table className="universe-table" aria-label="Portfolio dividend entitlement">
           <thead><tr><th scope="col">Listing</th><th scope="col">Dividend</th><th scope="col">Ex date (UTC)</th>

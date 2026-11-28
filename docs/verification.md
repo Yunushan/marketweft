@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.258.0 · Compare portfolio equity cutoffs
+
+- Native Rust and Wasm preserve the original missing mark and the revised USD mark by stable listing ID. At an unchanged effective cutoff, BETA-001 falls from 73.298429% to 71.22708%, a change of −2.071349 percentage points with rank still at 1. Reversing the cutoffs reverses the sign.
+- The offline charting terminal retains the pinned effective and knowledge cutoffs during rewind. It distinguishes the delisted USD BETA-001 from the separately added EUR BETA-002 and preserves genuine zero changes across the portable browser upgrade.
+
+[Concentration comparison](portfolio-replay.md#compare-two-equity-cutoffs)
+
 ## 0.257.0 · Equity concentration research transports
 
 - The installed Python wheel passes the read-only MCP tool tests and the official MCP client's offline stdio checks. Before the late close, BETA-001 has an unknown mark and rank. Its weight is 73.298429% after the close and 71.22708% after the revision.
