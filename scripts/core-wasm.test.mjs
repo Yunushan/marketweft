@@ -10,6 +10,19 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('rolling close order statistics preserve signed exact medians, ties and observed prefixes', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-close-order-statistics.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(source);
+  const values = [
+    [null, null], [null, null], [-2000000n, 100000000n], [2000000n, 75000000n], [2000000n, 50000000n],
+    [2000000n, 0n], [2000000n, 100000000n], [0n, 50000000n], [0n, 0n], [-1000000n, 25000000n],
+  ].map(([median, percentileRank]) => ({ median, percentileRank }));
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.rollingCloseOrderStatistics(3, bars.slice(0, end)), values.slice(0, end));
+  assert.deepEqual(core.rollingCloseOrderStatistics(4, bars).at(-1), { median: -500000n, percentileRank: 16666667n });
+  assert.throws(() => core.rollingCloseOrderStatistics(1, bars), /100,000/);
+});
+
 test('Time Underwater retains signed peaks, elapsed UTC gaps and equal recoveries', async () => {
   const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-time-underwater.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(source);

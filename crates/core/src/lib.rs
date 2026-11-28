@@ -224,8 +224,9 @@ pub use price_body_studies::{
 };
 pub use price_momentum::{
     chande_momentum_oscillator, commodity_channel_index, coppock_curve, observed_drawdown,
-    observed_time_underwater, psychological_line, rate_of_change, rebased_percent_changes, trix,
-    vertical_horizontal_filter, DrawdownPoint, TimeUnderwaterPoint,
+    observed_time_underwater, psychological_line, rate_of_change, rebased_percent_changes,
+    rolling_close_order_statistics, trix, vertical_horizontal_filter, CloseOrderStatistic,
+    DrawdownPoint, TimeUnderwaterPoint,
 };
 pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use range_bars::RangeBar;

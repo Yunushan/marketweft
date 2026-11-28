@@ -9,6 +9,18 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK returns exact medians and percent ranks with duplicate closes', async () => {
+  const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-close-order-statistics.csv', import.meta.url), 'utf8')
+  const engine = await createResearchEngine(wasm)
+  const bars = engine.parseBars(source)
+  const rolling = engine.rollingCloseOrderStatistics(3, bars)
+  assert.deepEqual(rolling[0], { median: null, percentileRank: null })
+  assert.deepEqual(rolling[3], { median: 2000000n, percentileRank: 75000000n })
+  assert.deepEqual(rolling[8], { median: 0n, percentileRank: 0n })
+  assert.deepEqual(engine.rollingCloseOrderStatistics(4, bars).at(-1), { median: -500000n, percentileRank: 16666667n })
+  assert.deepEqual(engine.rollingCloseOrderStatistics(3, bars.slice(0, 7)), rolling.slice(0, 7))
+})
+
 test('the public SDK measures Time Underwater in whole UTC seconds with signed peak evidence', async () => {
   const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-time-underwater.csv', import.meta.url), 'utf8')
   const engine = await createResearchEngine(wasm)

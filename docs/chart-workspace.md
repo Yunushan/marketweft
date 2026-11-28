@@ -396,6 +396,14 @@ Enable **Close Standard Deviation** to plot the population standard deviation of
 
 The sample with a two-bar period yields a blank, 3, 0, 1.5 and 0 in observation order. The research CSV column is `close_stddev_2`. Each pane stores its own period, and settings use workspace backup version 89. [Synthetic close fixture](../crates/core/tests/fixtures/synthetic-close-dispersion.csv)
 
+### Rolling Median and Close Percentile Rank
+
+**Rolling Median** overlays the middle close in the sorted trailing window. An even window averages its two middle closes. The average rounds once to the nearest millionth with half ticks rounded away from zero.
+
+**Close Percentile Rank** plots the current close's position in the same sorted window on a 0–100% scale. The minimum and maximum ordered positions correspond to 0% and 100%, and equal closes use their average position. A flat window gives 50%. Both studies leave a blank until their windows are complete.
+
+The default period is 20 observed closes. Each study accepts 2–100,000 observations and stores its own period for each pane. At a period of three, the sample includes tied ranks of 75% and 25%, and its final median is −1. The exports use `rolling_median_3` and `close_percentile_rank_3`. Workspace backups with these settings use version 92. [Synthetic close fixture](../crates/core/tests/fixtures/synthetic-close-order-statistics.csv)
+
 ### Stochastic Oscillator
 
 Enable **Stochastic Oscillator** in either pane’s indicator settings. Its panel shows %K and %D on a common 0% to 100% scale. The defaults are 14 bars for the lookback, 3 for %K smoothing and 3 for %D. Each pane saves all three periods, and each can be from 1 through 100,000 bars. [StockCharts’ full Stochastic Oscillator calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/stochastic-oscillator-fast-slow-and-full).

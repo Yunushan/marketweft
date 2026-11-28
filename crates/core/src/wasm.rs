@@ -4303,6 +4303,22 @@ pub extern "C" fn mw_rolling_close_standard_deviation(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_rolling_close_order_statistics(period: usize) -> u32 {
+    process(|input| {
+        let rows = crate::rolling_close_order_statistics(period, &indicator_closes(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 16);
+        for row in rows {
+            let [median, rank] = row.map_or([i64::MIN; 2], |point| {
+                [point.median_ticks, point.percentile_rank]
+            });
+            bytes.extend_from_slice(&median.to_le_bytes());
+            bytes.extend_from_slice(&rank.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_donchian_channels(period: usize) -> u32 {
     process(|input| crate::donchian_channels(period, &decode_bars(input)?).map(encode_price_bands))
 }

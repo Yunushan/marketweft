@@ -2,7 +2,7 @@ import { instantiateMarketCore } from './core.js'
 import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, FormulaResult, ListingDownsideRiskPoint, ListingRiskQuery, MarketCore, PortfolioAllocationQuery, PortfolioAllocationReport } from './core.js'
 
 export type {
-  AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, CandlePatternHit, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
+  AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, CandlePatternHit, CloseOrderStatistics, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
   EquityConcentration, EquityTargetDrift, Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, NotionalBar, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   JointScenarioPath, JointScenarioQuery, JointScenarioReport, PortfolioAllocationQuery, PortfolioAllocationReport, PortfolioVarianceQuery, ScenarioAllocation,
@@ -75,6 +75,7 @@ export interface MarketResearch {
   recordedNotionalBars: MarketCore['recordedNotionalBars']
   recordedTradePrints: MarketCore['recordedTradePrints']
   rollingCloseStandardDeviation: MarketCore['rollingCloseStandardDeviation']
+  rollingCloseOrderStatistics: MarketCore['rollingCloseOrderStatistics']
   leastSquaresMovingAverage: MarketCore['leastSquaresMovingAverage']
   replayCandlePatterns: MarketCore['replayCandlePatterns']
   observedTimeUnderwater: MarketCore['observedTimeUnderwater']
@@ -135,6 +136,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     recordedNotionalBars: core.recordedNotionalBars,
     recordedTradePrints: core.recordedTradePrints,
     rollingCloseStandardDeviation: core.rollingCloseStandardDeviation,
+    rollingCloseOrderStatistics: core.rollingCloseOrderStatistics,
     leastSquaresMovingAverage: core.leastSquaresMovingAverage,
     replayCandlePatterns: core.replayCandlePatterns,
     observedTimeUnderwater: core.observedTimeUnderwater,

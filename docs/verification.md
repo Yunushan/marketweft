@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.297.0 · Rolling Median and Close Percentile Rank
+
+- Rust checks both rolling results against direct sorts across signed values, duplicate closes, expired observations and a 100,000-bar window. Wasm and TypeScript verify exact warm-up, fixed-point output and observed prefixes.
+- Offline Chromium verifies independent pane periods, research CSV and version 92 restoration.
+
 ## 0.296.0 · Time Underwater chart
 
 - Rust and Wasm verify signed peaks, observed prefixes, elapsed UTC across gaps, exact timestamp bounds, and zero at an equal recovery.

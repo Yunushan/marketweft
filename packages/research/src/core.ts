@@ -1359,6 +1359,7 @@ export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; re
 
 export type RegressionChannel = { observations: number; startTicks: bigint; endTicks: bigint; residualTicks: bigint };
 export type CloseRegressionValues = { slope: bigint | null; forecast: bigint | null };
+export type CloseOrderStatistics = { median: bigint | null; percentileRank: bigint | null };
 
 export interface MarketCore {
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
@@ -1397,6 +1398,7 @@ export interface MarketCore {
   indicator(kind: 'sma' | 'ema' | 'rsi' | 'atr', period: number, bars: readonly Bar[]): (number | null)[];
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
   rollingCloseStandardDeviation(period: number, bars: readonly Bar[]): (bigint | null)[];
+  rollingCloseOrderStatistics(period: number, bars: readonly Bar[]): CloseOrderStatistics[];
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   accelerationBands(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
@@ -1613,6 +1615,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_atr(period: number): number;
   mw_bollinger_bands(period: number): number;
   mw_rolling_close_standard_deviation(period: number): number;
+  mw_rolling_close_order_statistics(period: number): number;
   mw_donchian_channels(period: number): number;
   mw_acceleration_bands(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
@@ -2858,6 +2861,12 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
       return readIndicatorTicks(output(api.mw_rolling_close_standard_deviation(period)), bars.length);
+    },
+    rollingCloseOrderStatistics(period, bars) {
+      validateIndicatorHistory(period, bars.length, 2);
+      putIndicatorCloses(bars);
+      return readIndicatorPairs(output(api.mw_rolling_close_order_statistics(period)), bars.length,
+        (median, percentileRank) => ({ median, percentileRank }));
     },
     donchianChannels(period, bars) {
       validateIndicatorHistory(period, bars.length);

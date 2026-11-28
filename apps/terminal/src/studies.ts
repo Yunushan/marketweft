@@ -1,5 +1,5 @@
 import { validIndicatorPeriod } from './market-core'
-import type { AroonValue, Bar, BollingerMeasures, CloseRegressionValues, CumulativeVolume, FloorPivotLevels, MarketCore, PriceBand } from './market-core'
+import type { AroonValue, Bar, BollingerMeasures, CloseOrderStatistics, CloseRegressionValues, CumulativeVolume, FloorPivotLevels, MarketCore, PriceBand } from './market-core'
 import type { ExportOverlay } from './chart-export'
 
 export const STUDIES = {
@@ -16,6 +16,9 @@ export const STUDIES = {
   bb: { name: 'Bollinger Bands', label: 'Bollinger Bands', minPeriod: 1, defaultPeriod: 20 },
   close_stddev: { name: 'Close Standard Deviation', label: 'Close Standard Deviation',
     minPeriod: 1, defaultPeriod: 20, color: '#acbdf0' },
+  rolling_median: { name: 'Rolling Median', label: 'Rolling Median', minPeriod: 2, defaultPeriod: 20, color: '#6fcac9' },
+  close_percentile_rank: { name: 'Close Percentile Rank', label: 'Close Percentile Rank',
+    minPeriod: 2, defaultPeriod: 20, color: '#d5ad87' },
   bb_percent_b: { name: 'Bollinger %B', label: 'Bollinger %B', minPeriod: 1, defaultPeriod: 20, color: '#e797c7' },
   bb_bandwidth: { name: 'BandWidth', label: 'Bollinger BandWidth', minPeriod: 1, defaultPeriod: 20, color: '#6acec6' },
   donchian: { name: 'Donchian Channels', label: 'Donchian Channels', minPeriod: 1, defaultPeriod: 20 },
@@ -170,7 +173,8 @@ const PRICE_AVERAGES = {
   kama: 'kaufmanAdaptiveMovingAverage',
 } as const
 type PriceAverageKind = keyof typeof PRICE_AVERAGES
-type PriceStudyKind = BandKind | PriceAverageKind | 't3' | 'daily_pivots' | 'time_series_forecast' | 'supertrend' | 'chandelier_exit'
+type PriceStudyKind = BandKind | PriceAverageKind | 't3' | 'daily_pivots' | 'rolling_median' |
+  'time_series_forecast' | 'supertrend' | 'chandelier_exit'
 function isPriceAverage(kind: StudyKind): kind is PriceAverageKind {
   return Object.hasOwn(PRICE_AVERAGES, kind)
 }
@@ -236,6 +240,7 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
   const measuresByPeriod = new Map<number, BollingerMeasures[]>()
   const aroonByPeriod = new Map<number, (AroonValue | null)[]>()
   const regressionByPeriod = new Map<number, CloseRegressionValues[]>()
+  const orderStatsByPeriod = new Map<number, CloseOrderStatistics[]>()
   let cumulative: CumulativeVolume[] | undefined
   return STUDY_KINDS.flatMap<StudyValues>(kind => {
     const study = settings?.[kind]
@@ -269,6 +274,19 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     if (kind === 'close_stddev') return [{ kind, periods: [period], unit: 'price', zeroLine: true, lines: [
       { color: STUDIES[kind].color, series: core.rollingCloseStandardDeviation(period, bars) },
     ] }]
+    if (kind === 'rolling_median' || kind === 'close_percentile_rank') {
+      let values = orderStatsByPeriod.get(period)
+      if (!values) {
+        values = core.rollingCloseOrderStatistics(period, bars)
+        orderStatsByPeriod.set(period, values)
+      }
+      if (kind === 'rolling_median') return [{ kind, periods: [period], heading: STUDIES[kind].name, priceOverlay: true,
+        lines: [{ color: STUDIES[kind].color, series: values.map(row => row.median) }],
+      }]
+      return [{ kind, periods: [period], guides: [0, 50, 100], lines: [
+        { color: STUDIES[kind].color, series: values.map(row => row.percentileRank) },
+      ] }]
+    }
     if (kind === 'donchian') return [priceBands(kind, [period], core.donchianChannels(period, bars))]
     if (kind === 'acceleration_bands') return [priceBands(kind, [period], core.accelerationBands(period, bars))]
     if (kind === 'keltner') {

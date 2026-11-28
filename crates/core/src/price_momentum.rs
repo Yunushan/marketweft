@@ -38,6 +38,32 @@ impl PriceWindow {
         }
         (count, sum)
     }
+
+    /// Return the zero-based price rank carrying a one-based sample position.
+    fn rank_at(&self, mut position: i128) -> usize {
+        let mut index = 0;
+        let mut step = 1 << (self.nodes.len() - 1).ilog2();
+        while step > 0 {
+            let next = index + step;
+            if next < self.nodes.len() && self.nodes[next].0 < position {
+                index = next;
+                position -= self.nodes[next].0;
+            }
+            step >>= 1;
+        }
+        index
+    }
+}
+
+fn compressed_ranks(prices: &[i128]) -> (Vec<i128>, Vec<usize>) {
+    let mut ordered = prices.to_vec();
+    ordered.sort_unstable();
+    ordered.dedup();
+    let ranks = prices
+        .iter()
+        .map(|price| ordered.partition_point(|level| level < price))
+        .collect();
+    (ordered, ranks)
 }
 
 fn validate_period(period: usize, length: usize) -> Result<(), String> {
@@ -62,13 +88,7 @@ pub fn commodity_channel_index(period: usize, bars: &[Bar]) -> Result<Vec<Option
         // The factor of three in typical price cancels in the index.
         prices.push(typical_sum(bar));
     }
-    let mut ordered = prices.clone();
-    ordered.sort_unstable();
-    ordered.dedup();
-    let ranks: Vec<usize> = prices
-        .iter()
-        .map(|price| ordered.partition_point(|level| level < price))
-        .collect();
+    let (ordered, ranks) = compressed_ranks(&prices);
     let weight = period as i128;
     let mut window = PriceWindow::new(ordered.len());
     let mut result = vec![None; bars.len()];
@@ -95,6 +115,55 @@ pub fn commodity_channel_index(period: usize, bars: &[Bar]) -> Result<Vec<Option
         }
     }
     Ok(result)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CloseOrderStatistic {
+    pub median_ticks: i64,
+    /// Percentage points in millionths, averaging the ranks of tied closes.
+    pub percentile_rank: i64,
+}
+
+/// Calculate the median and current close's fractional position in each full
+/// trailing window. Equal closes share their average rank. The two extremes
+/// of the sorted window correspond to zero and 100 percent.
+pub fn rolling_close_order_statistics(
+    period: usize,
+    closes: &[i64],
+) -> Result<Vec<Option<CloseOrderStatistic>>, String> {
+    validate_closes(period, closes)?;
+    if period < 2 {
+        return Err("Close order statistics require at least two bars.".into());
+    }
+    let prices: Vec<_> = closes.iter().map(|&close| i128::from(close)).collect();
+    let (ordered, ranks) = compressed_ranks(&prices);
+    let mut window = PriceWindow::new(ordered.len());
+    let lower_position = period.div_ceil(2) as i128;
+    let upper_position = (period / 2 + 1) as i128;
+    let rank_scale = i128::from(100 * SCALE);
+    let rank_divisor = 2 * (period as i128 - 1);
+    Ok(prices
+        .iter()
+        .enumerate()
+        .map(|(index, &price)| {
+            let current_rank = ranks[index];
+            window.update(current_rank, price, 1);
+            if let Some(expired) = index.checked_sub(period) {
+                window.update(ranks[expired], prices[expired], -1);
+            }
+            (index + 1 >= period).then(|| {
+                let lower = ordered[window.rank_at(lower_position)];
+                let upper = ordered[window.rank_at(upper_position)];
+                let below = window.prefix(current_rank).0;
+                let through = window.prefix(current_rank + 1).0;
+                CloseOrderStatistic {
+                    median_ticks: rounded_div(lower + upper, 2) as i64,
+                    percentile_rank: rounded_div((below + through - 1) * rank_scale, rank_divisor)
+                        as i64,
+                }
+            })
+        })
+        .collect())
 }
 
 /// The percentage change from the signed close exactly one lookback ago.

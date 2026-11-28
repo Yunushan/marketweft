@@ -90,3 +90,5 @@ Call `leastSquaresMovingAverage(14, bars)` for the least-squares fitted close at
 Call `replayCandlePatterns(calendarCsv, 60, bars, knownAt)` to classify completed raw candles using an inclusive UTC cutoff in Unix seconds. Each match identifies its pattern, final candle index and observation second. [Candlestick pattern rules](../../docs/candlestick-patterns.md)
 
 Call `observedTimeUnderwater(bars)` for elapsed UTC seconds since the most recent running peak. Each observation returns the peak UTC second, exact peak close as `bigint` millionths and elapsed seconds. [Time Underwater](../../docs/chart-workspace.md#time-underwater)
+
+Call `rollingCloseOrderStatistics(20, bars)` for the median and the current close's percentile rank in each complete trailing window. Both results use `bigint` millionths, in price units and percentage points respectively. The warm-up values are `null`. [Rolling Median and Close Percentile Rank](../../docs/chart-workspace.md#rolling-median-and-close-percentile-rank)
