@@ -1,0 +1,75 @@
+import { readFile } from 'node:fs/promises'
+import { expect, test } from './fixtures.mjs'
+import { catalogContents, openImport, submitImport } from './catalog-fixtures.mjs'
+
+test('session relative volume follows observed offsets through DST, early closes and missing evidence offline', async ({ page, context }) => {
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-session-volume-' + name + '.csv', import.meta.url))
+  const [csv, calendar] = await Promise.all([fixture('bars'), fixture('calendar')])
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+  await openImport(page, 'SESSIONVOL', csv.toString())
+  const dialog = page.getByRole('dialog')
+  await dialog.getByText('Series details', { exact: true }).click()
+  await dialog.getByRole('combobox', { name: 'Automated use', exact: true }).selectOption('granted')
+  await submitImport(page, 'SESSIONVOL')
+  const saved = await catalogContents(page)
+  await page.getByRole('button', { name: 'Historical replay', exact: true }).click()
+  await page.getByLabel('Session calendar CSV', { exact: true }).setInputFiles({
+    name: 'session-volume-calendar.csv', mimeType: 'text/csv', buffer: calendar,
+  })
+  await page.getByLabel('Bar interval in seconds', { exact: true }).fill('60')
+  await page.getByRole('button', { name: 'Start replay', exact: true }).click()
+  const summary = page.getByText('Session relative volume', { exact: true })
+  await summary.click()
+  const panel = page.locator('details').filter({ has: summary })
+  const evidence = panel.getByLabel('Session relative volume evidence', { exact: true })
+  const field = label => evidence.getByText(label, { exact: true }).locator('xpath=following-sibling::dd')
+  const lookback = async value => {
+    await panel.getByLabel('Lookback sessions', { exact: true }).fill(value)
+    await panel.getByRole('button', { name: 'Apply session lookback', exact: true }).click()
+  }
+  await lookback('2')
+  await expect(panel.getByRole('status')).toHaveText('No observed volume for this interval.')
+  const next = page.getByRole('button', { name: 'Next event', exact: true })
+  const previous = page.getByRole('button', { name: 'Previous event', exact: true })
+  const timed = page.locator('.replay-state time').last()
+  const kind = page.locator('.replay-state strong')
+  async function through(at, label = 'Bar observed') {
+    for (let i = 0; i < 40; i++) {
+      if (await timed.count() && await timed.getAttribute('datetime') === at && await kind.textContent() === label) return
+      await next.click()
+    }
+    throw new Error('Could not reach ' + at)
+  }
+  await through('2025-11-03T14:31:00Z')
+  await expect(field('Prior average')).toHaveText('100')
+  await expect(field('Relative volume')).toHaveText('3×')
+  await through('2025-11-03T14:32:00Z', 'Missing interval')
+  await expect(panel.getByRole('status')).toHaveText('No observed volume for this interval.')
+  await through('2025-11-04T14:31:00Z')
+  await expect(field('Relative volume')).toHaveText('0×')
+  await through('2025-11-04T14:31:30Z')
+  await expect(field('Interval duration')).toHaveText('30 s')
+  await expect(field('Prior sessions with a match')).toHaveText('0 of 2')
+  await through('2025-11-05T14:31:00Z')
+  await expect(field('Prior average')).toHaveText('150')
+  await expect(field('Relative volume')).toHaveText('3×')
+  await lookback('1')
+  await expect(field('Prior average')).toHaveText('0')
+  await expect(field('Relative volume')).toHaveText('Unavailable')
+  await lookback('2')
+  const earlier = await evidence.textContent()
+  await through('2025-11-05T14:32:00Z')
+  await expect(field('Prior average')).toHaveText('Unavailable')
+  await through('2025-11-05T14:33:00Z')
+  await expect(field('Prior sessions with a match')).toHaveText('1 of 2')
+  await expect(field('Prior average')).toHaveText('0')
+  await previous.click()
+  await previous.click()
+  await expect(evidence).toHaveText(earlier)
+  await through('2025-11-07T14:31:00Z')
+  await expect(field('Relative volume')).toHaveText('0.7×')
+  expect(await catalogContents(page)).toEqual(saved)
+})

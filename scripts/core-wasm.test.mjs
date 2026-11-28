@@ -2343,6 +2343,24 @@ test('portfolio FX replays exact source currency evidence without translating un
   assert.throws(() => core.portfolioFxAsOf(rates, 'USD', at('45'), at('46'), amount), /exceeds the supported fixed-point range/);
 });
 
+test('session relative volume Wasm preserves aligned evidence and exact observation cutoffs', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-session-volume-' + name + '.csv', import.meta.url), 'utf8');
+  const [calendar, csv] = await Promise.all([fixture('calendar'), fixture('bars')]);
+  const bars = core.parseCsv(csv);
+  const known = value => Date.parse(value) / 1000;
+  const run = cutoff => core.sessionRelativeVolume(calendar, 60, bars, 2, known(cutoff));
+  assert.equal(run('2025-11-05T14:30:59Z').length, 7);
+  const rows = run('2025-11-05T14:33:00Z');
+  const point = rows[7];
+  assert.deepEqual(point, { barIndex: 7, observedAt: known('2025-11-05T14:31:00Z'),
+    offsetSeconds: 0, durationSeconds: 60, previousSessions: 2, contributingSessions: 2,
+    volume: 450_000_000n, average: 150_000_000n, relative: 3_000_000n });
+  assert.deepEqual([rows[6].durationSeconds, rows[6].contributingSessions, rows[6].relative], [30, 0, null]);
+  assert.deepEqual([rows[8].average, rows[9].average, rows[9].relative], [null, 0n, null]);
+  assert.deepEqual(run('2025-11-05T14:31:00Z'), rows.slice(0, 8));
+  assert.equal(run('2025-11-07T14:31:00Z').at(-1).relative, 700_000n);
+});
+
 test('volume movement Wasm keeps warm-up, genuine zero and unavailable index updates distinct', async () => {
   const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-volume-movement.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(source);

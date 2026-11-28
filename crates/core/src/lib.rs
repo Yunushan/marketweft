@@ -74,6 +74,7 @@ mod scalar_plugin;
 mod scenarios;
 mod screen;
 mod sector;
+mod session_relative_volume;
 mod stochastic;
 mod strength_and_volume;
 mod tick_bars;
@@ -259,6 +260,7 @@ pub use screen::{
     ScreenRow,
 };
 pub use sector::{Classification, Heatmap, HeatmapComparison, HeatmapListing, SectorGroup};
+pub use session_relative_volume::{session_relative_volume, SessionRelativeVolumePoint};
 pub use stochastic::{stochastic_oscillator, stochastic_rsi, StochasticValue};
 pub use strength_and_volume::{klinger_oscillator, true_strength_index, OscillatorSignal};
 pub use tick_bars::{

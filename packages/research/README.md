@@ -40,6 +40,8 @@ Call `crossSectionReplay(membership, prices, liquidity, from, through, known, co
 
 Call `easeOfMovement(period, bars)` or `negativeVolumeIndex(bars)` for exact values indexed by observed bars. Each result carries `bigint` millionths or `null` for an unavailable observation. [Ease of Movement and Negative Volume Index](../../docs/chart-workspace.md#ease-of-movement-and-negative-volume-index)
 
+Call `sessionRelativeVolume(calendar, intervalSeconds, bars, lookbackSessions, knownAt)` for causal session-relative volume with integer UTC observation cutoffs, exact offset and duration, and the count of comparable earlier sessions. [Session relative volume](../../docs/historical-replay.md#session-relative-volume)
+
 Call `equityConcentrationAsOf(membershipCsv, holdingsCsv, pricesCsv, effectiveAt, knownAt)` for ranked source-currency groups and known gross marked share values. Both marks and weights use `bigint`. [Equity concentration SDKs](../../docs/portfolio-replay.md#equity-concentration-sdks).
 
 Call `equityTargetDriftAsOf(membershipCsv, holdingsCsv, pricesCsv, termsCsv, targetsCsv, effectiveAt, knownAt)` to compare actual equity weights with reported targets. The result includes both cutoffs and exact `bigint` weights and drift. [Equity target research SDKs](../../docs/portfolio-replay.md#equity-target-research-sdks)

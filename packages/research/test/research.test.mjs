@@ -9,6 +9,21 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK aligns session relative volume with prior observed slots and skips shorter intervals', async () => {
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-session-volume-' + name + '.csv', import.meta.url), 'utf8')
+  const [calendar, reports] = await Promise.all([fixture('calendar'), fixture('bars')])
+  const engine = await createResearchEngine(wasm)
+  const bars = engine.parseBars(reports)
+  const run = (lookback, cutoff) => engine.sessionRelativeVolume(calendar, 60, bars, lookback, Date.parse(cutoff) / 1000)
+  const cutoff = '2025-11-05T14:33:00Z'
+  const rows = run(2, cutoff)
+  assert.deepEqual(rows.slice(-3).map(row => [row.contributingSessions, row.average, row.relative]), [
+    [2, 150_000_000n, 3_000_000n], [0, null, null], [1, 0n, null],
+  ])
+  assert.equal(run(1, cutoff)[7].relative, null)
+  assert.deepEqual(run(2, '2025-11-04T14:31:30Z'), rows.slice(0, 7))
+})
+
 test('the public SDK returns signed Ease of Movement and the causal Negative Volume Index', async () => {
   const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-volume-movement.csv', import.meta.url), 'utf8')
   const engine = await createResearchEngine(wasm)

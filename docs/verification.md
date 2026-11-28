@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.305.0 · Session relative volume
+
+- Rust and Wasm compare the matching duration and session offset across a UTC opening shift, an early close, omitted intervals, an empty session and observed zero volume. Every inclusive cutoff reproduces its historical prefix.
+- Offline Chromium and the TypeScript SDK verify a 3× first-slot ratio, an unavailable zero baseline, a missing slot and a 0.7× ratio after an empty session enters the lookback. Rewinding restores the earlier evidence.
+
 ## 0.304.0 · Close waterfall
 
 - Offline Chromium verifies the Canvas bar coordinates, upward and downward moves, a true zero mark and a missing interval. Adjacent bars meet at their shared close on the price axis.

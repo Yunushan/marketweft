@@ -82,6 +82,9 @@ Compare 14:00:00 and 14:00:02 UTC to see the earlier execution arrive late.
 
 Choose Historical replay and Start demo for the NYSE session example. Replay
 reveals each bar at its scheduled close and marks missing intervals in-session.
+For session relative volume, import session-volume-bars.csv with automated
+use granted, then replay it with session-volume-calendar.csv and a 60-second
+interval. Apply a two-session lookback and step to November 5 at 14:31 UTC.
 For Piercing and Dark Cloud Cover, import piercing-dark-cloud.csv, then choose
 candle-pattern-sessions.csv and 60 seconds in Historical replay. Scan observed
 candles after 14:02 UTC on January 12 and the January 13 early close.
@@ -296,6 +299,8 @@ def main():
     fixture = ROOT / "crates/core/tests/fixtures"
     files["replay-sessions.csv"] = (fixture / "nyse-2025-replay-sessions.csv").read_bytes()
     files["replay-ohlcv.csv"] = (fixture / "nyse-2025-replay-ohlcv.csv").read_bytes()
+    files["session-volume-bars.csv"] = (fixture / "synthetic-session-volume-bars.csv").read_bytes()
+    files["session-volume-calendar.csv"] = (fixture / "synthetic-session-volume-calendar.csv").read_bytes()
     files["tick-trades.csv"] = (fixture / "synthetic-tick-trades.csv").read_bytes()
     files["notional-trades.csv"] = (fixture / "synthetic-notional-trades.csv").read_bytes()
     files["recorded-prints.csv"] = (fixture / "synthetic-recorded-prints.csv").read_bytes()

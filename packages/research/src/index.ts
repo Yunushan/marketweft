@@ -15,6 +15,7 @@ export type {
   ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
   ScalarPluginPoint, ScreenPrice, ScreenRow, TradeClassification, TradeClassificationQuery, TradeSideBasis, TrailingFourQuarters,
   RecordedTradePrint,
+  SessionRelativeVolumePoint,
   TimeUnderwaterPoint,
 } from './core.js'
 
@@ -85,6 +86,7 @@ export interface MarketResearch {
   negativeVolumeIndex: MarketCore['negativeVolumeIndex']
   leastSquaresMovingAverage: MarketCore['leastSquaresMovingAverage']
   replayCandlePatterns: MarketCore['replayCandlePatterns']
+  sessionRelativeVolume: MarketCore['sessionRelativeVolume']
   observedTimeUnderwater: MarketCore['observedTimeUnderwater']
   dividendLedger: MarketCore['dividendLedger']
   dividendPositionLedger: MarketCore['dividendPositionLedger']
@@ -152,6 +154,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     negativeVolumeIndex: core.negativeVolumeIndex,
     leastSquaresMovingAverage: core.leastSquaresMovingAverage,
     replayCandlePatterns: core.replayCandlePatterns,
+    sessionRelativeVolume: core.sessionRelativeVolume,
     observedTimeUnderwater: core.observedTimeUnderwater,
     dividendLedger: core.dividendLedger,
     dividendPositionLedger: core.dividendPositionLedger,

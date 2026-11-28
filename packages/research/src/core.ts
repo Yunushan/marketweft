@@ -332,6 +332,18 @@ export interface CandlePatternHit {
   barIndex: number;
   observedAt: number;
 }
+export interface SessionRelativeVolumePoint {
+  barIndex: number;
+  observedAt: number;
+  offsetSeconds: number;
+  durationSeconds: number;
+  previousSessions: number;
+  contributingSessions: number;
+  volume: bigint;
+  average: bigint | null;
+  relative: bigint | null;
+}
+
 export interface ReplayEvent {
   kind: typeof replayKinds[number];
   eventTime: number;
@@ -1481,6 +1493,8 @@ export interface MarketCore {
   bollingerMeasures(period: number, bars: readonly Bar[]): BollingerMeasures[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
   replayCandlePatterns(calendar: string, intervalSeconds: number, bars: readonly Bar[], knownAt: number): CandlePatternHit[];
+  sessionRelativeVolume(calendar: string, intervalSeconds: number, bars: readonly Bar[],
+    lookbackSessions: number, knownAt: number): SessionRelativeVolumePoint[];
   splitBook(instrument: string, csv: string): Split[];
   adjustSplits(bars: readonly Bar[], splits: readonly Split[], asOf: number): Bar[];
   dividendLedger(instrument: string, csv: string, entitledShares: number): DividendEvent[];
@@ -1697,6 +1711,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_evaluate_formula_library(sourceBytes: number, libraryBytes: number): number;
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
   mw_replay_candle_patterns(calendarBytes: number, intervalSeconds: number): number;
+  mw_session_relative_volume(calendarBytes: number, intervalSeconds: number, lookbackSessions: number): number;
   mw_split_book(): number;
   mw_split_revision_book(): number;
   mw_adjust_splits(records: number): number;
@@ -3442,6 +3457,33 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         return {
           kind, barIndex,
           observedAt: Number(out.getBigInt64(offset, true)),
+        };
+      });
+    },
+    sessionRelativeVolume(calendar, intervalSeconds, bars, lookbackSessions, knownAt) {
+      const encoded = replayCalendar(calendar, intervalSeconds, bars.length);
+      if (!Number.isInteger(lookbackSessions) || lookbackSessions < 1 || lookbackSessions > 10_000) {
+        throw new Error('Use a whole lookback of 1–10,000 prior sessions.');
+      }
+      if (!Number.isSafeInteger(knownAt)) throw new Error('The observation cutoff must be integer UTC seconds.');
+      const start = 8 + encoded.length;
+      const dest = input(start + bars.length * 48);
+      dest.setBigInt64(0, BigInt(knownAt), true);
+      new Uint8Array(dest.buffer, dest.byteOffset + 8, encoded.length).set(encoded);
+      for (const [index, bar] of bars.entries()) putBar(dest, start + index * 48, bar, 'Session relative volume');
+      const out = output(api.mw_session_relative_volume(encoded.length, intervalSeconds, lookbackSessions));
+      if (out.byteLength % 60 !== 0) throw new Error('Invalid session relative volume response size.');
+      return Array.from({ length: out.byteLength / 60 }, (_, index) => {
+        const offset = index * 60;
+        const average = out.getBigInt64(offset + 36, true);
+        const relative = signed128(out, offset + 44);
+        return {
+          barIndex: out.getUint32(offset, true), observedAt: Number(out.getBigInt64(offset + 4, true)),
+          offsetSeconds: out.getUint32(offset + 12, true), durationSeconds: out.getUint32(offset + 16, true),
+          previousSessions: out.getUint32(offset + 20, true), contributingSessions: out.getUint32(offset + 24, true),
+          volume: out.getBigInt64(offset + 28, true),
+          average: average === -(1n << 63n) ? null : average,
+          relative: relative === -(1n << 127n) ? null : relative,
         };
       });
     },

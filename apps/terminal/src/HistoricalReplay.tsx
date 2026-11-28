@@ -14,6 +14,7 @@ import { MacroReplay } from './MacroReplay'
 import { OptionReplay } from './OptionReplay'
 import { AlertReplay } from './AlertReplay'
 import { CandlePatternReplay } from './CandlePatternReplay'
+import { SessionRelativeVolumeReplay } from './SessionRelativeVolumeReplay'
 import type { History } from './catalog-schema'
 import { PaperReplay } from './PaperReplay'
 import { BacktestReplay } from './BacktestReplay'
@@ -870,6 +871,15 @@ export function HistoricalReplay({
               fixture={active.asset.source === 'sample'}
               sourceHistory={active.sourceHistory}
               sourceRights={histories.find(history => history.id === active.asset.id)?.descriptor.sourceRights}
+            />
+            <SessionRelativeVolumeReplay
+              core={core}
+              calendar={active.calendar}
+              interval={active.seconds}
+              bars={active.asset.bars}
+              event={event?.kind === 'bar' ? event : undefined}
+              sourceRights={histories.find(history => history.id === active.asset.id)?.descriptor.sourceRights ??
+                active.sourceHistory?.descriptor.sourceRights}
             />
             {adjustmentError ? (
               <p role="alert" className="warning replay-empty">
