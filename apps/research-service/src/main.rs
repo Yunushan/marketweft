@@ -122,6 +122,13 @@ async fn serve_async() -> Result<(), Box<dyn std::error::Error>> {
         None => Tokens::with_options(formula.as_deref(), screen.as_deref(), options.as_deref())
             .map_err(io::Error::other)?,
     };
+    let tokens = if let Some(limit) = setting("MARKETWEFT_RESEARCH_QUOTA_PER_MINUTE")? {
+        tokens
+            .with_minute_quota(limit.parse()?)
+            .map_err(io::Error::other)?
+    } else {
+        tokens
+    };
     let slots = setting("MARKETWEFT_RESEARCH_SLOTS")?
         .map(|value| value.parse::<usize>())
         .transpose()?

@@ -80,10 +80,11 @@ async fn guard(
         .uri()
         .authority()
         .map(|authority| authority.as_str());
-    if let Err(error) = state.authorize(request.headers(), authority, scope).await {
-        return grpc_error(status(error));
-    }
-    let admission = match state.admit(scope, Transport::Grpc).await {
+    let credential = match state.authorize(request.headers(), authority, scope).await {
+        Ok(credential) => credential,
+        Err(error) => return grpc_error(status(error)),
+    };
+    let admission = match state.admit(scope, Transport::Grpc, credential).await {
         Ok(admission) => admission,
         Err(error) => return grpc_error(status(error)),
     };
@@ -128,7 +129,17 @@ fn status(error: ApiError) -> Status {
         StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => Code::InvalidArgument,
         _ => Code::Internal,
     };
-    Status::new(code, error.message)
+    let mut status = Status::new(code, error.message);
+    if let Some(retry) = error.retry_after {
+        status.metadata_mut().insert(
+            "retry-after",
+            retry
+                .to_string()
+                .parse()
+                .expect("integer retry delay is valid metadata"),
+        );
+    }
+    status
 }
 
 #[derive(Clone)]

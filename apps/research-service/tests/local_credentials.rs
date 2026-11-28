@@ -1,15 +1,23 @@
 mod support;
 
-use marketweft_research_service::proto::{research_client::ResearchClient, FormulaQuery};
+use marketweft_research_service::{
+    copy_audit_database,
+    proto::{research_client::ResearchClient, FormulaQuery},
+};
 use rusqlite::Connection;
 use serde_json::Value;
 use std::{
     env, fs,
     path::Path,
     process::{Command, Output},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use support::{ResearchProcess, Settings, FORMULA_TOKEN, IO_DEADLINE, SCREEN_TOKEN};
-use tokio::time::timeout;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+    time::{sleep, timeout},
+};
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{client::IntoClientRequest, Error},
@@ -49,6 +57,155 @@ fn formula(token: &str) -> Request<FormulaQuery> {
         .metadata_mut()
         .insert("authorization", format!("Bearer {token}").parse().unwrap());
     request
+}
+
+async fn rest_formula(server: &ResearchProcess, token: &str) -> String {
+    let authority = server.origin.strip_prefix("http://").unwrap();
+    let body =
+        serde_json::json!({ "history_csv": HISTORY, "formula": "close + 0.000001", "limit": 1 })
+            .to_string();
+    let request = format!(
+        "POST /v1/formula HTTP/1.1\r\nHost: {authority}\r\nAuthorization: Bearer {token}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    timeout(IO_DEADLINE, async {
+        let mut client = TcpStream::connect(authority).await.unwrap();
+        client.write_all(request.as_bytes()).await.unwrap();
+        let mut response = String::new();
+        client.read_to_string(&mut response).await.unwrap();
+        response
+    })
+    .await
+    .unwrap()
+}
+
+async fn quota_client(server: &ResearchProcess) -> ResearchClient<tonic::transport::Channel> {
+    ResearchClient::new(
+        Endpoint::from_shared(server.origin.clone())
+            .unwrap()
+            .connect_timeout(IO_DEADLINE)
+            .timeout(IO_DEADLINE)
+            .connect()
+            .await
+            .unwrap(),
+    )
+}
+
+#[tokio::test]
+async fn quota_is_shared_by_all_transports_and_survives_restart_and_audit_recovery() {
+    let folder = tempfile::tempdir().unwrap();
+    let credentials = folder.path().join("credentials.sqlite");
+    let audit = folder.path().join("audit.sqlite");
+    let snapshot = folder.path().join("audit-snapshot.sqlite");
+    let issued = issue(&credentials, "formula");
+    let independent = issue(&credentials, "formula");
+    let concurrent = issue(&credentials, "formula");
+    let token = issued["token"].as_str().unwrap();
+    let independent_token = independent["token"].as_str().unwrap();
+    let concurrent_token = concurrent["token"].as_str().unwrap();
+    let start = |audit: &Path| {
+        ResearchProcess::start(Settings {
+            credentials: Some(&credentials),
+            audit: Some(audit),
+            quota_per_minute: Some(2),
+            ..Settings::default()
+        })
+    };
+    let server = start(&audit);
+    let second = start(&audit);
+    // Keep the integration exercise away from a naturally rolling UTC minute.
+    let second_in_minute = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        % 60;
+    if second_in_minute > 40 {
+        sleep(Duration::from_secs(60 - second_in_minute)).await;
+    }
+    let mut client = quota_client(&server).await;
+    assert!(rest_formula(&server, token)
+        .await
+        .starts_with("HTTP/1.1 200 "));
+    let mut upgrade = format!(
+        "ws://{}/v1/formula/stream",
+        server.origin.strip_prefix("http://").unwrap()
+    )
+    .into_client_request()
+    .unwrap();
+    upgrade
+        .headers_mut()
+        .insert("authorization", format!("Bearer {token}").parse().unwrap());
+    let (socket, _) = timeout(IO_DEADLINE, connect_async(upgrade))
+        .await
+        .unwrap()
+        .unwrap();
+    drop(socket);
+
+    let grpc_denial = client.evaluate_formula(formula(token)).await.unwrap_err();
+    assert_eq!(grpc_denial.code(), Code::ResourceExhausted);
+    assert!(
+        grpc_denial
+            .metadata()
+            .get("retry-after")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .parse::<u32>()
+            .unwrap()
+            > 0
+    );
+    let rest_denial = rest_formula(&server, token).await.to_ascii_lowercase();
+    assert!(rest_denial.starts_with("http/1.1 429 "));
+    assert!(rest_denial.contains("\r\nretry-after: "));
+    assert!(client
+        .evaluate_formula(formula(independent_token))
+        .await
+        .is_ok());
+
+    assert!(client
+        .evaluate_formula(formula(concurrent_token))
+        .await
+        .is_ok());
+    let mut other_client = quota_client(&second).await;
+    let (left, right) = tokio::join!(
+        client.evaluate_formula(formula(concurrent_token)),
+        other_client.evaluate_formula(formula(concurrent_token)),
+    );
+    assert_eq!(usize::from(left.is_ok()) + usize::from(right.is_ok()), 1);
+    assert_eq!(
+        left.err().or_else(|| right.err()).unwrap().code(),
+        Code::ResourceExhausted
+    );
+
+    drop(client);
+    drop(other_client);
+    drop(server);
+    drop(second);
+    let usage = Connection::open(&audit)
+        .unwrap()
+        .query_row(
+            "SELECT admitted FROM research_quota_usage WHERE credential_id = ?1",
+            [issued["credential_id"].as_str().unwrap()],
+            |row| row.get::<_, u32>(0),
+        )
+        .unwrap();
+    assert_eq!(usage, 2);
+    assert_eq!(copy_audit_database(&audit, &snapshot).unwrap().receipts, 5);
+    let restarted = start(&audit);
+    let restored = start(&snapshot);
+    assert!(rest_formula(&restarted, token)
+        .await
+        .starts_with("HTTP/1.1 429 "));
+    assert!(rest_formula(&restored, token)
+        .await
+        .starts_with("HTTP/1.1 429 "));
+    assert!(rest_formula(&restored, independent_token)
+        .await
+        .starts_with("HTTP/1.1 200 "));
+    assert!(!fs::read(&audit)
+        .unwrap()
+        .windows(token.len())
+        .any(|bytes| bytes == token.as_bytes()));
 }
 
 #[tokio::test]

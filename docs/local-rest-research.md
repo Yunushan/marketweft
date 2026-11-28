@@ -121,6 +121,21 @@ Set `CREDENTIAL_ID` to the issued ID to revoke it while the service is running.
 
 Expiration and revocation take effect on the next REST or gRPC call or WebSocket upgrade. An admitted WebSocket stream has the normal query and delivery deadlines.
 
+## Durable research quotas
+
+Set `MARKETWEFT_RESEARCH_QUOTA_PER_MINUTE` to an integer from 1 to 100,000 to enable a limit per managed credential each UTC minute. Use only managed credentials and supply an on-disk `MARKETWEFT_RESEARCH_AUDIT_DB`. REST requests, accepted WebSocket upgrades and gRPC calls share the same budget for that credential. Each new UTC minute starts a new allowance. A backward clock step retains the recorded window.
+
+```sh
+export MARKETWEFT_RESEARCH_CREDENTIALS_DB="$PWD/research-credentials.sqlite"
+export MARKETWEFT_RESEARCH_AUDIT_DB="$PWD/research-audit.sqlite"
+export MARKETWEFT_RESEARCH_QUOTA_PER_MINUTE=30
+./marketweft-research-service
+```
+
+The audit transaction reserves an admission and writes its receipt together. An admitted request spends one credit even when the computation rejects it, times out or disconnects. Exhausted calls return HTTP 429 with `Retry-After`, or gRPC `ResourceExhausted` with `retry-after` metadata. The retry delay is in seconds. The operations listener counts quota denials separately from busy workers and audit errors.
+
+Quota state lives in the audit database and follows its snapshot and restore workflow. Multiple service processes using the same audit database share the same allowance. Meter rows contain the public credential ID, the current UTC minute and the admission count. Audit receipts retain the transport, scope and outcome.
+
 ## Localhost TLS
 
 Set `MARKETWEFT_RESEARCH_TLS_CERT` to a PEM certificate chain and `MARKETWEFT_RESEARCH_TLS_KEY` to its matching PEM private key. Supply both paths before starting the service. Use a certificate valid for `127.0.0.1` and configure clients to trust its issuing CA.
@@ -215,7 +230,7 @@ curl --fail http://127.0.0.1:4175/metrics
 
 `/healthz` returns `ok` when the operations listener is responding. It checks process liveness. Research can still return overload or storage errors while the process is alive.
 
-`/metrics` reports eight Prometheus counters. `admitted` counts research requests accepted across REST, WebSocket and gRPC. `busy` counts rejections at a full admission limit. `audit_errors` counts failures when starting or finishing a receipt. The other counters report completed, rejected, timed out, interrupted and failed admitted requests. A failed audit write at completion counts as a failed admission outcome. Counter names start with `marketweft_research_` and end with `_total`.
+`/metrics` reports nine Prometheus counters. `admitted` counts research requests accepted across REST, WebSocket and gRPC. `busy` counts rejections at a full admission limit. `quota_denied` counts requests refused after exhausting a credential's allowance. `audit_errors` counts failures when starting or finishing a receipt. The other counters report completed, rejected, timed out, interrupted and failed admitted requests. A failed audit write at completion counts as a failed admission outcome. Counter names start with `marketweft_research_` and end with `_total`.
 
 The response contains aggregate counts without request values, identities or credential material. Counters reset when the process restarts. SQLite audit receipts retain their existing persistence behavior.
 
@@ -251,7 +266,7 @@ The destination continues the receipt sequence from the snapshot.
 
 ## Verify a portable audit snapshot
 
-Run `audit verify` on the single SQLite file produced by `audit backup`. The command checks the application ID, audit schema version and SQLite integrity. Versions 1 and 2 can be verified or copied. Starting the service with a version 1 audit database upgrades it to version 2 and preserves receipt IDs and their sequence. It prints the exact file length, SHA-256 digest, total receipt count and unfinished count as JSON.
+Run `audit verify` on the single SQLite file produced by `audit backup`. The command checks the application ID, audit schema version and SQLite integrity. Versions 1, 2 and 3 can be verified or copied. Starting the service upgrades an older audit database to version 3 and preserves receipt IDs and their sequence. Version 3 includes the quota usage table. The verification command prints the exact file length, SHA-256 digest, total receipt count and unfinished count as JSON.
 
 ```sh
 ./marketweft-research-service audit verify ./transfer.sqlite

@@ -71,8 +71,8 @@ async fn upgrade(
     scope: Scope,
     operation: Operation,
 ) -> Result<Response, ApiError> {
-    state.authorize(headers, None, scope).await?;
-    let admission = state.admit(scope, Transport::WebSocket).await?;
+    let credential = state.authorize(headers, None, scope).await?;
+    let admission = state.admit(scope, Transport::WebSocket, credential).await?;
     Ok(ws
         .max_message_size(BODY_LIMIT)
         .max_frame_size(BODY_LIMIT)

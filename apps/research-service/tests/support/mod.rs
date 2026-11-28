@@ -22,6 +22,7 @@ pub struct Settings<'a> {
     pub slots: Option<usize>,
     pub credentials: Option<&'a Path>,
     pub tls: Option<(&'a Path, &'a Path)>,
+    pub quota_per_minute: Option<u32>,
 }
 
 impl ResearchProcess {
@@ -37,6 +38,7 @@ impl ResearchProcess {
             .env_remove("MARKETWEFT_RESEARCH_AUDIT_DB")
             .env_remove("MARKETWEFT_RESEARCH_SLOTS")
             .env_remove("MARKETWEFT_RESEARCH_CREDENTIALS_DB")
+            .env_remove("MARKETWEFT_RESEARCH_QUOTA_PER_MINUTE")
             .env_remove("MARKETWEFT_RESEARCH_TLS_CERT")
             .env_remove("MARKETWEFT_RESEARCH_TLS_KEY")
             .env_remove("MARKETWEFT_RESEARCH_BIND_IP")
@@ -47,6 +49,9 @@ impl ResearchProcess {
         }
         if let Some(slots) = settings.slots {
             command.env("MARKETWEFT_RESEARCH_SLOTS", slots.to_string());
+        }
+        if let Some(limit) = settings.quota_per_minute {
+            command.env("MARKETWEFT_RESEARCH_QUOTA_PER_MINUTE", limit.to_string());
         }
         if let Some(path) = settings.credentials {
             command

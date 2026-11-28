@@ -25,7 +25,7 @@ pub use shutdown::ResearchShutdown;
 pub use webhook::{deliver_webhook, resume_webhook, WebhookReceipt};
 
 use analytics::ResearchPage;
-use audit::{Outcome, Receipt, Trail, Transport};
+use audit::{Outcome, QuotaCharge, Receipt, Trail, Transport};
 use axum::body::to_bytes;
 use axum::extract::{Request, State};
 use axum::http::{header, uri::Authority, HeaderMap, HeaderName, HeaderValue, StatusCode};
@@ -49,6 +49,7 @@ const TOKEN_BYTES: usize = 64;
 /// Default maximum number of active research requests across transports.
 pub const DEFAULT_RESEARCH_SLOTS: usize = 2;
 const MAX_RESEARCH_SLOTS: usize = 8;
+const MAX_MINUTE_QUOTA: u32 = 100_000;
 
 #[derive(Clone)]
 struct Token([u8; TOKEN_BYTES]);
@@ -73,6 +74,7 @@ pub struct Tokens {
     screen: Option<Token>,
     options: Option<Token>,
     managed: Option<CredentialStore>,
+    quota_per_minute: Option<u32>,
 }
 
 impl Tokens {
@@ -107,6 +109,25 @@ impl Tokens {
     ) -> io::Result<Self> {
         let managed = CredentialStore::open(path)?;
         Self::configured(formula, screen, options, Some(managed)).map_err(io::Error::other)
+    }
+
+    /// Meter research admissions per issued credential across all transports.
+    pub fn with_minute_quota(mut self, limit: u32) -> Result<Self, &'static str> {
+        if !(1..=MAX_MINUTE_QUOTA).contains(&limit) {
+            return Err("Set the research quota from 1 to 100000 admissions per minute.");
+        }
+        if !self.managed_only() {
+            return Err("Research quotas require managed credentials only.");
+        }
+        self.quota_per_minute = Some(limit);
+        Ok(self)
+    }
+
+    fn managed_only(&self) -> bool {
+        self.managed.is_some()
+            && self.formula.is_none()
+            && self.screen.is_none()
+            && self.options.is_none()
     }
 
     fn configured(
@@ -144,6 +165,7 @@ impl Tokens {
             screen,
             options,
             managed,
+            quota_per_minute: None,
         })
     }
 }
@@ -206,6 +228,7 @@ impl Admission {
 struct ApiError {
     status: StatusCode,
     message: String,
+    retry_after: Option<i64>,
 }
 
 impl ApiError {
@@ -213,6 +236,15 @@ impl ApiError {
         Self {
             status,
             message: message.into(),
+            retry_after: None,
+        }
+    }
+
+    fn quota_exhausted(retry_after: i64) -> Self {
+        Self {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            message: "Research credential quota is exhausted.".into(),
+            retry_after: Some(retry_after),
         }
     }
 }
@@ -225,9 +257,11 @@ impl IntoResponse for ApiError {
                 .headers_mut()
                 .insert(header::WWW_AUTHENTICATE, HeaderValue::from_static("Bearer"));
         } else if self.status == StatusCode::TOO_MANY_REQUESTS {
-            response
-                .headers_mut()
-                .insert(header::RETRY_AFTER, HeaderValue::from_static("1"));
+            response.headers_mut().insert(
+                header::RETRY_AFTER,
+                HeaderValue::from_str(&self.retry_after.unwrap_or(1).to_string())
+                    .expect("integer retry delay is a valid header"),
+            );
         }
         response
     }
@@ -236,6 +270,9 @@ impl IntoResponse for ApiError {
 /// Construct the v1 API for the exact IPv4 loopback address bound by the service.
 pub fn research_router(address: SocketAddr, tokens: Tokens) -> Result<Router, &'static str> {
     validate_loopback(address)?;
+    if tokens.quota_per_minute.is_some() {
+        return Err("Research quotas require an audit database.");
+    }
     let shutdown = ResearchShutdown::new(DEFAULT_RESEARCH_SLOTS)
         .expect("the default admission budget is valid");
     Ok(configure_router(address, tokens, None, shutdown, false, None).0)
@@ -331,6 +368,12 @@ pub fn configured_controlled_research_router(
     tls: bool,
     operations: Option<ResearchOperations>,
 ) -> io::Result<(Router, String)> {
+    if tokens.quota_per_minute.is_some() && audit_path.is_none() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Research quotas require an audit database.",
+        ));
+    }
     let Some(advertised) = advertised else {
         validate_loopback(address).map_err(io::Error::other)?;
         let trail = open_audit(audit_path)?;
@@ -342,11 +385,7 @@ pub fn configured_controlled_research_router(
         return Err(io::Error::other("Private-interface research requires TLS."));
     }
     let (authority, default_port_alias) = private_authority(address, advertised)?;
-    if tokens.managed.is_none()
-        || tokens.formula.is_some()
-        || tokens.screen.is_some()
-        || tokens.options.is_some()
-    {
+    if !tokens.managed_only() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "Private-interface research requires managed credentials only.",
@@ -504,7 +543,12 @@ fn header_value(headers: &HeaderMap, name: HeaderName) -> Option<&str> {
 }
 
 impl Server {
-    async fn admit(&self, scope: Scope, transport: Transport) -> Result<Admission, ApiError> {
+    async fn admit(
+        &self,
+        scope: Scope,
+        transport: Transport,
+        credential_id: Option<String>,
+    ) -> Result<Admission, ApiError> {
         let permit = self.shutdown.try_acquire().map_err(|error| match error {
             TryAcquireError::Closed => ApiError::new(
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -517,12 +561,22 @@ impl Server {
                 ApiError::new(StatusCode::TOO_MANY_REQUESTS, "Research workers are busy.")
             }
         })?;
+        let quota = self.tokens.quota_per_minute.map(|limit| QuotaCharge {
+            credential_id: credential_id.expect("metered admissions require an issued credential"),
+            limit,
+        });
         let receipt = match &self.audit {
-            Some(trail) => Some(trail.begin(transport, scope).await.inspect_err(|_| {
-                if let Some(operations) = &self.operations {
-                    operations.audit_error();
-                }
-            })?),
+            Some(trail) => Some(trail.begin(transport, scope, quota).await.inspect_err(
+                |error| {
+                    if let Some(operations) = &self.operations {
+                        if error.retry_after.is_some() {
+                            operations.quota_denied();
+                        } else {
+                            operations.audit_error();
+                        }
+                    }
+                },
+            )?),
             None => None,
         };
         Ok(Admission {
@@ -537,7 +591,7 @@ impl Server {
         headers: &HeaderMap,
         authority: Option<&str>,
         scope: Scope,
-    ) -> Result<(), ApiError> {
+    ) -> Result<Option<String>, ApiError> {
         let host = header_value(headers, header::HOST);
         let matches_authority = |value: Option<&str>| {
             value == Some(self.authority.as_str())
@@ -575,11 +629,14 @@ impl Server {
             .options
             .as_ref()
             .is_some_and(|known| token.matches(known));
-        let granted = match (formula, screen, options, &self.tokens.managed) {
-            (true, _, _, _) => Some(Scope::Formula),
-            (_, true, _, _) => Some(Scope::Screen),
-            (_, _, true, _) => Some(Scope::Options),
-            (_, _, _, Some(store)) => store.lookup(&token.0).await?,
+        let (granted, credential_id) = match (formula, screen, options, &self.tokens.managed) {
+            (true, _, _, _) => Some((Scope::Formula, None)),
+            (_, true, _, _) => Some((Scope::Screen, None)),
+            (_, _, true, _) => Some((Scope::Options, None)),
+            (_, _, _, Some(store)) => store
+                .lookup(&token.0)
+                .await?
+                .map(|(scope, id)| (scope, Some(id))),
             _ => None,
         }
         .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Invalid research bearer token."))?;
@@ -589,7 +646,7 @@ impl Server {
                 "The token does not grant this research scope.",
             ));
         }
-        Ok(())
+        Ok(credential_id)
     }
 }
 
@@ -601,7 +658,7 @@ async fn execute(
     scope: Scope,
     operation: Operation,
 ) -> Result<Json<ResearchPage>, ApiError> {
-    state.authorize(request.headers(), None, scope).await?;
+    let credential = state.authorize(request.headers(), None, scope).await?;
     let media_type = header_value(request.headers(), header::CONTENT_TYPE)
         .and_then(|value| value.split(';').next())
         .map(str::trim);
@@ -611,7 +668,7 @@ async fn execute(
             "Send application/json.",
         ));
     }
-    let admission = state.admit(scope, Transport::Rest).await?;
+    let admission = state.admit(scope, Transport::Rest, credential).await?;
     let permit = Arc::clone(&admission.permit);
     let result = async {
         let bytes = tokio::time::timeout(BODY_TIMEOUT, to_bytes(request.into_body(), BODY_LIMIT))

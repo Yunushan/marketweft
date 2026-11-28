@@ -1,4 +1,4 @@
-use crate::audit::{schema_version, APPLICATION_ID, SCHEMA_VERSION};
+use crate::audit::{schema_version, verify_quota_table, APPLICATION_ID, SCHEMA_VERSION};
 use rusqlite::backup::{Backup, StepResult};
 use rusqlite::{Connection, OpenFlags};
 use serde::Serialize;
@@ -109,7 +109,7 @@ fn verify_snapshot(path: &Path) -> CopyResult<VerifiedSnapshot> {
     )?;
     database.pragma_update(None, "trusted_schema", false)?;
     let (application, version) = schema_version(&database)?;
-    if !matches!((application, version), (APPLICATION_ID, 1 | SCHEMA_VERSION)) {
+    if !matches!((application, version), (APPLICATION_ID, 1..=SCHEMA_VERSION)) {
         return Err(
             io::Error::other("The snapshot is not a supported research audit database.").into(),
         );
@@ -152,7 +152,7 @@ fn copy_database(source: &Path, destination: &Path) -> CopyResult<AuditSummary> 
     source.pragma_update(None, "trusted_schema", false)?;
     let snapshot = source.transaction()?;
     let source_schema = schema_version(&snapshot)?;
-    if !matches!(source_schema, (APPLICATION_ID, 1 | SCHEMA_VERSION)) {
+    if !matches!(source_schema, (APPLICATION_ID, 1..=SCHEMA_VERSION)) {
         return Err(
             io::Error::other("The source is not a supported research audit database.").into(),
         );
@@ -229,6 +229,9 @@ fn verify(database: &Connection) -> CopyResult<AuditSummary> {
     let check: String = database.pragma_query_value(None, "quick_check", |row| row.get(0))?;
     if check != "ok" {
         return Err(io::Error::other("The audit database failed SQLite integrity checks.").into());
+    }
+    if schema_version(database)?.1 >= 3 {
+        verify_quota_table(database)?;
     }
     Ok(database.query_row(
         "SELECT COUNT(*), COUNT(*) FILTER (WHERE outcome IS NULL) FROM research_receipts",

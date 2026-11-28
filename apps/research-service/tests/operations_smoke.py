@@ -43,7 +43,7 @@ def exercise(executable, database):
                 assert metric.startswith("marketweft_research_") and metric.endswith("_total")
                 result[metric.removeprefix("marketweft_research_").removesuffix("_total")] = int(value)
         assert set(result) == {
-            "admitted", "busy", "audit_errors", "completed", "rejected", "timed_out", "interrupted", "failed",
+            "admitted", "busy", "quota_denied", "audit_errors", "completed", "rejected", "timed_out", "interrupted", "failed",
         }
         return result
 
@@ -99,7 +99,7 @@ def exercise(executable, database):
             time.sleep(0.01)
             totals = counts(operations)
         assert totals == {
-            "admitted": 3, "busy": 1, "audit_errors": 1, "completed": 1,
+            "admitted": 3, "busy": 1, "quota_denied": 0, "audit_errors": 1, "completed": 1,
             "rejected": 1, "timed_out": 0, "interrupted": 1, "failed": 0,
         }, totals
     with research_process(executable, formula_token, screen_token, **settings) as (_, _, operations):

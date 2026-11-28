@@ -19,6 +19,7 @@ pub struct ResearchOperations(Arc<Mutex<Counters>>);
 struct Counters {
     admitted: u64,
     busy: u64,
+    quota_denied: u64,
     audit_errors: u64,
     completed: u64,
     rejected: u64,
@@ -83,12 +84,17 @@ impl ResearchOperations {
         self.update(|counts| &mut counts.audit_errors);
     }
 
+    pub(crate) fn quota_denied(&self) {
+        self.update(|counts| &mut counts.quota_denied);
+    }
+
     fn render(&self) -> String {
         let counts = self.0.lock().unwrap_or_else(|error| error.into_inner());
         let mut text = String::new();
         for (name, value) in [
             ("admitted", counts.admitted),
             ("busy", counts.busy),
+            ("quota_denied", counts.quota_denied),
             ("audit_errors", counts.audit_errors),
             ("completed", counts.completed),
             ("rejected", counts.rejected),

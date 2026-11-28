@@ -1,4 +1,4 @@
-use marketweft_research_service::{research_router_with_audit, Tokens};
+use marketweft_research_service::{research_router_with_audit, verify_audit_snapshot, Tokens};
 use rusqlite::Connection;
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -86,6 +86,43 @@ fn restore_checks_the_digest_before_publishing_a_destination() {
 }
 
 #[test]
+fn an_existing_version_two_audit_migrates_without_renumbering_receipts() {
+    let temp = tempfile::tempdir().unwrap();
+    let audit = temp.path().join("audit.sqlite");
+    drop(open_service(&audit));
+    let database = Connection::open(&audit).unwrap();
+    database
+        .execute_batch(
+            "DROP TABLE research_quota_usage;
+         PRAGMA user_version = 2;
+         INSERT INTO research_receipts (receipt_id, transport, scope)
+         VALUES (12, 'rest', 'formula');",
+        )
+        .unwrap();
+    drop(database);
+    let old = verify_audit_snapshot(&audit).unwrap();
+    assert_eq!((old.schema_version, old.receipts), (2, 1));
+    drop(open_service(&audit));
+    let database = Connection::open(&audit).unwrap();
+    database
+        .execute(
+            "INSERT INTO research_receipts (transport, scope) VALUES ('grpc', 'screen')",
+            [],
+        )
+        .unwrap();
+    assert_eq!(database.last_insert_rowid(), 13);
+    assert_eq!(
+        database
+            .query_row("SELECT COUNT(*) FROM research_quota_usage", [], |row| row
+                .get::<_, u32>(
+                0
+            ))
+            .unwrap(),
+        0
+    );
+}
+
+#[test]
 fn verifies_exact_snapshot_bytes_and_rejects_nonportable_inputs() {
     let temp = tempfile::tempdir().unwrap();
     let source = temp.path().join("audit.sqlite");
@@ -119,7 +156,7 @@ fn verifies_exact_snapshot_bytes_and_rejects_nonportable_inputs() {
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&result.stdout).unwrap(),
         json!({
-            "schema_version": 2, "receipts": 1, "unfinished": 1, "bytes": bytes.len(),
+            "schema_version": 3, "receipts": 1, "unfinished": 1, "bytes": bytes.len(),
             "sha256": digest,
         })
     );

@@ -174,7 +174,7 @@ impl CredentialStore {
         })
     }
 
-    pub(crate) async fn lookup(&self, bytes: &[u8]) -> Result<Option<Scope>, ApiError> {
+    pub(crate) async fn lookup(&self, bytes: &[u8]) -> Result<Option<(Scope, String)>, ApiError> {
         let permit = Arc::clone(&self.lookups)
             .try_acquire_owned()
             .map_err(|_| unavailable())?;
@@ -184,12 +184,12 @@ impl CredentialStore {
             let _permit = permit;
             let database = database.lock().map_err(|_| unavailable())?;
             database.query_row(
-                "SELECT scope FROM research_credentials WHERE digest = ?1 AND revoked_at IS NULL
+                "SELECT scope, credential_id FROM research_credentials WHERE digest = ?1 AND revoked_at IS NULL
                  AND issued_at <= unixepoch() AND expires_at > unixepoch()",
                 [&digest[..]],
-                |row| row.get::<_, String>(0),
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
             ).optional().map_err(|_| unavailable())?
-                .map(|scope| Scope::parse(&scope).ok_or_else(unavailable)).transpose()
+                .map(|(scope, id)| Scope::parse(&scope).map(|scope| (scope, id)).ok_or_else(unavailable)).transpose()
         })
         .await
         .map_err(|_| unavailable())?
