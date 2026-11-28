@@ -12,7 +12,8 @@ use crate::option_chain::MAX_OPTION_CSV_BYTES;
 use crate::option_price::MAX_VOLATILITY;
 use crate::option_wire::{option_cash_status, option_dividend_rows, option_snapshot_rows};
 use crate::portfolio::{
-    equity_concentration_rows, portfolio_source_input, PortfolioBook, MAX_HOLDINGS_BYTES,
+    equity_concentration_rows, equity_target_report, portfolio_source_input, PortfolioBook,
+    MAX_EQUITY_TARGET_CSV_BYTES, MAX_HOLDINGS_BYTES,
 };
 use crate::portfolio_scenario_wire::{portfolio_scenario_report, portfolio_scenario_rows};
 use crate::screen::MAX_PRICE_BYTES;
@@ -43,6 +44,43 @@ pub const MAX_PORTFOLIO_SCENARIOS_REQUEST_BYTES: usize =
 pub const MAX_PORTFOLIO_FX_REQUEST_BYTES: usize = 2 * 1024 * 1024;
 pub const MAX_EQUITY_CONCENTRATION_REQUEST_BYTES: usize =
     MAX_MEMBERSHIP_BYTES + MAX_HOLDINGS_BYTES + MAX_PRICE_BYTES + 192;
+const MAX_EQUITY_TARGET_TERMS_BYTES: usize = 1024 * 1024;
+pub const MAX_EQUITY_TARGET_REQUEST_BYTES: usize = MAX_MEMBERSHIP_BYTES
+    + MAX_HOLDINGS_BYTES
+    + MAX_PRICE_BYTES
+    + MAX_EQUITY_TARGET_TERMS_BYTES
+    + MAX_EQUITY_TARGET_CSV_BYTES
+    + 192;
+
+/// Compare observed equity concentration with the latest visible target reports.
+pub fn equity_target_drift_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_EQUITY_TARGET_REQUEST_BYTES {
+        return Err("Equity target request exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 equity target request.")?;
+    let (header, payload) = request
+        .split_once('\n')
+        .ok_or("Missing equity target request header.")?;
+    let fields: Vec<_> = header.splitn(7, '\t').collect();
+    let ["marketweft-equity-target-drift", "1", membership, holdings, prices, terms] =
+        fields.as_slice()
+    else {
+        return Err("Invalid equity target request or protocol version.".into());
+    };
+    let [Some(membership), Some(holdings), Some(prices), Some(terms)] =
+        [membership, holdings, prices, terms].map(|field| field.parse::<usize>().ok())
+    else {
+        return Err("Supply the membership, holdings, closes and terms CSV byte lengths.".into());
+    };
+    if terms > MAX_EQUITY_TARGET_TERMS_BYTES {
+        return Err("Equity target delisting terms exceed 1 MiB.".into());
+    }
+    let report = equity_target_report(payload, [membership, holdings, prices, terms])?;
+    Ok(format!(
+        "marketweft-equity-target-drift\t{PROTOCOL_VERSION}\t{}\nH\t{}\t{}\n{}",
+        report.count, report.effective_at, report.known_at, report.rows,
+    ))
+}
 
 /// Return known gross share weights per quote currency from historical portfolio reports.
 pub fn equity_concentration_request(bytes: &[u8]) -> Result<String, String> {

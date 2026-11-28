@@ -1,9 +1,9 @@
 import { instantiateMarketCore } from './core.js'
-import type { Bar, EquityConcentration, FormulaFunction, FormulaResult, MarketCore } from './core.js'
+import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, FormulaResult, MarketCore } from './core.js'
 
 export type {
   AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
-  EquityConcentration, Filing, FinancialIssuer, FinancialSnapshot,
+  EquityConcentration, EquityTargetDrift, Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   JointScenarioPath, JointScenarioQuery, JointScenarioReport, ScenarioAllocation,
   FxAmount, FxCurrencyValue, FxTranslation,
@@ -21,6 +21,12 @@ export interface EquityConcentrationSnapshot {
   groups: EquityConcentration[]
 }
 
+export interface EquityTargetSnapshot {
+  effectiveAt: number
+  knownAt: number
+  rows: EquityTargetDrift[]
+}
+
 export interface MarketResearch {
   readonly version: typeof RESEARCH_SDK_VERSION
   parseBars(csv: string): Bar[]
@@ -36,6 +42,8 @@ export interface MarketResearch {
   portfolioFxAsOf: MarketCore['portfolioFxAsOf']
   equityConcentrationAsOf(membership: string, holdings: string, closes: string,
     effectiveAt: string, knownAt: string): EquityConcentrationSnapshot
+  equityTargetDriftAsOf(membership: string, holdings: string, closes: string, terms: string, targets: string,
+    effectiveAt: string, knownAt: string): EquityTargetSnapshot
   recordedDepthSweep: MarketCore['recordedDepthSweep']
   classifyRecordedTrades: MarketCore['classifyRecordedTrades']
   paperDepthIndex: MarketCore['paperDepthIndex']
@@ -69,6 +77,11 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     equityConcentrationAsOf(membership, holdings, closes, effectiveAt, knownAt) {
       const report = core.portfolioAsOf(membership, holdings, closes, '', effectiveAt, knownAt)
       return { effectiveAt: report.effectiveAt, knownAt: report.knownAt, groups: report.equityConcentration }
+    },
+    equityTargetDriftAsOf(membership, holdings, closes, terms, targets, effectiveAt, knownAt) {
+      if (new TextEncoder().encode(terms).length > 1024 * 1024) throw new Error('Equity target delisting terms exceed 1 MiB.')
+      const rows = core.equityTargetDriftAsOf(membership, holdings, closes, terms, targets, effectiveAt, knownAt)
+      return { effectiveAt: Date.parse(effectiveAt) / 1000, knownAt: Date.parse(knownAt) / 1000, rows }
     },
     recordedDepthSweep: core.recordedDepthSweep,
     classifyRecordedTrades: core.classifyRecordedTrades,

@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.267.0 · Equity target research SDKs
+
+- The native CLI echoes both cutoffs and returns identical equity evidence to Wasm. Invalid protocol versions and byte lengths are rejected.
+- Independently installed TypeScript and Python packages reproduce 13.298429 and 1.22708 percentage points at the original and revised cutoffs. Both preserve the withdrawn USD target, explicit zero and the distinct EUR successor. Python rejects a response with a future target observation or an inconsistent drift.
+
+[Equity target research SDKs](portfolio-replay.md#equity-target-research-sdks)
+
 ## 0.266.0 · Equity allocation targets
 
 - Rust and Wasm preserve both UTC cutoffs, target-only evidence, exact zero and the withdrawal report. The original USD BETA-001 drift is 13.298429 percentage points. A later price and target revision reduce it to 1.22708 points, and rewind restores the earlier row exactly.

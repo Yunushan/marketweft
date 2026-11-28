@@ -69,6 +69,14 @@ The table subtracts the target from the actual share of known gross equity in th
 
 In the demo with effective time 14:10 UTC on 2025-06-02, BETA-001’s 60% target arrives at 14:11 and its first close at 14:12. That close produces a drift of 13.298429 percentage points. At known 14:16 the 70% target and revised close reduce drift to 1.22708 points. Rewind the knowledge time to restore the original figures. At effective and known 14:45 the withdrawn USD target stays visible alongside the distinct EUR BETA-002 target and its zero drift. [Synthetic equity targets](../crates/core/tests/fixtures/synthetic-equity-targets.csv)
 
+### Equity target research SDKs
+
+TypeScript exposes `equityTargetDriftAsOf(membershipCsv, holdingsCsv, pricesCsv, termsCsv, targetsCsv, effectiveAt, knownAt)`. Python exposes `ResearchEngine.equity_target_drift_as_of` with the same five reports and keyword arguments `effective_at` and `known_at`. The delisting terms may be empty. Both methods return the applied cutoffs in Unix seconds and the same rows as the browser. Weights and drift are integer millionths of a percentage point. The nested target report retains both source times and a withdrawn target has an empty weight. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md)
+
+Run `marketweft-research equity-target-drift` with a UTF-8 request on standard input. The first line has six tab-separated fields, starting with `marketweft-equity-target-drift` and version `1`, followed by the byte lengths of the membership, holdings, closes and delisting terms CSVs. The next two lines contain the effective and known UTC timestamps. Append those four CSV contents and then the target CSV. The byte limits are 1, 2, 2, 1 and 2 MiB respectively.
+
+The response echoes the protocol and version with the row count. The `H` row contains both applied Unix seconds. Each following row has the quote currency, listing ID, equity presence flag, actual weight, target effective and observed Unix seconds, target weight and drift. Empty fields encode unavailable evidence. A presence flag of `1` means the holding is in equity at that cutoff.
+
 ## Portfolio currency translation
 
 Choose **Load portfolio FX demo**, or add **Portfolio FX rates CSV** when opening your holdings and close reports. Open **Portfolio currency translation** and apply a three-letter reporting currency. The table converts the known currency subtotals shown directly above it. Those subtotals include valued shares, delisting cash and receivables, and dividend subtotals when dividend reports are present. The converted subtotal includes currencies with available conversions. The source table carries the original amounts and the positions table identifies missing valuations.

@@ -11,6 +11,7 @@ from typing import Sequence
 __all__ = [
     "AmericanOptionValuation", "OptionCashDividend",
     "EquityConcentration", "EquityConcentrationPosition", "EquityConcentrationSnapshot",
+    "EquityTargetDrift", "EquityTargetReport", "EquityTargetSnapshot",
     "FinancialFiling", "FinancialMarketCap", "FinancialMultiple", "FinancialMultiples",
     "FinancialSnapshot", "FinancialTrailing",
     "FormulaFunction", "FormulaResult", "FormulaRow",
@@ -41,7 +42,10 @@ _MACRO_PROTOCOL = "marketweft-macro-calendar"
 _PORTFOLIO_PROTOCOL = "marketweft-portfolio-scenarios"
 _FX_PROTOCOL = "marketweft-portfolio-fx"
 _CONCENTRATION_PROTOCOL = "marketweft-equity-concentration"
+_EQUITY_TARGET_PROTOCOL = "marketweft-equity-target-drift"
 _MAX_CONCENTRATION_POSITIONS = 1_000
+_MAX_EQUITY_TARGET_ROWS = 10_000 + _MAX_CONCENTRATION_POSITIONS
+_FULL_WEIGHT_MICROS = 100_000_000
 _I128_LIMIT = 1 << 127
 _MAX_FX_CURRENCIES = 26 ** 3
 _PORTFOLIO_START = r"[0-9]{1,20}(?:\.[0-9]{1,6})?"
@@ -242,6 +246,30 @@ class EquityConcentrationSnapshot:
     effective_at: int
     known_at: int
     groups: tuple[EquityConcentration, ...]
+
+
+@dataclass(frozen=True)
+class EquityTargetReport:
+    effective_at: int
+    observed_at: int
+    weight_micros: int | None
+
+
+@dataclass(frozen=True)
+class EquityTargetDrift:
+    currency: str | None
+    listing_id: str
+    in_equity: bool
+    actual_weight_micros: int | None
+    target: EquityTargetReport | None
+    drift_micros: int | None
+
+
+@dataclass(frozen=True)
+class EquityTargetSnapshot:
+    effective_at: int
+    known_at: int
+    rows: tuple[EquityTargetDrift, ...]
 
 
 @dataclass(frozen=True)
@@ -476,6 +504,59 @@ def _equity_concentration(output: bytes, effective: int, known: int) -> EquityCo
     if len(blocks) != _whole(count) or len(listings) > _MAX_CONCENTRATION_POSITIONS:
         raise ResearchError("Invalid equity concentration row count.")
     return EquityConcentrationSnapshot(effective, known, tuple(_concentration_group(*block) for block in blocks))
+
+
+def _target_report(
+    effective: str, observed: str, weight: str, cutoff: int, known: int,
+) -> EquityTargetReport | None:
+    if not effective and not observed and not weight:
+        return None
+    at, since = _whole(effective), _whole(observed)
+    amount = _whole(weight) if weight else None
+    if (not _MIN_UTC_SECOND <= at <= cutoff or not _MIN_UTC_SECOND <= since <= known
+            or (amount is not None and not 0 <= amount <= _FULL_WEIGHT_MICROS)):
+        raise ResearchError("Invalid equity target report evidence.")
+    return EquityTargetReport(at, since, amount)
+
+
+def _equity_target_snapshot(output: bytes, effective: int, known: int) -> EquityTargetSnapshot:
+    count, lines = _response(output, _EQUITY_TARGET_PROTOCOL)
+    if not lines or not 0 <= _whole(count) == len(lines) - 1 <= _MAX_EQUITY_TARGET_ROWS:
+        raise ResearchError("Invalid equity target row count.")
+    header = lines[0].split("\t")
+    if len(header) != 3 or header[0] != "H" or tuple(map(_whole, header[1:])) != (effective, known):
+        raise ResearchError("Equity target cutoffs do not match the request.")
+    rows = []
+    previous = None
+    totals: dict[str, int] = {}
+    for line in lines[1:]:
+        fields = line.split("\t")
+        if len(fields) != 8:
+            raise ResearchError("Invalid equity target response row.")
+        currency, listing, status, actual, at, since, weight, drift = fields
+        key = (currency, listing)
+        if ((currency and not _CURRENCY.fullmatch(currency)) or not _IDENTITY.fullmatch(listing)
+                or status not in ("0", "1") or (previous is not None and key <= previous)):
+            raise ResearchError("Invalid or unordered equity target response row.")
+        previous = key
+        target = _target_report(at, since, weight, effective, known)
+        in_equity = status == "1"
+        actual_weight = _whole(actual) if actual else None
+        target_weight = target.weight_micros if target else None
+        if ((not in_equity and target is None) or (target is not None and not currency)
+                or (actual_weight is not None
+                    and (not in_equity or not currency or not 0 <= actual_weight <= _FULL_WEIGHT_MICROS))):
+            raise ResearchError("Invalid equity weight evidence.")
+        difference = _whole(drift) if drift else None
+        expected = actual_weight - target_weight if actual_weight is not None and target_weight is not None else None
+        if difference != expected:
+            raise ResearchError("Equity target drift does not match the reported weights.")
+        if target_weight is not None:
+            totals[currency] = totals.get(currency, 0) + target_weight
+            if totals[currency] > _FULL_WEIGHT_MICROS:
+                raise ResearchError("Equity target weights exceed 100% in the response.")
+        rows.append(EquityTargetDrift(currency or None, listing, in_equity, actual_weight, target, difference))
+    return EquityTargetSnapshot(effective, known, tuple(rows))
 
 
 def _fx_translation(
@@ -1174,6 +1255,29 @@ class ResearchEngine:
         header = "\n".join((f"{_CONCENTRATION_PROTOCOL}\t1\t{len(reports[0])}\t{len(reports[1])}", *times, ""))
         output = self._invoke(header.encode("ascii") + b"".join(reports), "equity-concentration")
         return _equity_concentration(output, effective, known)
+
+    def equity_target_drift_as_of(
+        self, membership_csv: str, holdings_csv: str, prices_csv: str, terms_csv: str, targets_csv: str,
+        *, effective_at: str, known_at: str,
+    ) -> EquityTargetSnapshot:
+        """Compare marked equity weights with the latest known allocation targets."""
+        times = (effective_at, known_at)
+        if any(not isinstance(instant, str) or not _UTC.fullmatch(instant) for instant in times):
+            raise ValueError("Use YYYY-MM-DDTHH:MM:SSZ UTC portfolio cutoffs.")
+        try:
+            effective, known = (_epoch_second(datetime.fromisoformat(instant[:-1])) for instant in times)
+        except ValueError as error:
+            raise ValueError("Use valid UTC equity target cutoffs.") from error
+        sources = (membership_csv, holdings_csv, prices_csv, terms_csv, targets_csv)
+        if any(not isinstance(csv, str) for csv in sources):
+            raise TypeError("Supply equity target source reports as text.")
+        reports = tuple(csv.encode("utf-8") for csv in sources)
+        if any(len(csv) > limit * 1024 * 1024 for csv, limit in zip(reports, (1, 2, 2, 1, 2))):
+            raise ValueError("An equity target CSV exceeds its byte limit.")
+        frame = "\t".join((_EQUITY_TARGET_PROTOCOL, "1", *(str(len(report)) for report in reports[:-1])))
+        header = "\n".join((frame, *times, "")).encode("ascii")
+        output = self._invoke(header + b"".join(reports), "equity-target-drift")
+        return _equity_target_snapshot(output, effective, known)
 
     def portfolio_fx_as_of(
         self, rates_csv: str, amounts: Sequence[FxAmount], *, reporting_currency: str,

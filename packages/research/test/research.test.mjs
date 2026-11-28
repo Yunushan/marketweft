@@ -9,6 +9,25 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('equity target drift matches the terminal across original, revised and withdrawn reports', async () => {
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8')
+  const reports = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices', 'delisting-terms', 'equity-targets'].map(fixture))
+  const research = await createResearchEngine(wasm)
+  const utc = minute => '2025-06-02T14:' + minute + ':00Z'
+  const query = (known, effective = 10) => research.equityTargetDriftAsOf(...reports, utc(effective), utc(known))
+  const missing = query(11)
+  assert.equal(missing.effectiveAt, Date.parse(utc(10)) / 1000)
+  assert.equal(missing.knownAt, Date.parse(utc(11)) / 1000)
+  assert.deepEqual(missing.rows[1], { currency: 'USD', listing: 'BETA-001', inEquity: true, actualWeightMicros: null,
+    target: { effectiveAt: 1748872800, observedAt: 1748873460, weightMicros: 60000000n }, driftMicros: null })
+  assert.deepEqual([query(12), query(16), query(12)].map(report => report.rows[1].driftMicros), [13298429n, 1227080n, 13298429n])
+  assert.deepEqual(query(45, 45).rows.map(row => [row.currency, row.listing, row.inEquity, row.target.weightMicros, row.driftMicros]),
+    [['EUR', 'BETA-002', true, 100000000n, 0n], ['USD', 'ALFA-001', true, 0n, null], ['USD', 'BETA-001', false, null, null]])
+  const [members, holdings, prices, , targets] = reports
+  assert.throws(() => research.equityTargetDriftAsOf(members, holdings, prices, 'X'.repeat(1024 * 1024 + 1), targets, utc(10), utc(10)),
+    /delisting terms exceed 1 MiB/)
+})
+
 test('point-in-time equity concentration matches the terminal in the public TypeScript SDK', async () => {
   const [membership, holdings, closes] = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices'].map(name =>
     readFile(new URL('../../../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8')))

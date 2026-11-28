@@ -1,3 +1,4 @@
+use marketweft_core::research::equity_target_drift_request;
 use marketweft_core::{parse_universe, EquityTargetBook, EquityTargetReport, PortfolioBook};
 
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-universe.csv");
@@ -9,6 +10,35 @@ const BASE: i64 = 1_748_872_800;
 
 fn time(minute: i64) -> i64 {
     BASE + minute * 60
+}
+
+#[test]
+fn native_equity_target_frames_echo_cutoffs_and_validate_source_boundaries() {
+    let request = |version, membership_bytes, terms_bytes| {
+        format!(
+            "marketweft-equity-target-drift\t{version}\t{membership_bytes}\t{}\t{}\t{terms_bytes}\n2025-06-02T14:10:00Z\n2025-06-02T14:16:00Z\n{MEMBERSHIP}{HOLDINGS}{PRICES}{TERMS}{TARGETS}",
+            HOLDINGS.len(), PRICES.len()
+        )
+    };
+    let valid = request(1, MEMBERSHIP.len(), TERMS.len());
+    let output = equity_target_drift_request(valid.as_bytes()).unwrap();
+    assert_eq!(
+        output,
+        "marketweft-equity-target-drift\t1\t2\nH\t1748873400\t1748873760\n\
+         USD\tALFA-001\t1\t28772920\t1748872800\t1748873760\t30000000\t-1227080\n\
+         USD\tBETA-001\t1\t71227080\t1748872800\t1748873760\t70000000\t1227080\n"
+    );
+    assert!(
+        equity_target_drift_request(request(2, MEMBERSHIP.len(), TERMS.len()).as_bytes()).is_err()
+    );
+    assert!(equity_target_drift_request(request(1, usize::MAX, TERMS.len()).as_bytes()).is_err());
+    assert!(
+        equity_target_drift_request(request(1, MEMBERSHIP.len(), 1024 * 1024 + 1).as_bytes())
+            .is_err()
+    );
+    assert!(
+        equity_target_drift_request(valid.replace("DEMO-BASKET", "ÄMO-BASKET").as_bytes()).is_err()
+    );
 }
 
 #[test]

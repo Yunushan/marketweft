@@ -54,6 +54,7 @@ pub(crate) use successor::{
     parse_successor_terms, successor_delivery_postings_from_observed_positions,
     value_successor_shares, SuccessorReports,
 };
+pub(crate) use targets::{equity_target_report, MAX_EQUITY_TARGET_CSV_BYTES};
 pub use targets::{EquityTargetBook, EquityTargetDrift, EquityTargetReport};
 
 pub use successor::{

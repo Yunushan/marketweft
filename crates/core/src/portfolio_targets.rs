@@ -1,15 +1,18 @@
-use super::{last_observed_report, EquityConcentrationPosition, PortfolioSnapshot};
+use super::{
+    last_observed_report, portfolio_source_input, EquityConcentrationPosition, PortfolioBook,
+    PortfolioSnapshot,
+};
 use crate::{
     delisting::valid_currency,
     history::{decimal, exact_utc},
     UniverseBook, SCALE,
 };
-use std::{collections::BTreeMap, ops::Bound::Included};
+use std::{collections::BTreeMap, fmt::Write, ops::Bound::Included};
 
 const HEADER: &str =
     "universe,listing_id,quote_currency,effective_at,observed_at,target_weight_pct";
 const MAX_REPORTS: usize = 10_000;
-const MAX_BYTES: usize = 2 * 1024 * 1024;
+pub(crate) const MAX_EQUITY_TARGET_CSV_BYTES: usize = 2 * 1024 * 1024;
 const FULL_WEIGHT: i64 = 100 * SCALE;
 
 type TargetHistory = BTreeMap<i64, BTreeMap<i64, Option<i64>>>;
@@ -43,7 +46,7 @@ pub struct EquityTargetBook<'a> {
 
 impl<'csv> EquityTargetBook<'csv> {
     pub fn parse(universe: &UniverseBook, csv: &'csv str) -> Result<Self, String> {
-        if csv.len() > MAX_BYTES {
+        if csv.len() > MAX_EQUITY_TARGET_CSV_BYTES {
             return Err("Equity target CSV exceeds 2 MiB.".into());
         }
         let mut lines = csv
@@ -150,6 +153,62 @@ impl<'csv> EquityTargetBook<'csv> {
             )
             .collect())
     }
+}
+
+pub(crate) struct EquityTargetWire {
+    pub effective_at: i64,
+    pub known_at: i64,
+    pub count: usize,
+    pub rows: String,
+}
+
+pub(crate) fn equity_target_report(
+    input: &str,
+    lengths: [usize; 4],
+) -> Result<EquityTargetWire, String> {
+    let (effective_at, known_at, reports) = portfolio_source_input(input)?;
+    let [membership_bytes, holding_bytes, price_bytes, terms_bytes] = lengths;
+    let (membership, reports) = reports
+        .split_at_checked(membership_bytes)
+        .ok_or("Supply the membership CSV.")?;
+    let (holdings, reports) = reports
+        .split_at_checked(holding_bytes)
+        .ok_or("Supply the holdings CSV.")?;
+    let (prices, reports) = reports
+        .split_at_checked(price_bytes)
+        .ok_or("Supply the closes CSV.")?;
+    let (terms, targets) = reports
+        .split_at_checked(terms_bytes)
+        .ok_or("Supply delisting terms and equity targets.")?;
+    let universe = crate::parse_universe(membership)?;
+    let book = PortfolioBook::parse(&universe, holdings, prices, terms)?;
+    let targets = EquityTargetBook::parse(&universe, targets)?;
+    let snapshot = book.as_of(effective_at, known_at);
+    let rows = targets.drift_as_of(&snapshot)?;
+    let count = rows.len();
+    let field = |value: Option<i64>| value.map(|number| number.to_string()).unwrap_or_default();
+    let mut text = String::new();
+    for row in rows {
+        writeln!(
+            text,
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            row.currency.unwrap_or_default(),
+            row.listing_id,
+            u8::from(row.actual.is_some()),
+            field(row.actual.and_then(|actual| actual.weight_micros)),
+            field(row.target.map(|target| target.effective_at)),
+            field(row.target.map(|target| target.observed_at)),
+            field(row.target.and_then(|target| target.weight_micros)),
+            field(row.drift_micros),
+        )
+        .unwrap();
+    }
+    Ok(EquityTargetWire {
+        effective_at,
+        known_at,
+        count,
+        rows: text,
+    })
 }
 
 fn visible_report(
