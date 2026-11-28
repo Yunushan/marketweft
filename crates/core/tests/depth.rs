@@ -1,7 +1,92 @@
-use marketweft_core::{DepthLevel, DepthStatus, DepthTape, Instrument};
+use marketweft_core::{DepthLevel, DepthStatus, DepthTape, Instrument, PaperSide};
 
 const FIXTURE: &str = include_str!("fixtures/synthetic-depth.csv");
 const N: u64 = 9_007_199_254_740_993;
+
+#[test]
+fn depth_sweep_uses_price_priority_limits_gaps_and_exact_notional() {
+    let instrument = Instrument::new("NASDAQ", "NVDA").unwrap();
+    let tape = DepthTape::parse(FIXTURE, &instrument).unwrap();
+    let start = tape.checkpoints()[0];
+    let sweep = |seconds, side, limit| tape.sweep(start + seconds, side, 5_000_000, limit).unwrap();
+    let before = sweep(2, PaperSide::Buy, None);
+    assert_eq!(before.received.unwrap().sequence, N);
+    assert_eq!(before.execution.unwrap().notional, 501_250_000_000_000);
+    let after = sweep(3, PaperSide::Buy, Some(100_250_000))
+        .execution
+        .unwrap();
+    assert_eq!((after.filled, after.remaining), (3_250_000, 1_750_000));
+    assert_eq!(after.notional, 325_812_500_000_000);
+    assert_eq!(after.mean_price, Some(100_250_000));
+    let blocked = sweep(3, PaperSide::Buy, Some(100_249_999))
+        .execution
+        .unwrap();
+    assert_eq!(blocked.filled, 0);
+    assert_eq!(blocked.notional, 0);
+    assert_eq!(blocked.mean_price, None);
+    let sell = sweep(3, PaperSide::Sell, Some(98_500_000))
+        .execution
+        .unwrap();
+    assert_eq!(
+        sell.fills,
+        [
+            DepthLevel {
+                price: 99_500_000,
+                size: 4_000_000
+            },
+            DepthLevel {
+                price: 98_500_000,
+                size: 1_000_000
+            },
+        ]
+    );
+    assert_eq!(sell.mean_price, Some(99_300_000));
+    let gap = sweep(5, PaperSide::Buy, None);
+    assert_eq!(
+        gap.status,
+        DepthStatus::SequenceGap {
+            expected: N + 2,
+            received: N + 3
+        }
+    );
+    assert!(gap.execution.is_none());
+    let recovered = sweep(9, PaperSide::Buy, None);
+    assert_eq!(recovered.received.unwrap().sequence, N + 8);
+    assert_eq!(recovered.execution.unwrap().notional, -8_000_000_000_000);
+    assert!(sweep(10, PaperSide::Buy, None).execution.is_none());
+    assert_eq!(sweep(12, PaperSide::Buy, None).execution.unwrap().filled, 0);
+    assert_eq!(
+        sweep(3, PaperSide::Buy, Some(100_250_000)).execution,
+        Some(after)
+    );
+    assert!(tape.sweep(start, PaperSide::Buy, 0, None).is_err());
+}
+
+#[test]
+fn sweep_rounds_the_signed_weighted_price_once() {
+    let instrument = Instrument::new("NASDAQ", "NVDA").unwrap();
+    let csv = concat!(
+        "instrument,event_at,observed_at,sequence,kind,side,price,size\n",
+        "NASDAQ:NVDA,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,1,snapshot,ask,-5.000001,1\n",
+        "NASDAQ:NVDA,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,1,snapshot,ask,-5,2000000000\n",
+    );
+    let tape = DepthTape::parse(csv, &instrument).unwrap();
+    let at = tape.checkpoints()[0];
+    let equal = tape
+        .sweep(at, PaperSide::Buy, 2_000_000, None)
+        .unwrap()
+        .execution
+        .unwrap();
+    assert_eq!(equal.notional, -10_000_001_000_000);
+    assert_eq!(equal.mean_price, Some(-5_000_001));
+    let large = tape
+        .sweep(at, PaperSide::Buy, 2_000_000_000_000_000, None)
+        .unwrap()
+        .execution
+        .unwrap();
+    assert_eq!(large.notional, -10_000_000_000_000_001_000_000);
+    assert_eq!(large.mean_price, Some(-5_000_000));
+}
 
 #[test]
 fn exact_levels_follow_the_inclusive_observation_prefix_and_recover_at_a_snapshot() {

@@ -118,6 +118,9 @@ Select the NVDA chart and open Recorded market depth. Choose Load depth demo
 or open depth.csv. Inspect the sequence gap at 14:00:05 UTC and the recovered
 book at 14:00:09 UTC. Download depth snapshot to save the exact levels and
 the source's observation and sequence evidence.
+Expand Simulate a depth sweep and buy 5 at 14:00:03 UTC. Compare 3.25
+filled there with the unavailable sweep at 14:00:05 UTC and the recovered
+2-share sweep at 14:00:09 UTC.
 
 Select the NVDA chart and open Recorded footprint. Load the demo or open
 footprint-trades.csv. The price bins keep labeled buy, sell and unknown size.

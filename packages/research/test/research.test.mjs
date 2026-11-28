@@ -22,6 +22,18 @@ test('the TypeScript SDK uses the shipped Wasm and preserves exact formula prefi
   }
 })
 
+test('the packaged SDK reports depth sweep cutoffs and exact fixed-point execution', async () => {
+  const depth = new URL('../../../crates/core/tests/fixtures/synthetic-depth.csv', import.meta.url)
+  const [reports, research] = await Promise.all([readFile(depth, 'utf8'), createResearchEngine(wasm)])
+  const sweep = known => research.recordedDepthSweep('NASDAQ:NVDA', reports, known, 'buy', '5', '100.25')
+  const partial = sweep('2025-06-02T14:00:03Z')
+  assert.equal(partial.received.sequence, 9007199254740994n)
+  assert.equal(partial.execution.filledTicks, 3250000n)
+  assert.equal(partial.execution.notionalUnits, 325812500000000n)
+  assert.equal(sweep('2025-06-02T14:00:05Z').execution, null)
+  assert.deepEqual(sweep('2025-06-02T14:00:03Z'), partial)
+})
+
 test('function libraries stay scoped to each evaluation and engine', async () => {
   const [first, second] = await Promise.all([
     createResearchEngine(wasm), createResearchEngine(wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength)),

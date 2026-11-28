@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { quoteText } from './chart-export'
 import { downloadFile } from './download'
 import { fixed } from './fixed-point'
 import { Mark } from './Icons'
-import type { DepthLevel, DepthStamp, DepthStatus, MarketCore, RecordedDepth } from './market-core'
+import type { DepthLevel, DepthStamp, DepthStatus, DepthSweep, MarketCore, RecordedDepth } from './market-core'
 import { utc } from './workspace'
 import type { Asset } from './workspace'
 import demo from '../../../crates/core/tests/fixtures/synthetic-depth.csv?raw'
 
 type Source = { csv: string; name: string; checkpoints: number[] }
 type Snapshot = { source: Source; cutoff: string; depth: RecordedDepth }
+type SweepRequest = { side: 'buy' | 'sell'; size: string; limit: string }
 const VISIBLE_LEVELS = 50
 
 function statusText(status: DepthStatus) {
@@ -27,6 +28,94 @@ function statusText(status: DepthStatus) {
 
 function stampFields(stamp: DepthStamp | null) {
   return stamp ? [stamp.sequence, utc(stamp.eventAt), utc(stamp.observedAt)] : ['', '', '']
+}
+
+function DepthSweepResearch({ core, instrument, view }: { core: MarketCore; instrument: string; view: Snapshot }) {
+  const [draft, setDraft] = useState<SweepRequest>({ side: 'buy', size: '5', limit: '' })
+  const [run, setRun] = useState<{ request: SweepRequest; view: Snapshot; result: DepthSweep } | null>(null)
+  const [problem, setProblem] = useState('')
+  const [page, setPage] = useState(0)
+  const result = useMemo(() => {
+    if (!run) return null
+    if (run.view === view) return run.result
+    const { side, size, limit } = run.request
+    return core.recordedDepthSweep(instrument, view.source.csv, view.cutoff, side, size, limit)
+  }, [core, instrument, run, view])
+  const execution = result?.execution
+  const lastPage = Math.max(0, Math.ceil((execution?.fills.length ?? 0) / VISIBLE_LEVELS) - 1)
+  const current = Math.min(page, lastPage)
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    try {
+      const request = { side: draft.side, size: draft.size.trim(), limit: draft.limit.trim() }
+      const result = core.recordedDepthSweep(instrument, view.source.csv, view.cutoff, request.side, request.size, request.limit)
+      setRun({ request, result, view })
+      setPage(0)
+      setProblem('')
+    } catch (cause) {
+      setProblem(cause instanceof Error ? cause.message : 'Could not simulate the depth sweep.')
+    }
+  }
+
+  function download(request: SweepRequest, sweep: DepthSweep) {
+    const { execution, status } = sweep
+    const expected = status.kind === 'sequence-gap' ? status.expected : ''
+    const failed = status.kind === 'sequence-gap' ? status.received : status.kind === 'crossed' ? status.sequence : ''
+    const header = 'instrument,source,known_utc,status,last_sequence,event_utc,observed_utc,snapshot_sequence,snapshot_event_utc,snapshot_observed_utc,expected_sequence,failed_sequence,side,requested,limit_price,filled,unfilled,notional,average_price,level_price,level_quantity'
+    const prefix = [quoteText(instrument), quoteText(view.source.name), view.cutoff, status.kind,
+      ...stampFields(sweep.received), ...stampFields(sweep.snapshot), expected, failed, request.side, request.size, request.limit,
+      execution ? fixed(execution.filledTicks, 6) : '', execution ? fixed(execution.remainingTicks, 6) : '',
+      execution ? fixed(execution.notionalUnits, 12) : '',
+      execution?.meanPriceTicks == null ? '' : fixed(execution.meanPriceTicks, 6)]
+    const levels = execution?.fills.map(fill => [fixed(fill.priceTicks, 6), fixed(fill.sizeTicks, 6)]) ?? []
+    const rows = levels.length ? levels : [['', '']]
+    const csv = [header, ...rows.map(row => [...prefix, ...row].join(','))].join('\r\n') + '\r\n'
+    downloadFile('recorded-depth-sweep.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  }
+
+  return <details>
+    <summary>Simulate a depth sweep</summary>
+    <form className="universe-query" onSubmit={submit}>
+      <label>Order side
+        <select value={draft.side} onChange={event => setDraft({ ...draft, side: event.target.value === 'sell' ? 'sell' : 'buy' })}>
+          <option value="buy">Buy</option><option value="sell">Sell</option>
+        </select>
+      </label>
+      <label>Sweep quantity
+        <input value={draft.size} required inputMode="decimal" onChange={event => setDraft({ ...draft, size: event.target.value })} />
+      </label>
+      <label>Limit price (optional)
+        <input value={draft.limit} inputMode="decimal" onChange={event => setDraft({ ...draft, limit: event.target.value })} />
+      </label>
+      <button type="submit" className="outline">Calculate sweep</button>
+    </form>
+    {problem && <p role="alert" className="warning">{problem}</p>}
+    {result && run && <section aria-label="Depth sweep result">
+      {execution ? <>
+        <dl className="replay-times">
+          <div><dt>Filled</dt><dd>{fixed(execution.filledTicks, 6)}</dd></div>
+          <div><dt>Unfilled</dt><dd>{fixed(execution.remainingTicks, 6)}</dd></div>
+          <div><dt>Notional</dt><dd>{fixed(execution.notionalUnits, 12)}</dd></div>
+          <div><dt>Average price</dt><dd>{execution.meanPriceTicks === null ? '—' : fixed(execution.meanPriceTicks, 6)}</dd></div>
+        </dl>
+        {execution.fills.length > 0 && <div className="replay-table-scroll" tabIndex={0} role="region" aria-label="Scrollable sweep fills">
+          <table className="universe-table" aria-label="Sweep fills">
+            <thead><tr><th scope="col">Price</th><th scope="col">Quantity</th></tr></thead>
+            <tbody>{execution.fills.slice(current * VISIBLE_LEVELS, (current + 1) * VISIBLE_LEVELS).map(fill =>
+              <tr key={fill.priceTicks.toString()}><th scope="row">{fixed(fill.priceTicks, 6)}</th>
+                <td>{fixed(fill.sizeTicks, 6)}</td></tr>)}</tbody>
+          </table>
+        </div>}
+        {lastPage > 0 && <div className="universe-query">
+          <button type="button" className="outline" disabled={current === 0} onClick={() => setPage(current - 1)}>Previous sweep fills</button>
+          <p>{current + 1} / {lastPage + 1}</p>
+          <button type="button" className="outline" disabled={current === lastPage} onClick={() => setPage(current + 1)}>Next sweep fills</button>
+        </div>}
+      </> : <p>Simulation unavailable while the order book is unsynchronized.</p>}
+      <button type="button" className="outline" onClick={() => download(run.request, result)}>Download depth sweep</button>
+    </section>}
+  </details>
 }
 
 function depthCsv(instrument: string, { source, cutoff, depth }: Snapshot) {
@@ -200,6 +289,7 @@ export function DepthResearch({ core, asset, close }: { core: MarketCore; asset:
             <button type="button" className="outline" onClick={() => {
               downloadFile('recorded-depth.csv', new Blob([depthCsv(asset.id, view)], { type: 'text/csv;charset=utf-8' }))
             }}>Download depth snapshot</button>
+            <DepthSweepResearch core={core} instrument={asset.id} view={view} />
           </section>
         )}
       </main>

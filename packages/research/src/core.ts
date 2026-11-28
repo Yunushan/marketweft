@@ -220,6 +220,19 @@ export interface RecordedDepth {
   asks: DepthLevel[];
 }
 
+export interface DepthSweep {
+  status: DepthStatus;
+  received: DepthStamp | null;
+  snapshot: DepthStamp | null;
+  execution: {
+    filledTicks: bigint;
+    remainingTicks: bigint;
+    notionalUnits: bigint;
+    meanPriceTicks: bigint | null;
+    fills: DepthLevel[];
+  } | null;
+}
+
 export interface SessionTimeframeBar extends TimeframeBar {
   closeTime: number;
   sessionOpen: number;
@@ -1141,6 +1154,8 @@ export interface MarketCore {
   recordedPriceProfile(instrument: string, csv: string, query: FootprintQuery, valueAreaBasisPoints: number): PriceProfile;
   depthCheckpoints(instrument: string, csv: string): number[];
   recordedDepth(instrument: string, csv: string, knownAt: string): RecordedDepth;
+  recordedDepthSweep(instrument: string, csv: string, knownAt: string, side: 'buy' | 'sell',
+    size: string, limit?: string): DepthSweep;
   aggregateTimeframe(bars: readonly Bar[], sourceSeconds: number, targetSeconds: number): TimeframeBar[];
   aggregateSessionTimeframe(calendar: string, bars: readonly Bar[], sourceSeconds: number,
     targetSeconds: number): SessionTimeframeBar[];
@@ -1274,6 +1289,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_price_profile(bucketSeconds: number, valueAreaBasisPoints: number): number;
   mw_depth_checkpoints(): number;
   mw_recorded_depth(): number;
+  mw_recorded_depth_sweep(): number;
   mw_aggregate_timeframe(sourceSeconds: number, targetSeconds: number): number;
   mw_aggregate_session_timeframe(calendarBytes: number, sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
@@ -1751,6 +1767,22 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     textInput([instrument, from, through, known, priceWidth, csv].join('\n'));
   }
 
+  function decodeDepthStatus(summary: string): DepthStatus {
+    const [kind, first, second] = summary.split('\t');
+    switch (kind) {
+      case 'no-observation':
+      case 'awaiting-snapshot':
+      case 'synchronized':
+        return { kind };
+      case 'sequence-gap':
+        return { kind, expected: BigInt(first), received: BigInt(second) };
+      case 'crossed':
+        return { kind, sequence: BigInt(first) };
+      default:
+        throw new Error('Invalid depth status from the calculation engine.');
+    }
+  }
+
   function decodeFlowVolume(buy: string, sell: string, unknown: string, trades: string): TradeFlowVolume {
     return { buy: BigInt(buy), sell: BigInt(sell), unknown: BigInt(unknown), trades: Number(trades) };
   }
@@ -2070,24 +2102,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       if (/[\r\n]/.test(instrument + knownAt)) throw new Error('Use a single instrument and UTC cutoff.');
       textInput([instrument, knownAt, csv].join('\n'));
       const [summary, ...rows] = decoder.decode(output(api.mw_recorded_depth())).trimEnd().split('\n');
-      const [kind, first, second] = summary.split('\t');
-      let status: DepthStatus;
-      switch (kind) {
-        case 'no-observation':
-        case 'awaiting-snapshot':
-        case 'synchronized':
-          status = { kind };
-          break;
-        case 'sequence-gap':
-          status = { kind, expected: BigInt(first), received: BigInt(second) };
-          break;
-        case 'crossed':
-          status = { kind, sequence: BigInt(first) };
-          break;
-        default:
-          throw new Error('Invalid depth status from the calculation engine.');
-      }
-      const view: RecordedDepth = { status, received: null, snapshot: null, bids: [], asks: [] };
+      const view: RecordedDepth = { status: decodeDepthStatus(summary), received: null, snapshot: null, bids: [], asks: [] };
       for (const row of rows) {
         const [tag, first, second, third] = row.split('\t');
         if (tag === 'B' || tag === 'A') {
@@ -2101,6 +2116,26 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         }
       }
       return view;
+    },
+    recordedDepthSweep(instrument, csv, knownAt, side, size, limit = '') {
+      if (/[\r\n]/.test(instrument + knownAt) || /[,\r\n]/.test(side + size + limit)) {
+        throw new Error('Use a single instrument, UTC cutoff and sweep request.');
+      }
+      textInput([instrument, knownAt, [side, size.trim(), limit.trim()].join(','), csv].join('\n'));
+      const [summary, ...rows] = decoder.decode(output(api.mw_recorded_depth_sweep())).trimEnd().split('\n');
+      const result: DepthSweep = { status: decodeDepthStatus(summary), received: null, snapshot: null, execution: null };
+      for (const row of rows) {
+        const [tag, first, second, third, fourth] = row.split('\t');
+        if (tag === 'R' || tag === 'S') {
+          result[tag === 'R' ? 'received' : 'snapshot'] = { sequence: BigInt(first), eventAt: Number(second), observedAt: Number(third) };
+        } else if (tag === 'E') {
+          result.execution = { filledTicks: BigInt(first), remainingTicks: BigInt(second), notionalUnits: BigInt(third),
+            meanPriceTicks: fourth ? BigInt(fourth) : null, fills: [] };
+        } else if (tag === 'F' && result.execution) {
+          result.execution.fills.push({ priceTicks: BigInt(first), sizeTicks: BigInt(second) });
+        } else throw new Error('Invalid depth sweep row from the calculation engine.');
+      }
+      return result;
     },
     heikinAshi(bars) {
       if (bars.length > 100_000) throw new Error('Heikin-Ashi supports up to 100,000 source bars.');

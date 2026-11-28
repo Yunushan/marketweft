@@ -102,7 +102,9 @@ pub use delisting::{
     parse_delistings, CashOffer, DelistingBook, DelistingCashPosting, DelistingState,
     DelistingTerms, DelistingValuation, ReferenceClose,
 };
-pub use depth::{DepthLevel, DepthStamp, DepthStatus, DepthTape, DepthView};
+pub use depth::{
+    DepthExecution, DepthLevel, DepthStamp, DepthStatus, DepthSweep, DepthTape, DepthView,
+};
 pub use directional::{directional_movement, DirectionalMovement};
 pub use dividend::{
     parse_dividend_positions, parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind,

@@ -24,3 +24,20 @@ Only frames observed at or before the selected cutoff enter the book. An update 
 In the synthetic fixture, the first snapshot becomes visible at `14:00:02Z`. At `14:00:03Z`, the best bid is 99.5 with size 4 and the best ask is 100.25 with size 3.25. The update at `14:00:05Z` skips sequence `9007199254740995` and the ladder withholds both sides. At `14:00:09Z`, a later snapshot and a same-second update recover both sides. Rewind to `14:00:03Z` to reproduce the earlier export.
 
 The imported CSV and its replay stay in the current view. The app can open them offline after its cache is ready. [Synthetic depth fixture](../crates/core/tests/fixtures/synthetic-depth.csv).
+
+## Simulate a depth sweep
+
+Expand **Simulate a depth sweep** after loading a depth report. Choose buy or sell, enter a positive quantity, and optionally enter a signed limit price. The calculation takes displayed asks from lowest to highest for a buy and bids from highest to lowest for a sell. The price limit is inclusive. The recorded book supplies the maximum size at each level, and the remaining quantity stays unfilled. Changing **Depth known time (UTC)** reruns the accepted request against the book visible at that cutoff.
+
+The estimate assumes one immediate sweep of displayed liquidity. Each calculation starts from the original recorded book. The result shows quantities to six decimal places, signed notional to twelve, and the weighted average price rounded once to six places. A synchronized empty book returns zero filled with no average. A sequence gap or crossed book makes the fill estimate unavailable until a new full snapshot.
+
+With the depth demo, use a buy quantity of 5 and leave the limit blank.
+
+| Known UTC | Result |
+| --- | --- |
+| 14:00:02 | The snapshot supports all 5 at 100.25. |
+| 14:00:03 | The update leaves 3.25 filled, 1.75 remaining and notional of 325.8125. |
+| 14:00:05 | A sequence gap withholds the estimate. |
+| 14:00:09 | A fresh snapshot supports 2 at −4, for signed notional of −8. |
+
+At 14:00:03 UTC a sell of 5 with limit 98.5 consumes 4 at 99.5 and 1 at 98.5, for an average of 99.3. **Download depth sweep** exports the exact request, cutoff, source and recovery stamps, result and consumed levels. Rewind to the same cutoff and settings to reproduce the CSV.

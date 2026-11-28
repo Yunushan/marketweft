@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.203.0 · Recorded depth sweeps
+
+- Rust fixtures verify that buy and sell sweeps consume best-priced levels first, respect inclusive limits and keep exact signed notional through fractional quantities and large orders. The average price is rounded once, including ties at negative prices.
+- Wasm and the packaged TypeScript SDK preserve exact sequence IDs and leave the execution result unavailable through gaps and crossed frames. A synchronized empty snapshot gives a defined zero fill.
+- Offline Chromium verifies a partial fill of 3.25, an unavailable estimate through the gap, a recovery notional of −8, a two-level sell at an average of 99.3 and byte-identical CSV after rewind.
+- The local 0.202.0 to 0.203.0 portable upgrade preserved the saved quote and reproduced the recorded gap and recovered sweep from the packaged input offline.
+
+[Recorded depth sweeps](recorded-depth.md#simulate-a-depth-sweep)
+
 ## 0.202.0 · Paper capital returns
 
 - The Rust and Wasm fixtures verify that two shares held before ex-time earn a 5 USD receivable, and the exactly-at-ex fill falls outside the entitlement. The known pay cutoff credits 5 USD, a later currency correction reverses it and records 6.000002 EUR, and cancellation reverses the foreign payment.

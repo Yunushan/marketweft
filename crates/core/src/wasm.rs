@@ -3520,33 +3520,13 @@ pub extern "C" fn mw_depth_checkpoints() -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_recorded_depth() -> u32 {
-    use crate::DepthStatus;
     use std::fmt::Write;
     process(|input| {
         let (instrument, rest) = recorded_source(input)?;
         let (cutoff, csv) = rest.split_once('\n').ok_or("Missing depth CSV.")?;
         let known_at = exact_utc(cutoff).ok_or("Use an exact UTC observation cutoff.")?;
         let view = crate::DepthTape::parse(csv, &instrument)?.as_of(known_at)?;
-        let mut text = match view.status {
-            DepthStatus::NoObservation => String::from("no-observation"),
-            DepthStatus::AwaitingSnapshot => String::from("awaiting-snapshot"),
-            DepthStatus::Synchronized => String::from("synchronized"),
-            DepthStatus::SequenceGap { expected, received } => {
-                format!("sequence-gap\t{expected}\t{received}")
-            }
-            DepthStatus::Crossed { sequence } => format!("crossed\t{sequence}"),
-        };
-        text.push('\n');
-        for (tag, stamp) in [('R', view.received), ('S', view.snapshot)] {
-            if let Some(stamp) = stamp {
-                writeln!(
-                    &mut text,
-                    "{tag}\t{}\t{}\t{}",
-                    stamp.sequence, stamp.event_at, stamp.observed_at
-                )
-                .unwrap();
-            }
-        }
+        let mut text = encode_depth_evidence(view.status, view.received, view.snapshot);
         for (tag, levels) in [('B', view.bids), ('A', view.asks)] {
             for level in levels {
                 writeln!(&mut text, "{tag}\t{}\t{}", level.price, level.size).unwrap();
@@ -3554,6 +3534,85 @@ pub extern "C" fn mw_recorded_depth() -> u32 {
         }
         Ok(text.into_bytes())
     })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_recorded_depth_sweep() -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let (instrument, rest) = recorded_source(input)?;
+        let [cutoff, request, csv] = rest
+            .splitn(3, '\n')
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|_| "Supply a depth cutoff, sweep request and CSV.")?;
+        let [side, size, limit] = request
+            .split(',')
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|_| "Supply a side, size and optional limit price.")?;
+        let known_at = exact_utc(cutoff).ok_or("Use an exact UTC observation cutoff.")?;
+        let side = match side {
+            "buy" => PaperSide::Buy,
+            "sell" => PaperSide::Sell,
+            _ => return Err("Use buy or sell for the sweep side.".into()),
+        };
+        let size = crate::history::decimal(size)
+            .ok_or("Use a positive sweep size with up to six decimals.")?;
+        let limit = (!limit.is_empty())
+            .then(|| {
+                crate::history::decimal(limit).ok_or("Use a limit price with up to six decimals.")
+            })
+            .transpose()?;
+        let sweep =
+            crate::DepthTape::parse(csv, &instrument)?.sweep(known_at, side, size, limit)?;
+        let mut text = encode_depth_evidence(sweep.status, sweep.received, sweep.snapshot);
+        if let Some(execution) = sweep.execution {
+            writeln!(
+                &mut text,
+                "E\t{}\t{}\t{}\t{}",
+                execution.filled,
+                execution.remaining,
+                execution.notional,
+                optional_number(execution.mean_price)
+            )
+            .unwrap();
+            for fill in execution.fills {
+                writeln!(&mut text, "F\t{}\t{}", fill.price, fill.size).unwrap();
+            }
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+fn encode_depth_evidence(
+    status: crate::DepthStatus,
+    received: Option<crate::DepthStamp>,
+    snapshot: Option<crate::DepthStamp>,
+) -> String {
+    use crate::DepthStatus;
+    use std::fmt::Write;
+    let mut text = match status {
+        DepthStatus::NoObservation => String::from("no-observation"),
+        DepthStatus::AwaitingSnapshot => String::from("awaiting-snapshot"),
+        DepthStatus::Synchronized => String::from("synchronized"),
+        DepthStatus::SequenceGap { expected, received } => {
+            format!("sequence-gap\t{expected}\t{received}")
+        }
+        DepthStatus::Crossed { sequence } => format!("crossed\t{sequence}"),
+    };
+    text.push('\n');
+    for (tag, stamp) in [('R', received), ('S', snapshot)] {
+        if let Some(stamp) = stamp {
+            writeln!(
+                &mut text,
+                "{tag}\t{}\t{}\t{}",
+                stamp.sequence, stamp.event_at, stamp.observed_at
+            )
+            .unwrap();
+        }
+    }
+    text
 }
 
 #[no_mangle]

@@ -973,6 +973,31 @@ test('recorded depth verifies atomic frames, exact sequences and recovery at the
   assert.throws(() => core.recordedDepth(instrument, csv, '2025-06-02'), /exact UTC observation cutoff/);
 });
 
+test('depth sweeps keep exact level quantities, cutoffs and signed notional through Wasm', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-depth.csv', import.meta.url), 'utf8');
+  const sweep = (seconds, side = 'buy', limit = '', size = '5') => core.recordedDepthSweep(
+    'NASDAQ:NVDA', csv, '2025-06-02T14:00:' + String(seconds).padStart(2, '0') + 'Z', side, size, limit);
+  assert.equal(sweep(0).execution, null);
+  assert.equal(sweep(2).execution.notionalUnits, 501250000000000n);
+  const partial = sweep(3, 'buy', '100.25');
+  assert.equal(partial.received.sequence, 9007199254740994n);
+  assert.deepEqual(partial.execution, {
+    filledTicks: 3250000n, remainingTicks: 1750000n, notionalUnits: 325812500000000n, meanPriceTicks: 100250000n,
+    fills: [{ priceTicks: 100250000n, sizeTicks: 3250000n }],
+  });
+  const sell = sweep(3, 'sell', '98.5').execution;
+  assert.deepEqual(sell.fills.map(fill => [fill.priceTicks, fill.sizeTicks]), [[99500000n, 4000000n], [98500000n, 1000000n]]);
+  assert.equal(sell.meanPriceTicks, 99300000n);
+  assert.equal(sweep(5).status.expected, 9007199254740995n);
+  assert.equal(sweep(5).execution, null);
+  assert.equal(sweep(9).execution.notionalUnits, -8000000000000n);
+  assert.equal(sweep(10).execution, null);
+  assert.deepEqual(sweep(12).execution, { filledTicks: 0n, remainingTicks: 5000000n, notionalUnits: 0n, meanPriceTicks: null, fills: [] });
+  assert.throws(() => sweep(3, 'buy', '', '0'), /positive sweep size/);
+  assert.throws(() => sweep(3, 'buy', '10.0000001'), /limit price with up to six decimals/);
+  assert.deepEqual(sweep(3, 'buy', '100.25'), partial);
+});
+
 test('tick bars keep exact sequence identities and observation-time prefixes', () => {
   const csv = [
     'instrument,executed_at,observed_at,sequence,price,size',

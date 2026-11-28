@@ -1,6 +1,7 @@
 use crate::{
     history::{decimal, exact_utc, valid_second},
-    Instrument, MAX_BARS, MAX_INPUT_BYTES,
+    screen::rounded_div,
+    Instrument, PaperSide, MAX_BARS, MAX_INPUT_BYTES, MAX_TICKS,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -37,6 +38,26 @@ pub struct DepthView {
     pub bids: Vec<DepthLevel>,
     /// Asks run from best to worst.
     pub asks: Vec<DepthLevel>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DepthSweep {
+    pub status: DepthStatus,
+    pub received: Option<DepthStamp>,
+    pub snapshot: Option<DepthStamp>,
+    /// A synchronized book can give a defined zero-filled execution.
+    pub execution: Option<DepthExecution>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DepthExecution {
+    pub filled: i64,
+    pub remaining: i64,
+    /// Sum of price ticks times size ticks, in units of 10^-12.
+    pub notional: i128,
+    pub mean_price: Option<i64>,
+    /// Price and simulated size consumed at each level, in execution order.
+    pub fills: Vec<DepthLevel>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -179,6 +200,65 @@ impl DepthTape {
         let mut times: Vec<_> = self.frames.iter().map(|f| f.stamp.observed_at).collect();
         times.dedup();
         times
+    }
+
+    /// Take displayed liquidity once, in best-price order, at the knowledge cutoff.
+    /// Both size and optional limit price use six-decimal ticks.
+    pub fn sweep(
+        &self,
+        known_at: i64,
+        side: PaperSide,
+        size: i64,
+        limit: Option<i64>,
+    ) -> Result<DepthSweep, String> {
+        if !(1..=MAX_TICKS).contains(&size) {
+            return Err("Use a positive sweep size with up to six decimals.".into());
+        }
+        if limit.is_some_and(|limit| !(-MAX_TICKS..=MAX_TICKS).contains(&limit)) {
+            return Err("Use a limit price with up to six decimals.".into());
+        }
+        let view = self.as_of(known_at)?;
+        let execution = (view.status == DepthStatus::Synchronized).then(|| {
+            let levels = match side {
+                PaperSide::Buy => view.asks,
+                PaperSide::Sell => view.bids,
+            };
+            let mut remaining = size;
+            let mut notional = 0_i128;
+            let mut fills = Vec::new();
+            for level in levels {
+                if remaining == 0
+                    || limit.is_some_and(|limit| match side {
+                        PaperSide::Buy => level.price > limit,
+                        PaperSide::Sell => level.price < limit,
+                    })
+                {
+                    break;
+                }
+                let taken = remaining.min(level.size);
+                remaining -= taken;
+                notional += i128::from(taken) * i128::from(level.price);
+                fills.push(DepthLevel {
+                    price: level.price,
+                    size: taken,
+                });
+            }
+            let filled = size - remaining;
+            let mean_price = (filled > 0).then(|| rounded_div(notional, i128::from(filled)) as i64);
+            DepthExecution {
+                filled,
+                remaining,
+                notional,
+                mean_price,
+                fills,
+            }
+        });
+        Ok(DepthSweep {
+            status: view.status,
+            received: view.received,
+            snapshot: view.snapshot,
+            execution,
+        })
     }
 
     /// Use the latest full snapshot visible at the cutoff and the updates that follow it.
