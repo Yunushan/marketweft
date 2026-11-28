@@ -1358,6 +1358,36 @@ test('portfolio scenarios resample whole vectors and reconcile exact fee paths',
   }));
 });
 
+test('multi-listing portfolio allocation uses common intervals and keeps zero weights', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8');
+  const [members, closes] = await Promise.all([fixture('membership'), fixture('prices')]);
+  const membership = members.trimEnd() + '\nRISK,C-ADD,C,DEMO:GAMMA,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,add\n';
+  const prices = closes.trimEnd().replaceAll(',90\n', ',120\n') + '\n' + [
+    'RISK,C,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,10',
+    'RISK,C,2025-06-02T14:01:00Z,2025-06-02T14:01:00Z,10',
+    'RISK,C,2025-06-02T14:02:00Z,2025-06-02T14:07:00Z,10',
+  ].join('\n');
+  const utc = minute => '2025-06-02T14:0' + minute + ':00Z';
+  const at = (known, order = ['C', 'A', 'B']) => core.portfolioAllocation(membership, prices, order, {
+    from: utc(0), through: utc(6), known: utc(known), intervalSeconds: 60,
+  });
+  const early = at(6);
+  assert.equal(early.expectedReturns, 6);
+  assert.equal(early.commonReturns, 1);
+  assert.equal(early.sample, null);
+  assert.deepEqual(early.listings.map(x => [x.listingId, x.knownReturns, x.optimizedBasisPoints]),
+    [['A', 6, null], ['B', 4, null], ['C', 1, null]]);
+  const later = at(7);
+  assert.equal(later.commonReturns, 2);
+  assert.equal(later.sample.optimizedVolatility, 0);
+  assert.equal(later.sample.varianceGap, 0);
+  assert.ok(later.sample.equalVolatility > 0);
+  assert.deepEqual(later.listings.map(x => x.optimizedBasisPoints), [0, 0, 10000]);
+  assert.deepEqual(at(7, ['B', 'C', 'A']), later);
+  assert.deepEqual(at(6), early);
+  assert.throws(() => at(6, ['A', 'A', 'B']), /distinct/);
+});
+
 test('portfolio variance uses common returns, quantizes allocations and keeps cutoff coverage', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8');
   const [membership, prices] = await Promise.all([fixture('membership'), fixture('prices')]);

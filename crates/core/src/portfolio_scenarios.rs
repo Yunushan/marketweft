@@ -1,4 +1,4 @@
-use super::{relative::MembershipCursor, rounded_div, PriceBook};
+use super::{relative::MembershipCursor, rounded_div, PortfolioVarianceQuery, PriceBook};
 use crate::{
     history::valid_second,
     scenarios::{quantiles, SplitMix64},
@@ -6,7 +6,7 @@ use crate::{
 };
 
 const BPS: i128 = 10_000;
-const MAX_HOLDINGS: usize = 16;
+pub(super) const MAX_PORTFOLIO_LISTINGS: usize = 16;
 const MAX_POSITION_EVALUATIONS: usize = 2_000_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -59,9 +59,9 @@ pub struct PortfolioScenarioReport {
 
 type PriceMove = (i64, i64);
 
-struct ReturnVector {
+pub(super) struct ReturnVector {
     step: usize,
-    moves: Vec<PriceMove>,
+    pub(super) moves: Vec<PriceMove>,
 }
 
 impl PriceBook<'_> {
@@ -82,7 +82,7 @@ impl PriceBook<'_> {
         config: PortfolioScenarioConfig,
         block_size: usize,
     ) -> Result<PortfolioScenarioReport, String> {
-        if !(2..=MAX_HOLDINGS).contains(&allocations.len())
+        if !(2..=MAX_PORTFOLIO_LISTINGS).contains(&allocations.len())
             || allocations
                 .iter()
                 .any(|entry| entry.weight_basis_points == 0)
@@ -145,7 +145,14 @@ impl PriceBook<'_> {
         }
 
         let expected_vectors = (span / interval) as usize;
-        let (vectors, known) = self.historical_vectors(&allocations, config, expected_vectors);
+        let listing_ids: Vec<_> = allocations.iter().map(|entry| entry.listing_id).collect();
+        let window = PortfolioVarianceQuery {
+            from_at: config.from_at,
+            through_at: config.through_at,
+            known_at: config.known_at,
+            interval_seconds: config.interval_seconds,
+        };
+        let (vectors, known) = self.historical_vectors(&listing_ids, window, expected_vectors);
         if vectors.is_empty() {
             return Err(
                 "No interval has observed adjacent closes for every selected listing.".into(),
@@ -243,13 +250,13 @@ impl PriceBook<'_> {
         })
     }
 
-    fn historical_vectors(
+    pub(super) fn historical_vectors(
         &self,
-        allocations: &[ScenarioAllocation<'_>],
-        config: PortfolioScenarioConfig,
+        listing_ids: &[&str],
+        config: PortfolioVarianceQuery,
         intervals: usize,
     ) -> (Vec<ReturnVector>, Vec<usize>) {
-        let mut membership: Vec<_> = allocations
+        let mut membership: Vec<_> = listing_ids
             .iter()
             .map(|_| MembershipCursor::new())
             .collect();
@@ -257,26 +264,24 @@ impl PriceBook<'_> {
             .universe
             .visible_changes(config.through_at, config.known_at)
         {
-            if let Ok(index) =
-                allocations.binary_search_by_key(&row.listing_id.as_str(), |entry| entry.listing_id)
-            {
+            if let Ok(index) = listing_ids.binary_search(&row.listing_id.as_str()) {
                 membership[index].add(row);
             }
         }
         let mut close = |index: usize, time| {
             if membership[index].through(time) == Some(UniverseAction::Add) {
-                self.exact_close(allocations[index].listing_id, time, config.known_at)
+                self.exact_close(listing_ids[index], time, config.known_at)
                     .map(|report| report.ticks)
             } else {
                 None
             }
         };
-        let mut previous: Vec<_> = (0..allocations.len())
+        let mut previous: Vec<_> = (0..listing_ids.len())
             .map(|index| close(index, config.from_at))
             .collect();
         let mut vectors = Vec::new();
-        let mut sample = Vec::with_capacity(allocations.len());
-        let mut counts = vec![0; allocations.len()];
+        let mut sample = Vec::with_capacity(listing_ids.len());
+        let mut counts = vec![0; listing_ids.len()];
         let interval = i64::from(config.interval_seconds);
         for step in 1..=intervals {
             let time = config.from_at + step as i64 * interval;
@@ -289,7 +294,7 @@ impl PriceBook<'_> {
                 }
                 *before = current;
             }
-            if sample.len() == allocations.len() {
+            if sample.len() == listing_ids.len() {
                 vectors.push(ReturnVector {
                     step,
                     moves: sample.clone(),

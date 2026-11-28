@@ -7,6 +7,7 @@ import { SectorHeatmap } from './SectorHeatmap'
 import { RelativeReturns } from './RelativeReturns'
 import { RankComparison } from './RankComparison'
 import { JointScenarios } from './JointScenarios'
+import { PortfolioAllocation } from './PortfolioAllocation'
 import demoPrices from '../../../crates/core/tests/fixtures/synthetic-universe-prices.csv?raw'
 
 const CrossSectionReplay = lazy(async () => {
@@ -176,6 +177,8 @@ export function UniverseScreen({
       {prices && <JointScenarios core={core} membership={membership} membershipSource={membershipSource}
         prices={prices.csv} priceSource={prices.source} listings={listings} firstCutoff={firstCutoff}
         effective={effective} known={known} />}
+      {prices && <PortfolioAllocation core={core} membership={{ csv: membership, source: membershipSource }}
+        prices={prices} listings={listings} firstCutoff={firstCutoff} effective={effective} known={known} />}
       {prices && <Suspense fallback={<p>Loading paper replay…</p>}>
         <CrossSectionReplay core={core} membership={membership} membershipSource={membershipSource}
           prices={prices.csv} priceSource={prices.source} firstCutoff={firstCutoff}

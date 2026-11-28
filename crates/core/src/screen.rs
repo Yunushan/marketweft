@@ -7,6 +7,12 @@ use std::{cmp::Ordering, collections::BTreeMap};
 #[path = "relative.rs"]
 mod relative;
 pub use relative::{RelativeLegPoint, RelativePoint};
+#[path = "portfolio_allocation.rs"]
+mod portfolio_allocation;
+pub use portfolio_allocation::{
+    HistoricalAllocation, PortfolioAllocationListing, PortfolioAllocationReport,
+    PortfolioAllocationSample,
+};
 #[path = "portfolio_scenarios.rs"]
 mod portfolio_scenarios;
 pub use portfolio_scenarios::{

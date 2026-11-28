@@ -104,3 +104,68 @@ test('joint portfolio paths preserve return pairs, cutoff coverage and exact fee
   await page.getByRole('button', { name: 'Return to workspace' }).click()
   expect(await catalogContents(page)).toEqual(original)
 })
+
+test('portfolio minimum variance tracks shared returns and exports zero weights offline', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  const original = await catalogContents(page)
+  await context.setOffline(true)
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8')
+  const [members, closes] = await Promise.all([fixture('membership'), fixture('prices')])
+  const membership = members.trimEnd() + '\nRISK,C-ADD,C,DEMO:GAMMA,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,add\n'
+  const prices = closes.trimEnd().replaceAll(',90\n', ',120\n') + '\n' + [
+    'RISK,C,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,10',
+    'RISK,C,2025-06-02T14:01:00Z,2025-06-02T14:01:00Z,10',
+    'RISK,C,2025-06-02T14:02:00Z,2025-06-02T14:07:00Z,10',
+  ].join('\n')
+  const upload = (name, content) => ({ name, mimeType: 'text/csv', buffer: Buffer.from(content) })
+  await page.getByRole('button', { name: 'Historical replay' }).click()
+  await page.getByRole('button', { name: 'Open universe replay' }).click()
+  await page.getByLabel('Universe membership CSV').setInputFiles(upload('membership.csv', membership))
+  await page.getByRole('button', { name: 'Load universe', exact: true }).click()
+  const screen = page.getByRole('region', { name: 'Universe screen' })
+  await screen.getByLabel('Universe prices CSV').setInputFiles(upload('closes.csv', prices))
+  await screen.getByRole('button', { name: 'Load prices', exact: true }).click()
+  await screen.getByText('Portfolio minimum variance', { exact: true }).click()
+  const view = screen.getByRole('region', { name: 'Portfolio minimum variance', exact: true })
+  for (const id of ['C', 'A', 'B']) await view.getByRole('checkbox', { name: new RegExp('^' + id + ' ') }).check()
+  const query = async known => {
+    await page.getByLabel('Effective time (UTC)').fill(utc(6))
+    await page.getByLabel('Known time (UTC)').fill(utc(known))
+    await page.getByRole('button', { name: 'Run as-of query' }).click()
+  }
+  const run = view.getByRole('button', { name: 'Estimate minimum variance', exact: true })
+  const status = view.getByRole('status')
+  const table = view.getByRole('table', { name: 'Minimum variance allocation by listing' })
+  const cells = id => table.getByRole('row', { name: new RegExp('^' + id + ' ') }).getByRole('cell')
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await view.getByRole('button', { name: 'Download minimum variance', exact: true }).click()
+    const file = await pending
+    expect(file.suggestedFilename()).toBe('portfolio-minimum-variance.csv')
+    return readFile(await file.path(), 'utf8')
+  }
+  await query(6)
+  await run.click()
+  await expect(status).toHaveText('1 of 6 common intervals')
+  await expect(cells('C')).toHaveText(['1', '—', '—'])
+  const early = await download()
+  expect(early.split('\r\n')[3]).toContain(',6,1,"C",1,,,,,,,,')
+  await query(7)
+  await expect(status).toHaveText('2 of 6 common intervals')
+  await expect(cells('A')).toHaveText(['6', '3334', '0'])
+  await expect(cells('C')).toHaveText(['2', '3333', '10000'])
+  expect((await download()).split('\r\n')[3]).toContain(',6,2,"C",2,3333,10000,')
+  await query(6)
+  expect(await download()).toBe(early)
+  await view.getByLabel('Allocation interval (seconds)').fill('70')
+  await run.click()
+  await expect(view.getByRole('alert')).toContainText('UTC end on the selected grid')
+  expect(await download()).toBe(early)
+  await page.setViewportSize({ width: 360, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360)
+  await page.getByRole('button', { name: 'Return to historical replay' }).click()
+  await page.getByRole('button', { name: 'Return to workspace' }).click()
+  expect(await catalogContents(page)).toEqual(original)
+})

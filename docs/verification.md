@@ -1,5 +1,11 @@
 # MarketWeft verification
 
+## 0.271.0 · Multi-listing minimum variance
+
+- Rust verifies three uncorrelated assets with sample variances in a 1:4:16 ratio. The estimated weights are 7,619, 1,905 and 476 basis points. The flat and corner cases keep zero volatility.
+- Wasm and offline Chromium use a supplied third listing with a late close. Coverage rises from one to two common intervals. The second sample yields weights of 0, 0 and 10,000 basis points, and rewind reproduces the coverage-only CSV.
+- The portfolio scenario regression checks that sharing the input vectors keeps path values, fees, block coverage and cutoffs intact.
+
 ## 0.270.0 · Two-listing minimum variance
 
 - Rust and Wasm check common-sample coverage, a late close and a later membership removal, source-order reversal, a 6,667-basis-point minimum, single-listing endpoints and zero volatility. Rolling risk and correlated scenario tests retain their previous results.

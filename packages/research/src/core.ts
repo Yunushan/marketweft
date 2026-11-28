@@ -381,6 +381,25 @@ export interface ScreenPrice {
   observedAt: number;
 }
 
+export interface PortfolioAllocationReport {
+  expectedReturns: number;
+  commonReturns: number;
+  listings: {
+    listingId: string;
+    knownReturns: number;
+    equalBasisPoints: number | null;
+    optimizedBasisPoints: number | null;
+  }[];
+  sample: {
+    equalMean: number;
+    equalVolatility: number;
+    optimizedMean: number;
+    optimizedVolatility: number;
+    varianceGap: number;
+    iterations: number;
+  } | null;
+}
+
 export interface PortfolioVarianceQuery {
   from: string;
   through: string;
@@ -1436,6 +1455,8 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string): ScreenRow[];
   relativeSeries(membership: string, prices: string, leftId: string, rightId: string,
     baselineAt: string, effectiveAt: string, knownAt: string): RelativePoint[];
+  portfolioAllocation(membership: string, prices: string, listings: readonly string[],
+    query: PortfolioVarianceQuery): PortfolioAllocationReport;
   portfolioVariance(membership: string, prices: string, leftId: string, rightId: string,
     query: PortfolioVarianceQuery): PortfolioVarianceReport;
   listingRisk(membership: string, prices: string, leftId: string, rightId: string, query: ListingRiskQuery): ListingRiskPoint[];
@@ -1621,6 +1642,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_universe_screen(membershipBytes: number): number;
   mw_compare_universe_ranks(membershipBytes: number): number;
   mw_relative_series(membershipBytes: number): number;
+  mw_portfolio_allocation(membershipBytes: number, intervalSeconds: number): number;
   mw_portfolio_variance(membershipBytes: number, intervalSeconds: number): number;
   mw_listing_risk(membershipBytes: number, intervalSeconds: number, windowPeriods: number, volatilityPeriods: number): number;
   mw_portfolio_scenarios(membershipBytes: number): number;
@@ -3600,6 +3622,27 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         return { effectiveAt: Number(at), left: leg(leftState, leftClose, leftReturn),
           right: leg(rightState, rightClose, rightReturn), spreadUnits: spread === '' ? null : BigInt(spread) };
       });
+    },
+    portfolioAllocation(membership, prices, listingIds, { from, through, known, intervalSeconds }) {
+      if (listingIds.length < 2 || listingIds.length > 16 || !listingIds.every(validListingId)) {
+        throw new Error('Use 2 to 16 valid portfolio listing IDs.');
+      }
+      if (!Number.isInteger(intervalSeconds) || intervalSeconds < 1 || intervalSeconds > 0xffffffff) {
+        throw new Error('Use a positive whole number for the price interval.');
+      }
+      screenInput([from, through, known], listingIds.join('\t'), '\n', membership, prices);
+      const text = decoder.decode(output(api.mw_portfolio_allocation(encoder.encode(membership).length, intervalSeconds)));
+      const [coverage, metrics, ...rows] = text.slice(0, -1).split('\n');
+      const [expectedReturns, commonReturns] = coverage.split('\t').map(Number);
+      const [equalMean, equalVolatility, optimizedMean, optimizedVolatility, varianceGap, iterations] = metrics.split('\t').map(Number);
+      return { expectedReturns, commonReturns,
+        sample: metrics === '' ? null : { equalMean, equalVolatility, optimizedMean, optimizedVolatility, varianceGap, iterations },
+        listings: rows.map(row => {
+          const [listingId, knownReturns, equal, optimized] = row.split('\t');
+          return { listingId, knownReturns: Number(knownReturns),
+            equalBasisPoints: equal === '' ? null : Number(equal), optimizedBasisPoints: optimized === '' ? null : Number(optimized) };
+        }),
+      };
     },
     portfolioVariance(membership, prices, leftId, rightId, { from, through, known, intervalSeconds }) {
       if (!Number.isInteger(intervalSeconds) || intervalSeconds < 1 || intervalSeconds > 0xffffffff) {

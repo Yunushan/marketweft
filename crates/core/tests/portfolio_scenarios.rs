@@ -1,6 +1,6 @@
 use marketweft_core::{
-    parse_universe, PortfolioScenarioConfig, PortfolioScenarioPath, PriceBook, ScenarioAllocation,
-    ScenarioConfig, SCALE,
+    parse_universe, PortfolioScenarioConfig, PortfolioScenarioPath, PortfolioVarianceQuery,
+    PriceBook, ScenarioAllocation, ScenarioConfig, SCALE,
 };
 
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-listing-risk-membership.csv");
@@ -207,4 +207,60 @@ fn a_single_available_block_replays_in_order_and_truncates_at_the_horizon() {
             drawdown_millionths: 500_250,
             fees: 50_000,
         }));
+}
+
+#[test]
+fn allocation_uses_only_returns_common_to_every_listing_and_preserves_coverage_on_rewind() {
+    let reports = format!(
+        "{MEMBERSHIP}RISK,C-ADD,C,DEMO:GAMMA,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,add\n"
+    );
+    let universe = parse_universe(&reports).unwrap();
+    let closes = format!(
+        "{PRICES}{}{}{}",
+        "RISK,C,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,10\n",
+        "RISK,C,2025-06-02T14:01:00Z,2025-06-02T14:01:00Z,10\n",
+        "RISK,C,2025-06-02T14:02:00Z,2025-06-02T14:07:00Z,10\n"
+    );
+    let book = PriceBook::parse(&universe, &closes).unwrap();
+    let start = universe.checkpoints()[0];
+    let query = |known: i64| PortfolioVarianceQuery {
+        from_at: start,
+        through_at: start + 360,
+        known_at: start + known * 60,
+        interval_seconds: 60,
+    };
+    let early = book
+        .portfolio_allocation(&["B", "C", "A"], query(6))
+        .unwrap();
+    assert_eq!((early.expected_returns, early.common_returns), (6, 1));
+    assert_eq!(
+        early
+            .listings
+            .iter()
+            .map(|row| (row.listing_id.as_str(), row.known_returns))
+            .collect::<Vec<_>>(),
+        [("A", 6), ("B", 4), ("C", 1)]
+    );
+    assert!(early.sample.is_none());
+    let whole = book
+        .portfolio_allocation(&["C", "A", "B"], query(7))
+        .unwrap();
+    assert_eq!(whole.common_returns, 2);
+    let sample = whole.sample.unwrap();
+    assert!(sample.optimized.volatility <= sample.equal.volatility);
+    assert_eq!(
+        sample.optimized.weights_basis_points.iter().sum::<u16>(),
+        10_000
+    );
+    assert_eq!(
+        book.portfolio_allocation(&["A", "B", "C"], query(6))
+            .unwrap(),
+        early
+    );
+    assert!(book
+        .portfolio_allocation(&["A", "B", "A"], query(7))
+        .is_err());
+    assert!(book
+        .portfolio_allocation(&["A", "B", "UNKNOWN"], query(7))
+        .is_err());
 }
