@@ -66,6 +66,21 @@ test('scalar plugin series keeps inclusive UTC starting and ending rows and a sh
   assert.deepEqual(run(60, 60), [{ time: 60, close: -5n, value: -4n }]);
 });
 
+test('rolling regression keeps exact signed slopes and next-index forecasts across every prefix', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-rolling-regression.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const slopes = [null, null, 2000000n, 1000000n, 0n, -1000000n, -2000000n, -500000n];
+  const forecasts = [null, null, 2000000n, 1333333n, 0n, -2666667n, -6000000n, -4000000n];
+  for (let length = 0; length <= bars.length; length++) {
+    const actual = core.rollingCloseRegression(3, bars.slice(0, length));
+    assert.deepEqual(actual.map(row => row.slope), slopes.slice(0, length));
+    assert.deepEqual(actual.map(row => row.forecast), forecasts.slice(0, length));
+  }
+  const wide = core.parseCsv('time,open,high,low,close,volume\n0,-2000000000,-2000000000,-2000000000,-2000000000,0\n60,2000000000,2000000000,2000000000,2000000000,0\n');
+  assert.deepEqual(core.rollingCloseRegression(2, wide).at(-1), { slope: 4000000000000000n, forecast: 6000000000000000n });
+  assert.throws(() => core.rollingCloseRegression(1, bars), /at least two/);
+});
+
 test('volume change studies preserve exact gaps, fractions, zero and observed prefixes', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-volume-change-studies.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(csv);

@@ -147,7 +147,7 @@ pub fn coppock_curve(
     Ok(results)
 }
 
-fn validate_closes(period: usize, closes: &[i64]) -> Result<(), String> {
+pub(crate) fn validate_closes(period: usize, closes: &[i64]) -> Result<(), String> {
     validate_period(period, closes.len())?;
     if closes
         .iter()

@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.264.0 · Rolling regression studies
+
+- Rust and Wasm verify the exact signed slope and next-index estimate for every observed prefix. Half-tick slope rounding does not alter the unrounded fit used by the forecast. Both output fields preserve a true zero on flat bars and support values beyond the input price bounds.
+- Chromium displays a three-bar slope of −0.5 and forecast of −4 alongside the two-bar equivalents of 1 and −2 in the comparison pane. Offline export preserves the exact signed values, and version 80 restores both studies with the earlier Sine line anchors.
+
+[Rolling regression studies](chart-workspace.md#linear-regression-slope-and-time-series-forecast)
+
 ## 0.263.0 · Sine line drawing
 
 - Offline Chromium checks both anchored extrema and the midpoint and closing crossings of a 240-second cycle. Editing the first extremum reverses the signed amplitude and moves the opposite extremum to the other side of the midline.

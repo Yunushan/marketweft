@@ -484,6 +484,14 @@ Both studies use observed bars and preserve separate pane settings. Research CSV
 
 The studies save independent periods for each pane. Research CSV columns use exact signed values with up to six decimal places, including `ppo_line_12_26_9`, `ppo_signal_12_26_9`, `ppo_histogram_12_26_9` and `natr_14` with the defaults. Workspace backup version 69 stores these settings and reads earlier formats.
 
+### Linear Regression Slope and Time Series Forecast
+
+Both studies fit a least-squares line to the latest complete window of observed closes, using positions `0` through `N−1` in observation order. Each pane defaults to 14 closes and requires at least two. Gaps between recorded timestamps introduce no samples. Each result rounds once to six decimal places.
+
+**Linear Regression Slope** shows the signed change in fitted price per observed bar. A flat fitted line has slope zero. **Time Series Forecast** plots the same fit evaluated at position `N`, one observation beyond the training window. Each estimate appears on the final observed bar that contributed to it. The plot introduces no projected timestamp or future close. [Linear Regression Slope reference](https://ta-lib.org/functions/linearreg_slope.html) · [Time Series Forecast reference](https://ta-lib.org/functions/tsf.html)
+
+Research CSV includes `linear_regression_slope_14` and `time_series_forecast_14` at the default periods. Workspace backup version 80 preserves each pane’s settings.
+
 ### Volume Rate of Change and Volume Oscillator
 
 **Volume Rate of Change** measures the percentage change from the reported volume exactly one window earlier. The default is 14 observed bars. A zero baseline volume leaves the result unavailable. A zero current volume against a positive baseline gives −100%, and equal positive volumes give 0%. Results use six decimal places in percentage points. [Volume Rate of Change reference](https://developer.ninjatrader.com/docs/desktop/volume_rate_of_change_vroc)

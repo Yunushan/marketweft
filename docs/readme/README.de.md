@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.263.0 · 0BSD**
+**0.264.0 · 0BSD**
 
 **Sprachen der Dokumentation**
 
@@ -15,14 +15,14 @@
 
 MarketWeft ist ein lokal arbeitendes Rechercheterminal für Analysten, Entwickler und Betreiber. Es öffnet berechtigte OHLCV-Dateien, zeichnet Kerzen und Volumen, berechnet SMA und EMA in Festkommaarithmetik und speichert Beobachtungsliste, Instrument und Indikatoren in IndexedDB. Nach dem Zwischenspeichern der Anwendung funktioniert es offline. Die mitgelieferten Kurse und Volumina sind synthetisch und brauchen kein Konto.
 
-MarketWeft 0.263.0 ergänzt eine bearbeitbare Sinuslinie mit exakten UTC- und Preisankern. MarketWeft 0.7.0 ergänzt eine historische Rangliste nach Kursrendite anhand der zum Abfragezeitpunkt bekannten Daten. Die sitzungsbasierte Wiedergabe umfasst Aktiensplits, Bardividenden, Indexzugehörigkeit und Delistings. Das Repository enthält außerdem einen schreibgeschützten TypeScript-Beobachter für den getrennten Dienst trading-bot sowie eine experimentelle Tauri-Hülle. Datenfeeds, Orderaufgabe, signierte Installationspakete und Mehrbenutzer-Hosting stehen weiter auf der Roadmap.
+MarketWeft 0.264.0 ergänzt die Indikatoren für lineare Regressionssteigung und Zeitreihenprognose. MarketWeft 0.7.0 ergänzt eine historische Rangliste nach Kursrendite anhand der zum Abfragezeitpunkt bekannten Daten. Die sitzungsbasierte Wiedergabe umfasst Aktiensplits, Bardividenden, Indexzugehörigkeit und Delistings. Das Repository enthält außerdem einen schreibgeschützten TypeScript-Beobachter für den getrennten Dienst trading-bot sowie eine experimentelle Tauri-Hülle. Datenfeeds, Orderaufgabe, signierte Installationspakete und Mehrbenutzer-Hosting stehen weiter auf der Roadmap.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Sine line](../chart-workspace.md#sine-line)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Linear Regression Slope and Time Series Forecast](../chart-workspace.md#linear-regression-slope-and-time-series-forecast)
 
 <!-- section:02 -->
 ## Portables Terminal starten
 
-Laden Sie browser-terminal-attempt-N aus einem erfolgreichen GitHub-Lauf herunter. Entpacken Sie MarketWeft-browser-0.263.0.zip, lassen Sie dist/ neben serve-terminal.mjs und führen Sie dort den Befehl aus. Öffnen Sie http://127.0.0.1:4173/ in einem aktuellen Browser mit WebAssembly, Canvas, BigInt und IndexedDB. Der Starter benötigt Node.js ab 22.12 und keine npm-Installation. Warten Sie vor dem Trennen auf Offline ready.
+Laden Sie browser-terminal-attempt-N aus einem erfolgreichen GitHub-Lauf herunter. Entpacken Sie MarketWeft-browser-0.264.0.zip, lassen Sie dist/ neben serve-terminal.mjs und führen Sie dort den Befehl aus. Öffnen Sie http://127.0.0.1:4173/ in einem aktuellen Browser mit WebAssembly, Canvas, BigInt und IndexedDB. Der Starter benötigt Node.js ab 22.12 und keine npm-Installation. Warten Sie vor dem Trennen auf Offline ready.
 
 ```sh
 node serve-terminal.mjs

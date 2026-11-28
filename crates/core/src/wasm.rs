@@ -4361,6 +4361,22 @@ pub extern "C" fn mw_anchored_vwap(anchor_at: i64) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_rolling_close_regression(period: usize) -> u32 {
+    process(|input| {
+        let rows = crate::rolling_close_regression(period, &indicator_closes(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 16);
+        for row in rows {
+            let [slope, forecast] = row
+                .map(|row| [row.slope_ticks, row.forecast_ticks])
+                .unwrap_or([i64::MIN; 2]);
+            bytes.extend_from_slice(&slope.to_le_bytes());
+            bytes.extend_from_slice(&forecast.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_regression_channel(start_at: i64, end_at: i64) -> u32 {
     process(|input| {
         let fit = crate::regression_channel(start_at, end_at, &decode_bars(input)?)?;

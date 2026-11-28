@@ -1252,6 +1252,7 @@ export type FloorPivotLevels = { priorCloseAt: number; pivot: bigint; supportOne
 export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; rewardPerRiskMicros: bigint };
 
 export type RegressionChannel = { observations: number; startTicks: bigint; endTicks: bigint; residualTicks: bigint };
+export type CloseRegressionValues = { slope: bigint | null; forecast: bigint | null };
 
 export interface MarketCore {
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
@@ -1301,6 +1302,7 @@ export interface MarketCore {
   anchoredVwap(anchorAt: number, bars: readonly Bar[]): (AnchoredVwapPoint | null)[];
   anchoredTwap(anchorAt: number, bars: readonly Bar[]): (AnchoredTwapPoint | null)[];
   regressionChannel(startAt: number, endAt: number, bars: readonly Bar[]): RegressionChannel | null;
+  rollingCloseRegression(period: number, bars: readonly Bar[]): CloseRegressionValues[];
   observedDrawdown(bars: readonly Bar[]): (DrawdownPoint | null)[];
   observedCloseDistributions(bars: readonly Bar[], size: number): CloseDistribution[];
   monthlyReturns(bars: readonly Bar[], firstYear: number, lastYear: number, knownThrough: number): MonthlyReturn[];
@@ -1492,6 +1494,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_monthly_returns(firstYear: number, lastYear: number, knownThrough: bigint): number;
   mw_observed_close_distributions(size: number): number;
   mw_regression_channel(startAt: bigint, endAt: bigint): number;
+  mw_rolling_close_regression(period: number): number;
   mw_anchored_vwap(anchorAt: bigint): number;
   mw_anchored_twap(anchorAt: bigint): number;
   mw_confirmed_close_swings(left: number, right: number, intervalSeconds: number): number;
@@ -2700,6 +2703,13 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       if (!value) return null;
       const [count, start, end, residual] = value.split('\t');
       return { observations: Number(count), startTicks: BigInt(start), endTicks: BigInt(end), residualTicks: BigInt(residual) };
+    },
+    rollingCloseRegression(period, bars) {
+      if (period < 2) throw new Error('Regression studies need at least two bars per window.');
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorCloses(bars);
+      return readIndicatorPairs(output(api.mw_rolling_close_regression(period)), bars.length,
+        (slope, forecast) => ({ slope, forecast }));
     },
     observedDrawdown(bars) {
       if (bars.length > 100_000) throw new Error('Drawdown charts support up to 100,000 bars.');

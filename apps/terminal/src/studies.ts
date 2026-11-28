@@ -1,5 +1,5 @@
 import { validIndicatorPeriod } from './market-core'
-import type { AroonValue, Bar, BollingerMeasures, CumulativeVolume, FloorPivotLevels, MarketCore, PriceBand } from './market-core'
+import type { AroonValue, Bar, BollingerMeasures, CloseRegressionValues, CumulativeVolume, FloorPivotLevels, MarketCore, PriceBand } from './market-core'
 import type { ExportOverlay } from './chart-export'
 
 export const STUDIES = {
@@ -48,6 +48,10 @@ export const STUDIES = {
     minPeriod: 1, defaultPeriod: 14, periodLabel: 'ADXR DI', color: '#9bc9a7' },
   cci: { name: 'CCI', label: 'Commodity Channel Index', minPeriod: 1, defaultPeriod: 20, color: '#c5adf1' },
   roc: { name: 'ROC', label: 'Rate of Change', minPeriod: 1, defaultPeriod: 12, color: '#73c3e4' },
+  linear_regression_slope: { name: 'Linear Regression Slope', label: 'Linear Regression Slope',
+    minPeriod: 2, defaultPeriod: 14, color: '#efab82' },
+  time_series_forecast: { name: 'Time Series Forecast', label: 'Time Series Forecast',
+    minPeriod: 2, defaultPeriod: 14, color: '#8bbacf' },
   coppock: { name: 'Coppock Curve', label: 'Coppock Curve', minPeriod: 1, defaultPeriod: 10,
     periodLabel: 'Coppock smoothing', color: '#e8b185' },
   cmo: { name: 'CMO', label: 'Chande Momentum Oscillator', minPeriod: 2, defaultPeriod: 20, color: '#82c4e8' },
@@ -135,6 +139,7 @@ const PRICE_AVERAGES = {
   kama: 'kaufmanAdaptiveMovingAverage',
 } as const
 type PriceAverageKind = keyof typeof PRICE_AVERAGES
+type PriceStudyKind = BandKind | PriceAverageKind | 'daily_pivots' | 'time_series_forecast'
 function isPriceAverage(kind: StudyKind): kind is PriceAverageKind {
   return Object.hasOwn(PRICE_AVERAGES, kind)
 }
@@ -147,7 +152,7 @@ type StudyLine<Value> = {
 }
 export type PanelLine = StudyLine<StudyValue> & { histogram?: { negativeColor: string } }
 export type PanelStudy = {
-  kind: Exclude<StudyKind, BandKind | PriceAverageKind | 'daily_pivots'>
+  kind: Exclude<StudyKind, PriceStudyKind>
   periods: number[]
   unit?: 'price' | 'volume' | 'index'
   guides?: number[]
@@ -155,7 +160,7 @@ export type PanelStudy = {
   lines: PanelLine[]
 }
 export type PriceStudy = {
-  kind: BandKind | PriceAverageKind | 'daily_pivots'
+  kind: PriceStudyKind
   periods: number[]
   heading: string
   priceOverlay: true
@@ -198,6 +203,7 @@ const PIVOT_LINES: readonly { field: Exclude<keyof FloorPivotLevels, 'priorClose
 export function computeStudies(core: MarketCore, settings: StudySet | undefined, bars: readonly Bar[], sourceBars = bars): StudyValues[] {
   const measuresByPeriod = new Map<number, BollingerMeasures[]>()
   const aroonByPeriod = new Map<number, (AroonValue | null)[]>()
+  const regressionByPeriod = new Map<number, CloseRegressionValues[]>()
   let cumulative: CumulativeVolume[] | undefined
   return STUDY_KINDS.flatMap<StudyValues>(kind => {
     const study = settings?.[kind]
@@ -366,6 +372,19 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     if (kind === 'roc') {
       return [{ kind, periods: [period], zeroLine: true, lines: [
         { color: STUDIES.roc.color, series: core.rateOfChange(period, bars) },
+      ] }]
+    }
+    if (kind === 'linear_regression_slope' || kind === 'time_series_forecast') {
+      let values = regressionByPeriod.get(period)
+      if (!values) {
+        values = core.rollingCloseRegression(period, bars)
+        regressionByPeriod.set(period, values)
+      }
+      if (kind === 'time_series_forecast') return [{ kind, periods: [period], heading: STUDIES[kind].name,
+        priceOverlay: true, lines: [{ color: STUDIES[kind].color, series: values.map(point => point.forecast) }],
+      }]
+      return [{ kind, periods: [period], unit: 'price', zeroLine: true, lines: [
+        { color: STUDIES[kind].color, series: values.map(point => point.slope) },
       ] }]
     }
     if (kind === 'vroc') return [{ kind, periods: [period], zeroLine: true, lines: [

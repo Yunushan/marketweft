@@ -1,4 +1,7 @@
-use marketweft_core::{regression_channel, Bar, RegressionChannel, MAX_BARS, MAX_TICKS, SCALE};
+use marketweft_core::{
+    parse_csv, regression_channel, rolling_close_regression, Bar, CloseRegressionValues,
+    RegressionChannel, MAX_BARS, MAX_TICKS, SCALE,
+};
 
 fn bar(time: i64, price: i64) -> Bar {
     Bar {
@@ -9,6 +12,54 @@ fn bar(time: i64, price: i64) -> Bar {
         close: price,
         volume: 0,
     }
+}
+
+#[test]
+fn rolling_regression_preserves_prefixes_signs_and_one_rounding_per_output() {
+    let bars = parse_csv(include_str!("fixtures/synthetic-rolling-regression.csv")).unwrap();
+    let closes: Vec<_> = bars.iter().map(|bar| bar.close).collect();
+    let value = |slope_ticks, forecast_ticks| {
+        Some(CloseRegressionValues {
+            slope_ticks,
+            forecast_ticks,
+        })
+    };
+    let expected = [
+        None,
+        None,
+        value(2_000_000, 2_000_000),
+        value(1_000_000, 1_333_333),
+        value(0, 0),
+        value(-1_000_000, -2_666_667),
+        value(-2_000_000, -6_000_000),
+        value(-500_000, -4_000_000),
+    ];
+    for end in 0..=closes.len() {
+        assert_eq!(
+            rolling_close_regression(3, &closes[..end]).unwrap(),
+            expected[..end]
+        );
+    }
+    assert_eq!(
+        rolling_close_regression(3, &[0, 0, 1]).unwrap()[2],
+        value(1, 1)
+    );
+    assert_eq!(
+        rolling_close_regression(3, &[0, 0, -1]).unwrap()[2],
+        value(-1, -1)
+    );
+    assert_eq!(
+        rolling_close_regression(2, &[-MAX_TICKS, MAX_TICKS]).unwrap()[1],
+        value(2 * MAX_TICKS, 3 * MAX_TICKS)
+    );
+    assert_eq!(
+        rolling_close_regression(MAX_BARS, &vec![-MAX_TICKS; MAX_BARS])
+            .unwrap()
+            .last(),
+        Some(&value(0, -MAX_TICKS))
+    );
+    assert!(rolling_close_regression(1, &closes).is_err());
+    assert!(rolling_close_regression(3, &[MAX_TICKS + 1]).is_err());
 }
 
 #[test]

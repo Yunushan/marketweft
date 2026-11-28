@@ -218,7 +218,9 @@ pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use range_bars::RangeBar;
 pub use range_oscillators::{balance_of_power, vortex_indicator, VortexValue};
 pub use range_position::williams_percent_r;
-pub use regression_channel::{regression_channel, RegressionChannel};
+pub use regression_channel::{
+    regression_channel, rolling_close_regression, CloseRegressionValues, RegressionChannel,
+};
 pub use renko::renko;
 pub use scalar_plugin::{
     evaluate_scalar_plugin, evaluate_scalar_plugin_series, ScalarPluginPoint,

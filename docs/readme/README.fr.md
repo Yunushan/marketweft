@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.263.0 · 0BSD**
+**0.264.0 · 0BSD**
 
 **Langues de la documentation**
 
@@ -15,14 +15,14 @@
 
 MarketWeft est un terminal de recherche local destiné aux analystes, développeurs et opérateurs. Il ouvre des fichiers OHLCV autorisés, trace des chandeliers et les volumes, calcule SMA et EMA en virgule fixe et enregistre liste, instrument et indicateurs dans IndexedDB. Les ressources mises en cache permettent de travailler hors ligne. Les cours et volumes fournis sont synthétiques et ne nécessitent aucun compte.
 
-MarketWeft 0.263.0 ajoute une sinusoïde modifiable avec des ancrages précis de temps UTC et de prix. MarketWeft 0.7.0 ajoute un classement de l’univers par rendement du prix à partir des données connues à la date de consultation. Le rejeu par séance inclut les divisions d’actions, les dividendes en espèces, la composition de l’univers et les radiations. Le dépôt fournit également un observateur TypeScript en lecture seule pour le service distinct trading-bot et une enveloppe Tauri expérimentale. Les flux de fournisseurs, la saisie d’ordres, les installateurs signés et l’hébergement multiutilisateur restent dans la feuille de route.
+MarketWeft 0.264.0 ajoute la pente de régression linéaire et la prévision de série temporelle. MarketWeft 0.7.0 ajoute un classement de l’univers par rendement du prix à partir des données connues à la date de consultation. Le rejeu par séance inclut les divisions d’actions, les dividendes en espèces, la composition de l’univers et les radiations. Le dépôt fournit également un observateur TypeScript en lecture seule pour le service distinct trading-bot et une enveloppe Tauri expérimentale. Les flux de fournisseurs, la saisie d’ordres, les installateurs signés et l’hébergement multiutilisateur restent dans la feuille de route.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Sine line](../chart-workspace.md#sine-line)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Linear Regression Slope and Time Series Forecast](../chart-workspace.md#linear-regression-slope-and-time-series-forecast)
 
 <!-- section:02 -->
 ## Démarrer le terminal portable
 
-Téléchargez browser-terminal-attempt-N depuis une vérification GitHub réussie et extrayez MarketWeft-browser-0.263.0.zip. Conservez dist/ à côté de serve-terminal.mjs et exécutez la commande ci-dessous dans ce répertoire. Ouvrez http://127.0.0.1:4173/ avec un navigateur récent offrant WebAssembly, Canvas, BigInt et IndexedDB. Le lanceur exige Node.js 22.12 ou supérieur. Aucune installation npm n’est nécessaire. Attendez Offline ready avant la déconnexion.
+Téléchargez browser-terminal-attempt-N depuis une vérification GitHub réussie et extrayez MarketWeft-browser-0.264.0.zip. Conservez dist/ à côté de serve-terminal.mjs et exécutez la commande ci-dessous dans ce répertoire. Ouvrez http://127.0.0.1:4173/ avec un navigateur récent offrant WebAssembly, Canvas, BigInt et IndexedDB. Le lanceur exige Node.js 22.12 ou supérieur. Aucune installation npm n’est nécessaire. Attendez Offline ready avant la déconnexion.
 
 ```sh
 node serve-terminal.mjs

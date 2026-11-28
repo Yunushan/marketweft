@@ -85,10 +85,12 @@ const DIRECTIONAL_CLOSE_STUDIES_BACKUP_VERSION = 76
 const VOLUME_CHANGE_STUDIES_BACKUP_VERSION = 77
 const CYCLIC_LINES_BACKUP_VERSION = 78
 const SINE_LINE_BACKUP_VERSION = 79
+const ROLLING_REGRESSION_BACKUP_VERSION = 80
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
   const studies = Object.values(preferences.studies ?? {})
+  if (studies.some(pane => pane?.linear_regression_slope || pane?.time_series_forecast)) return ROLLING_REGRESSION_BACKUP_VERSION
   if (Object.values(preferences.annotations ?? {}).some(entries => entries.some(entry => entry.kind === 'sine-line')))
     return SINE_LINE_BACKUP_VERSION
   if (Object.values(preferences.annotations ?? {}).some(entries => entries.some(entry => entry.kind === 'cyclic-lines')))
@@ -297,6 +299,7 @@ export async function verifyWorkspaceBackup(
     VOLUME_CHANGE_STUDIES_BACKUP_VERSION,
     CYCLIC_LINES_BACKUP_VERSION,
     SINE_LINE_BACKUP_VERSION,
+    ROLLING_REGRESSION_BACKUP_VERSION,
     PRICE_VOLUME_SCATTER_BACKUP_VERSION,
     NORMALIZED_PRICE_AND_RANGE_BACKUP_VERSION,
     STOCHASTIC_RSI_AND_ULTIMATE_BACKUP_VERSION,
