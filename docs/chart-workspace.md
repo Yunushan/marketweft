@@ -420,6 +420,14 @@ Each pane uses the bars available to its selected history and timeframe. Both st
 
 Both studies use observed bars and preserve separate pane settings. Research CSV names include the configured periods, such as `elder_force_13` and `chaikin_volatility_10_10`. Their settings use workspace backup version 59.
 
+### Kaufman adaptive average and efficiency ratio
+
+Enable **KAMA** on the price plot or **Kaufman Efficiency Ratio** in its own 0–100% study panel. Each study and each pane has an independent lookback, with a default of 10 observed bars. The ratio measures absolute net close movement over the lookback divided by the sum of absolute consecutive close changes. It starts after a complete window of close changes. A flat window reports 0%. [Kaufman indicator formulas](https://www.tradingview.com/support/solutions/43000773012-kaufman-s-adaptive-moving-average-kama/).
+
+KAMA starts with the simple average of the first complete close window. Later values move the preceding average toward the current close using the squared blend of the 2-bar and 30-bar EMA factors. The exact efficiency ratio determines the blend. MarketWeft rounds the blend and its square to twelve decimal places and each price to six. Observed bars remain consecutive across gaps, and values use only the prices through the current bar. [KAMA initialization and smoothing](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/kaufmans-adaptive-moving-average-kama).
+
+The research CSV includes `kama_10` and `kaufman_efficiency_10` at the default settings. A warm-up row leaves the relevant field empty. Workspace backup version 62 preserves the study periods.
+
 ### Daily floor pivots
 
 Enable **Daily Floor Pivots** independently in either pane’s indicator settings. The five stepped lines for each bar use the high, low, and final observed close of the latest earlier UTC date with source observations. This carries the previous observed day's levels across weekends and other gaps. The first observed date has no levels. Observations from the current UTC day cannot change its levels. Rolled panes read the same original source bars and use each displayed bar’s opening UTC date.

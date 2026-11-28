@@ -24,6 +24,9 @@ export const STUDIES = {
   dema: { name: 'DEMA', label: 'Double Exponential Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#9bd5b1' },
   tema: { name: 'TEMA', label: 'Triple Exponential Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#efac94' },
   hma: { name: 'HMA', label: 'Hull Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#c0abf3' },
+  kama: { name: 'KAMA', label: 'Kaufman Adaptive Moving Average', minPeriod: 1, defaultPeriod: 10, color: '#e2b764' },
+  kaufman_efficiency: { name: 'Kaufman Efficiency Ratio', label: 'Kaufman Efficiency Ratio',
+    minPeriod: 1, defaultPeriod: 10, color: '#81d2c0' },
   dmi: { name: 'DMI', label: 'Directional Movement System', minPeriod: 1, defaultPeriod: 14, periodLabel: 'DI', color: '#aaa3f0' },
   cci: { name: 'CCI', label: 'Commodity Channel Index', minPeriod: 1, defaultPeriod: 20, color: '#c5adf1' },
   roc: { name: 'ROC', label: 'Rate of Change', minPeriod: 1, defaultPeriod: 12, color: '#73c3e4' },
@@ -82,6 +85,7 @@ const PRICE_AVERAGES = {
   dema: 'doubleExponentialMovingAverage',
   tema: 'tripleExponentialMovingAverage',
   hma: 'hullMovingAverage',
+  kama: 'kaufmanAdaptiveMovingAverage',
 } as const
 type PriceAverageKind = keyof typeof PRICE_AVERAGES
 function isPriceAverage(kind: StudyKind): kind is PriceAverageKind {
@@ -265,6 +269,9 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       const series = kind === 'cmo' ? core.chandeMomentumOscillator(period, bars) : core.trix(period, bars)
       return [{ kind, periods: [period], zeroLine: true, lines: [{ color: STUDIES[kind].color, series }] }]
     }
+    if (kind === 'kaufman_efficiency') return [{ kind, periods: [period], guides: [0, 50, 100], lines: [
+      { color: STUDIES[kind].color, series: core.kaufmanEfficiencyRatio(period, bars) },
+    ] }]
     let series: StudyValue[]
     if (kind === 'bb_percent_b' || kind === 'bb_bandwidth') {
       let measures = measuresByPeriod.get(period)

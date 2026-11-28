@@ -67,12 +67,14 @@ const RANGE_OSCILLATORS_BACKUP_VERSION = 58
 const FORCE_AND_VOLATILITY_BACKUP_VERSION = 59
 const DAILY_PIVOTS_BACKUP_VERSION = 60
 const GANN_BOX_BACKUP_VERSION = 61
+const KAUFMAN_BACKUP_VERSION = 62
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
+  const studies = Object.values(preferences.studies ?? {})
+  if (studies.some(pane => pane?.kama || pane?.kaufman_efficiency)) return KAUFMAN_BACKUP_VERSION
   if (Object.values(preferences.annotations ?? {}).some(entries => entries.some(entry => entry.kind === 'gann-box')))
     return GANN_BOX_BACKUP_VERSION
-  const studies = Object.values(preferences.studies ?? {})
   if (studies.some(pane => pane?.daily_pivots)) return DAILY_PIVOTS_BACKUP_VERSION
   if (studies.some(pane => pane?.elder_force || pane?.chaikin_volatility)) return FORCE_AND_VOLATILITY_BACKUP_VERSION
   if (studies.some(pane => pane?.vortex || pane?.bop)) return RANGE_OSCILLATORS_BACKUP_VERSION
@@ -247,7 +249,7 @@ export async function verifyWorkspaceBackup(
   if (typeof file.version !== 'number' || ![
     CLOSE_DISTRIBUTION_BACKUP_VERSION,
     MOMENTUM_OSCILLATORS_BACKUP_VERSION,
-    GANN_BOX_BACKUP_VERSION, DAILY_PIVOTS_BACKUP_VERSION, FORCE_AND_VOLATILITY_BACKUP_VERSION, RANGE_OSCILLATORS_BACKUP_VERSION, GANN_FAN_BACKUP_VERSION, MOVING_AVERAGES_BACKUP_VERSION,
+    KAUFMAN_BACKUP_VERSION, GANN_BOX_BACKUP_VERSION, DAILY_PIVOTS_BACKUP_VERSION, FORCE_AND_VOLATILITY_BACKUP_VERSION, RANGE_OSCILLATORS_BACKUP_VERSION, GANN_FAN_BACKUP_VERSION, MOVING_AVERAGES_BACKUP_VERSION,
     SINGLE_PANE_BACKUP_VERSION, COMPARISON_BACKUP_VERSION, DRAWING_BACKUP_VERSION,
     INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
     STRUCTURED_GRANT_BACKUP_VERSION,

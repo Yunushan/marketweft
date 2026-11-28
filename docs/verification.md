@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.229.0 · Kaufman adaptive average and efficiency ratio
+
+- Rust and Wasm verify signed seed and adaptive values, flat and reversing windows, a gap in the observed timestamps and exact equality across all recorded prefixes. The native fixture accumulates wide path lengths over a near-maximum window.
+- Offline Chromium checks separate pane windows, every signed CSV price and bounded ratio, and workspace versions 61 and 62 with the existing Gann box preserved.
+
+[Kaufman studies](chart-workspace.md#kaufman-adaptive-average-and-efficiency-ratio)
+
 ## 0.228.0 · Offline upgrades in Chromium, Firefox and WebKit
 
 - All three Playwright Linux x64 engines verified an original build and a replacement fixture with different entry and lazy replay assets. Both caches were present when the update finished installing.

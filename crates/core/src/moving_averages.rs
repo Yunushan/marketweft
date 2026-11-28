@@ -1,6 +1,7 @@
 use crate::{
     indicator::{exponential_tail, validate_close_window},
     screen::rounded_div,
+    SCALE,
 };
 
 /// Apply weights 1 through the period to each full window from oldest to latest.
@@ -62,6 +63,75 @@ pub fn hull_moving_average(period: usize, closes: &[i64]) -> Result<Vec<Option<i
         closes.len(),
         weighted_tail(period.isqrt(), &difference),
     ))
+}
+
+/// Express absolute movement divided by path length in millionths of a percent.
+pub fn kaufman_efficiency_ratio(period: usize, closes: &[i64]) -> Result<Vec<Option<i64>>, String> {
+    validate_close_window(period, closes)?;
+    let mut values = vec![None; closes.len()];
+    for (index, movement, path) in efficiency_windows(period, closes) {
+        let ratio = if path == 0 {
+            0
+        } else {
+            rounded_div(movement * 100 * i128::from(SCALE), path) as i64
+        };
+        values[index] = Some(ratio);
+    }
+    Ok(values)
+}
+
+/// Seed with an SMA and adapt using Kaufman's fast and slow EMA lengths of 2 and 30.
+pub fn kaufman_adaptive_moving_average(
+    period: usize,
+    closes: &[i64],
+) -> Result<Vec<Option<i64>>, String> {
+    validate_close_window(period, closes)?;
+    let mut values = vec![None; closes.len()];
+    let Some(seed) = closes.get(..period) else {
+        return Ok(values);
+    };
+    let sum: i128 = seed.iter().copied().map(i128::from).sum();
+    let mut average = rounded_div(sum, period as i128);
+    values[period - 1] = Some(average as i64);
+    const COEFFICIENT_SCALE: i128 = 1_000_000_000_000;
+    const FAST_DENOMINATOR: i128 = 3;
+    const SLOW_DENOMINATOR: i128 = 31;
+    for (index, movement, path) in efficiency_windows(period, closes) {
+        let root = if path == 0 {
+            rounded_div(2 * COEFFICIENT_SCALE, SLOW_DENOMINATOR)
+        } else {
+            let weighted =
+                path * FAST_DENOMINATOR + movement * (SLOW_DENOMINATOR - FAST_DENOMINATOR);
+            rounded_div(
+                2 * COEFFICIENT_SCALE * weighted,
+                path * FAST_DENOMINATOR * SLOW_DENOMINATOR,
+            )
+        };
+        let factor = rounded_div(root * root, COEFFICIENT_SCALE);
+        average = rounded_div(
+            average * COEFFICIENT_SCALE + (i128::from(closes[index]) - average) * factor,
+            COEFFICIENT_SCALE,
+        );
+        values[index] = Some(average as i64);
+    }
+    Ok(values)
+}
+
+fn efficiency_windows(
+    period: usize,
+    closes: &[i64],
+) -> impl Iterator<Item = (usize, i128, i128)> + '_ {
+    let change = move |after: usize, before: usize| {
+        (i128::from(closes[after]) - i128::from(closes[before])).abs()
+    };
+    let mut path = 0;
+    (1..closes.len()).filter_map(move |index| {
+        path += change(index, index - 1);
+        if index > period {
+            path -= change(index - period, index - period - 1);
+        }
+        (index >= period).then(|| (index, change(index, index - period), path))
+    })
 }
 
 fn with_warmup(length: usize, values: Vec<i64>) -> Vec<Option<i64>> {

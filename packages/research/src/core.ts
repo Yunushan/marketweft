@@ -1252,6 +1252,8 @@ export interface MarketCore {
   chaikinVolatility(smoothing: number, comparison: number, bars: readonly Bar[]): (bigint | null)[];
   dailyFloorPivots(bars: readonly Bar[], queryTimes: readonly number[]): (FloorPivotLevels | null)[];
   linearlyWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
+  kaufmanAdaptiveMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
+  kaufmanEfficiencyRatio(period: number, bars: readonly Bar[]): (bigint | null)[];
   doubleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   tripleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   hullMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1406,6 +1408,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_chande_momentum_oscillator(period: number): number;
   mw_trix(period: number): number;
   mw_linearly_weighted_average(period: number): number;
+  mw_kaufman_adaptive_moving_average(period: number): number;
+  mw_kaufman_efficiency_ratio(period: number): number;
   mw_double_exponential_moving_average(period: number): number;
   mw_triple_exponential_moving_average(period: number): number;
   mw_hull_moving_average(period: number): number;
@@ -2677,6 +2681,12 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     },
     hullMovingAverage(period, bars) {
       return observedCloseIndicator(api.mw_hull_moving_average, period, bars);
+    },
+    kaufmanAdaptiveMovingAverage(period, bars) {
+      return observedCloseIndicator(api.mw_kaufman_adaptive_moving_average, period, bars);
+    },
+    kaufmanEfficiencyRatio(period, bars) {
+      return observedCloseIndicator(api.mw_kaufman_efficiency_ratio, period, bars);
     },
     directionalMovement(diPeriod, adxPeriod, bars) {
       if (![diPeriod, adxPeriod].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)

@@ -147,8 +147,8 @@ pub use monthly_returns::{
     monthly_returns, MonthWindow, MonthlyClose, MonthlyReturn, MAX_MONTHLY_RETURN_YEARS,
 };
 pub use moving_averages::{
-    double_exponential_moving_average, hull_moving_average, linearly_weighted_average,
-    triple_exponential_moving_average,
+    double_exponential_moving_average, hull_moving_average, kaufman_adaptive_moving_average,
+    kaufman_efficiency_ratio, linearly_weighted_average, triple_exponential_moving_average,
 };
 pub use option_cash::CashOptionDividend;
 pub use option_chain::{

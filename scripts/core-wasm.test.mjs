@@ -83,6 +83,21 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('Kaufman adaptive average and efficiency ratio keep exact observed prefixes and warm-up', () => {
+  const bars = [-4, -2, 0, -2, 0, 0, 0, 4, 0, -2].map((close, index) => ({
+    time: index * 60 + (index >= 6 ? 180 : 0), open: close, high: close, low: close, close, volume: 1,
+  }));
+  const averages = [null, -3000000n, -1666667n, -1668054n, -1661111n, -922839n, -918998n, 1267223n, 1261948n, -187807n];
+  const ratios = [null, null, 100000000n, 0n, 0n, 100000000n, 0n, 100000000n, 0n, 100000000n];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.kaufmanAdaptiveMovingAverage(2, bars.slice(0, end)), averages.slice(0, end));
+    assert.deepEqual(core.kaufmanEfficiencyRatio(2, bars.slice(0, end)), ratios.slice(0, end));
+  }
+  assert.equal(core.kaufmanAdaptiveMovingAverage(3, bars).at(-1), 1091786n);
+  assert.equal(core.kaufmanEfficiencyRatio(3, bars).at(-1), 20000000n);
+  assert.throws(() => core.kaufmanEfficiencyRatio(0, bars), /indicator period/);
+});
+
 test('Gann box levels preserve signed prices, time partitions and validation in Wasm', () => {
   const start = { time: -9, ticks: -13 };
   const end = { time: 0, ticks: 13 };

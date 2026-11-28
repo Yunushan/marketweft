@@ -4173,6 +4173,22 @@ pub extern "C" fn mw_hull_moving_average(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_kaufman_adaptive_moving_average(period: usize) -> u32 {
+    process(|input| {
+        crate::kaufman_adaptive_moving_average(period, &indicator_closes(input)?)
+            .map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_kaufman_efficiency_ratio(period: usize) -> u32 {
+    process(|input| {
+        crate::kaufman_efficiency_ratio(period, &indicator_closes(input)?)
+            .map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_rebased_percent_changes(anchor_at: i64) -> u32 {
     process(|input| {
         crate::rebased_percent_changes(anchor_at, &decode_bars(input)?)
