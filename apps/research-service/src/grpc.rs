@@ -8,7 +8,8 @@ use crate::{
         FormulaQuery, MacroCalendarPage, MacroCalendarQuery, MonthlyReturnsPage,
         MonthlyReturnsQuery, OptionPage, OptionQuery, PortfolioAllocationQuery,
         PortfolioAllocationResponse, PortfolioFxPage, PortfolioFxQuery, PortfolioScenariosPage,
-        PortfolioScenariosQuery, RankComparisonPage, RankComparisonQuery, ScreenPage, ScreenQuery,
+        PortfolioScenariosQuery, RankComparisonPage, RankComparisonQuery, RecordedNotionalBarsPage,
+        RecordedNotionalBarsQuery, ScreenPage, ScreenQuery,
     },
     shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
@@ -56,6 +57,10 @@ pub(crate) fn routes(state: Arc<Server>) -> Router {
                 )
                 .route_service(
                     "/marketweft.research.v1.Research/CompareUniverseRanks",
+                    service.clone(),
+                )
+                .route_service(
+                    "/marketweft.research.v1.Research/GetRecordedNotionalBars",
                     service.clone(),
                 )
                 .route_service(
@@ -212,6 +217,13 @@ impl Research for LocalResearch {
         request: GrpcRequest<RankComparisonQuery>,
     ) -> Result<GrpcResponse<RankComparisonPage>, Status> {
         unary(request, analytics::evaluate_rank_comparison).await
+    }
+
+    async fn get_recorded_notional_bars(
+        &self,
+        request: GrpcRequest<RecordedNotionalBarsQuery>,
+    ) -> Result<GrpcResponse<RecordedNotionalBarsPage>, Status> {
+        unary(request, analytics::evaluate_recorded_notional_bars).await
     }
 
     async fn get_portfolio_allocation(

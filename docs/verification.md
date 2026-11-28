@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.284.0 · Recorded notional bars over the research service
+
+- The service verifies screen scope, exact observation cutoffs, bounded paging, an unchanged completed bar and the original earlier result on rewind. Decimal fields preserve a full unsigned 64-bit sequence, gross notional above signed 64-bit range and a summed volume one tick below the supported limit. A volume above that limit is rejected.
+- Loopback tests compare the REST page with a resumed WebSocket stream and the typed gRPC response. They also check authorization on each transport and a clean stream close after the final page.
+
 ## 0.283.0 · Recorded notional bars over MCP
 
 - The installed Python wheel and the official MCP client verify read-only discovery, exact pagination, unsigned 64-bit sequences as text, wide gross notional, and the same earlier result on rewind.

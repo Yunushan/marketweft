@@ -79,6 +79,21 @@ pub(crate) async fn rank_comparison(
     .await
 }
 
+pub(crate) async fn recorded_notional_bars(
+    State(state): State<Arc<Server>>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    upgrade(
+        state,
+        &headers,
+        ws,
+        Scope::Screen,
+        analytics::recorded_notional_bars,
+    )
+    .await
+}
+
 pub(crate) async fn portfolio_allocation(
     State(state): State<Arc<Server>>,
     headers: HeaderMap,

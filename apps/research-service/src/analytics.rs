@@ -10,7 +10,8 @@ use crate::{
         PortfolioAllocationSample, PortfolioFxPage, PortfolioFxQuery, PortfolioFxRate,
         PortfolioFxRow, PortfolioScenarioCoverage, PortfolioScenarioPath,
         PortfolioScenarioPercentiles, PortfolioScenariosPage, PortfolioScenariosQuery,
-        RankComparisonLeg, RankComparisonPage, RankComparisonQuery, RankComparisonRow, ScreenPage,
+        RankComparisonLeg, RankComparisonPage, RankComparisonQuery, RankComparisonRow,
+        RecordedNotionalBar, RecordedNotionalBarsPage, RecordedNotionalBarsQuery, ScreenPage,
         ScreenQuery, ScreenRow,
     },
     ApiError,
@@ -19,11 +20,12 @@ use axum::http::StatusCode;
 use marketweft_core::{
     monthly_returns, parse_csv, parse_dividends, parse_exact_utc, parse_universe,
     AmericanValuationRequest, CashOptionError, EquityTargetBook, ExerciseStyle, Formula,
-    FormulaFunctionDefinition, FormulaLibrary, FxAmount, FxBook, MacroCalendar, MonthWindow,
-    MonthlyClose, OptionAnalytics, OptionBook, OptionSide, PortfolioBook, PortfolioScenarioConfig,
-    PortfolioVarianceQuery, PriceBook, PriceObservation, ReportKind, ScenarioAllocation,
-    ScenarioConfig, ScreenComparisonLeg, ScreenCutoff, ThreeQuantiles, UniverseAction,
-    FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
+    FormulaFunctionDefinition, FormulaLibrary, FxAmount, FxBook, Instrument, MacroCalendar,
+    MonthWindow, MonthlyClose, OptionAnalytics, OptionBook, OptionSide, PortfolioBook,
+    PortfolioScenarioConfig, PortfolioVarianceQuery, PriceBook, PriceObservation, ReportKind,
+    ScenarioAllocation, ScenarioConfig, ScreenComparisonLeg, ScreenCutoff, ThreeQuantiles,
+    TradeTape, UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_BARS,
+    MAX_MONTHLY_RETURN_YEARS,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -40,6 +42,7 @@ pub(crate) enum ResearchPage {
     MacroCalendar(MacroCalendarPage),
     Screen(ScreenPage),
     RankComparison(RankComparisonPage),
+    RecordedNotionalBars(RecordedNotionalBarsPage),
     PortfolioAllocation(PortfolioAllocationResponse),
     PortfolioScenarios(PortfolioScenariosPage),
     PortfolioFx(PortfolioFxPage),
@@ -657,6 +660,84 @@ pub(crate) fn evaluate_portfolio_fx(
                         rate_ticks: rate.rate_ticks.to_string(),
                         inverted: rate.inverted,
                     }),
+                })
+                .collect(),
+        },
+    );
+    Ok(())
+}
+
+pub(crate) fn recorded_notional_bars(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_recorded_notional_bars(request(bytes)?, &mut |page| {
+        emit(ResearchPage::RecordedNotionalBars(page))
+    })
+}
+
+pub(crate) fn evaluate_recorded_notional_bars(
+    query: RecordedNotionalBarsQuery,
+    emit: &mut dyn FnMut(RecordedNotionalBarsPage) -> bool,
+) -> Result<(), ApiError> {
+    let (offset, limit) = pagination(query.offset, query.limit, MAX_BARS as u64)?;
+    let Some((venue, symbol)) = query.instrument.split_once(':') else {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use a canonical recorded instrument.",
+        ));
+    };
+    let instrument = Instrument::new(venue, symbol).map_err(analytical_error)?;
+    if instrument.to_string() != query.instrument {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use a canonical recorded instrument.",
+        ));
+    }
+    let cutoff = query
+        .known_at
+        .as_deref()
+        .map(|time| {
+            parse_exact_utc(time).ok_or_else(|| {
+                ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.",
+                )
+            })
+        })
+        .transpose()?;
+    let target = i64::try_from(query.target_notional_ticks)
+        .map_err(|_| analytical_error("Use a positive six-place notional target.".into()))?;
+    let bars = TradeTape::parse_execution(&query.trades_csv, &instrument)
+        .and_then(|tape| tape.notional_bars(target, cutoff))
+        .map_err(analytical_error)?;
+    pages(
+        offset,
+        limit,
+        bars.len(),
+        emit,
+        |offset, range, next_offset| RecordedNotionalBarsPage {
+            instrument: query.instrument.clone(),
+            target_notional_ticks: query.target_notional_ticks,
+            known_at: query.known_at.clone(),
+            total_bars: bars.len() as u32,
+            offset,
+            next_offset,
+            bars: bars[range]
+                .iter()
+                .map(|row| RecordedNotionalBar {
+                    first_observed_at: row.bar.time,
+                    available_at: row.available_at,
+                    first_sequence: row.first_sequence.to_string(),
+                    last_sequence: row.last_sequence.to_string(),
+                    observed_trades: row.observed_trades,
+                    complete: row.complete(),
+                    gross_notional_trillionths: row.gross_notional.to_string(),
+                    open_ticks: row.bar.open.to_string(),
+                    high_ticks: row.bar.high.to_string(),
+                    low_ticks: row.bar.low.to_string(),
+                    close_ticks: row.bar.close.to_string(),
+                    volume_ticks: row.bar.volume.to_string(),
                 })
                 .collect(),
         },

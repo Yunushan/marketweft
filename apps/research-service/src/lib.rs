@@ -526,6 +526,11 @@ fn route_authority(
         )
         .route("/v1/universe/screen", post(screen))
         .route("/v1/universe/rank-comparison", post(rank_comparison))
+        .route("/v1/trades/notional-bars", post(recorded_notional_bars))
+        .route(
+            "/v1/trades/notional-bars/stream",
+            get(websocket::recorded_notional_bars),
+        )
         .route(
             "/v1/universe/portfolio-scenarios",
             post(portfolio_scenarios),
@@ -758,6 +763,19 @@ async fn macro_calendar(
     request: Request,
 ) -> Result<Json<ResearchPage>, ApiError> {
     execute(state, request, Scope::Formula, analytics::macro_calendar).await
+}
+
+async fn recorded_notional_bars(
+    State(state): State<Arc<Server>>,
+    request: Request,
+) -> Result<Json<ResearchPage>, ApiError> {
+    execute(
+        state,
+        request,
+        Scope::Screen,
+        analytics::recorded_notional_bars,
+    )
+    .await
 }
 
 async fn portfolio_allocation(

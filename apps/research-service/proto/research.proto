@@ -9,6 +9,7 @@ service Research {
   rpc GetMacroCalendar(MacroCalendarQuery) returns (MacroCalendarPage);
   rpc ScreenUniverse(ScreenQuery) returns (ScreenPage);
   rpc CompareUniverseRanks(RankComparisonQuery) returns (RankComparisonPage);
+  rpc GetRecordedNotionalBars(RecordedNotionalBarsQuery) returns (RecordedNotionalBarsPage);
   rpc GetPortfolioAllocation(PortfolioAllocationQuery) returns (PortfolioAllocationResponse);
   rpc GetPortfolioScenarios(PortfolioScenariosQuery) returns (PortfolioScenariosPage);
   rpc GetPortfolioFx(PortfolioFxQuery) returns (PortfolioFxPage);
@@ -174,6 +175,42 @@ message PortfolioScenariosPage {
   repeated PortfolioScenarioCoverage coverage = 14;
   PortfolioScenarioPercentiles percentiles = 15;
   repeated PortfolioScenarioPath paths = 16;
+}
+
+message RecordedNotionalBarsQuery {
+  string instrument = 1;
+  string trades_csv = 2;
+  uint64 target_notional_ticks = 3;
+  optional string known_at = 4;
+  optional uint64 offset = 5;
+  optional uint64 limit = 6;
+}
+
+message RecordedNotionalBar {
+  sint64 first_observed_at = 1;
+  sint64 available_at = 2;
+  // Unsigned 64-bit capture sequences and signed 128-bit quote trillionths.
+  string first_sequence = 3;
+  string last_sequence = 4;
+  uint32 observed_trades = 5;
+  bool complete = 6;
+  string gross_notional_trillionths = 7;
+  // Signed integer millionths in decimal text.
+  string open_ticks = 8;
+  string high_ticks = 9;
+  string low_ticks = 10;
+  string close_ticks = 11;
+  string volume_ticks = 12;
+}
+
+message RecordedNotionalBarsPage {
+  string instrument = 1;
+  uint64 target_notional_ticks = 2;
+  optional string known_at = 3;
+  uint32 total_bars = 4;
+  uint32 offset = 5;
+  optional uint32 next_offset = 6;
+  repeated RecordedNotionalBar bars = 7;
 }
 
 message PortfolioAllocationQuery {

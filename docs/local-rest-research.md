@@ -85,6 +85,14 @@ Use the optional integer `maximum_weight_basis_points` to apply the same ceiling
 
 Connect to `/v1/portfolio/allocation/stream` and send the same query for one WebSocket report. The HTTP/2 method is `marketweft.research.v1.Research/GetPortfolioAllocation`. Both use the same screen scope, admission and audit rules as REST. [Research Protobuf schema](../apps/research-service/proto/research.proto)
 
+## Recorded notional bars
+
+Send `POST /v1/trades/notional-bars` with a screen bearer credential. Supply a canonical `instrument`, up to 8 MiB of `trades_csv` contents and a positive integer `target_notional_ticks` in quote millionths. An optional exact UTC `known_at` includes observations through that second. The request also accepts `offset` and `limit`. The default page contains up to 200 bars, and the maximum is 1,000. [Trade format and fixed-point units](recorded-tick-bars.md#recorded-notional-bar-sdks)
+
+The result echoes the instrument, target and cutoff and returns `total_bars`, `offset`, `next_offset`, and the current page. Decimal strings carry capture boundaries, gross notional in trillionths, and OHLCV in millionths. Each bar also includes a trade count, completion state and first and last UTC observation times in Unix seconds.
+
+Connect to `/v1/trades/notional-bars/stream` for paged WebSocket results. Reuse the same tape, cutoff and target with `next_offset` to resume. The typed gRPC method `marketweft.research.v1.Research/GetRecordedNotionalBars` returns one matching page. Both use the screen authorization, admission and audit rules shared with REST. [Research Protobuf schema](../apps/research-service/proto/research.proto)
+
 ## Portfolio currency conversion
 
 Send `POST /v1/portfolio/fx` with a screen bearer credential. Supply the contents of the FX report in `rates_csv`, the three-letter uppercase `reporting_currency` and exact UTC `effective_at` and `known_at` cutoffs. Use `amounts` to send one `currency` and `subtotal_ticks` object per source currency. Subtotals are signed 128-bit integer millionths sent as decimal strings. The report accepts up to 1 MiB and 10,000 rate observations. [Portfolio FX inputs and rate selection](portfolio-replay.md#portfolio-currency-translation)
