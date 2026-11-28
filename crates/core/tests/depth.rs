@@ -1,7 +1,74 @@
-use marketweft_core::{DepthLevel, DepthStatus, DepthTape, Instrument, PaperSide};
+use marketweft_core::{
+    AggressorSide, DepthLevel, DepthStatus, DepthTape, Instrument, PaperSide,
+    TradeClassificationConfig, TradeSideBasis, TradeTape,
+};
 
 const FIXTURE: &str = include_str!("fixtures/synthetic-depth.csv");
 const N: u64 = 9_007_199_254_740_993;
+
+#[test]
+fn infer_trade_sides_with_strict_execution_clock_and_level_provenance() {
+    let instrument = Instrument::new("NASDAQ", "NVDA").unwrap();
+    let tape = DepthTape::parse(FIXTURE, &instrument).unwrap();
+    let trades = TradeTape::parse_execution(
+        include_str!("fixtures/synthetic-trade-classification.csv"),
+        &instrument,
+    )
+    .unwrap();
+    let start = tape.checkpoints()[0];
+    let classify = |through, known, age| {
+        trades
+            .classify_trades(
+                &tape,
+                TradeClassificationConfig {
+                    from_at: start,
+                    through_at: start + through,
+                    known_at: start + known,
+                    quote_max_age_seconds: age,
+                },
+            )
+            .unwrap()
+    };
+    let all = classify(13, 13, 10);
+    use {AggressorSide::*, TradeSideBasis::*};
+    assert_eq!(
+        all.iter()
+            .map(|row| (row.side, row.basis))
+            .collect::<Vec<_>>(),
+        [
+            (Unknown, NoDepth),
+            (Unknown, UnsynchronizedDepth),
+            (Buy, QuoteMidpoint),
+            (Unknown, AtMidpoint),
+            (Sell, QuoteMidpoint),
+            (Unknown, UnsynchronizedDepth),
+            (Sell, Reported),
+            (Buy, QuoteMidpoint),
+            (Unknown, UnsynchronizedDepth),
+            (Unknown, LockedQuote),
+            (Unknown, UnsynchronizedDepth),
+            (Unknown, IncompleteQuote),
+        ]
+    );
+    assert_eq!(all[2].quote.unwrap().stamp.sequence, N);
+    assert_eq!(all[2].quote.unwrap().ask.unwrap().price, 100_250_000);
+    assert_eq!(all[4].quote.unwrap().bid.unwrap().stamp.sequence, N + 1);
+    assert_eq!(all[4].quote.unwrap().ask.unwrap().stamp.event_at, start);
+    assert_eq!(all[4].size, 3_000_001);
+    assert_eq!(
+        all[5].quote.unwrap().status,
+        DepthStatus::SequenceGap {
+            expected: N + 2,
+            received: N + 3
+        }
+    );
+    assert!(all[6].quote.is_none());
+    assert_eq!(all[7].quote.unwrap().stamp.sequence, N + 1);
+    assert_eq!(classify(13, 7, 10), all[..7]);
+    assert_eq!(classify(4, 8, 10).last(), Some(&all[7]));
+    assert_eq!(classify(13, 13, 2)[4].basis, StaleQuote);
+    assert_eq!(classify(13, 13, 2)[2].basis, QuoteMidpoint);
+}
 
 #[test]
 fn depth_sweep_uses_price_priority_limits_gaps_and_exact_notional() {

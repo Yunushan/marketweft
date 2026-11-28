@@ -34,6 +34,22 @@ test('the packaged SDK reports depth sweep cutoffs and exact fixed-point executi
   assert.deepEqual(sweep('2025-06-02T14:00:03Z'), partial)
 })
 
+test('the packaged SDK keeps declared and inferred trade sides with their earlier quote evidence', async () => {
+  const fixture = name => new URL('../../../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url)
+  const [trades, depth, research] = await Promise.all([
+    readFile(fixture('trade-classification'), 'utf8'), readFile(fixture('depth'), 'utf8'), createResearchEngine(wasm),
+  ])
+  const query = { from: '2025-06-02T14:00:00Z', through: '2025-06-02T14:00:13Z',
+    known: '2025-06-02T14:00:07Z', maxQuoteAgeSeconds: 10 }
+  const known = research.classifyRecordedTrades('NASDAQ:NVDA', trades, depth, query)
+  const later = research.classifyRecordedTrades('NASDAQ:NVDA', trades, depth, { ...query, known: query.through })
+  assert.deepEqual(known, later.slice(0, 7))
+  assert.equal(known[2].quote.stamp.sequence, 9007199254740993n)
+  assert.equal(known[6].basis, 'reported')
+  assert.equal(later[7].side, 'buy')
+  assert.equal(later[7].quote.stamp.sequence, 9007199254740994n)
+})
+
 test('function libraries stay scoped to each evaluation and engine', async () => {
   const [first, second] = await Promise.all([
     createResearchEngine(wasm), createResearchEngine(wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength)),

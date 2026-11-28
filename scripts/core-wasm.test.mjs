@@ -973,6 +973,35 @@ test('recorded depth verifies atomic frames, exact sequences and recovery at the
   assert.throws(() => core.recordedDepth(instrument, csv, '2025-06-02'), /exact UTC observation cutoff/);
 });
 
+test('recorded trade classification preserves reported sides, both quote stamps and strict cutoffs', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
+  const [trades, depth] = await Promise.all([fixture('synthetic-trade-classification'), fixture('synthetic-depth')]);
+  const at = seconds => '2025-06-02T14:00:' + String(seconds).padStart(2, '0') + 'Z';
+  const query = (known, maxQuoteAgeSeconds = 10) =>
+    core.classifyRecordedTrades('NASDAQ:NVDA', trades, depth, { from: at(0), through: at(13), known: at(known), maxQuoteAgeSeconds });
+  const result = query(13);
+  assert.equal(result.length, 12);
+  assert.deepEqual(query(7), result.slice(0, 7));
+  assert.deepEqual(result.slice(2, 6).map(row => [row.side, row.basis]), [
+    ['buy', 'quote-midpoint'], ['unknown', 'at-midpoint'], ['sell', 'quote-midpoint'], ['unknown', 'unsynchronized-depth'],
+  ]);
+  assert.equal(result[2].quote.stamp.sequence, 9007199254740993n);
+  assert.deepEqual(result[4].quote.ask, {
+    sequence: 9007199254740994n, priceTicks: 100250000n,
+    eventAt: Date.parse(at(0)) / 1000, observedAt: Date.parse(at(3)) / 1000,
+  });
+  assert.equal(result[5].quote.status.expected, 9007199254740995n);
+  assert.equal(result[6].basis, 'reported');
+  assert.equal(result[6].quote, null);
+  assert.equal(result[7].quote.stamp.sequence, 9007199254740994n);
+  assert.equal(result[9].basis, 'locked-quote');
+  assert.equal(result[10].quote.status.kind, 'crossed');
+  assert.equal(result[11].basis, 'incomplete-quote');
+  assert.equal(query(13, 2)[4].basis, 'stale-quote');
+  assert.throws(() => query(13, 0), /positive whole-second maximum quote age/);
+  assert.deepEqual(query(13), result);
+});
+
 test('depth sweeps keep exact level quantities, cutoffs and signed notional through Wasm', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-depth.csv', import.meta.url), 'utf8');
   const sweep = (seconds, side = 'buy', limit = '', size = '5') => core.recordedDepthSweep(

@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.204.0 · Recorded trade-side classification
+
+- The Rust fixture verifies strict quote timing across equal timestamps, independent execution and observation cutoffs, exact midpoint ties, quote-age rejection, locked books, gaps and recovery.
+- Wasm and the TypeScript SDK preserve capture sequences and both quote stamps. A late trade keeps the earlier quote used at its execution, and a source-reported side survives a depth gap.
+- Offline Chromium verifies the full audit, byte-identical export after rewind, unknown volume of 7.75 and cumulative delta changing from −4.500001 to 0.499999 when the late buy enters the footprint.
+- The local 0.203.0 to 0.204.0 portable upgrade preserved the saved quote and plotted the classification from the trade and depth CSVs bundled in the new archive.
+
+[Recorded trade classification](recorded-footprint.md#classify-trade-sides-from-recorded-quotes)
+
 ## 0.203.0 · Recorded depth sweeps
 
 - Rust fixtures verify that buy and sell sweeps consume best-priced levels first, respect inclusive limits and keep exact signed notional through fractional quantities and large orders. The average price is rounded once, including ties at negative prices.

@@ -233,6 +233,32 @@ export interface DepthSweep {
   } | null;
 }
 
+export interface TradeClassificationQuery {
+  from: string;
+  through: string;
+  known: string;
+  maxQuoteAgeSeconds: number;
+}
+
+export type TradeSideBasis = 'reported' | 'quote-midpoint' | 'at-midpoint' | 'no-depth' |
+  'unsynchronized-depth' | 'incomplete-quote' | 'stale-quote' | 'locked-quote';
+
+export interface TradeClassification {
+  executedAt: number;
+  observedAt: number;
+  sequence: bigint;
+  priceTicks: bigint;
+  sizeTicks: bigint;
+  side: 'buy' | 'sell' | 'unknown';
+  basis: TradeSideBasis;
+  quote: {
+    status: DepthStatus;
+    stamp: DepthStamp;
+    bid: (DepthStamp & { priceTicks: bigint }) | null;
+    ask: (DepthStamp & { priceTicks: bigint }) | null;
+  } | null;
+}
+
 export interface SessionTimeframeBar extends TimeframeBar {
   closeTime: number;
   sessionOpen: number;
@@ -1156,6 +1182,8 @@ export interface MarketCore {
   recordedDepth(instrument: string, csv: string, knownAt: string): RecordedDepth;
   recordedDepthSweep(instrument: string, csv: string, knownAt: string, side: 'buy' | 'sell',
     size: string, limit?: string): DepthSweep;
+  classifyRecordedTrades(instrument: string, trades: string, depth: string,
+    query: TradeClassificationQuery): TradeClassification[];
   aggregateTimeframe(bars: readonly Bar[], sourceSeconds: number, targetSeconds: number): TimeframeBar[];
   aggregateSessionTimeframe(calendar: string, bars: readonly Bar[], sourceSeconds: number,
     targetSeconds: number): SessionTimeframeBar[];
@@ -1290,6 +1318,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_depth_checkpoints(): number;
   mw_recorded_depth(): number;
   mw_recorded_depth_sweep(): number;
+  mw_trade_classification_input(bytes: number): number;
+  mw_classify_recorded_trades(tradeBytes: number, maxAge: number): number;
   mw_aggregate_timeframe(sourceSeconds: number, targetSeconds: number): number;
   mw_aggregate_session_timeframe(calendarBytes: number, sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
@@ -2136,6 +2166,47 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         } else throw new Error('Invalid depth sweep row from the calculation engine.');
       }
       return result;
+    },
+    classifyRecordedTrades(instrument, trades, depth, query) {
+      const cutoffs = [query.from, query.through, query.known];
+      if (/[\r\n]/.test(instrument) || cutoffs.some(time => time.length !== 20 || /[\r\n]/.test(time))) {
+        throw new Error('Use one instrument and exact UTC trade cutoffs.');
+      }
+      const age = query.maxQuoteAgeSeconds;
+      if (!Number.isInteger(age) || age < 1 || age > 0xffffffff) {
+        throw new Error('Use a positive whole-second maximum quote age.');
+      }
+      const header = encoder.encode([instrument, ...cutoffs, ''].join('\n'));
+      const tradesBytes = encoder.encode(trades);
+      const depthBytes = encoder.encode(depth);
+      if (tradesBytes.length > LIMIT || depthBytes.length > LIMIT) throw new Error('Trade and depth CSVs may each use up to 8 MiB.');
+      const size = header.length + tradesBytes.length + depthBytes.length;
+      const ptr = api.mw_trade_classification_input(size);
+      if (!ptr) throw new Error('The calculation engine could not allocate trade classification input.');
+      const dest = new Uint8Array(api.memory.buffer, ptr, size);
+      dest.set(header);
+      dest.set(tradesBytes, header.length);
+      dest.set(depthBytes, header.length + tradesBytes.length);
+      const text = decoder.decode(output(api.mw_classify_recorded_trades(tradesBytes.length, age)));
+      const results: TradeClassification[] = [];
+      for (const line of text.trimEnd().split('\n').filter(Boolean)) {
+        const [tag, first, second, third, fourth, fifth, sixth, seventh] = line.split('\t');
+        if (tag === 'T') {
+          results.push({ executedAt: Number(first), observedAt: Number(second), sequence: BigInt(third),
+            priceTicks: BigInt(fourth), sizeTicks: BigInt(fifth), side: sixth as TradeClassification['side'],
+            basis: seventh as TradeSideBasis, quote: null });
+          continue;
+        }
+        const row = results.at(-1);
+        if (!row) throw new Error('Invalid recorded classification evidence.');
+        const stamp = { sequence: BigInt(first), eventAt: Number(second), observedAt: Number(third) };
+        if (tag === 'Q') {
+          row.quote = { stamp, status: decodeDepthStatus([fourth, fifth, sixth].join('\t')), bid: null, ask: null };
+        } else if ((tag === 'B' || tag === 'A') && row.quote) {
+          row.quote[tag === 'B' ? 'bid' : 'ask'] = { ...stamp, priceTicks: BigInt(fourth) };
+        } else throw new Error('Invalid recorded classification evidence.');
+      }
+      return results;
     },
     heikinAshi(bars) {
       if (bars.length > 100_000) throw new Error('Heikin-Ashi supports up to 100,000 source bars.');

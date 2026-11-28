@@ -124,6 +124,11 @@ filled there with the unavailable sweep at 14:00:05 UTC and the recovered
 
 Select the NVDA chart and open Recorded footprint. Load the demo or open
 footprint-trades.csv. The price bins keep labeled buy, sell and unknown size.
+Within Recorded footprint, expand Classify trade sides from recorded quotes.
+Load the classification demo or use trade-classification.csv and depth.csv.
+Set the execution window to 2025-06-02T14:00:00Z through 14:00:13 UTC.
+At knowledge 14:00:07 UTC the late buy is still absent. At 14:00:13 UTC,
+plot the classified trades to see cumulative delta of 0.499999.
 The cumulative delta follows the execution window and changes when a late
 trade reaches the selected knowledge cutoff. Expand Price profiles to
 compare total trade size and distinct time-price opportunities over that
@@ -237,6 +242,7 @@ def main():
     files["formula-library.mwformula.json"] = (fixture / "synthetic-formula-library.mwformula.json").read_bytes()
     files["depth.csv"] = (fixture / "synthetic-depth.csv").read_bytes()
     files["footprint-trades.csv"] = (fixture / "synthetic-footprint.csv").read_bytes()
+    files["trade-classification.csv"] = (fixture / "synthetic-trade-classification.csv").read_bytes()
     for kind in ("actions", "ohlcv", "sessions"):
         files[f"split-{kind}.csv"] = (fixture / f"synthetic-split-{kind}.csv").read_bytes()
     files["cash-dividends.csv"] = (fixture / "synthetic-cash-dividends.csv").read_bytes()

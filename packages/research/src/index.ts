@@ -5,7 +5,8 @@ export type {
   AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
   Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
-  OptionUnavailable, OptionUnderlying, QuarterlyValuation, ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff, ScreenPrice, ScreenRow, TrailingFourQuarters,
+  OptionUnavailable, OptionUnderlying, QuarterlyValuation, ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
+  ScreenPrice, ScreenRow, TradeClassification, TradeClassificationQuery, TradeSideBasis, TrailingFourQuarters,
 } from './core.js'
 
 export const RESEARCH_SDK_VERSION = 1
@@ -18,6 +19,7 @@ export interface MarketResearch {
   universeScreen: MarketCore['universeScreen']
   compareUniverseRanks: MarketCore['compareUniverseRanks']
   recordedDepthSweep: MarketCore['recordedDepthSweep']
+  classifyRecordedTrades: MarketCore['classifyRecordedTrades']
   financialIndex: MarketCore['financialIndex']
   financialSnapshot: MarketCore['financialSnapshot']
   optionIndex: MarketCore['optionIndex']
@@ -38,6 +40,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     universeScreen: core.universeScreen,
     compareUniverseRanks: core.compareUniverseRanks,
     recordedDepthSweep: core.recordedDepthSweep,
+    classifyRecordedTrades: core.classifyRecordedTrades,
     financialIndex: core.financialIndex,
     financialSnapshot: core.financialSnapshot,
     optionIndex: core.optionIndex,

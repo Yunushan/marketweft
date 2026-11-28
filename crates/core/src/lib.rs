@@ -103,7 +103,8 @@ pub use delisting::{
     DelistingTerms, DelistingValuation, ReferenceClose,
 };
 pub use depth::{
-    DepthExecution, DepthLevel, DepthStamp, DepthStatus, DepthSweep, DepthTape, DepthView,
+    BestQuote, DepthExecution, DepthLevel, DepthStamp, DepthStatus, DepthSweep, DepthTape,
+    DepthView, StampedDepthLevel,
 };
 pub use directional::{directional_movement, DirectionalMovement};
 pub use dividend::{
@@ -190,7 +191,8 @@ pub use screen::{
 pub use sector::{Classification, Heatmap, HeatmapComparison, HeatmapListing, SectorGroup};
 pub use stochastic::{stochastic_oscillator, StochasticValue};
 pub use tick_bars::{
-    FlowVolume, FootprintBar, FootprintLevel, PriceProfile, ProfileArea, ProfileLevel, TickBar,
+    AggressorSide, FlowVolume, FootprintBar, FootprintLevel, PriceProfile, ProfileArea,
+    ProfileLevel, TickBar, TradeClassification, TradeClassificationConfig, TradeSideBasis,
     TradeTape, TradeWindow,
 };
 pub use timeframe::{

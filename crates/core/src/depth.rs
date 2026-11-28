@@ -72,8 +72,122 @@ struct Frame {
     levels: Vec<(Side, DepthLevel)>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StampedDepthLevel {
+    pub price: i64,
+    pub stamp: DepthStamp,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BestQuote {
+    pub stamp: DepthStamp,
+    pub status: DepthStatus,
+    pub bid: Option<StampedDepthLevel>,
+    pub ask: Option<StampedDepthLevel>,
+}
+
+struct DepthBook {
+    status: DepthStatus,
+    received: Option<DepthStamp>,
+    snapshot: Option<DepthStamp>,
+    bids: BTreeMap<i64, (i64, DepthStamp)>,
+    asks: BTreeMap<i64, (i64, DepthStamp)>,
+}
+
+impl DepthBook {
+    fn new() -> Self {
+        Self {
+            status: DepthStatus::NoObservation,
+            received: None,
+            snapshot: None,
+            bids: BTreeMap::new(),
+            asks: BTreeMap::new(),
+        }
+    }
+
+    fn apply(&mut self, frame: &Frame) {
+        let previous = self.received.replace(frame.stamp);
+        if frame.snapshot {
+            self.snapshot = Some(frame.stamp);
+            self.status = DepthStatus::Synchronized;
+            self.bids.clear();
+            self.asks.clear();
+        } else if self.status != DepthStatus::Synchronized {
+            if self.status == DepthStatus::NoObservation {
+                self.status = DepthStatus::AwaitingSnapshot;
+            }
+            return;
+        } else if let Some(expected) = previous
+            .and_then(|stamp| stamp.sequence.checked_add(1))
+            .filter(|expected| *expected != frame.stamp.sequence)
+        {
+            self.status = DepthStatus::SequenceGap {
+                expected,
+                received: frame.stamp.sequence,
+            };
+            return;
+        }
+        for &(side, DepthLevel { price, size }) in &frame.levels {
+            let levels = match side {
+                Side::Bid => &mut self.bids,
+                Side::Ask => &mut self.asks,
+            };
+            if size == 0 {
+                levels.remove(&price);
+            } else {
+                levels.insert(price, (size, frame.stamp));
+            }
+        }
+        if self
+            .bids
+            .last_key_value()
+            .zip(self.asks.first_key_value())
+            .is_some_and(|((bid, _), (ask, _))| bid > ask)
+        {
+            self.status = DepthStatus::Crossed {
+                sequence: frame.stamp.sequence,
+            };
+        }
+    }
+
+    fn quote(&self, stamp: DepthStamp) -> BestQuote {
+        let mut quote = BestQuote {
+            stamp,
+            status: self.status,
+            bid: None,
+            ask: None,
+        };
+        if self.status == DepthStatus::Synchronized {
+            let level = |(&price, &(_, stamp)): (&i64, &(i64, DepthStamp))| StampedDepthLevel {
+                price,
+                stamp,
+            };
+            quote.bid = self.bids.last_key_value().map(level);
+            quote.ask = self.asks.first_key_value().map(level);
+        }
+        quote
+    }
+
+    fn view(self) -> DepthView {
+        let mut view = DepthView {
+            status: self.status,
+            received: self.received,
+            snapshot: self.snapshot,
+            bids: Vec::new(),
+            asks: Vec::new(),
+        };
+        if self.status == DepthStatus::Synchronized {
+            let level = |(price, (size, _))| DepthLevel { price, size };
+            view.bids = self.bids.into_iter().rev().map(level).collect();
+            view.asks = self.asks.into_iter().map(level).collect();
+        }
+        view
+    }
+}
+
 /// A single instrument's normalized snapshots and atomic level updates.
 pub struct DepthTape {
+    instrument: Instrument,
     frames: Vec<Frame>,
     snapshots: Vec<usize>,
 }
@@ -193,7 +307,27 @@ impl DepthTape {
         if frames.is_empty() {
             return Err("Depth CSV contains no recorded frames.".into());
         }
-        Ok(Self { frames, snapshots })
+        Ok(Self {
+            instrument: instrument.clone(),
+            frames,
+            snapshots,
+        })
+    }
+
+    pub(crate) fn instrument(&self) -> &Instrument {
+        &self.instrument
+    }
+
+    pub(crate) fn quotes_before(&self, cutoff: i64) -> Vec<BestQuote> {
+        let mut book = DepthBook::new();
+        self.frames
+            .iter()
+            .take_while(|frame| frame.stamp.observed_at < cutoff)
+            .map(|frame| {
+                book.apply(frame);
+                book.quote(frame.stamp)
+            })
+            .collect()
     }
 
     pub fn checkpoints(&self) -> Vec<i64> {
@@ -269,62 +403,18 @@ impl DepthTape {
         let end = self
             .frames
             .partition_point(|f| f.stamp.observed_at <= known_at);
-        let mut view = DepthView {
-            status: DepthStatus::NoObservation,
-            received: end.checked_sub(1).map(|index| self.frames[index].stamp),
-            snapshot: None,
-            bids: Vec::new(),
-            asks: Vec::new(),
-        };
-        if end == 0 {
-            return Ok(view);
-        }
+        let mut book = DepthBook::new();
         let count = self.snapshots.partition_point(|index| *index < end);
         let Some(last_snapshot) = count.checked_sub(1) else {
-            view.status = DepthStatus::AwaitingSnapshot;
-            return Ok(view);
+            if let Some(frame) = end.checked_sub(1).map(|index| &self.frames[index]) {
+                book.apply(frame);
+            }
+            return Ok(book.view());
         };
         let start = self.snapshots[last_snapshot];
-        view.snapshot = Some(self.frames[start].stamp);
-        view.status = DepthStatus::Synchronized;
-        let mut bids = BTreeMap::new();
-        let mut asks = BTreeMap::new();
-        let mut previous = None;
         for frame in &self.frames[start..end] {
-            let sequence = frame.stamp.sequence;
-            if let Some(expected) = previous.and_then(|seq: u64| seq.checked_add(1)) {
-                if sequence != expected {
-                    view.status = DepthStatus::SequenceGap {
-                        expected,
-                        received: sequence,
-                    };
-                    return Ok(view);
-                }
-            }
-            for &(side, DepthLevel { price, size }) in &frame.levels {
-                let levels = match side {
-                    Side::Bid => &mut bids,
-                    Side::Ask => &mut asks,
-                };
-                if size == 0 {
-                    levels.remove(&price);
-                } else {
-                    levels.insert(price, size);
-                }
-            }
-            if bids
-                .last_key_value()
-                .zip(asks.first_key_value())
-                .is_some_and(|((bid, _), (ask, _))| bid > ask)
-            {
-                view.status = DepthStatus::Crossed { sequence };
-                return Ok(view);
-            }
-            previous = Some(sequence);
+            book.apply(frame);
         }
-        let level = |(price, size)| DepthLevel { price, size };
-        view.bids = bids.into_iter().rev().map(level).collect();
-        view.asks = asks.into_iter().map(level).collect();
-        Ok(view)
+        Ok(book.view())
     }
 }

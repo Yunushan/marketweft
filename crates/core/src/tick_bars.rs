@@ -5,8 +5,10 @@ use crate::{
 
 #[path = "footprint.rs"]
 mod footprint;
-use footprint::AggressorSide;
-pub use footprint::{FlowVolume, FootprintBar, FootprintLevel, TradeWindow};
+pub use footprint::{AggressorSide, FlowVolume, FootprintBar, FootprintLevel, TradeWindow};
+#[path = "trade_classification.rs"]
+mod trade_classification;
+pub use trade_classification::{TradeClassification, TradeClassificationConfig, TradeSideBasis};
 #[path = "price_profile.rs"]
 mod price_profile;
 pub use price_profile::{PriceProfile, ProfileArea, ProfileLevel};

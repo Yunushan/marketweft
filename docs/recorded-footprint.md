@@ -27,3 +27,13 @@ Late trades join the bucket of their execution once observed. Advancing only the
 Use a 60-second interval, a price increment of 0.5, an execution start of 1969-12-31T23:59:59Z, and an execution end of 1970-01-01T00:01:00Z. At knowledge 1970-01-01T00:01:00Z, the cumulative delta ends at −1. The first trade at a negative price belongs to the bin from −0.5 to 0. Advance knowledge by one second to include two late trades. The middle bucket reports 3 units of unknown volume, and the window's cumulative delta ends at 8.900001.
 
 The terminal reads the capture locally after its offline cache is ready. [Synthetic trade fixture](../crates/core/tests/fixtures/synthetic-footprint.csv).
+
+## Classify trade sides from recorded quotes
+
+Expand **Classify trade sides from recorded quotes** inside Recorded footprint. Load trade and [depth reports](recorded-depth.md) for the same instrument. The classification accepts the seven-field trade input above and the six-field form ending in `size`. Choose the execution window, independent knowledge time, and maximum quote age in seconds.
+
+Source-reported buy and sell labels take precedence. For an unknown trade, the calculation reconstructs the latest book observed strictly before its execution. Both best quotes must have an event time within the maximum age. The calculation compares the exact transaction price with the bid–ask midpoint. Above the midpoint is inferred as buy, below as sell, and a midpoint tie stays unknown. Locked quotes, missing or stale best quotes, sequence gaps, and crossed books leave the side unknown. The audit gives the reason and the original event and observation times for each available quote.
+
+Choose **Download classification audit** to retain the evidence and cutoffs. **Plot classified trades** sends the visible capture prefix to the footprint. Load new cutoffs in the classification and plot again to include later-observed rows.
+
+The NVDA demo includes a trade executed at 14:00:04 UTC and observed at 14:00:08 UTC. Rewind knowledge to 14:00:07 UTC and plot the seven observed trades for a cumulative delta of −4.500001. Advance knowledge to 14:00:13 UTC and plot again. The late trade uses the quote observed at 14:00:03 UTC, adding 5 buy units. The footprint reports cumulative delta of 0.499999 and unknown volume of 7.75. [Synthetic trades](../crates/core/tests/fixtures/synthetic-trade-classification.csv)

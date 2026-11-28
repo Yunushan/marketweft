@@ -5,6 +5,7 @@ import { downloadFile } from './download'
 import { fixed } from './fixed-point'
 import { Mark } from './Icons'
 import { PriceProfiles } from './PriceProfiles'
+import { TradeClassificationResearch } from './TradeClassificationResearch'
 import type { FootprintBar, FootprintQuery, MarketCore, TradeFlowVolume } from './market-core'
 import { utc } from './workspace'
 import type { Asset } from './workspace'
@@ -231,6 +232,13 @@ export function FootprintResearch({ core, asset, close }: { core: MarketCore; as
             </form>
           )}
           {problem && <p role="alert" className="warning">{problem}</p>}
+        </section>
+        <section className="side-card replay-panel">
+          <TradeClassificationResearch core={core} instrument={asset.id} plot={(csv, source, query) => {
+            const { from, through, known } = query
+            try { calculate({ csv, name: source }, { ...settings, from, through, known }) }
+            catch (cause) { setProblem(cause instanceof Error ? cause.message : 'Could not plot the classified trades.') }
+          }} />
         </section>
         {report && (
           <section className="side-card replay-panel replay-results" aria-labelledby="footprint-results">

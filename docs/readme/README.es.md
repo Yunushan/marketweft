@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.203.0 · 0BSD**
+**0.204.0 · 0BSD**
 
 **Idiomas de la documentación**
 
@@ -15,14 +15,14 @@
 
 MarketWeft es un terminal de investigación que prioriza el trabajo local para analistas, desarrolladores y operadores. Abre archivos OHLCV autorizados, dibuja velas y volumen, calcula SMA y EMA en punto fijo y guarda en IndexedDB la lista de seguimiento, el instrumento seleccionado y los indicadores. Funciona sin conexión tras almacenar los recursos. Los precios y volúmenes integrados son sintéticos y no requieren una cuenta.
 
-MarketWeft 0.203.0 simula qué cantidad de una orden puede ejecutarse con el libro de órdenes registrado en el momento elegido. MarketWeft 0.7.0 incorpora un filtro histórico por rentabilidad de precio con los datos disponibles en cada fecha. La reproducción por sesiones incluye desdoblamientos, dividendos en efectivo, composición del universo y exclusiones de cotización. El repositorio también ofrece un observador TypeScript de solo lectura para el servicio independiente trading-bot y un envoltorio Tauri experimental. Los proveedores de datos, las órdenes, los instaladores firmados y el alojamiento multiusuario siguen en la hoja de ruta.
+MarketWeft 0.204.0 clasifica operaciones registradas con cotizaciones anteriores y conserva la evidencia de cada lado inferido. MarketWeft 0.7.0 incorpora un filtro histórico por rentabilidad de precio con los datos disponibles en cada fecha. La reproducción por sesiones incluye desdoblamientos, dividendos en efectivo, composición del universo y exclusiones de cotización. El repositorio también ofrece un observador TypeScript de solo lectura para el servicio independiente trading-bot y un envoltorio Tauri experimental. Los proveedores de datos, las órdenes, los instaladores firmados y el alojamiento multiusuario siguen en la hoja de ruta.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Recorded depth sweeps](../recorded-depth.md#simulate-a-depth-sweep)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Recorded trade classification](../recorded-footprint.md#classify-trade-sides-from-recorded-quotes)
 
 <!-- section:02 -->
 ## Iniciar el terminal portátil
 
-Descarga browser-terminal-attempt-N de una ejecución satisfactoria de GitHub. Extrae MarketWeft-browser-0.203.0.zip, deja dist/ junto a serve-terminal.mjs y ejecuta el comando en esa carpeta. Abre http://127.0.0.1:4173/ en un navegador actual con WebAssembly, Canvas, BigInt e IndexedDB. Usa Node.js 22.12 o posterior. No hace falta npm. Espera a Offline ready antes de desconectarte.
+Descarga browser-terminal-attempt-N de una ejecución satisfactoria de GitHub. Extrae MarketWeft-browser-0.204.0.zip, deja dist/ junto a serve-terminal.mjs y ejecuta el comando en esa carpeta. Abre http://127.0.0.1:4173/ en un navegador actual con WebAssembly, Canvas, BigInt e IndexedDB. Usa Node.js 22.12 o posterior. No hace falta npm. Espera a Offline ready antes de desconectarte.
 
 ```sh
 node serve-terminal.mjs

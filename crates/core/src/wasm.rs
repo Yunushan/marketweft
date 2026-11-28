@@ -116,6 +116,11 @@ pub extern "C" fn mw_recorded_backtest_input(len: usize) -> *mut u8 {
     )
 }
 
+#[no_mangle]
+pub extern "C" fn mw_trade_classification_input(len: usize) -> *mut u8 {
+    allocate_input(len, 2 * MAX_INPUT_BYTES + 256)
+}
+
 fn allocate_input(len: usize, limit: usize) -> *mut u8 {
     if len > limit {
         return std::ptr::null_mut();
@@ -3381,6 +3386,83 @@ pub extern "C" fn mw_footprint_window() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_classify_recorded_trades(trade_bytes: usize, max_age: u32) -> u32 {
+    use crate::{AggressorSide, DepthTape, TradeClassificationConfig, TradeSideBasis, TradeTape};
+    use std::fmt::Write;
+    process(|input| {
+        let (instrument, rest) = recorded_source(input)?;
+        let mut fields = rest.splitn(4, '\n');
+        let mut cutoff = || {
+            fields
+                .next()
+                .and_then(exact_utc)
+                .ok_or("Use exact UTC trade cutoffs.")
+        };
+        let config = TradeClassificationConfig {
+            from_at: cutoff()?,
+            through_at: cutoff()?,
+            known_at: cutoff()?,
+            quote_max_age_seconds: max_age,
+        };
+        let csvs = fields.next().ok_or("Supply the trade and depth CSVs.")?;
+        let (trades, depth) = csvs
+            .split_at_checked(trade_bytes)
+            .ok_or("Invalid trade CSV length.")?;
+        let depth = DepthTape::parse(depth, &instrument)?;
+        let trades = TradeTape::parse_execution(trades, &instrument)?;
+        let mut text = String::new();
+        for row in trades.classify_trades(&depth, config)? {
+            let side = match row.side {
+                AggressorSide::Buy => "buy",
+                AggressorSide::Sell => "sell",
+                AggressorSide::Unknown => "unknown",
+            };
+            let basis = match row.basis {
+                TradeSideBasis::Reported => "reported",
+                TradeSideBasis::QuoteMidpoint => "quote-midpoint",
+                TradeSideBasis::AtMidpoint => "at-midpoint",
+                TradeSideBasis::NoDepth => "no-depth",
+                TradeSideBasis::UnsynchronizedDepth => "unsynchronized-depth",
+                TradeSideBasis::IncompleteQuote => "incomplete-quote",
+                TradeSideBasis::StaleQuote => "stale-quote",
+                TradeSideBasis::LockedQuote => "locked-quote",
+            };
+            writeln!(
+                &mut text,
+                "T\t{}\t{}\t{}\t{}\t{}\t{side}\t{basis}",
+                row.executed_at, row.observed_at, row.sequence, row.price, row.size
+            )
+            .unwrap();
+            if let Some(quote) = row.quote {
+                writeln!(
+                    &mut text,
+                    "Q\t{}\t{}\t{}\t{}",
+                    quote.stamp.sequence,
+                    quote.stamp.event_at,
+                    quote.stamp.observed_at,
+                    depth_status_text(quote.status)
+                )
+                .unwrap();
+                for (tag, level) in [("B", quote.bid), ("A", quote.ask)] {
+                    if let Some(level) = level {
+                        writeln!(
+                            &mut text,
+                            "{tag}\t{}\t{}\t{}\t{}",
+                            level.stamp.sequence,
+                            level.stamp.event_at,
+                            level.stamp.observed_at,
+                            level.price
+                        )
+                        .unwrap();
+                    }
+                }
+            }
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_trade_footprint(bucket_seconds: u32) -> u32 {
     use std::fmt::Write;
     process(|input| {
@@ -3590,17 +3672,8 @@ fn encode_depth_evidence(
     received: Option<crate::DepthStamp>,
     snapshot: Option<crate::DepthStamp>,
 ) -> String {
-    use crate::DepthStatus;
     use std::fmt::Write;
-    let mut text = match status {
-        DepthStatus::NoObservation => String::from("no-observation"),
-        DepthStatus::AwaitingSnapshot => String::from("awaiting-snapshot"),
-        DepthStatus::Synchronized => String::from("synchronized"),
-        DepthStatus::SequenceGap { expected, received } => {
-            format!("sequence-gap\t{expected}\t{received}")
-        }
-        DepthStatus::Crossed { sequence } => format!("crossed\t{sequence}"),
-    };
+    let mut text = depth_status_text(status);
     text.push('\n');
     for (tag, stamp) in [('R', received), ('S', snapshot)] {
         if let Some(stamp) = stamp {
@@ -3613,6 +3686,19 @@ fn encode_depth_evidence(
         }
     }
     text
+}
+
+fn depth_status_text(status: crate::DepthStatus) -> String {
+    use crate::DepthStatus;
+    match status {
+        DepthStatus::NoObservation => String::from("no-observation"),
+        DepthStatus::AwaitingSnapshot => String::from("awaiting-snapshot"),
+        DepthStatus::Synchronized => String::from("synchronized"),
+        DepthStatus::SequenceGap { expected, received } => {
+            format!("sequence-gap\t{expected}\t{received}")
+        }
+        DepthStatus::Crossed { sequence } => format!("crossed\t{sequence}"),
+    }
 }
 
 #[no_mangle]

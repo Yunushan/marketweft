@@ -4,6 +4,57 @@ import { catalogContents } from './catalog-fixtures.mjs'
 
 const utc = seconds => new Date(seconds * 1000).toISOString().replace('.000Z', 'Z')
 
+test('trade-side classification retains quote evidence and plots only the known trade set offline', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  const original = await catalogContents(page)
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Recorded footprint' }).click()
+  await page.getByText('Classify trade sides from recorded quotes', { exact: true }).click()
+  const view = page.getByRole('region', { name: 'Recorded trade classification' })
+  await view.getByRole('button', { name: 'Load classification demo' }).click()
+  const classified = view.getByRole('table', { name: 'Classified trades' })
+  const row = sequence => classified.getByRole('rowheader', { name: sequence, exact: true }).locator('..')
+  await expect(classified.locator('tbody tr')).toHaveCount(12)
+  await expect(row('9007199254740995')).toContainText('Inferred from midpoint')
+  await expect(row('9007199254740995')).toContainText('9007199254740993')
+  await expect(row('9007199254740996')).toContainText('At midpoint')
+  await expect(row('9007199254740998')).toContainText('Unsynchronized depth')
+  await expect(row('9007199254740999')).toContainText('Source reported')
+  await expect(row('9007199254741002')).toContainText('Locked quote')
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await view.getByRole('button', { name: 'Download classification audit' }).click()
+    const saved = await pending
+    expect(saved.suggestedFilename()).toBe('recorded-trade-classification.csv')
+    return readFile(await saved.path(), 'utf8')
+  }
+  const originalAudit = await download()
+  expect(originalAudit).toContain(',100.25,9007199254740994,2025-06-02T14:00:00Z,2025-06-02T14:00:03Z')
+  expect(originalAudit).toContain(',unsynchronized-depth,sequence-gap,9007199254740995,9007199254740996,')
+  const run = async known => {
+    await view.getByLabel('Classification known through (UTC)').fill('2025-06-02T14:00:' + known + 'Z')
+    await view.getByRole('button', { name: 'Classify trades', exact: true }).click()
+  }
+  await run('07')
+  await expect(classified.locator('tbody tr')).toHaveCount(7)
+  await expect(row('9007199254741000')).toHaveCount(0)
+  const plot = view.getByRole('button', { name: 'Plot classified trades' })
+  await plot.click()
+  const footprint = page.getByRole('region', { name: 'Footprint and cumulative delta' })
+  const value = name => footprint.getByText(name, { exact: true }).locator('..').getByRole('definition')
+  await expect(value('Cumulative delta')).toHaveText('-4.500001')
+  await run('13')
+  expect(await download()).toBe(originalAudit)
+  await plot.click()
+  await expect(value('Cumulative delta')).toHaveText('0.499999')
+  await expect(value('Unknown volume')).toHaveText('7.75')
+  await page.setViewportSize({ width: 360, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360)
+  expect(await catalogContents(page)).toEqual(original)
+})
+
 test('recorded footprint reconciles late trades, unknown volume and exact cumulative delta offline', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()

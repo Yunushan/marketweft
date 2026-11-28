@@ -2,10 +2,10 @@
 
 The TypeScript SDK evaluates versioned time-series formulas against user-supplied OHLCV. It uses the same checked-in Rust WebAssembly module as the terminal.
 
-Download `marketweft-research-0.7.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+Download `marketweft-research-0.8.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-npm install --offline ./marketweft-research-0.7.0.tgz
+npm install --offline ./marketweft-research-0.8.0.tgz
 ```
 
 ```js
@@ -27,6 +27,8 @@ For point-in-time universe screening, call `universeScreen` with the membership 
 Use `compareUniverseRanks` with a shared baseline and separate effective and known cutoffs to compare ranks. The result carries both snapshots’ membership and close evidence, exact `bigint` values and rank movement. [Rank comparison example](../../docs/research-universe-screen.md#compare-rank-snapshots).
 
 Call `recordedDepthSweep(instrument, csv, knownAt, side, size, limit?)` to estimate an immediate buy or sell using the displayed depth at an exact UTC cutoff. Pass size and limit as decimal strings. The result carries exact snapshot and last-received sequence IDs. Its `execution` is null while the book is unsynchronized. Quantities and average price use bigint millionths, and signed notional uses bigint trillionths. [Depth sweep example](../../docs/recorded-depth.md#simulate-a-depth-sweep).
+
+Call `classifyRecordedTrades(instrument, trades, depth, { from, through, known, maxQuoteAgeSeconds })` with the original trade and depth CSVs. It returns observed trades in capture order with exact bigint prices, sizes and sequence IDs. Each row records whether its side came from the source or a quote-based inference. The quote evidence includes separate observation and event times for the best bid and ask. [Trade classification](../../docs/recorded-footprint.md#classify-trade-sides-from-recorded-quotes).
 
 For financial filings, call `financialIndex(filings, caps)` to list issuers and suggested valuation times. Call `financialSnapshot(filings, caps, issuer, valuationAt, knownAt)` with the original CSV strings and exact UTC cutoff strings. The result includes the annual valuation, the selected quarterly vintages and the trailing flow values in `bigint` millionths or `null`. [Financial filings](../../docs/financial-statements.md#quarterly-filings-and-trailing-twelve-months).
 

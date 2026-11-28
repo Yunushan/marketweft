@@ -3,7 +3,7 @@ use crate::{history::valid_second, MAX_TICKS};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum AggressorSide {
+pub enum AggressorSide {
     Buy,
     Sell,
     Unknown,
