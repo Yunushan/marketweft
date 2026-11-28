@@ -17,7 +17,7 @@ import { ChartExport } from './ChartExport'
 import type { AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
-import { dateLabel, price, timeLabel, volume } from './workspace'
+import { dateLabel, price, timeLabel, utc, volume } from './workspace'
 import type { Asset } from './workspace'
 import type { Bar, GannFanLevel, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, RegressionChannel, TickBar, VolumeBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
@@ -128,6 +128,7 @@ function sameDrawing(first?: MeasuredDrawing, second?: MeasuredDrawing) {
 function drawStudyLine(
   ctx: CanvasRenderingContext2D, series: Series, start: number, end: number,
   x: (index: number) => number, y: (value: number) => number, color: string, radius: number,
+  stepped = false,
 ) {
   ctx.beginPath()
   ctx.lineWidth = 1.5
@@ -141,7 +142,10 @@ function drawStudyLine(
       points = 0
     } else {
       if (points === 0) ctx.moveTo(x(index), y(value))
-      else ctx.lineTo(x(index), y(value))
+      else {
+        if (stepped && series[index - 1] !== value) ctx.lineTo(x(index), y(series[index - 1]!))
+        ctx.lineTo(x(index), y(value))
+      }
       points++
     }
   }
@@ -186,7 +190,7 @@ function draw(
   pointFigure: PointFigureLayout | undefined,
   activePrice: number | undefined,
   studies: PlottedStudy[],
-  priceLines: readonly { color: string; series: Series }[],
+  priceLines: readonly { color: string; series: Series; stepped?: boolean }[],
   activeStudyValues: (number | null)[][],
 ): Plot | undefined {
   const ctx = canvas.getContext('2d')
@@ -706,8 +710,8 @@ function draw(
     }
     ctx.stroke()
   }
-  for (const { color, series } of derivedAxis ? [] : priceLines) {
-    drawStudyLine(ctx, series, start, view.end, x, y, color, 2)
+  for (const { color, series, stepped } of derivedAxis ? [] : priceLines) {
+    drawStudyLine(ctx, series, start, view.end, x, y, color, 2, stepped)
   }
   if (!derivedAxis) {
     const last = bars[view.end - 1]
@@ -1130,7 +1134,7 @@ export function Chart({
   const priceStudies = useMemo(() => studies.filter(isPriceStudy), [studies])
   const plottedPriceLines = useMemo(() => [
     ...priceStudies.flatMap(study => study.lines.map(line => ({
-      color: line.color, series: projectStudyLine(line.series, sourceIndices),
+      color: line.color, series: projectStudyLine(line.series, sourceIndices), stepped: line.stepped,
     }))),
     ...(anchoredVwaps ?? []).map(line => ({
       color: '#73d4db', series: projectStudyLine(line.values.map(point => point?.price ?? null), sourceIndices),
@@ -1544,14 +1548,16 @@ export function Chart({
           })}
         </div>
       })}
-      {priceStudies.map(({ kind, heading, periods, lines }) => {
-        const title = heading + ' ' + periods.join('/')
+      {priceStudies.map(({ kind, heading, periods, lines, sourceAt }) => {
+        const title = periods.length ? heading + ' ' + periods.join('/') : heading
+        const priorCloseAt = sourceAt?.[sourceIndex]
         return <div key={kind} className="ohlc chart-overlay-values" role="group" aria-label={STUDIES[kind].label}>
           {lines.length > 1 && <span><small>{title}</small></span>}
           {lines.map(({ key, label, series }) => {
             const value = series[sourceIndex]
             return <span key={key ?? kind}><small>{label ?? title}</small> {value == null ? '—' : fixed(value, 6)}</span>
           })}
+          {sourceAt && <span><small>Prior close UTC</small> {priorCloseAt == null ? '—' : utc(priorCloseAt)}</span>}
         </div>
       })}
       <div ref={zone} className={picking || annotationPicker ? 'canvas-zone picking-endpoint' : 'canvas-zone'}

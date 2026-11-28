@@ -1,5 +1,5 @@
 import { validIndicatorPeriod } from './market-core'
-import type { AroonValue, Bar, BollingerMeasures, CumulativeVolume, MarketCore, PriceBand } from './market-core'
+import type { AroonValue, Bar, BollingerMeasures, CumulativeVolume, FloorPivotLevels, MarketCore, PriceBand } from './market-core'
 import type { ExportOverlay } from './chart-export'
 
 export const STUDIES = {
@@ -31,6 +31,7 @@ export const STUDIES = {
   trix: { name: 'TRIX', label: 'TRIX', minPeriod: 1, defaultPeriod: 30, color: '#dfba79' },
   vortex: { name: 'Vortex', label: 'Vortex Indicator', minPeriod: 1, defaultPeriod: 14 },
   bop: { name: 'Balance of Power', label: 'Balance of Power', color: '#b5a2e5' },
+  daily_pivots: { name: 'Daily Floor Pivots', label: 'Daily Floor Pivots' },
   elder_force: { name: 'Elder Force Index', label: 'Elder Force Index', minPeriod: 1, defaultPeriod: 13, color: '#e5b57f' },
   chaikin_volatility: { name: 'Chaikin Volatility', label: 'Chaikin Volatility', minPeriod: 1, defaultPeriod: 10,
     periodLabel: 'Chaikin Volatility smoothing', color: '#a2cee5' },
@@ -91,10 +92,11 @@ type StudyLine<Value> = {
   key?: string
   color: string
   series: Value[]
+  stepped?: boolean
 }
 export type PanelLine = StudyLine<StudyValue> & { histogram?: { negativeColor: string } }
 export type PanelStudy = {
-  kind: Exclude<StudyKind, BandKind | PriceAverageKind>
+  kind: Exclude<StudyKind, BandKind | PriceAverageKind | 'daily_pivots'>
   periods: number[]
   unit?: 'price' | 'volume' | 'index'
   guides?: number[]
@@ -102,11 +104,12 @@ export type PanelStudy = {
   lines: PanelLine[]
 }
 export type PriceStudy = {
-  kind: BandKind | PriceAverageKind
+  kind: BandKind | PriceAverageKind | 'daily_pivots'
   periods: number[]
   heading: string
   priceOverlay: true
   lines: StudyLine<bigint | null>[]
+  sourceAt?: (number | null)[]
 }
 export type StudyValues = PanelStudy | PriceStudy
 const BAND_LINES = [
@@ -133,7 +136,15 @@ function priceBands(kind: BandKind, periods: number[], bands: (PriceBand | null)
   }
 }
 
-export function computeStudies(core: MarketCore, settings: StudySet | undefined, bars: readonly Bar[]): StudyValues[] {
+const PIVOT_LINES: readonly { field: Exclude<keyof FloorPivotLevels, 'priorCloseAt'>; key: string; label: string; color: string }[] = [
+  { field: 'pivot', key: 'pivot', label: 'P', color: '#e6bb76' },
+  { field: 'supportOne', key: 'support_1', label: 'S1', color: '#7dbaa9' },
+  { field: 'supportTwo', key: 'support_2', label: 'S2', color: '#56a08b' },
+  { field: 'resistanceOne', key: 'resistance_1', label: 'R1', color: '#d7909f' },
+  { field: 'resistanceTwo', key: 'resistance_2', label: 'R2', color: '#b9778d' },
+]
+
+export function computeStudies(core: MarketCore, settings: StudySet | undefined, bars: readonly Bar[], sourceBars = bars): StudyValues[] {
   const measuresByPeriod = new Map<number, BollingerMeasures[]>()
   const aroonByPeriod = new Map<number, (AroonValue | null)[]>()
   let cumulative: CumulativeVolume[] | undefined
@@ -150,6 +161,14 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     if (kind === 'bop') return [{ kind, periods: [], unit: 'index', lines: [
       { color: STUDIES.bop.color, series: core.balanceOfPower(bars) },
     ] }]
+    if (kind === 'daily_pivots') {
+      const levels = core.dailyFloorPivots(sourceBars, bars.map(bar => bar.time))
+      return [{ kind, periods: [], heading: STUDIES[kind].name, priceOverlay: true,
+        sourceAt: levels.map(level => level?.priorCloseAt ?? null),
+        lines: PIVOT_LINES.map(({ field, key, label, color }) => ({ key, label, color, stepped: true,
+          series: levels.map(level => level?.[field] ?? null) })),
+      }]
+    }
     const { period = STUDIES[kind].defaultPeriod } = study
     if (kind === 'bb') return [priceBands(kind, [period], core.bollingerBands(period, bars))]
     if (kind === 'donchian') return [priceBands(kind, [period], core.donchianChannels(period, bars))]

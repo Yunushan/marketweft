@@ -4284,6 +4284,44 @@ fn encode_wide_indicator_values(values: Vec<Option<i128>>) -> Vec<u8> {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_daily_floor_pivots(source_count: usize) -> u32 {
+    process(|input| {
+        if source_count > MAX_BARS {
+            return Err("Daily pivots support at most 100,000 source bars.".into());
+        }
+        let (source, times) = input
+            .split_at_checked(source_count * 48)
+            .ok_or("Incomplete daily pivot source bars.")?;
+        let (time_rows, trailing) = times.as_chunks::<8>();
+        if !trailing.is_empty() || time_rows.len() > MAX_BARS {
+            return Err("Invalid daily pivot query time length.".into());
+        }
+        let queries: Vec<_> = time_rows
+            .iter()
+            .map(|time| i64::from_le_bytes(*time))
+            .collect();
+        let results = crate::daily_floor_pivots(&decode_bars(source)?, &queries)?;
+        let mut bytes = Vec::with_capacity(results.len() * 48);
+        for row in results {
+            let fields = row.map_or([i64::MIN, 0, 0, 0, 0, 0], |levels| {
+                [
+                    levels.prior_close_at,
+                    levels.pivot,
+                    levels.support_one,
+                    levels.support_two,
+                    levels.resistance_one,
+                    levels.resistance_two,
+                ]
+            });
+            for value in fields {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_elder_force_index(period: usize) -> u32 {
     process(|input| {
         crate::elder_force_index(period, &decode_bars(input)?).map(encode_wide_indicator_values)

@@ -1,4 +1,4 @@
-MarketWeft 0.224.0 · Third-party notices
+MarketWeft 0.225.0 · Third-party notices
 
 
 @tauri-apps/api 2.12.5

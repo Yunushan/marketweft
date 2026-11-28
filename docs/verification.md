@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.225.0 · Daily floor pivots
+
+- Rust and Wasm verify each signed level, midnight and pre-epoch boundaries, dates without observations, a missing prior date, exact rounding and prices beyond the source bound.
+- Offline Chromium compares recorded and rolled panes, measures the vertical price step, checks the exact analysis CSV and restores workspace versions 59 and 60.
+
+[Daily floor pivots](chart-workspace.md#daily-floor-pivots)
+
 ## 0.224.0 · Elder Force Index and Chaikin Volatility
 
 - Rust and Wasm verify observed-bar warm-up, exact signed ratios, wide force values and percentages, zero volume, and a missing zero baseline. Rust checks the 100,000-bar bound.

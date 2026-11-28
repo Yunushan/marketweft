@@ -83,6 +83,21 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('daily floor pivots use only the preceding observed UTC day and exact signed levels', () => {
+  const bars = [[-30, 0, -6, -4], [-1, 3, -4, 0], [0, 10, 2, 8], [43200, 12, 1, 11], [259200, 110, 90, 95]]
+    .map(([time, high, low, close]) => ({ time, high, low, close, open: close, volume: 1 }));
+  const early = { priorCloseAt: -1, pivot: -1000000n, supportOne: -5000000n, supportTwo: -10000000n,
+    resistanceOne: 4000000n, resistanceTwo: 8000000n };
+  const later = { priorCloseAt: 43200, pivot: 8000000n, supportOne: 4000000n, supportTwo: -3000000n,
+    resistanceOne: 15000000n, resistanceTwo: 19000000n };
+  assert.deepEqual(core.dailyFloorPivots(bars, [-1, 0, 10, 86400, 172800, 259200]),
+    [null, early, early, later, later, later]);
+  assert.equal(core.dailyFloorPivots(bars, [345600])[0].pivot, 98333333n);
+  assert.throws(() => core.dailyFloorPivots(bars, [86400, 0]), /ordered in-range UTC/);
+  const exact = [{ time: 0, open: 0, high: 1, low: 0, close: 0, volume: 1 }];
+  assert.equal(core.dailyFloorPivots(exact, [86400])[0].resistanceOne, 666667n);
+});
+
 test('Elder Force Index and Chaikin Volatility keep signed, wide and unavailable values in Wasm', () => {
   const bars = [[0, 1, 2, 0, 1, 1], [60, 1, 4, 0, 3, 2], [120, 3, 4, -2, -1, 1],
     [300, -1, 3, -1, 2, 3], [360, 2, 3, 1, 2, 0], [420, 2, 5, 1, 2, 2]].map(

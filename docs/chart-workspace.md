@@ -414,6 +414,14 @@ Each pane uses the bars available to its selected history and timeframe. Both st
 
 Both studies use observed bars and preserve separate pane settings. Research CSV names include the configured periods, such as `elder_force_13` and `chaikin_volatility_10_10`. Their settings use workspace backup version 59.
 
+### Daily floor pivots
+
+Enable **Daily Floor Pivots** independently in either pane’s indicator settings. The five stepped lines for each bar use the high, low, and final observed close of the latest earlier UTC date with source observations. This carries the previous observed day's levels across weekends and other gaps. The first observed date has no levels. Observations from the current UTC day cannot change its levels. Rolled panes read the same original source bars and use each displayed bar’s opening UTC date.
+
+With high `H`, low `L` and close `C`, the pivot is `P = (H + L + C) / 3`. The support levels are `S1 = 2P − H` and `S2 = P − (H − L)`. The resistance levels are `R1 = 2P − L` and `R2 = P + (H − L)`. Each result is rounded once to the nearest price millionth with ties away from zero. [Pivot Points Standard formulas](https://www.tradingview.com/support/solutions/43000521824-pivot-points-standard/).
+
+The active bar readout shows the timestamp of the source close. Research CSV gives the five signed prices in `daily_pivots_pivot`, `daily_pivots_support_1`, `daily_pivots_support_2`, `daily_pivots_resistance_1` and `daily_pivots_resistance_2`. Workspace backup version 60 preserves the pane settings.
+
 ## Monthly returns calendar
 
 Open **Monthly returns calendar** from the workspace for the selected primary instrument. Choose up to 30 consecutive UTC calendar years and set an inclusive **Observed through (UTC)** timestamp. The calendar uses the bar timestamps and closes in the selected history. Each cell compares the last close through that cutoff with the last close in the immediately preceding UTC month, including the December observation for the first displayed January when available.

@@ -24,6 +24,7 @@ mod dividend;
 mod donchian;
 mod drawing;
 mod financial_wire;
+mod floor_pivots;
 mod force_and_volatility;
 mod formula;
 mod formula_walk;
@@ -123,6 +124,7 @@ pub use drawing::{
     gann_fan_levels, measure_drawing, measure_risk_reward, DrawingEndpoint, DrawingMeasurement,
     GannFanLevel, RiskRewardMeasurement, RiskRewardSide,
 };
+pub use floor_pivots::{daily_floor_pivots, FloorPivotLevels};
 pub use force_and_volatility::{chaikin_volatility, elder_force_index};
 pub use formula::{Formula, FormulaFunctionDefinition, FormulaLibrary, FORMULA_VERSION};
 pub use formula_walk::{

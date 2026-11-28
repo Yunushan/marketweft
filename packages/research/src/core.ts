@@ -1192,6 +1192,8 @@ export type AnchoredVwapPoint = { price: bigint; cumulativeVolume: bigint };
 export type RiskRewardSide = 'long' | 'short';
 export type GannFanLevel = { priceUnits: number; timeUnits: number; ticks: bigint };
 export type VortexValue = { positive: bigint; negative: bigint };
+export type FloorPivotLevels = { priorCloseAt: number; pivot: bigint; supportOne: bigint; supportTwo: bigint;
+  resistanceOne: bigint; resistanceTwo: bigint };
 export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; rewardPerRiskMicros: bigint };
 
 export type RegressionChannel = { observations: number; startTicks: bigint; endTicks: bigint; residualTicks: bigint };
@@ -1247,6 +1249,7 @@ export interface MarketCore {
   balanceOfPower(bars: readonly Bar[]): (bigint | null)[];
   elderForceIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   chaikinVolatility(smoothing: number, comparison: number, bars: readonly Bar[]): (bigint | null)[];
+  dailyFloorPivots(bars: readonly Bar[], queryTimes: readonly number[]): (FloorPivotLevels | null)[];
   linearlyWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   doubleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   tripleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1379,6 +1382,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_balance_of_power(): number;
   mw_elder_force_index(period: number): number;
   mw_chaikin_volatility(smoothing: number, comparison: number): number;
+  mw_daily_floor_pivots(sourceCount: number): number;
   mw_measure_risk_reward(side: number, entry: bigint, stop: bigint, target: bigint): number;
   mw_indicator(kind: number, period: number): number;
   mw_atr(period: number): number;
@@ -1911,9 +1915,10 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     return Array.from({ length: out.byteLength / 48 }, (_, i) => decodeBar(out, i * 48));
   }
 
-  function putIndicatorBars(bars: readonly Bar[], operation: string) {
-    const dest = input(bars.length * 48);
+  function putIndicatorBars(bars: readonly Bar[], operation: string, extraBytes = 0) {
+    const dest = input(bars.length * 48 + extraBytes);
     for (const [index, bar] of bars.entries()) putBar(dest, index * 48, bar, operation);
+    return dest;
   }
 
   function observedIndicator(
@@ -2597,6 +2602,24 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
       return readWideIndicator(output(api.mw_trix(period)), bars.length);
+    },
+    dailyFloorPivots(bars, queryTimes) {
+      if (bars.length > 100_000 || queryTimes.length > 100_000 || !queryTimes.every(Number.isSafeInteger)) {
+        throw new Error('Daily pivots require up to 100,000 bars and ordered whole UTC seconds.');
+      }
+      const data = putIndicatorBars(bars, 'Daily floor pivots', queryTimes.length * 8);
+      const timesStart = bars.length * 48;
+      queryTimes.forEach((time, index) => data.setBigInt64(timesStart + index * 8, BigInt(time), true));
+      const rows = output(api.mw_daily_floor_pivots(bars.length));
+      if (rows.byteLength !== queryTimes.length * 48) throw new Error('Invalid daily pivot result size.');
+      return Array.from({ length: queryTimes.length }, (_, index) => {
+        const offset = index * 48;
+        const priorCloseAt = rows.getBigInt64(offset, true);
+        if (priorCloseAt === MISSING) return null;
+        return { priorCloseAt: Number(priorCloseAt), pivot: rows.getBigInt64(offset + 8, true),
+          supportOne: rows.getBigInt64(offset + 16, true), supportTwo: rows.getBigInt64(offset + 24, true),
+          resistanceOne: rows.getBigInt64(offset + 32, true), resistanceTwo: rows.getBigInt64(offset + 40, true) };
+      });
     },
     elderForceIndex(period, bars) {
       validateIndicatorHistory(period, bars.length);

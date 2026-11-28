@@ -390,8 +390,8 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
   const ema = useMemo(() => activeEma && periods && display.bars.length ?
     core.indicator('ema', periods.ema, display.bars) : [], [core, activeEma, periods?.ema, display.bars])
 
-  const studies = useMemo(() => display.bars.length ? computeStudies(core, studySettings, display.bars) : [],
-    [core, studySettings, display.bars])
+  const studies = useMemo(() => display.bars.length ? computeStudies(core, studySettings, display.bars, sourceBars) : [],
+    [core, studySettings, display.bars, sourceBars])
 
   async function apply() {
     if (busy) return
