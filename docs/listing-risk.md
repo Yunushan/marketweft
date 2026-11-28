@@ -31,3 +31,27 @@ Supply comparable price series on a consistent currency and adjustment basis. Th
 Use A and B, a baseline of 2025-06-02T14:00:00Z, an effective end of 14:06 UTC, a 60-second grid and three returns per window. At knowledge 14:06 UTC the window ending at 14:03 has one paired return out of three, so its correlation is blank. At 14:07 UTC a late B close supplies two adjacent returns. The window then has three pairs, per-interval volatility of approximately 5.773503% for both listings and a correlation of −1. At 14:08 UTC the listing A removal is observed, leaving one pair in the last window. Rewinding knowledge restores the earlier CSV.
 
 The app runs the study offline after its cache is ready. [Correlated portfolio scenarios](portfolio-scenarios.md) use the same aligned close inputs to resample whole return vectors. [Synthetic membership fixture](../crates/core/tests/fixtures/synthetic-listing-risk-membership.csv) · [Synthetic price fixture](../crates/core/tests/fixtures/synthetic-listing-risk-prices.csv).
+
+## Downside risk SDKs
+
+Use either SDK with the same membership and close reports as the terminal. Set a grid start, grid end and independent knowledge cutoff in whole-second UTC. Give two distinct listing IDs, the interval length, the number of intervals in each window and the volatility scale. The result echoes the applied settings as UTC seconds and lists windows in chronological order. Volatility and downside deviation are fractional returns. A missing metric is `None` in Python and `null` in TypeScript.
+
+```python
+snapshot = engine.listing_downside_risk_as_of(
+    membership_csv, closes_csv, "A", "B",
+    from_at="2025-06-02T14:00:00Z", through_at="2025-06-02T14:06:00Z",
+    known_at="2025-06-02T14:07:00Z", interval_seconds=60, window_periods=3,
+)
+assert snapshot.rows[0].right_loss_returns == 2
+```
+
+```ts
+const snapshot = engine.listingDownsideRiskAsOf(membershipCsv, closesCsv, 'A', 'B', {
+  from: '2025-06-02T14:00:00Z', through: '2025-06-02T14:06:00Z',
+  known: '2025-06-02T14:07:00Z', intervalSeconds: 60, windowPeriods: 3, volatilityPeriods: 1,
+})
+```
+
+The native `marketweft-research listing-downside-risk` command accepts UTF-8 input on standard input. Separate the protocol name `marketweft-listing-downside-risk`, version `1` and membership CSV byte length with tabs on the first line. Follow with a line each for the start, end and knowledge UTC cutoffs. Put the two listing IDs on one tab-separated line, then interval seconds, window intervals and scale periods on one tab-separated line. Append the membership CSV and immediately append the close CSV. The membership and price reports allow at most 1 MiB and 2 MiB respectively.
+
+The native output begins with the protocol name, version and window count. The next line starts with `H` and echoes the cutoff seconds, listing IDs and grid settings in request order. Each `R` row gives the window start and end, expected returns, available left and right returns, paired returns, left and right loss counts, left and right volatility, correlation, and left and right downside deviation. Unavailable metrics use empty fields.

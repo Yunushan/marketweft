@@ -1,11 +1,12 @@
 import { instantiateMarketCore } from './core.js'
-import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, FormulaResult, MarketCore, PortfolioAllocationQuery, PortfolioAllocationReport } from './core.js'
+import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, FormulaResult, ListingDownsideRiskPoint, ListingRiskQuery, MarketCore, PortfolioAllocationQuery, PortfolioAllocationReport } from './core.js'
 
 export type {
   AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
   EquityConcentration, EquityTargetDrift, Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, NotionalBar, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   JointScenarioPath, JointScenarioQuery, JointScenarioReport, PortfolioAllocationQuery, PortfolioAllocationReport, PortfolioVarianceQuery, ScenarioAllocation,
+  ListingDownsideRiskPoint, ListingRiskQuery,
   FxAmount, FxCurrencyValue, FxTranslation,
   OptionUnavailable, OptionUnderlying, PaperConfig, PaperDepthSnapshot, PaperSnapshot, QuarterlyValuation,
   ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
@@ -35,6 +36,18 @@ export interface PortfolioAllocationSnapshot extends PortfolioAllocationReport {
   maximumWeightBasisPoints?: number
 }
 
+export interface ListingDownsideRiskSnapshot {
+  leftListingId: string
+  rightListingId: string
+  fromAt: number
+  throughAt: number
+  knownAt: number
+  intervalSeconds: number
+  windowPeriods: number
+  volatilityPeriods: number
+  rows: ListingDownsideRiskPoint[]
+}
+
 export interface MarketResearch {
   readonly version: typeof RESEARCH_SDK_VERSION
   parseBars(csv: string): Bar[]
@@ -46,6 +59,8 @@ export interface MarketResearch {
   macroAsOf: MarketCore['macroAsOf']
   universeScreen: MarketCore['universeScreen']
   compareUniverseRanks: MarketCore['compareUniverseRanks']
+  listingDownsideRiskAsOf(membership: string, closes: string, leftListingId: string, rightListingId: string,
+    query: ListingRiskQuery): ListingDownsideRiskSnapshot
   portfolioAllocationAsOf(membership: string, closes: string, listingIds: readonly string[],
     query: PortfolioAllocationQuery): PortfolioAllocationSnapshot
   portfolioScenarios: MarketCore['portfolioScenarios']
@@ -83,6 +98,15 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     macroAsOf: core.macroAsOf,
     universeScreen: core.universeScreen,
     compareUniverseRanks: core.compareUniverseRanks,
+    listingDownsideRiskAsOf(membership, closes, leftListingId, rightListingId, query) {
+      const rows = core.listingDownsideRisk(membership, closes, leftListingId, rightListingId, query)
+      return {
+        leftListingId, rightListingId, rows,
+        fromAt: Date.parse(query.from) / 1000, throughAt: Date.parse(query.through) / 1000,
+        knownAt: Date.parse(query.known) / 1000, intervalSeconds: query.intervalSeconds,
+        windowPeriods: query.windowPeriods, volatilityPeriods: query.volatilityPeriods,
+      }
+    },
     portfolioAllocationAsOf(membership, closes, listingIds, query) {
       const report = core.portfolioAllocation(membership, closes, listingIds, query)
       return { ...report, fromAt: Date.parse(query.from) / 1000, throughAt: Date.parse(query.through) / 1000,

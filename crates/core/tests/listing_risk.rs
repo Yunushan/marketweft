@@ -182,6 +182,63 @@ fn downside_counts_only_observed_losses_and_rewinds_at_knowledge_cutoffs() {
 }
 
 #[test]
+fn downside_wire_echoes_cutoffs_and_rejects_invalid_versions_lengths_and_windows() {
+    use marketweft_core::research::{
+        listing_downside_risk_request, MAX_LISTING_RISK_REQUEST_BYTES,
+    };
+    let at = |known: u8| {
+        format!(
+            "marketweft-listing-downside-risk\t1\t{}\n2025-06-02T14:00:00Z\n2025-06-02T14:06:00Z\n2025-06-02T14:0{known}:00Z\nA\tB\n60\t3\t1\n{MEMBERSHIP}{PRICES}",
+            MEMBERSHIP.len(),
+        )
+    };
+    let original = at(6);
+    let early = listing_downside_risk_request(original.as_bytes()).unwrap();
+    let mut lines = early.lines();
+    assert_eq!(lines.next(), Some("marketweft-listing-downside-risk\t1\t4"));
+    assert_eq!(
+        lines.next(),
+        Some("H\t1748872800\t1748873160\t1748873160\tA\tB\t60\t3\t1")
+    );
+    let row: Vec<_> = lines.next().unwrap().split('\t').collect();
+    assert_eq!(
+        &row[..9],
+        &[
+            "R",
+            "1748872800",
+            "1748872980",
+            "3",
+            "3",
+            "1",
+            "1",
+            "0",
+            "1"
+        ]
+    );
+    assert_eq!(&row[10..13], &["", "", "0"]);
+    assert!((row[13].parse::<f64>().unwrap() - 0.1).abs() < 1e-14);
+    assert_ne!(
+        listing_downside_risk_request(at(7).as_bytes()).unwrap(),
+        early
+    );
+    assert_eq!(
+        listing_downside_risk_request(original.as_bytes()).unwrap(),
+        early
+    );
+    for invalid in [
+        original.replacen("\t1\t", "\t2\t", 1),
+        original.replacen(&format!("\t{}\n", MEMBERSHIP.len()), "\t0\n", 1),
+        original.replacen("\n60\t3\t1\n", "\n70\t3\t1\n", 1),
+        original.replacen("\nA\tB\n", "\nA\tA\n", 1),
+    ] {
+        assert!(listing_downside_risk_request(invalid.as_bytes()).is_err());
+    }
+    assert!(
+        listing_downside_risk_request(&vec![b'A'; MAX_LISTING_RISK_REQUEST_BYTES + 1]).is_err()
+    );
+}
+
+#[test]
 fn portfolio_variance_uses_common_return_coverage_and_never_fills_an_unseen_price() {
     let universe = parse_universe(MEMBERSHIP).unwrap();
     let prices = PriceBook::parse(&universe, PRICES).unwrap();

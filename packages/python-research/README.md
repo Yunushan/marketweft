@@ -194,3 +194,5 @@ Set `maximum_weight_basis_points` on the SDK or MCP request for a uniform per-li
 Call `ResearchEngine.recorded_notional_bars("NASDAQ:NVDA", trades_csv, 5_000_000, known_at="2025-06-02T14:00:02Z")` to build whole-trade bars. The snapshot carries the target and cutoff, and each row includes exact signed OHLCV, capture sequences and gross notional in trillionths. [Recorded notional bar SDKs](../../docs/recorded-tick-bars.md#recorded-notional-bar-sdks)
 
 The read-only MCP tool `recorded_notional_bars` returns the same records in pages and uses decimal strings for gross notional and capture sequences. [MCP recorded notional bars](../../docs/local-mcp-research.md#recorded-notional-bars)
+
+Call `ResearchEngine.listing_downside_risk_as_of(membership_csv, prices_csv, "A", "B", from_at=..., through_at=..., known_at=..., interval_seconds=60, window_periods=3)` to reproduce rolling risk and downside deviations from observed returns. The snapshot carries the two listing IDs, exact cutoff seconds and each window’s loss counts, deviation, volatility and correlation. [Downside risk SDKs](../../docs/listing-risk.md#downside-risk-sdks)

@@ -28,6 +28,31 @@ test('the public SDK builds recorded notional bars with exact wide values and cu
   assert.equal(bar.grossNotionalTrillionths, (2_000_000_000_000_000n) ** 2n)
 })
 
+test('the public SDK reproduces downside risk at independent observed cutoffs', async () => {
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8')
+  const [membership, closes] = await Promise.all([fixture('membership'), fixture('prices')])
+  const engine = await createResearchEngine(wasm)
+  const utc = minute => '2025-06-02T14:0' + minute + ':00Z'
+  const at = (minute, overrides = {}) => engine.listingDownsideRiskAsOf(membership, closes, 'A', 'B', {
+    from: utc(0), through: utc(6), known: utc(minute), intervalSeconds: 60, windowPeriods: 3,
+    volatilityPeriods: 1, ...overrides,
+  })
+  const first = at(6)
+  assert.deepEqual([first.leftListingId, first.rightListingId, first.fromAt, first.throughAt, first.knownAt],
+    ['A', 'B', 1748872800, 1748873160, 1748873160])
+  assert.deepEqual(first.rows.map(row => row.pairedReturns), [1, 1, 2, 3])
+  assert.equal(first.rows[0].leftDownside, 0)
+  assert.equal(first.rows[0].rightLossReturns, 1)
+  assert.ok(Math.abs(first.rows[0].rightDownside - 0.1) < 1e-14)
+  const observed = at(7).rows[0]
+  assert.equal(observed.rightLossReturns, 2)
+  assert.ok(Math.abs(observed.rightDownside - 0.1 * Math.sqrt(2 / 3)) < 1e-14)
+  assert.equal(at(8).rows.at(-1).leftReturns, 1)
+  assert.ok(at(0).rows.every(row => row.leftDownside === null && row.rightDownside === null))
+  assert.deepEqual(at(6), first)
+  assert.throws(() => at(6, { intervalSeconds: 70 }), /interval boundary/)
+})
+
 test('the public SDK preserves allocation cutoffs and common coverage through a late close', async () => {
   const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8')
   const [membership, prices] = await Promise.all([fixture('membership'), fixture('prices')])

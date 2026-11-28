@@ -16,6 +16,7 @@ __all__ = [
     "FinancialSnapshot", "FinancialTrailing",
     "FormulaFunction", "FormulaResult", "FormulaRow",
     "FxAmount", "FxCurrencyValue", "FxRateEvidence", "FxTranslation",
+    "ListingDownsideRiskPoint", "ListingDownsideRiskSnapshot",
     "MacroRecord", "MacroRelease",
     "MonthlyClose", "MonthlyReturn",
     "NotionalBar", "NotionalBarsSnapshot",
@@ -42,6 +43,7 @@ _MAX_SCALAR_SERIES = 256
 _MONTHLY_PROTOCOL = "marketweft-monthly-returns"
 _MACRO_PROTOCOL = "marketweft-macro-calendar"
 _NOTIONAL_BARS_PROTOCOL = "marketweft-notional-bars"
+_LISTING_DOWNSIDE_RISK_PROTOCOL = "marketweft-listing-downside-risk"
 _ALLOCATION_PROTOCOL = "marketweft-portfolio-allocation"
 _PORTFOLIO_PROTOCOL = "marketweft-portfolio-scenarios"
 _FX_PROTOCOL = "marketweft-portfolio-fx"
@@ -224,6 +226,36 @@ class NotionalBarsSnapshot:
     target_notional_ticks: int
     known_at: int | None
     bars: tuple[NotionalBar, ...]
+
+
+@dataclass(frozen=True)
+class ListingDownsideRiskPoint:
+    from_at: int
+    through_at: int
+    expected_returns: int
+    left_returns: int
+    right_returns: int
+    paired_returns: int
+    left_loss_returns: int
+    right_loss_returns: int
+    left_volatility: float | None
+    right_volatility: float | None
+    correlation: float | None
+    left_downside: float | None
+    right_downside: float | None
+
+
+@dataclass(frozen=True)
+class ListingDownsideRiskSnapshot:
+    left_listing_id: str
+    right_listing_id: str
+    from_at: int
+    through_at: int
+    known_at: int
+    interval_seconds: int
+    window_periods: int
+    volatility_periods: int
+    rows: tuple[ListingDownsideRiskPoint, ...]
 
 
 @dataclass(frozen=True)
@@ -690,6 +722,51 @@ def _notional_bars(output: bytes, instrument: str, target: int, cutoff: int | No
                                 opened, high, low, closed, volume))
         previous_time, previous_sequence = available, last
     return NotionalBarsSnapshot(instrument, target, cutoff, tuple(bars))
+
+
+def _listing_downside_risk(
+    output: bytes, listings: tuple[str, str], times: tuple[int, int, int], settings: tuple[int, int, int],
+) -> ListingDownsideRiskSnapshot:
+    count, rows = _response(output, _LISTING_DOWNSIDE_RISK_PROTOCOL)
+    start, end, _ = times
+    interval, window, _ = settings
+    expected_count = max(0, (end - start) // interval - window + 1)
+    if _whole(count) != expected_count or len(rows) != expected_count + 1:
+        raise ResearchError("Invalid listing risk row count.")
+    if rows[0].split("\t") != ["H", *map(str, times), *listings, *map(str, settings)]:
+        raise ResearchError("Listing risk evidence differs from the requested cutoffs or settings.")
+
+    results = []
+    for index, row in enumerate(rows[1:]):
+        fields = row.split("\t")
+        if len(fields) != 14 or fields[0] != "R":
+            raise ResearchError("Invalid listing risk row.")
+        beginning, through, expected, left, right, paired, left_losses, right_losses = map(_whole, fields[1:9])
+        if (beginning != start + index * interval or through != beginning + window * interval
+                or expected != window or not 0 <= paired <= min(left, right) <= max(left, right) <= expected
+                or not 0 <= left_losses <= left or not 0 <= right_losses <= right):
+            raise ResearchError("Listing risk evidence is outside the requested window bounds.")
+        try:
+            left_vol, right_vol, correlation, left_down, right_down = (
+                float(value) if value else None for value in fields[9:]
+            )
+        except ValueError as error:
+            raise ResearchError("Invalid listing risk statistics.") from error
+        for metric, available, minimum in ((left_vol, left, 2), (right_vol, right, 2),
+                                           (left_down, left, 1), (right_down, right, 1)):
+            if (metric is None) != (available < minimum) or (
+                metric is not None and (not math.isfinite(metric) or metric < 0.0)
+            ):
+                raise ResearchError("Listing risk statistics do not match the available returns.")
+        if (correlation is not None and (paired < 2 or not -1.0 <= correlation <= 1.0)
+                or left_down is not None and (left_down == 0.0) != (left_losses == 0)
+                or right_down is not None and (right_down == 0.0) != (right_losses == 0)):
+            raise ResearchError("Listing risk statistics do not match the available losses or pairs.")
+        results.append(ListingDownsideRiskPoint(
+            beginning, through, expected, left, right, paired, left_losses, right_losses,
+            left_vol, right_vol, correlation, left_down, right_down,
+        ))
+    return ListingDownsideRiskSnapshot(*listings, *times, *settings, tuple(results))
 
 
 def _portfolio_allocation(
@@ -1383,6 +1460,37 @@ class ResearchEngine:
         header = "\n".join((_NOTIONAL_BARS_PROTOCOL + "\t1", instrument, str(target_notional_ticks), known_at or "", ""))
         output = self._invoke(header.encode("ascii") + source, "notional-bars")
         return _notional_bars(output, instrument, target_notional_ticks, cutoff)
+
+    def listing_downside_risk_as_of(
+        self, membership_csv: str, prices_csv: str, left_listing_id: str, right_listing_id: str, *,
+        from_at: str, through_at: str, known_at: str, interval_seconds: int, window_periods: int,
+        volatility_periods: int = 1,
+    ) -> ListingDownsideRiskSnapshot:
+        """Calculate listing risk and downside deviation over observed return windows."""
+        timestamps = (from_at, through_at, known_at)
+        if any(not isinstance(value, str) or not _UTC.fullmatch(value) for value in timestamps):
+            raise ValueError("Use YYYY-MM-DDTHH:MM:SSZ listing risk cutoffs.")
+        try:
+            start, end, known = (_epoch_second(datetime.fromisoformat(value[:-1])) for value in timestamps)
+        except ValueError as error:
+            raise ValueError("Use valid UTC listing risk cutoffs.") from error
+        settings = (interval_seconds, window_periods, volatility_periods)
+        if (any(type(value) is not int or not 1 <= value <= 0xFFFFFFFF for value in settings)
+                or not 2 <= window_periods <= 100_000):
+            raise ValueError("Use a positive interval and scale, and a window of 2 to 100,000 returns.")
+        if start > end or (end - start) % interval_seconds or (end - start) // interval_seconds > 100_000:
+            raise ValueError("Use at most 100,000 intervals with the UTC end on the selected grid.")
+        listings = (left_listing_id, right_listing_id)
+        if (any(not isinstance(value, str) or not _IDENTITY.fullmatch(value) for value in listings)
+                or left_listing_id == right_listing_id):
+            raise ValueError("Use two distinct listing IDs.")
+        membership, prices = membership_csv.encode("utf-8"), prices_csv.encode("utf-8")
+        if len(membership) > 1024 * 1024 or len(prices) > 2 * 1024 * 1024:
+            raise ValueError("Membership and prices CSV exceed the listing risk input limits.")
+        header = "\t".join((_LISTING_DOWNSIDE_RISK_PROTOCOL, "1", str(len(membership))))
+        request = "\n".join((header, *timestamps, "\t".join(listings), "\t".join(map(str, settings)), "")).encode("ascii")
+        output = self._invoke(request + membership + prices, "listing-downside-risk")
+        return _listing_downside_risk(output, listings, (start, end, known), settings)
 
     def portfolio_allocation_as_of(
         self, membership_csv: str, prices_csv: str, listing_ids: Sequence[str], *,

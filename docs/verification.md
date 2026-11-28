@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.287.0 · Rolling downside risk SDKs
+
+- The native command verifies byte-bounded input, independent UTC cutoffs, version checks, exact window coverage and deterministic output after rewind.
+- Installed Python and TypeScript packages reproduce the terminal’s zero and unavailable metrics, late-close loss counts and downside deviation. Python also checks echoed settings, window and coverage bounds and finite metrics before returning results.
+
 ## 0.286.0 · Point-in-time downside deviation
 
 - Rust and Wasm verify loss counts, true zeros, unavailable returns and the effect of volatility scaling. They confirm the original rolling risk results are identical through the two Wasm layouts.

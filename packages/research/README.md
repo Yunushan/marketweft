@@ -78,3 +78,5 @@ Call `portfolioAllocationAsOf(membershipCsv, pricesCsv, listingIds, query)` to e
 Set `maximumWeightBasisPoints` on the query for a uniform per-listing ceiling. The result echoes an explicit ceiling even when there are too few common returns to estimate weights.
 
 Call `recordedNotionalBars('NASDAQ:NVDA', tradesCsv, 5_000_000n, '2025-06-02T14:00:02Z')` to build notional bars with an inclusive cutoff and a five-unit target. Each row includes `grossNotionalTrillionths` and both capture sequences as `bigint`. [Recorded notional bar SDKs](../../docs/recorded-tick-bars.md#recorded-notional-bar-sdks)
+
+Call `listingDownsideRiskAsOf(membershipCsv, closesCsv, 'A', 'B', query)` with `from`, `through`, `known`, `intervalSeconds`, `windowPeriods` and `volatilityPeriods`. The result preserves each window’s observed loss counts and risk metrics. [Downside risk SDKs](../../docs/listing-risk.md#downside-risk-sdks)

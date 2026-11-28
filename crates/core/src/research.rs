@@ -21,8 +21,9 @@ use crate::screen::MAX_PRICE_BYTES;
 use crate::universe::{valid_id, MAX_MEMBERSHIP_BYTES};
 use crate::{
     parse_csv, parse_dividends, parse_universe, AmericanValuation, AmericanValuationRequest,
-    FinancialBook, Formula, Instrument, OptionBook, PriceBook, ScreenComparisonRow, ScreenCutoff,
-    TradeTape, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_INPUT_BYTES,
+    FinancialBook, Formula, Instrument, ListingRiskQuery, OptionBook, PriceBook,
+    ScreenComparisonRow, ScreenCutoff, TradeTape, FORMULA_VERSION, MAX_AMERICAN_STEPS,
+    MAX_INPUT_BYTES,
 };
 use std::fmt::Write;
 
@@ -41,6 +42,7 @@ pub const MAX_SCALAR_PLUGIN_SERIES_REQUEST_BYTES: usize =
 pub const MAX_MONTHLY_RETURNS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
 pub const MAX_MACRO_CALENDAR_REQUEST_BYTES: usize = MAX_MACRO_CSV_BYTES + 128;
 pub const MAX_NOTIONAL_BARS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 160;
+pub const MAX_LISTING_RISK_REQUEST_BYTES: usize = MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 256;
 pub const MAX_PORTFOLIO_ALLOCATION_REQUEST_BYTES: usize =
     MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 1024;
 pub const MAX_PORTFOLIO_SCENARIOS_REQUEST_BYTES: usize =
@@ -197,6 +199,103 @@ pub fn notional_bars_request(bytes: &[u8]) -> Result<String, String> {
             bar.volume,
         )
         .unwrap();
+    }
+    Ok(report)
+}
+
+/// Calculate rolling observed downside deviation and listing risk.
+pub fn listing_downside_risk_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_LISTING_RISK_REQUEST_BYTES {
+        return Err("Listing risk request exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 listing risk request.")?;
+    let (header, payload) = request
+        .split_once('\n')
+        .ok_or("Missing listing risk request header.")?;
+    let mut fields = header.split('\t');
+    let [Some("marketweft-listing-downside-risk"), Some("1"), Some(membership_bytes), None] =
+        std::array::from_fn(|_| fields.next())
+    else {
+        return Err("Invalid listing risk request or protocol version.".into());
+    };
+    let membership_bytes = membership_bytes
+        .parse::<usize>()
+        .map_err(|_| "Supply the membership CSV byte length.")?;
+    let mut pieces = payload.splitn(6, '\n');
+    let [Some(from_at), Some(through_at), Some(known_at)] =
+        std::array::from_fn(|_| pieces.next().and_then(exact_utc))
+    else {
+        return Err("Use YYYY-MM-DDTHH:MM:SSZ listing risk cutoffs.".into());
+    };
+    let (left, right) = pieces
+        .next()
+        .and_then(|ids| ids.split_once('\t'))
+        .filter(|(left, right)| left != right && valid_id(left) && valid_id(right))
+        .ok_or("Supply two distinct listing IDs.")?;
+    let mut fields = pieces.next().unwrap_or_default().split('\t');
+    let [Some(interval_seconds), Some(window_periods), Some(volatility_periods), None] =
+        std::array::from_fn(|_| fields.next())
+    else {
+        return Err("Supply an interval, a risk window and a volatility scale.".into());
+    };
+    let [Some(interval_seconds), Some(window_periods), Some(volatility_periods)] =
+        [interval_seconds, window_periods, volatility_periods]
+            .map(|value| value.parse::<u32>().ok())
+    else {
+        return Err(
+            "Supply whole numbers for the interval, risk window and volatility scale.".into(),
+        );
+    };
+    let (membership, closes) = pieces
+        .next()
+        .and_then(|csv| csv.split_at_checked(membership_bytes))
+        .ok_or("Supply both membership and price CSV reports.")?;
+    let universe = parse_universe(membership)?;
+    let prices = PriceBook::parse(&universe, closes)?;
+    let points = prices.listing_downside_risk(
+        left,
+        right,
+        ListingRiskQuery {
+            from_at,
+            through_at,
+            known_at,
+            interval_seconds,
+            window_periods,
+            volatility_periods,
+        },
+    )?;
+    let mut report = format!(
+        "marketweft-listing-downside-risk\t{PROTOCOL_VERSION}\t{}\nH\t{from_at}\t{through_at}\t{known_at}\t{left}\t{right}\t{interval_seconds}\t{window_periods}\t{volatility_periods}\n",
+        points.len(),
+    );
+    for point in points {
+        let risk = point.risk;
+        write!(
+            report,
+            "R\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            risk.from_at,
+            risk.through_at,
+            risk.expected_returns,
+            risk.left_returns,
+            risk.right_returns,
+            risk.paired_returns,
+            point.left_loss_returns,
+            point.right_loss_returns,
+        )
+        .unwrap();
+        for metric in [
+            risk.left_volatility,
+            risk.right_volatility,
+            risk.correlation,
+            point.left_downside,
+            point.right_downside,
+        ] {
+            report.push('\t');
+            if let Some(value) = metric {
+                write!(report, "{value}").unwrap();
+            }
+        }
+        report.push('\n');
     }
     Ok(report)
 }
