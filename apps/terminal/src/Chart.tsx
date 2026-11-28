@@ -4,7 +4,7 @@ import { Icon } from './Icons'
 import { fixed, MAX_CHART_PRICE_TICKS, tickPrice } from './fixed-point'
 import { ChartAnnotations } from './ChartAnnotations'
 import type { AnnotationPicker } from './ChartAnnotations'
-import { EMPTY_ANNOTATIONS, cyclicTimeLines, fibonacciExtensions, fibonacciFanLevels, fibonacciRetracements, fibonacciTimeZones, formatAnnotationAnchor, markerColumn, markerTimeWindow } from './chart-annotations'
+import { EMPTY_ANNOTATIONS, cyclicTimeLines, fibonacciExtensions, fibonacciFanLevels, fibonacciRetracements, fibonacciTimeZones, formatAnnotationAnchor, markerColumn, markerTimeWindow, sineLineCurve } from './chart-annotations'
 import type { ChartAnnotation, TimeColumn } from './chart-annotations'
 import { isPriceStudy, studyOverlays, STUDIES } from './studies'
 import type { PanelLine, PanelStudy, StudyValue, StudyValues } from './studies'
@@ -858,6 +858,24 @@ function draw(
           if (column === null || column < start - 0.5 || column > view.end - 0.5) continue
           const axis = x(column)
           line(axis, top, axis, priceBottom, '#70c0ab')
+        }
+      } else if (annotation.kind === 'sine-line') {
+        const window = markerTimeWindow(markerTimeline, start - 0.5, view.end - 0.5)
+        if (!window) continue
+        let started = false
+        ctx.beginPath()
+        for (const point of sineLineCurve(annotation.start, annotation.end, window.from, window.through)) {
+          const column = markerColumn(markerTimeline, point.time)
+          if (column === null) continue
+          const axis = x(column)
+          const value = y(point.ticks / 1e6)
+          if (started) ctx.lineTo(axis, value)
+          else ctx.moveTo(axis, value)
+          started = true
+        }
+        if (started) {
+          ctx.strokeStyle = '#da9eb9'
+          ctx.stroke()
         }
       } else if (annotation.kind === 'price-range') {
         const upper = y(annotation.upper / 1e6)

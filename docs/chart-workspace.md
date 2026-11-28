@@ -196,6 +196,12 @@ Each horizontal ray starts at the projection anchor. Its price is the anchor pri
 
 Workspace backup version 50 retains the exact UTC seconds and signed prices of the three anchors. [Backup format](workspace-backup.md).
 
+## Sine line
+
+Choose **New sine line** and place the midline anchor and a later first extremum. Their price difference sets the signed amplitude. The elapsed UTC time between them is one quarter of the cycle. MarketWeft draws one complete cycle. It returns to the midline halfway through, reaches the opposite extremum at three quarters and finishes on the midline. [Sine drawing reference](https://www.tradingview.com/support/solutions/43000791685-sine-line-drawing-tool/)
+
+Open **Sine cycle** to read the exact midline, amplitude, period, opposite extremum and ending UTC time. The entire cycle must fit within the supported chart time and price bounds. Move either anchor to change the shape. Workspace backup version 79 preserves both anchors.
+
 ## Cyclic lines
 
 Choose **New cyclic lines** and enter or pick two increasing UTC times. The drawing places the first vertical line at the first anchor and repeats at equal intervals of elapsed seconds. A line between recorded observations is positioned using both neighboring timestamps. The same UTC schedule applies after zooming, panning and reopening. [Cyclic lines reference](https://www.tradingview.com/support/solutions/43000518161-cyclic-lines-drawing-tool/)

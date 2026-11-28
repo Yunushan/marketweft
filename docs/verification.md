@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.263.0 · Sine line drawing
+
+- Offline Chromium checks both anchored extrema and the midpoint and closing crossings of a 240-second cycle. Editing the first extremum reverses the signed amplitude and moves the opposite extremum to the other side of the midline.
+- Equal anchor prices and out-of-bound projections are rejected. Version 79 restore preserves both UTC and price anchors, and the offline reload reproduces the exact values.
+
+[Sine line](chart-workspace.md#sine-line)
+
 ## 0.262.0 · Cyclic lines
 
 - Chromium verifies an exact 90-second schedule through irregular bar intervals. It checks vertical canvas paths, UTC interpolation, a one-second interval in a dense viewport and the upper supported UTC boundary.

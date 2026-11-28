@@ -1,7 +1,7 @@
 import { fixed } from './fixed-point'
 import { useState } from 'react'
 import {
-  ANNOTATION_NAMES, cyclicTimeLines, fibonacciExtensions, fibonacciFanLevels, fibonacciTimeZones, formatAnnotationAnchor, hasPointList, hasRange, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
+  ANNOTATION_NAMES, cyclicTimeLines, fibonacciExtensions, fibonacciFanLevels, fibonacciTimeZones, formatAnnotationAnchor, hasPointList, hasRange, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, sineLineLevels, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint, MarketCore, RiskRewardMeasurement, RiskRewardSide } from './market-core'
@@ -79,6 +79,17 @@ function describePoint(point: DrawingEndpoint): string {
   return price + ' at ' + time
 }
 
+function SineCycleValues({ start, end }: { start: DrawingEndpoint; end: DrawingEndpoint }) {
+  const { amplitude, periodSeconds, finishAt, oppositeTicks } = sineLineLevels(start, end)
+  return <dl className="ohlc chart-overlay-values" aria-label="Sine line cycle values">
+    <div><dt>Midline</dt><dd>{formatAnnotationAnchor('price', start.ticks)}</dd></div>
+    <div><dt>Signed amplitude</dt><dd>{formatAnnotationAnchor('price', amplitude)}</dd></div>
+    <div><dt>Full period</dt><dd>{periodSeconds} seconds</dd></div>
+    <div><dt>Opposite extremum</dt><dd>{formatAnnotationAnchor('price', oppositeTicks)}</dd></div>
+    <div><dt>Cycle end (UTC)</dt><dd>{formatAnnotationAnchor('time', finishAt)}</dd></div>
+  </dl>
+}
+
 function describeAnnotation(entry: ChartAnnotation): string {
   const name = ANNOTATION_NAMES[entry.kind] + ' '
   switch (entry.kind) {
@@ -107,6 +118,7 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'trend':
     case 'rectangle':
     case 'ellipse':
+    case 'sine-line':
     case 'fibonacci':
     case 'fibonacci-fan':
     case 'fibonacci-circles':
@@ -228,6 +240,7 @@ export function ChartAnnotations({
       kind === 'fibonacci-extension' ? ['Move start', 'Move end', 'Projection anchor'][point] :
       kind === 'fibonacci-channel' ? ['Baseline start', 'Baseline end', 'Width anchor'][point] :
       kind === 'fibonacci-circles' ? ['Centre', 'Radius anchor'][point] :
+      kind === 'sine-line' ? ['Midline', 'First extremum'][point] :
       vertex ? 'Point ' + (point + 1) :
       twoPoints ? point === 0 ? 'Start' : 'End' : ANNOTATION_NAMES[kind]
     const pickLabel = plan || vertex || twoPoints ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
@@ -330,6 +343,10 @@ export function ChartAnnotations({
                       <small>{cycle}×</small> {formatAnnotationAnchor('time', time)}
                     </span>)}
                 </div>
+              </details>}
+              {entry.kind === 'sine-line' && <details className="research-details">
+                <summary>Sine cycle</summary>
+                <SineCycleValues start={entry.start} end={entry.end} />
               </details>}
               {entry.kind === 'fibonacci-extension' && <details className="research-details">
                 <summary>Projection levels</summary>

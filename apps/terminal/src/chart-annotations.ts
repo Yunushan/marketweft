@@ -16,6 +16,7 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'fibonacci'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'fibonacci-fan'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'fibonacci-circles'; start: DrawingEndpoint; end: DrawingEndpoint } |
+  { kind: 'sine-line'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'gann-fan'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'gann-box'; start: DrawingEndpoint; end: DrawingEndpoint; divisions: number } |
   { kind: 'fibonacci-extension'; points: TrianglePoints } |
@@ -58,6 +59,7 @@ export const ANNOTATION_NAMES = {
   'fibonacci-channel': 'Fibonacci channel',
   'fibonacci-time-zones': 'Fibonacci time zones',
   'cyclic-lines': 'Cyclic lines',
+  'sine-line': 'Sine line',
   ellipse: 'Ellipse',
   triangle: 'Triangle',
   pitchfork: 'Pitchfork',
@@ -93,6 +95,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'fibonacci':
     case 'fibonacci-fan':
     case 'fibonacci-circles':
+    case 'sine-line':
     case 'gann-fan':
     case 'arrow':
       return second.kind === first.kind && sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
@@ -124,7 +127,7 @@ export function hasPointList(kind: AnnotationKind): kind is 'polyline' | ThreePo
 export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
   return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci' ||
     kind === 'fibonacci-fan' || kind === 'fibonacci-circles' || kind === 'gann-fan' || kind === 'gann-box' ||
-    kind === 'ellipse' || kind === 'arrow' || kind === 'risk-reward'
+    kind === 'ellipse' || kind === 'arrow' || kind === 'risk-reward' || kind === 'sine-line'
 }
 
 export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void {
@@ -145,6 +148,13 @@ export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void
     throw Error('A Fibonacci fan needs a later end time and two different prices.')
   if (kind === 'fibonacci-circles' && sameEndpoint(start, end))
     throw Error('Fibonacci circles need two different anchor points.')
+  if (kind === 'sine-line') {
+    if (end.time <= start.time || start.ticks === end.ticks)
+      throw Error('A sine line needs a later extremum and two different prices.')
+    const { finishAt, oppositeTicks } = sineLineLevels(start, end)
+    if (!validAnnotationAnchor('time', finishAt) || !validAnnotationAnchor('price', oppositeTicks))
+      throw Error('The full cycle must stay within the chart time and price bounds.')
+  }
   if (kind === 'gann-fan' && (end.time <= start.time || start.ticks === end.ticks))
     throw Error('A Gann fan needs a later end time and two different prices.')
   if (kind === 'channel') {
@@ -273,6 +283,35 @@ export function cyclicTimeLines(first: number, second: number, from: number, thr
     if (validAnnotationAnchor('time', time)) lines.push({ cycle, time })
   }
   return lines
+}
+
+export function sineLineLevels(start: DrawingEndpoint, end: DrawingEndpoint) {
+  const amplitude = end.ticks - start.ticks
+  const periodSeconds = 4 * (end.time - start.time)
+  return { amplitude, periodSeconds, finishAt: start.time + periodSeconds, oppositeTicks: start.ticks - amplitude }
+}
+
+export function sineLineCurve(start: DrawingEndpoint, end: DrawingEndpoint, from: number, through: number) {
+  const { amplitude, periodSeconds, oppositeTicks } = sineLineLevels(start, end)
+  const quarter = periodSeconds / 4
+  const control = [start.ticks, end.ticks, start.ticks, oppositeTicks, start.ticks]
+  const points: { time: number; ticks: number }[] = []
+  const segments = 24
+  for (let leg = 0; leg < 4; leg++) {
+    const left = start.time + leg * quarter
+    const right = left + quarter
+    const first = Math.max(left, from)
+    const last = Math.min(right, through)
+    if (last <= first) continue
+    for (let step = 0; step <= segments; step++) {
+      const time = step === segments ? last : first + (last - first) * step / segments
+      if (points.at(-1)?.time === time) continue
+      const ticks = time === left ? control[leg] : time === right ? control[leg + 1] :
+        start.ticks + amplitude * Math.sin(Math.PI * (time - start.time) / (2 * quarter))
+      points.push({ time, ticks })
+    }
+  }
+  return points
 }
 
 export function markerTimeWindow(timeline: readonly TimeColumn[], left: number, right: number) {
