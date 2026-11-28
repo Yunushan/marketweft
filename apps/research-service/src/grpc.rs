@@ -5,7 +5,8 @@ use crate::{
         research_server::{Research, ResearchServer},
         AmericanOptionQuery, AmericanOptionResponse, FormulaPage, FormulaQuery, MacroCalendarPage,
         MacroCalendarQuery, MonthlyReturnsPage, MonthlyReturnsQuery, OptionPage, OptionQuery,
-        RankComparisonPage, RankComparisonQuery, ScreenPage, ScreenQuery,
+        PortfolioScenariosPage, PortfolioScenariosQuery, RankComparisonPage, RankComparisonQuery,
+        ScreenPage, ScreenQuery,
     },
     shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
@@ -53,6 +54,10 @@ pub(crate) fn routes(state: Arc<Server>) -> Router {
                 )
                 .route_service(
                     "/marketweft.research.v1.Research/CompareUniverseRanks",
+                    service.clone(),
+                )
+                .route_service(
+                    "/marketweft.research.v1.Research/GetPortfolioScenarios",
                     service.clone(),
                 )
                 .route_layer(from_fn_with_state(
@@ -189,6 +194,13 @@ impl Research for LocalResearch {
         request: GrpcRequest<RankComparisonQuery>,
     ) -> Result<GrpcResponse<RankComparisonPage>, Status> {
         unary(request, analytics::evaluate_rank_comparison).await
+    }
+
+    async fn get_portfolio_scenarios(
+        &self,
+        request: GrpcRequest<PortfolioScenariosQuery>,
+    ) -> Result<GrpcResponse<PortfolioScenariosPage>, Status> {
+        unary(request, analytics::evaluate_portfolio_scenarios).await
     }
 
     async fn snapshot_options(

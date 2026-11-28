@@ -79,6 +79,21 @@ pub(crate) async fn rank_comparison(
     .await
 }
 
+pub(crate) async fn portfolio_scenarios(
+    State(state): State<Arc<Server>>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    upgrade(
+        state,
+        &headers,
+        ws,
+        Scope::Screen,
+        analytics::portfolio_scenarios,
+    )
+    .await
+}
+
 pub(crate) async fn options(
     State(state): State<Arc<Server>>,
     headers: HeaderMap,

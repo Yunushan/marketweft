@@ -9,6 +9,7 @@ service Research {
   rpc GetMacroCalendar(MacroCalendarQuery) returns (MacroCalendarPage);
   rpc ScreenUniverse(ScreenQuery) returns (ScreenPage);
   rpc CompareUniverseRanks(RankComparisonQuery) returns (RankComparisonPage);
+  rpc GetPortfolioScenarios(PortfolioScenariosQuery) returns (PortfolioScenariosPage);
   rpc SnapshotOptions(OptionQuery) returns (OptionPage);
   rpc ValueAmericanOption(AmericanOptionQuery) returns (AmericanOptionResponse);
 }
@@ -106,6 +107,69 @@ message MacroCalendarPage {
   uint32 offset = 5;
   optional uint32 next_offset = 6;
   repeated MacroCalendarRow rows = 7;
+}
+
+message PortfolioScenarioAllocation {
+  string listing_id = 1;
+  uint32 weight_basis_points = 2;
+}
+
+message PortfolioScenariosQuery {
+  string membership_csv = 1;
+  string prices_csv = 2;
+  string from_at = 3;
+  string through_at = 4;
+  string known_at = 5;
+  uint32 interval_seconds = 6;
+  // Exact integer millionths of portfolio currency.
+  string starting_value_ticks = 7;
+  uint32 fee_basis_points = 8;
+  // An unsigned 64-bit seed in decimal text.
+  string seed = 9;
+  uint32 paths = 10;
+  uint32 horizon = 11;
+  repeated PortfolioScenarioAllocation allocations = 12;
+  optional uint32 block_size = 13;
+  optional uint64 offset = 14;
+  optional uint64 limit = 15;
+}
+
+message PortfolioScenarioCoverage {
+  string listing_id = 1;
+  uint32 weight_basis_points = 2;
+  uint32 known_returns = 3;
+}
+
+message PortfolioScenarioPercentiles {
+  repeated string ending_value = 1;
+  repeated string drawdown_millionths = 2;
+  repeated string fees = 3;
+}
+
+message PortfolioScenarioPath {
+  uint32 path_number = 1;
+  string ending_value = 2;
+  string drawdown_millionths = 3;
+  string fees = 4;
+}
+
+message PortfolioScenariosPage {
+  string from_at = 1;
+  string through_at = 2;
+  string known_at = 3;
+  string seed = 4;
+  uint32 horizon = 5;
+  uint32 block_size = 6;
+  uint32 expected_vectors = 7;
+  uint32 eligible_vectors = 8;
+  uint32 eligible_blocks = 9;
+  uint32 loss_paths = 10;
+  uint32 total_paths = 11;
+  uint32 offset = 12;
+  optional uint32 next_offset = 13;
+  repeated PortfolioScenarioCoverage coverage = 14;
+  PortfolioScenarioPercentiles percentiles = 15;
+  repeated PortfolioScenarioPath paths = 16;
 }
 
 message ScreenQuery {

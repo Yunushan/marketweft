@@ -56,7 +56,7 @@ Use the synthetic pair from the listing risk guide to reproduce one eligible blo
 
 The Python SDK exposes `ResearchEngine.portfolio_scenarios` and returns frozen result records with exact Python integers. Use `ScenarioAllocation("A", 5000)` and `ScenarioAllocation("B", 5000)` as the allocations. The equivalent keyword arguments are `from_at`, `through_at`, `known_at`, `interval_seconds`, `starting_value`, `fee_basis_points`, `seed`, `paths`, `horizon`, and `block_size`. Omitting the block size in either SDK uses one move per sample. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md).
 
-The local read-only MCP tool returns the same simulation and pages the paths as exact decimal strings. [Portfolio scenarios over MCP](local-mcp-research.md#portfolio-scenarios).
+The local MCP tool and scoped REST, WebSocket and gRPC routes return the same simulation and page exact decimal-string results. [Portfolio scenarios over MCP](local-mcp-research.md#portfolio-scenarios) · [Portfolio scenario service](local-rest-research.md#portfolio-scenarios).
 
 ### Native portfolio scenarios protocol
 

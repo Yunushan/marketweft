@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.246.0 · Scoped portfolio scenario service
+
+- REST verifies authorization, exact seed and path values, cutoff changes and rewind. Invalid fields, numeric seeds, missing complete blocks and unsupported pagination return the expected errors.
+- The standalone service verifies that resumed WebSocket pages and the typed gRPC final page match REST, with all three transports requiring a screen credential.
+
+[Portfolio scenario service](local-rest-research.md#portfolio-scenarios)
+
 ## 0.245.0 · Local MCP portfolio scenarios
 
 - The installed wheel's stdio tests negotiate MCP, reject numeric or out-of-range seeds and unexpected file paths, and verify five exact paths across three pages while preserving earlier tool behavior.

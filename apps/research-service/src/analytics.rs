@@ -3,9 +3,10 @@ use crate::{
         AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close, FormulaPage,
         FormulaQuery, FormulaRow, MacroCalendarPage, MacroCalendarQuery, MacroCalendarRow,
         MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery, MonthlyReturnsRow,
-        OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying, RankComparisonLeg,
-        RankComparisonPage, RankComparisonQuery, RankComparisonRow, ScreenPage, ScreenQuery,
-        ScreenRow,
+        OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying,
+        PortfolioScenarioCoverage, PortfolioScenarioPath, PortfolioScenarioPercentiles,
+        PortfolioScenariosPage, PortfolioScenariosQuery, RankComparisonLeg, RankComparisonPage,
+        RankComparisonQuery, RankComparisonRow, ScreenPage, ScreenQuery, ScreenRow,
     },
     ApiError,
 };
@@ -14,7 +15,8 @@ use marketweft_core::{
     monthly_returns, parse_csv, parse_dividends, parse_exact_utc, parse_universe,
     AmericanValuationRequest, CashOptionError, ExerciseStyle, Formula, FormulaFunctionDefinition,
     FormulaLibrary, MacroCalendar, MonthWindow, MonthlyClose, OptionAnalytics, OptionBook,
-    OptionSide, PriceBook, PriceObservation, ReportKind, ScreenComparisonLeg, ScreenCutoff,
+    OptionSide, PortfolioScenarioConfig, PriceBook, PriceObservation, ReportKind,
+    ScenarioAllocation, ScenarioConfig, ScreenComparisonLeg, ScreenCutoff, ThreeQuantiles,
     UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
 };
 use serde::de::DeserializeOwned;
@@ -31,6 +33,7 @@ pub(crate) enum ResearchPage {
     MacroCalendar(MacroCalendarPage),
     Screen(ScreenPage),
     RankComparison(RankComparisonPage),
+    PortfolioScenarios(PortfolioScenariosPage),
     Options(OptionPage),
     AmericanOption(AmericanOptionResponse),
 }
@@ -435,6 +438,152 @@ fn close(price: Option<PriceObservation>) -> Option<Close> {
         ticks: price.ticks.to_string(),
         observed_at: price.observed_at,
     })
+}
+
+pub(crate) fn portfolio_scenarios(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_portfolio_scenarios(request(bytes)?, &mut |page| {
+        emit(ResearchPage::PortfolioScenarios(page))
+    })
+}
+
+pub(crate) fn evaluate_portfolio_scenarios(
+    query: PortfolioScenariosQuery,
+    emit: &mut dyn FnMut(PortfolioScenariosPage) -> bool,
+) -> Result<(), ApiError> {
+    let limit = query.limit.unwrap_or(100);
+    if !(1..=250).contains(&limit) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Portfolio scenario page size must be 1–250.",
+        ));
+    }
+    let (offset, limit) = pagination(query.offset, Some(limit), 10_000)?;
+    let cutoffs =
+        [&query.from_at, &query.through_at, &query.known_at].map(|time| parse_exact_utc(time));
+    let [Some(from_at), Some(through_at), Some(known_at)] = cutoffs else {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use YYYY-MM-DDTHH:MM:SSZ portfolio scenario cutoffs.",
+        ));
+    };
+    let seed: u64 = query.seed.parse().map_err(|_| {
+        ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Supply an unsigned 64-bit seed as decimal text.",
+        )
+    })?;
+    let starting_value: i64 = query.starting_value_ticks.parse().map_err(|_| {
+        ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Supply the starting value in integer millionths as decimal text.",
+        )
+    })?;
+    let fee_basis_points = u16::try_from(query.fee_basis_points).map_err(|_| {
+        ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Supply a fee of at most 10,000 basis points.",
+        )
+    })?;
+    if !(2..=16).contains(&query.allocations.len()) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Supply 2 to 16 portfolio allocations.",
+        ));
+    }
+    let allocations = query
+        .allocations
+        .iter()
+        .map(|entry| {
+            let weight_basis_points = u16::try_from(entry.weight_basis_points).map_err(|_| {
+                ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "Supply portfolio weights in whole basis points.",
+                )
+            })?;
+            Ok(ScenarioAllocation {
+                listing_id: &entry.listing_id,
+                weight_basis_points,
+            })
+        })
+        .collect::<Result<Vec<_>, ApiError>>()?;
+    let universe = parse_universe(&query.membership_csv).map_err(analytical_error)?;
+    let prices = PriceBook::parse(&universe, &query.prices_csv).map_err(analytical_error)?;
+    let result = prices
+        .portfolio_scenarios_with_block_size(
+            &allocations,
+            PortfolioScenarioConfig {
+                from_at,
+                through_at,
+                known_at,
+                interval_seconds: query.interval_seconds,
+                starting_value,
+                fee_basis_points,
+                scenario: ScenarioConfig {
+                    seed,
+                    paths: query.paths as usize,
+                    horizon: query.horizon as usize,
+                },
+            },
+            query.block_size.unwrap_or(1) as usize,
+        )
+        .map_err(analytical_error)?;
+    let quantiles = |values: ThreeQuantiles| {
+        [values.p05, values.p50, values.p95]
+            .map(|value| value.to_string())
+            .to_vec()
+    };
+    let percentiles = PortfolioScenarioPercentiles {
+        ending_value: quantiles(result.ending_value),
+        drawdown_millionths: quantiles(result.drawdown_millionths),
+        fees: quantiles(result.fees),
+    };
+    let coverage: Vec<_> = result
+        .listings
+        .into_iter()
+        .map(|listing| PortfolioScenarioCoverage {
+            listing_id: listing.listing_id,
+            weight_basis_points: u32::from(listing.weight_basis_points),
+            known_returns: listing.known_returns as u32,
+        })
+        .collect();
+    let seed = seed.to_string();
+    pages(
+        offset,
+        limit,
+        result.paths.len(),
+        emit,
+        |offset, range, next_offset| PortfolioScenariosPage {
+            from_at: query.from_at.clone(),
+            through_at: query.through_at.clone(),
+            known_at: query.known_at.clone(),
+            seed: seed.clone(),
+            horizon: query.horizon,
+            block_size: result.block_size as u32,
+            expected_vectors: result.expected_vectors as u32,
+            eligible_vectors: result.eligible_vectors as u32,
+            eligible_blocks: result.eligible_blocks as u32,
+            loss_paths: result.loss_paths as u32,
+            total_paths: result.paths.len() as u32,
+            offset,
+            next_offset,
+            coverage: coverage.clone(),
+            percentiles: Some(percentiles.clone()),
+            paths: result.paths[range.clone()]
+                .iter()
+                .enumerate()
+                .map(|(index, path)| PortfolioScenarioPath {
+                    path_number: (range.start + index + 1) as u32,
+                    ending_value: path.ending_value.to_string(),
+                    drawdown_millionths: path.drawdown_millionths.to_string(),
+                    fees: path.fees.to_string(),
+                })
+                .collect(),
+        },
+    );
+    Ok(())
 }
 
 pub(crate) fn screen(

@@ -21,6 +21,7 @@ The service prints the bound loopback address. The port defaults to 4174. Set `M
 | `POST /v1/macro-calendar` | `MARKETWEFT_FORMULA_TOKEN` | Economic report `csv` and exact `published_through` and `known_at` UTC cutoffs |
 | `POST /v1/universe/screen` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `prices_csv`, `baseline_at`, `effective_at` and `known_at` |
 | `POST /v1/universe/rank-comparison` | `MARKETWEFT_SCREEN_TOKEN` | Both CSVs, a shared baseline and two effective and known cutoff pairs |
+| `POST /v1/universe/portfolio-scenarios` | `MARKETWEFT_SCREEN_TOKEN` | Point-in-time membership and price reports, allocations and deterministic sampling settings |
 | `POST /v1/options/snapshot` | `MARKETWEFT_OPTIONS_TOKEN` | `underlying_csv`, `quotes_csv`, `effective_at`, `known_at` and optional `max_age` |
 | `POST /v1/options/american/valuation` | `MARKETWEFT_OPTIONS_TOKEN` | Option CSVs, `contract_id`, both UTC cutoffs, and optional volatility and cash dividends |
 
@@ -60,6 +61,16 @@ Send a JSON object to `POST /v1/universe/rank-comparison` using a screen credent
 
 The result echoes the five cutoffs and provides the universe ID, total row count, offset and next offset. Each row retains the listing ID, instrument and both snapshots. Each snapshot contains its membership status, change ID, effective and observation times, rank, return units and exact baseline and target closes with their observation times. Prices and returns use decimal strings. Missing values use JSON `null`. Both snapshots are ranked before slicing the union by stable listing ID. Reuse the same inputs and cutoffs when requesting the next page. [Rank comparison semantics and examples](research-universe-screen.md#compare-rank-snapshots).
 
+## Portfolio scenarios
+
+Send `POST /v1/universe/portfolio-scenarios` with a screen bearer credential. Supply the authorized UTF-8 CSV contents in `membership_csv` and `prices_csv`, and use exact `YYYY-MM-DDTHH:MM:SSZ` timestamps for `from_at`, `through_at` and `known_at`. The service uses the same limits and complete block rules as the terminal. [Portfolio scenario method and fixture](portfolio-scenarios.md).
+
+Supply `allocations` with 2 to 16 stable listing IDs and weights totaling 10,000 basis points. Set `interval_seconds`, `fee_basis_points`, `paths` and `horizon`. Send `seed` as an unsigned 64-bit decimal string and `starting_value_ticks` as an integer millionths string. For example, `"100000000"` sets the starting portfolio value to 100. Leave `block_size` absent for independent moves, or specify the number of adjacent moves to sample together.
+
+Each page reports the cutoffs, seed, horizon, block size, eligible vectors and blocks, listing coverage and whole-simulation percentiles. Ending values and fees are decimal strings in millionths of portfolio currency, and drawdown uses millionths of peak value. Path numbers start at 1. Use `limit` from 1 to 250, with a default of 100. Set `offset` to the previous page’s `next_offset` with the same inputs to continue.
+
+Connect to `/v1/universe/portfolio-scenarios/stream` using the same screen credential and send the REST JSON query in one text frame. On reconnect, resume with the last accepted `next_offset`. Use `wss` on the configured TLS listener. The gRPC method `marketweft.research.v1.Research/GetPortfolioScenarios` returns an equivalent typed unary page and uses the bearer token in `authorization` metadata. Both use the same screen admission controls, quotas and audit receipts as REST. [Research Protobuf schema](../apps/research-service/proto/research.proto).
+
 ## WebSocket streaming
 
 Connect to `ws://127.0.0.1:4174/v1/formula/stream` or `ws://127.0.0.1:4174/v1/universe/screen/stream`, using the port printed by the service. Use a client that can set the `Authorization: Bearer <token>` header on the upgrade request. Each path requires the same scope as its REST equivalent. Option snapshots also have a stream at `/v1/options/snapshot/stream` under the options scope. The Host and Origin checks apply to the upgrade.
@@ -87,6 +98,7 @@ Use a Protobuf client over HTTP/2 at the printed service address. The default lo
 | `GetMacroCalendar` | `MARKETWEFT_FORMULA_TOKEN` |
 | `ScreenUniverse` | `MARKETWEFT_SCREEN_TOKEN` |
 | `CompareUniverseRanks` | `MARKETWEFT_SCREEN_TOKEN` |
+| `GetPortfolioScenarios` | `MARKETWEFT_SCREEN_TOKEN` |
 | `SnapshotOptions` | `MARKETWEFT_OPTIONS_TOKEN` |
 | `ValueAmericanOption` | `MARKETWEFT_OPTIONS_TOKEN` |
 
