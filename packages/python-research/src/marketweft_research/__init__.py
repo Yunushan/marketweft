@@ -19,6 +19,7 @@ __all__ = [
     "MacroRecord", "MacroRelease",
     "MonthlyClose", "MonthlyReturn",
     "OptionChainAnalytics", "OptionChainQuote", "OptionChainSnapshot", "OptionUnderlyingQuote",
+    "PortfolioAllocationListing", "PortfolioAllocationSample", "PortfolioAllocationSnapshot",
     "PortfolioScenarioCoverage", "PortfolioScenarioPath", "PortfolioScenarioResult", "ScenarioAllocation",
     "ResearchEngine", "ResearchError", "ScalarPluginPoint",
     "ScreenPrice", "ScreenResult", "ScreenRow",
@@ -39,6 +40,7 @@ _MAX_SCALAR_PLUGIN = 64 * 1024
 _MAX_SCALAR_SERIES = 256
 _MONTHLY_PROTOCOL = "marketweft-monthly-returns"
 _MACRO_PROTOCOL = "marketweft-macro-calendar"
+_ALLOCATION_PROTOCOL = "marketweft-portfolio-allocation"
 _PORTFOLIO_PROTOCOL = "marketweft-portfolio-scenarios"
 _FX_PROTOCOL = "marketweft-portfolio-fx"
 _CONCENTRATION_PROTOCOL = "marketweft-equity-concentration"
@@ -165,6 +167,36 @@ class ScreenResult:
 class ScenarioAllocation:
     listing_id: str
     weight_basis_points: int
+
+
+@dataclass(frozen=True)
+class PortfolioAllocationListing:
+    listing_id: str
+    known_returns: int
+    equal_basis_points: int | None
+    optimized_basis_points: int | None
+
+
+@dataclass(frozen=True)
+class PortfolioAllocationSample:
+    equal_mean: float
+    equal_volatility: float
+    optimized_mean: float
+    optimized_volatility: float
+    variance_gap: float
+    iterations: int
+
+
+@dataclass(frozen=True)
+class PortfolioAllocationSnapshot:
+    from_at: int
+    through_at: int
+    known_at: int
+    interval_seconds: int
+    expected_returns: int
+    common_returns: int
+    listings: tuple[PortfolioAllocationListing, ...]
+    sample: PortfolioAllocationSample | None
 
 
 @dataclass(frozen=True)
@@ -596,6 +628,64 @@ def _fx_translation(
     if subtotal != (sum(converted_amounts) if converted_amounts else None):
         raise ResearchError("Portfolio FX subtotal does not match the converted currency amounts.")
     return FxTranslation(reporting, subtotal, tuple(values))
+
+
+def _portfolio_allocation(
+    output: bytes, listing_ids: tuple[str, ...], times: tuple[int, int, int], interval: int,
+) -> PortfolioAllocationSnapshot:
+    count, rows = _response(output, _ALLOCATION_PROTOCOL)
+    if _whole(count) != len(listing_ids) or len(rows) != len(listing_ids) + 3:
+        raise ResearchError("Invalid portfolio allocation row count.")
+    if rows[0].split("\t") != ["T", *map(str, times), str(interval)]:
+        raise ResearchError("Portfolio allocation cutoffs differ from the request.")
+    coverage = rows[1].split("\t")
+    if len(coverage) != 2:
+        raise ResearchError("Invalid portfolio allocation coverage.")
+    expected, common = map(_whole, coverage)
+    if not 0 <= common <= expected == (times[1] - times[0]) // interval <= 100_000:
+        raise ResearchError("Portfolio allocation coverage is outside its requested bounds.")
+
+    sample = None
+    if common < 2:
+        if rows[2]:
+            raise ResearchError("Portfolio estimates require two common returns.")
+    else:
+        metrics = rows[2].split("\t")
+        if len(metrics) != 6:
+            raise ResearchError("Invalid portfolio allocation statistics.")
+        try:
+            numeric = [float(value) for value in metrics[:-1]]
+        except ValueError as error:
+            raise ResearchError("Invalid portfolio allocation statistics.") from error
+        iteration_count = _whole(metrics[-1])
+        if (any(not math.isfinite(value) for value in numeric)
+                or not 0.0 <= numeric[3] <= numeric[1] or numeric[4] < 0.0
+                or not 0 <= iteration_count <= 20_000):
+            raise ResearchError("Portfolio allocation statistics are outside their valid bounds.")
+        sample = PortfolioAllocationSample(*numeric, iteration_count)
+
+    listings = []
+    for listing, row in zip(sorted(listing_ids), rows[3:]):
+        fields = row.split("\t")
+        if len(fields) != 4 or fields[0] != listing:
+            raise ResearchError("Portfolio allocation evidence must match the requested listings.")
+        known = _whole(fields[1])
+        if not common <= known <= expected:
+            raise ResearchError("Invalid portfolio allocation listing coverage.")
+        weights = (None, None)
+        if sample is None:
+            if any(fields[2:]):
+                raise ResearchError("Portfolio weights require two common returns.")
+        else:
+            weights = tuple(map(_whole, fields[2:]))
+            if any(not 0 <= weight <= 10_000 for weight in weights):
+                raise ResearchError("Invalid portfolio allocation weights.")
+        listings.append(PortfolioAllocationListing(listing, known, *weights))
+    if sample is not None:
+        equal, optimized = zip(*[(row.equal_basis_points, row.optimized_basis_points) for row in listings])
+        if sum(equal) != 10_000 or sum(optimized) != 10_000 or max(equal) - min(equal) > 1:
+            raise ResearchError("Portfolio allocation weights must sum to 10,000 basis points.")
+    return PortfolioAllocationSnapshot(*times, interval, expected, common, tuple(listings), sample)
 
 
 def _portfolio_scenarios(
@@ -1204,6 +1294,37 @@ class ResearchEngine:
             raise ValueError("Membership and prices CSV exceed the screen input limits.")
         header = "\t".join(("marketweft-rank-comparison", "1", str(len(membership)), *times)).encode("ascii") + b"\n"
         return _rank_comparison_result(self._invoke(header + membership + prices, "rank-compare"))
+
+    def portfolio_allocation_as_of(
+        self, membership_csv: str, prices_csv: str, listing_ids: Sequence[str], *,
+        from_at: str, through_at: str, known_at: str, interval_seconds: int,
+    ) -> PortfolioAllocationSnapshot:
+        """Estimate long-only portfolio weights using common returns at the supplied cutoffs."""
+        times = (from_at, through_at, known_at)
+        if any(not isinstance(value, str) or not _UTC.fullmatch(value) for value in times):
+            raise ValueError("Use YYYY-MM-DDTHH:MM:SSZ portfolio allocation cutoffs.")
+        try:
+            start, end, known = (_epoch_second(datetime.fromisoformat(instant[:-1])) for instant in times)
+        except ValueError as error:
+            raise ValueError("Use valid UTC portfolio allocation cutoffs.") from error
+        if type(interval_seconds) is not int or not 1 <= interval_seconds <= 0xFFFFFFFF:
+            raise ValueError("Use a positive whole number for the price interval.")
+        if start > end or (end - start) % interval_seconds or (end - start) // interval_seconds > 100_000:
+            raise ValueError("Use at most 100,000 intervals with the UTC end on the selected grid.")
+        if isinstance(listing_ids, (str, bytes)):
+            raise ValueError("Supply a sequence of portfolio listing IDs.")
+        listings = tuple(listing_ids)
+        if (not 2 <= len(listings) <= 16
+                or any(not isinstance(listing, str) or not _IDENTITY.fullmatch(listing) for listing in listings)
+                or len(set(listings)) != len(listings)):
+            raise ValueError("Use 2 to 16 distinct portfolio listing IDs.")
+        membership, prices = membership_csv.encode("utf-8"), prices_csv.encode("utf-8")
+        if len(membership) > 1024 * 1024 or len(prices) > 2 * 1024 * 1024:
+            raise ValueError("Membership and prices CSV exceed the portfolio allocation input limits.")
+        header = "\t".join((_ALLOCATION_PROTOCOL, "1", str(len(membership))))
+        request = "\n".join((header, *times, str(interval_seconds), "\t".join(listings), "")).encode("ascii")
+        output = self._invoke(request + membership + prices, "portfolio-allocation")
+        return _portfolio_allocation(output, listings, (start, end, known), interval_seconds)
 
     def portfolio_scenarios(
         self, membership_csv: str, prices_csv: str, allocations: Sequence[ScenarioAllocation], *,

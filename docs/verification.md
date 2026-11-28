@@ -1,5 +1,11 @@
 # MarketWeft verification
 
+## 0.272.0 · Portfolio allocation research SDKs
+
+- A native request test checks the version, byte boundaries, exact UTC echoes, interval grid and stable unique listing IDs.
+- The isolated TypeScript and Python packages reproduce coverage and 50:50 weights for the two-listing fixture. Python also preserves explicit 0, 0 and 10,000 basis-point weights for three listings after the late observation.
+- Python rejects native responses with different cutoffs, impossible coverage, non-finite estimates or weights that fail to total 10,000 basis points.
+
 ## 0.271.0 · Multi-listing minimum variance
 
 - Rust verifies three uncorrelated assets with sample variances in a 1:4:16 ratio. The estimated weights are 7,619, 1,905 and 476 basis points. The flat and corner cases keep zero volatility.

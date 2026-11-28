@@ -9,6 +9,27 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK preserves allocation cutoffs and common coverage through a late close', async () => {
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8')
+  const [membership, prices] = await Promise.all([fixture('membership'), fixture('prices')])
+  const engine = await createResearchEngine(await readFile(new URL(MARKET_CORE_WASM_URL)))
+  const time = minute => '2025-06-02T14:0' + minute + ':00Z'
+  const at = known => engine.portfolioAllocationAsOf(membership, prices, ['B', 'A'], {
+    from: time(0), through: time(6), known: time(known), intervalSeconds: 60,
+  })
+  const original = at(6)
+  assert.deepEqual([original.fromAt, original.throughAt, original.knownAt, original.intervalSeconds],
+    [1748872800, 1748873160, 1748873160, 60])
+  assert.equal(original.commonReturns, 4)
+  assert.deepEqual(original.listings.map(row => [row.listingId, row.knownReturns, row.optimizedBasisPoints]),
+    [['A', 6, 5000], ['B', 4, 5000]])
+  assert.equal(original.sample.optimizedVolatility, 0)
+  assert.equal(at(7).commonReturns, 6)
+  assert.equal(at(1).sample, null)
+  assert.equal(at(1).listings[0].optimizedBasisPoints, null)
+  assert.deepEqual(at(6), original)
+})
+
 test('equity target drift matches the terminal across original, revised and withdrawn reports', async () => {
   const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8')
   const reports = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices', 'delisting-terms', 'equity-targets'].map(fixture))

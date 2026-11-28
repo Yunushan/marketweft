@@ -1,11 +1,11 @@
 import { instantiateMarketCore } from './core.js'
-import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, FormulaResult, MarketCore } from './core.js'
+import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, FormulaResult, MarketCore, PortfolioAllocationReport, PortfolioVarianceQuery } from './core.js'
 
 export type {
   AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
   EquityConcentration, EquityTargetDrift, Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
-  JointScenarioPath, JointScenarioQuery, JointScenarioReport, ScenarioAllocation,
+  JointScenarioPath, JointScenarioQuery, JointScenarioReport, PortfolioAllocationReport, PortfolioVarianceQuery, ScenarioAllocation,
   FxAmount, FxCurrencyValue, FxTranslation,
   OptionUnavailable, OptionUnderlying, PaperConfig, PaperDepthSnapshot, PaperSnapshot, QuarterlyValuation,
   ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
@@ -27,6 +27,13 @@ export interface EquityTargetSnapshot {
   rows: EquityTargetDrift[]
 }
 
+export interface PortfolioAllocationSnapshot extends PortfolioAllocationReport {
+  fromAt: number
+  throughAt: number
+  knownAt: number
+  intervalSeconds: number
+}
+
 export interface MarketResearch {
   readonly version: typeof RESEARCH_SDK_VERSION
   parseBars(csv: string): Bar[]
@@ -38,6 +45,8 @@ export interface MarketResearch {
   macroAsOf: MarketCore['macroAsOf']
   universeScreen: MarketCore['universeScreen']
   compareUniverseRanks: MarketCore['compareUniverseRanks']
+  portfolioAllocationAsOf(membership: string, closes: string, listingIds: readonly string[],
+    query: PortfolioVarianceQuery): PortfolioAllocationSnapshot
   portfolioScenarios: MarketCore['portfolioScenarios']
   portfolioFxAsOf: MarketCore['portfolioFxAsOf']
   equityConcentrationAsOf(membership: string, holdings: string, closes: string,
@@ -72,6 +81,11 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     macroAsOf: core.macroAsOf,
     universeScreen: core.universeScreen,
     compareUniverseRanks: core.compareUniverseRanks,
+    portfolioAllocationAsOf(membership, closes, listingIds, query) {
+      const report = core.portfolioAllocation(membership, closes, listingIds, query)
+      return { ...report, fromAt: Date.parse(query.from) / 1000, throughAt: Date.parse(query.through) / 1000,
+        knownAt: Date.parse(query.known) / 1000, intervalSeconds: query.intervalSeconds }
+    },
     portfolioScenarios: core.portfolioScenarios,
     portfolioFxAsOf: core.portfolioFxAsOf,
     equityConcentrationAsOf(membership, holdings, closes, effectiveAt, knownAt) {

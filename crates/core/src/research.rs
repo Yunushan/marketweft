@@ -15,6 +15,7 @@ use crate::portfolio::{
     equity_concentration_rows, equity_target_report, portfolio_source_input, PortfolioBook,
     MAX_EQUITY_TARGET_CSV_BYTES, MAX_HOLDINGS_BYTES,
 };
+use crate::portfolio_allocation_wire::{portfolio_allocation_report, portfolio_allocation_rows};
 use crate::portfolio_scenario_wire::{portfolio_scenario_report, portfolio_scenario_rows};
 use crate::screen::MAX_PRICE_BYTES;
 use crate::universe::{valid_id, MAX_MEMBERSHIP_BYTES};
@@ -39,6 +40,8 @@ pub const MAX_SCALAR_PLUGIN_SERIES_REQUEST_BYTES: usize =
     MAX_SCALAR_PLUGIN_REQUEST_BYTES + MAX_INPUT_BYTES;
 pub const MAX_MONTHLY_RETURNS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
 pub const MAX_MACRO_CALENDAR_REQUEST_BYTES: usize = MAX_MACRO_CSV_BYTES + 128;
+pub const MAX_PORTFOLIO_ALLOCATION_REQUEST_BYTES: usize =
+    MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 1024;
 pub const MAX_PORTFOLIO_SCENARIOS_REQUEST_BYTES: usize =
     MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 1024;
 pub const MAX_PORTFOLIO_FX_REQUEST_BYTES: usize = 2 * 1024 * 1024;
@@ -138,6 +141,51 @@ pub fn portfolio_fx_request(bytes: &[u8]) -> Result<String, String> {
         "marketweft-portfolio-fx\t{PROTOCOL_VERSION}\t{}\n{}",
         report.rows.len(),
         fx_rows(report)
+    ))
+}
+
+/// Estimate long-only portfolio weights from point-in-time common return intervals.
+pub fn portfolio_allocation_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_PORTFOLIO_ALLOCATION_REQUEST_BYTES {
+        return Err("Portfolio allocation request exceeds its byte limit.".into());
+    }
+    let input =
+        std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 portfolio allocation request.")?;
+    let (header, payload) = input
+        .split_once('\n')
+        .ok_or("Missing portfolio allocation request header.")?;
+    let mut fields = header.splitn(4, '\t');
+    let [Some("marketweft-portfolio-allocation"), Some("1"), Some(membership), None] =
+        std::array::from_fn(|_| fields.next())
+    else {
+        return Err("Invalid portfolio allocation request or protocol version.".into());
+    };
+    let membership_bytes = membership
+        .parse()
+        .map_err(|_| "Supply the membership CSV byte length.")?;
+    let mut fields = payload.splitn(5, '\n');
+    let [Some(from_at), Some(through_at), Some(known_at)] =
+        std::array::from_fn(|_| fields.next().and_then(exact_utc))
+    else {
+        return Err("Use YYYY-MM-DDTHH:MM:SSZ portfolio allocation cutoffs.".into());
+    };
+    let interval_seconds = fields
+        .next()
+        .and_then(|value| value.parse().ok())
+        .ok_or("Use a positive price interval.")?;
+    let reports = fields
+        .next()
+        .ok_or("Supply portfolio listing IDs and CSV reports.")?;
+    let query = crate::PortfolioVarianceQuery {
+        from_at,
+        through_at,
+        known_at,
+        interval_seconds,
+    };
+    let report = portfolio_allocation_report(reports, membership_bytes, query)?;
+    Ok(format!(
+        "marketweft-portfolio-allocation\t{PROTOCOL_VERSION}\t{}\nT\t{from_at}\t{through_at}\t{known_at}\t{interval_seconds}\n{}",
+        report.listings.len(), portfolio_allocation_rows(&report)
     ))
 }
 

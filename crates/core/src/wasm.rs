@@ -1491,64 +1491,19 @@ pub extern "C" fn mw_relative_series(membership_bytes: usize) -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_portfolio_allocation(membership_bytes: usize, interval_seconds: u32) -> u32 {
-    use std::fmt::Write;
+    use crate::portfolio_allocation_wire::{
+        portfolio_allocation_report, portfolio_allocation_rows,
+    };
     process(|input| {
-        let ([from_at, through_at, known_at], report) = screen_inputs(input)?;
-        let (listings, csvs) = report
-            .split_once('\n')
-            .ok_or("Supply portfolio listing IDs.")?;
-        let listings: Vec<_> = listings.splitn(17, '\t').collect();
-        let (membership, closes) = csvs
-            .split_at_checked(membership_bytes)
-            .ok_or("Supply both membership and price reports.")?;
-        let universe = parse_universe(membership)?;
-        let prices = PriceBook::parse(&universe, closes)?;
+        let ([from_at, through_at, known_at], reports) = screen_inputs(input)?;
         let query = crate::PortfolioVarianceQuery {
             from_at,
             through_at,
             known_at,
             interval_seconds,
         };
-        let portfolio = prices.portfolio_allocation(&listings, query)?;
-        let mut text = format!(
-            "{}\t{}\n",
-            portfolio.expected_returns, portfolio.common_returns
-        );
-        if let Some(sample) = &portfolio.sample {
-            writeln!(
-                text,
-                "{}\t{}\t{}\t{}\t{}\t{}",
-                sample.equal.mean_return,
-                sample.equal.volatility,
-                sample.optimized.mean_return,
-                sample.optimized.volatility,
-                sample.variance_gap,
-                sample.iterations
-            )
-            .unwrap();
-        } else {
-            text.push('\n');
-        }
-        for (index, listing) in portfolio.listings.iter().enumerate() {
-            let equal = portfolio
-                .sample
-                .as_ref()
-                .map(|sample| sample.equal.weights_basis_points[index]);
-            let optimized = portfolio
-                .sample
-                .as_ref()
-                .map(|sample| sample.optimized.weights_basis_points[index]);
-            writeln!(
-                text,
-                "{}\t{}\t{}\t{}",
-                listing.listing_id,
-                listing.known_returns,
-                optional_number(equal),
-                optional_number(optimized)
-            )
-            .unwrap();
-        }
-        Ok(text.into_bytes())
+        let report = portfolio_allocation_report(reports, membership_bytes, query)?;
+        Ok(portfolio_allocation_rows(&report).into_bytes())
     })
 }
 

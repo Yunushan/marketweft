@@ -264,3 +264,24 @@ fn allocation_uses_only_returns_common_to_every_listing_and_preserves_coverage_o
         .portfolio_allocation(&["A", "B", "UNKNOWN"], query(7))
         .is_err());
 }
+
+#[test]
+fn native_allocation_protocol_echoes_cutoffs_and_rejects_bad_boundaries() {
+    use marketweft_core::research::portfolio_allocation_request;
+    let request = |version, membership_len, ids: &str| {
+        format!("marketweft-portfolio-allocation\t{version}\t{membership_len}\n\
+            2025-06-02T14:00:00Z\n2025-06-02T14:06:00Z\n2025-06-02T14:06:00Z\n60\n{ids}\n{MEMBERSHIP}{PRICES}")
+    };
+    let valid = request(1, MEMBERSHIP.len(), "B\tA");
+    let result = portfolio_allocation_request(valid.as_bytes()).unwrap();
+    let lines: Vec<_> = result.lines().collect();
+    assert_eq!(lines.len(), 6);
+    assert_eq!(lines[0], "marketweft-portfolio-allocation\t1\t2");
+    assert_eq!(lines[1], "T\t1748872800\t1748873160\t1748873160\t60");
+    assert_eq!(lines[2], "6\t4");
+    assert_eq!(lines[4..], ["A\t6\t5000\t5000", "B\t4\t5000\t5000"]);
+    assert!(portfolio_allocation_request(request(2, MEMBERSHIP.len(), "A\tB").as_bytes()).is_err());
+    assert!(portfolio_allocation_request(request(1, usize::MAX, "A\tB").as_bytes()).is_err());
+    assert!(portfolio_allocation_request(request(1, MEMBERSHIP.len(), "A\tA").as_bytes()).is_err());
+    assert!(portfolio_allocation_request(valid.replace("60\nB", "70\nB").as_bytes()).is_err());
+}

@@ -72,3 +72,5 @@ if (typeof value !== 'string') {
 ```
 
 The last three parameters are the known time, maximum quote age in seconds and lattice step count. Call `americanOptionCashPrice` with an annual volatility fraction before the step count for direct pricing. `americanOptionPrice` and `americanOptionImplied` use the continuous-yield model and omit the cash CSV argument. On the synthetic fixture, the revised reports yield a USD 16.234568 model price, 32.53% implied volatility and exact cash amounts of `1000000n` and `9000000n` per share in millionths. [Option CSV schema and replay cutoffs](../../docs/option-chain.md).
+
+Call `portfolioAllocationAsOf(membershipCsv, pricesCsv, listingIds, query)` to estimate long-only portfolio weights from common observed returns. The query takes `from`, `through`, `known` and `intervalSeconds`. The result carries the applied cutoffs, each listing's return count and both weights in basis points. [Portfolio allocation SDKs](../../docs/portfolio-scenarios.md#portfolio-allocation-sdks)
