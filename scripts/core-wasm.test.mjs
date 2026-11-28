@@ -407,6 +407,25 @@ test('drawdown returns exact peak price and time without looking past each obser
     assert.deepEqual(core.observedDrawdown(bars.slice(0, end)), expected.slice(0, end));
 });
 
+test('close distributions keep signed quartiles exact and emit only completed prefixes', () => {
+  const from = 1735689600;
+  const ticks = [7, -5, -2, 0, 7, 1, -1, 4, 4];
+  const times = ticks.map((_, index) => from + index * 60 + (index >= 4 ? 600 : 0));
+  const bars = core.parseCsv(['time,open,high,low,close,volume', ...ticks.map((value, index) => {
+    const price = (value / 1e6).toFixed(6);
+    return [times[index], price, 1, -1, price, 1].join(',');
+  })].join('\n'));
+  const expected = [
+    { firstAt: times[0], lastAt: times[3], minimum: -5n, lowerQuartile: -3n,
+      median: -1n, upperQuartile: 2n, maximum: 7n },
+    { firstAt: times[4], lastAt: times[7], minimum: -1n, lowerQuartile: 1n,
+      median: 3n, upperQuartile: 5n, maximum: 7n },
+  ];
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.observedCloseDistributions(bars.slice(0, end), 4), expected.slice(0, Math.floor(end / 4)));
+  assert.throws(() => core.observedCloseDistributions(bars, 1), /2–10,000/);
+});
+
 test('per-pane rebased changes preserve wide values and earlier observation prefixes in Wasm', () => {
   const from = 1735689600;
   const observations = [[0, '1'], [60, '0.000001'], [120, '2000000000'], [240, '0']];

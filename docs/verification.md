@@ -1,5 +1,18 @@
 # MarketWeft verification
 
+## 0.208.0 · Close distribution chart
+
+- Rust and Wasm test signed quartile rounding, exact observation times and stable results through all observed prefixes.
+- Chromium checks box and whisker geometry, a trailing partial group, incomplete two-minute buckets, exact analysis columns, unchanged OHLCV exports and version 54 mixed-pane restore.
+
+[Close distribution chart](chart-workspace.md#close-distribution-chart)
+
+## 0.207.0 · Private deployment quotas
+
+- A separate TLS client exercises admissions and isolation across credentials in Compose and Kubernetes. It confirms that the quota service keeps the used allowance and continues the audit sequence after restart and restore.
+
+[Private deployment quotas](local-rest-research.md#enable-quotas-in-private-deployments)
+
 ## 0.206.0 · Durable research quotas
 
 - The hosted Rust fixture verifies that REST, WebSocket and gRPC spend the same quota per managed credential. Two service processes competing for the final admission produce one accepted request, and a separately issued credential retains its own allowance.

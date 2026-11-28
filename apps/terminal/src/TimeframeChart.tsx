@@ -8,12 +8,12 @@ import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, DE
 import type { SwingSettings } from './catalog-schema'
 import { fixed, parsePriceSize, tickPrice } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
-import type { AnchoredVwapSeries, CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import type { Bar, MarketCore } from './market-core'
 import { computeStudies, studyOverlays } from './studies'
 import type { StudySet } from './studies'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings' | 'anchoredVwaps' | 'sourceObservationTimes' | 'regressionDrawings'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings' | 'closeDistributions' | 'anchoredVwaps' | 'sourceObservationTimes' | 'regressionDrawings'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -315,6 +315,19 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       return { series: { ...config, values: [] }, error: cause instanceof Error ? cause.message : 'Could not calculate swings.' }
     }
   }, [core, type, swingSeconds, swingLeft, swingRight, cutoff, display.bars, timeframe])
+  const closeDistributions = useMemo<{ series?: CloseDistributionSeries; error?: string }>(() => {
+    if (type !== 'close-distribution') return {}
+    try {
+      const complete = timeframe?.buckets.map(bucket => bucket.observedBars === bucket.expectedBars)
+      const input = complete ? display.bars.filter((_, index) => complete[index]) : display.bars
+      const size = 5
+      const groups = core.observedCloseDistributions(input, size)
+      const byLast = new Map(groups.map(point => [point.lastAt, point]))
+      return { series: { size, values: display.bars.map(bar => byLast.get(bar.time) ?? null) } }
+    } catch (cause) {
+      return { error: cause instanceof Error ? cause.message : 'Could not calculate close distributions.' }
+    }
+  }, [core, type, display.bars, timeframe])
   const drawingTools = type === 'close-change' || type === 'rebased-percent' || type === 'drawdown' ?
     undefined : chart.drawingTools
   const annotations = drawingTools?.annotations
@@ -462,6 +475,9 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       {drawdown.error && <p role="alert">{drawdown.error}</p>}
       {drawdown.series && !drawdown.error && !drawdown.series.some(point => point !== null) &&
         <p role="status">Drawdown requires a positive observed close.</p>}
+      {closeDistributions.error && <p role="alert">{closeDistributions.error}</p>}
+      {closeDistributions.series && !closeDistributions.series.values.some(point => point !== null) &&
+        <p role="status">A box needs five complete closes.</p>}
       {type === 'confirmed-swings' && <>
         {onSwingSettings && <SwingWindow key={JSON.stringify([swingSettings, defaultInterval, timeframe?.targetSeconds])}
           settings={swingSettings} defaultSeconds={defaultInterval} targetSeconds={timeframe?.targetSeconds}
@@ -496,6 +512,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6} baselineTicks={baselineTicks}
         closeChanges={changes.series} bandSeconds={type === 'high-low-band' ? changeInterval : undefined}
         rebasedReturns={rebased.series} drawdowns={drawdown.series} swings={swing.series}
+        closeDistributions={closeDistributions.series}
         anchoredVwaps={anchoredVwaps} sourceObservationTimes={sourceObservationTimes}
         regressionDrawings={regressionDrawings}
         drawingTools={drawingTools && { ...drawingTools, async saveAnnotation(before, after) {

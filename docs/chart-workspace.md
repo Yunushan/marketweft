@@ -80,6 +80,12 @@ The pane's **Known through (UTC)** cutoff restricts both the displayed bars and 
 
 The pointer readout separates pivot time, confirmation time and exact pivot close. Analysis CSV includes those fields, direction, both window sizes, the interval and the effective cutoff. Version 45 backups preserve pane settings and chart types. The cutoff is session state. The watchlist continues to show the current workspace snapshot.
 
+### Close distribution chart
+
+Choose **Close distribution** in either chart pane. MarketWeft divides the observed closes into groups of five from the beginning of the selected timeframe. The box spans the first and third quartiles, the center line marks the median, and the whiskers show the minimum and maximum. Each box appears at the last observation in its group. An incomplete aggregation bucket or an unobserved timestamp contributes no close. A trailing group appears once it has all five observations.
+
+The chart readout shows the group's first and last UTC times and its exact price levels. Analysis CSV adds the same evidence on the completed group's final row. The OHLCV reimport export keeps its original fields. Version 54 workspace backups store each pane's chart choice. [Backup format](workspace-backup.md)
+
 ### Heikin-Ashi
 
 Each pane can display Heikin-Ashi candles independently. The first derived open is the midpoint of the first observed open and close. Subsequent opens are the midpoint of the previous derived open and close. The derived close averages the current observed open, high, low and close. The derived high and low enclose both the observed extremes and the derived body. Prices use signed millionths and round halfway values away from zero at each step. [Dan Valcu’s original calculation](https://c.mql5.com/forextsd/forum/118/using_the_heikin_ashi_technique_d_valcu.pdf).

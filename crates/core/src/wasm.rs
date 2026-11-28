@@ -4095,6 +4095,29 @@ pub extern "C" fn mw_observed_drawdown() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_observed_close_distributions(size: usize) -> u32 {
+    process(|input| {
+        let results = crate::observed_close_distributions(&decode_bars(input)?, size)?;
+        let mut bytes = Vec::with_capacity(results.len() * 56);
+        for row in results {
+            let fields = [
+                row.first_at,
+                row.last_at,
+                row.minimum,
+                row.lower_quartile,
+                row.median,
+                row.upper_quartile,
+                row.maximum,
+            ];
+            for field in fields {
+                bytes.extend_from_slice(&field.to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_confirmed_close_swings(
     left: usize,
     right: usize,

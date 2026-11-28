@@ -14,7 +14,7 @@ import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
 import type { PointFigureLayout } from './point-figure-chart'
 import { fibonacciFanRays, pitchforkRays } from './annotation-rays'
 import { ChartExport } from './ChartExport'
-import type { AnchoredVwapSeries, CloseChangeSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
+import type { AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, volume } from './workspace'
@@ -79,6 +79,7 @@ const chartNames: Record<ChartType, string> = {
   'rebased-percent': 'rebased percent change',
   drawdown: 'peak-to-trough drawdown',
   'confirmed-swings': 'confirmed close swing',
+  'close-distribution': 'close distribution',
   ohlc: 'OHLC bar',
   'heikin-ashi': 'Heikin-Ashi',
   renko: 'Renko',
@@ -174,6 +175,7 @@ function draw(
   closeChanges: CloseChangeSeries | undefined,
   percentPlot: Series | undefined,
   swings: SwingSeries | undefined,
+  closeDistributions: CloseDistributionSeries | undefined,
   bandSeconds: number | undefined,
   timeframe: TimeframeView | undefined,
   kagi: KagiLayout | undefined,
@@ -199,6 +201,7 @@ function draw(
   const hollowCandles = type === 'hollow-candles'
   const rangeBand = type === 'high-low-band'
   const swingChart = type === 'confirmed-swings'
+  const distributionChart = type === 'close-distribution'
   const continuitySeconds = swings?.seconds ?? bandSeconds
   function consecutive(index: number) {
     if (continuitySeconds === undefined || bars[index].time - bars[index - 1].time !== continuitySeconds) return false
@@ -234,8 +237,14 @@ function draw(
       low = Math.min(low, tickPrice(pivot.close))
       high = Math.max(high, tickPrice(pivot.close))
     }
-    low = Math.min(low, closeTrace ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
-    high = Math.max(high, closeTrace ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
+    const distribution = closeDistributions?.values[i]
+    if (distribution) {
+      low = Math.min(low, tickPrice(distribution.minimum))
+      high = Math.max(high, tickPrice(distribution.maximum))
+    }
+    const closeBounds = closeTrace || distributionChart
+    low = Math.min(low, closeBounds ? b.close : b.low, sma[i] ?? Infinity, ema[i] ?? Infinity)
+    high = Math.max(high, closeBounds ? b.close : b.high, sma[i] ?? -Infinity, ema[i] ?? -Infinity)
     for (const { series } of priceLines) {
       const value = series[i]
       if (value != null) {
@@ -461,7 +470,7 @@ function draw(
       } else {
         line(bodyLeft, bodyTop, axis + w / 2, bodyTop, col)
       }
-    } else if (!closeTrace && !derivedAxis && !rangeBand && !swingChart) {
+    } else if (!closeTrace && !derivedAxis && !rangeBand && !swingChart && !distributionChart) {
       line(axis, y(b.high), axis, y(b.low), col)
       const open = y(b.open), close = y(b.close)
       if (type === 'ohlc') {
@@ -477,6 +486,31 @@ function draw(
     ctx.globalAlpha = 0.46
     ctx.fillRect(axis - w / 2, bottom - h, w, h)
     ctx.globalAlpha = 1
+  }
+  if (closeDistributions) {
+    const width = Math.max(2, Math.min(14, dx * 0.7))
+    for (let index = start; index < view.end; index++) {
+      const distribution = closeDistributions.values[index]
+      if (!distribution) continue
+      const center = x(index)
+      const left = center - width / 2
+      const right = center + width / 2
+      const maximum = y(tickPrice(distribution.maximum))
+      const upper = y(tickPrice(distribution.upperQuartile))
+      const median = y(tickPrice(distribution.median))
+      const lower = y(tickPrice(distribution.lowerQuartile))
+      const minimum = y(tickPrice(distribution.minimum))
+      const cap = width / 3
+      line(center, maximum, center, upper, LILAC)
+      line(center, lower, center, minimum, LILAC)
+      line(center - cap, maximum, center + cap, maximum, LILAC)
+      line(center - cap, minimum, center + cap, minimum, LILAC)
+      const height = Math.max(1, lower - upper)
+      ctx.fillStyle = 'rgba(181, 155, 230, 0.25)'
+      ctx.fillRect(left, upper, width, height)
+      ctx.strokeRect(left, upper, width, height)
+      line(left, median, right, median, GOLD)
+    }
   }
   if (rangeBand) {
     const center = (group: typeof groups[number]) => (x(group.first) + x(group.last)) / 2
@@ -1022,6 +1056,7 @@ export function Chart({
   rebasedReturns,
   drawdowns,
   swings,
+  closeDistributions,
   anchoredVwaps,
   sourceObservationTimes,
   regressionDrawings,
@@ -1052,6 +1087,7 @@ export function Chart({
   rebasedReturns?: RebasedReturnSeries
   drawdowns?: DrawdownSeries
   swings?: SwingSeries
+  closeDistributions?: CloseDistributionSeries
   anchoredVwaps?: readonly AnchoredVwapSeries[]
   sourceObservationTimes?: readonly number[]
   regressionDrawings?: readonly RegressionDrawingView[]
@@ -1184,6 +1220,13 @@ export function Chart({
   const percentAxis = drawdown || type === 'rebased-percent'
   const swingChart = type === 'confirmed-swings'
   const swingPoint = swings?.values[sourceIndex]
+  const distributionChart = type === 'close-distribution'
+  let distribution = closeDistributions?.values[sourceIndex]
+  if (active === null && closeDistributions) {
+    for (let index = sourceIndex - 1; !distribution && index >= start; index--) {
+      distribution = closeDistributions.values[index]
+    }
+  }
   const change = closeChanges?.values[sourceIndex]
   const histogram = type === 'close-change'
   const indicatorValues = sma.length > 0 || ema.length > 0
@@ -1257,6 +1300,7 @@ export function Chart({
           closeChanges,
           percentPlot,
           swings,
+          closeDistributions,
           bandSeconds,
           timeframe,
           kagi,
@@ -1266,7 +1310,7 @@ export function Chart({
           plottedPriceLines,
           activeStudyPlotValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, baselineTicks, closeChanges, percentPlot, swings, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, type, baselineTicks, closeChanges, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -1346,17 +1390,28 @@ export function Chart({
     picker.accept({ ticks, time: original ?? observed?.sourceTime ?? bars[index].time })
     setAnnotationPicker(null)
   }
-  const priceReadout = !swingChart && !percentAxis && !histogram && !box && !segment && !movement && !displayBars
+  const priceReadout = !swingChart && !distributionChart && !percentAxis && !histogram && !box && !segment && !movement && !displayBars
     ? `${asset.symbol} OHLCV. Open ${price(b.open)}, high ${price(b.high)}, low ${price(b.low)}, close ${price(b.close)}, volume ${volume(b.volume)}`
     : undefined
   return (
-    <section className="plot" aria-label={closeBased || histogram || percentAxis || swingChart ? chartNames[type] + ' chart' : 'Price and volume chart'}
+    <section className="plot" aria-label={closeBased || histogram || percentAxis || swingChart || distributionChart ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : time}>
-      <div className="ohlc" role={displayBars || movement || selectedObservation || priceReadout ? 'group' : undefined}
-        aria-label={box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
+      <div className="ohlc" role={displayBars || movement || selectedObservation || priceReadout || distributionChart ? 'group' : undefined}
+        aria-label={distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
           displayBars ? 'Heikin-Ashi prices' : priceReadout}>
         <time>{timeLabel(time)} UTC</time>
-        {swingChart ? <>
+        {distributionChart ? <>
+          {distribution ? <>
+            <span><small>First close</small> {timeLabel(distribution.firstAt)} UTC</span>
+            <span><small>Last close</small> {timeLabel(distribution.lastAt)} UTC</span>
+            <span><small>Minimum</small> {fixed(distribution.minimum, 6)}</span>
+            <span><small>Q1</small> {fixed(distribution.lowerQuartile, 6)}</span>
+            <span><small>Median</small> {fixed(distribution.median, 6)}</span>
+            <span><small>Q3</small> {fixed(distribution.upperQuartile, 6)}</span>
+            <span><small>Maximum</small> {fixed(distribution.maximum, 6)}</span>
+          </> : <span>No completed box at this bar.</span>}
+          <span className="ohlc-vol"><small>Vol</small> {volume(b.volume)}</span>
+        </> : swingChart ? <>
           <span><small>Observed close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>
           <span><small>Swing</small> {swingPoint ? (swingPoint.side === 'high' ? 'High' : 'Low') : 'None'}</span>
           {swingPoint && <>
@@ -1636,7 +1691,8 @@ export function Chart({
       )}
       {exportOptions && (
         <ChartExport asset={asset} visible={{ start: sourceStart, end: sourceEnd }} metadata={exportOptions.metadata}
-          timeframe={timeframe} closeChanges={closeChanges} rebasedReturns={rebasedReturns} drawdowns={drawdowns} swings={swings} anchoredVwaps={anchoredVwaps}
+          timeframe={timeframe} closeChanges={closeChanges} rebasedReturns={rebasedReturns} drawdowns={drawdowns} swings={swings}
+          closeDistributions={closeDistributions} anchoredVwaps={anchoredVwaps}
           overlays={[
             ...(periods ? [
               { name: 'sma_' + periods.sma, series: sma },

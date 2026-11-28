@@ -1,7 +1,7 @@
 import type { SeriesMetadata } from './catalog-schema'
 import { sourcePermissionRestriction } from './catalog-schema'
 import { fixed } from './fixed-point'
-import type { AnchoredVwapPoint, ConfirmedSwing, DrawdownPoint, SessionTimeframeBar, TimeframeBar } from './market-core'
+import type { AnchoredVwapPoint, CloseDistribution, ConfirmedSwing, DrawdownPoint, SessionTimeframeBar, TimeframeBar } from './market-core'
 import type { Asset } from './workspace'
 
 export type BarRange = { start: number; end: number }
@@ -9,6 +9,7 @@ export type ExportOverlay = { name: string; series: readonly (number | bigint | 
 export type CloseChangeSeries = { intervalSeconds: number; values: readonly (bigint | null)[] }
 export type RebasedReturnSeries = { anchorAt?: number; baseClose?: number; values: readonly (bigint | null)[] }
 export type DrawdownSeries = readonly (DrawdownPoint | null)[]
+export type CloseDistributionSeries = { size: number; values: readonly (CloseDistribution | null)[] }
 export type SwingSeries = { left: number; right: number; seconds: number; cutoff?: number;
   values: readonly (ConfirmedSwing | null)[] }
 export type AnchoredVwapSeries = { id: string; anchorAt: number; values: readonly ((AnchoredVwapPoint & { observedAt: number }) | null)[] }
@@ -30,7 +31,7 @@ export function chartCsv(
   asset: Asset,
   range: BarRange,
   metadata: SeriesMetadata | undefined,
-  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries; swings?: SwingSeries; anchoredVwaps?: readonly AnchoredVwapSeries[] } | undefined,
+  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries; swings?: SwingSeries; closeDistributions?: CloseDistributionSeries; anchoredVwaps?: readonly AnchoredVwapSeries[] } | undefined,
 ) {
   const restriction = sourcePermissionRestriction(metadata?.sourceRights, 'redistribution')
   if (restriction === 'permission')
@@ -53,6 +54,9 @@ export function chartCsv(
       fields.push('rebased_base_time', 'rebased_base_close', 'rebased_return_pct')
     if (analysis.drawdowns)
       fields.push('drawdown_peak_time', 'drawdown_peak_close', 'drawdown_pct')
+    if (analysis.closeDistributions)
+      fields.push('distribution_size', 'distribution_first_time', 'distribution_last_time', 'distribution_minimum',
+        'distribution_q1', 'distribution_median', 'distribution_q3', 'distribution_maximum')
     if (analysis.swings)
       fields.push('swing_left_bars', 'swing_right_bars', 'swing_interval_seconds', 'swing_known_through',
         'swing_pivot_at', 'swing_confirmed_at', 'swing_pivot_close', 'swing_side')
@@ -106,6 +110,12 @@ export function chartCsv(
       if (analysis.drawdowns) {
         const point = analysis.drawdowns[index]
         row += ',' + (point ? [point.peakAt, fixed(point.peakClose, 6), fixed(point.percent, 6)].join(',') : ',,')
+      }
+      if (analysis.closeDistributions) {
+        const { size, values } = analysis.closeDistributions
+        const box = values[index]
+        row += ',' + (box ? [size, box.firstAt, box.lastAt, ...[box.minimum, box.lowerQuartile, box.median,
+          box.upperQuartile, box.maximum].map(value => fixed(value, 6))].join(',') : ',,,,,,,')
       }
       if (analysis.swings) {
         const { left, right, seconds, cutoff, values } = analysis.swings

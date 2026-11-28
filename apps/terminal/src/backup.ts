@@ -59,9 +59,12 @@ const FIBONACCI_EXTENSION_BACKUP_VERSION = 50
 const FIBONACCI_TIME_ZONES_BACKUP_VERSION = 51
 const HOLLOW_CANDLES_BACKUP_VERSION = 52
 const FIBONACCI_FAN_BACKUP_VERSION = 53
+const CLOSE_DISTRIBUTION_BACKUP_VERSION = 54
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
+  if (Object.values(preferences.chartTypes ?? {}).includes('close-distribution'))
+    return CLOSE_DISTRIBUTION_BACKUP_VERSION
   if (Object.values(preferences.annotations ?? {}).some(entries => entries.some(entry => entry.kind === 'fibonacci-fan')))
     return FIBONACCI_FAN_BACKUP_VERSION
   if (Object.values(preferences.chartTypes ?? {}).includes('hollow-candles'))
@@ -226,6 +229,7 @@ export async function verifyWorkspaceBackup(
   if (file.format !== FORMAT)
     throw Error('Choose a MarketWeft workspace backup.')
   if (typeof file.version !== 'number' || ![
+    CLOSE_DISTRIBUTION_BACKUP_VERSION,
     SINGLE_PANE_BACKUP_VERSION, COMPARISON_BACKUP_VERSION, DRAWING_BACKUP_VERSION,
     INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
     STRUCTURED_GRANT_BACKUP_VERSION,

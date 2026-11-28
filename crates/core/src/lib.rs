@@ -12,6 +12,7 @@ mod candle_patterns;
 mod chaikin;
 mod chart_movement;
 mod close_change;
+mod close_distribution;
 mod close_swings;
 mod cross_section;
 mod cross_section_liquidity;
@@ -88,6 +89,7 @@ pub use candle_patterns::{replay_candle_patterns, CandlePattern, CandlePatternHi
 pub use chaikin::{chaikin_money_flow, chaikin_oscillator};
 pub use chart_movement::PriceMovement;
 pub use close_change::close_changes;
+pub use close_distribution::{observed_close_distributions, CloseDistribution};
 pub use close_swings::{confirmed_close_swings, ConfirmedSwing, SwingSide};
 pub use cross_section::{
     CrossSectionActionSources, CrossSectionCandidate, CrossSectionCapitalReturnClaim,

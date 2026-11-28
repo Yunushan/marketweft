@@ -1159,6 +1159,15 @@ export interface PortfolioSpinOffBasis {
 }
 
 export type DrawdownPoint = { peakAt: number; peakClose: bigint; percent: bigint };
+export interface CloseDistribution {
+  firstAt: number;
+  lastAt: number;
+  minimum: bigint;
+  lowerQuartile: bigint;
+  median: bigint;
+  upperQuartile: bigint;
+  maximum: bigint;
+}
 
 export type ConfirmedSwing = { pivotAt: number; confirmedAt: number; close: bigint; side: 'high' | 'low' };
 
@@ -1207,6 +1216,7 @@ export interface MarketCore {
   anchoredVwap(anchorAt: number, bars: readonly Bar[]): (AnchoredVwapPoint | null)[];
   regressionChannel(startAt: number, endAt: number, bars: readonly Bar[]): RegressionChannel | null;
   observedDrawdown(bars: readonly Bar[]): (DrawdownPoint | null)[];
+  observedCloseDistributions(bars: readonly Bar[], size: number): CloseDistribution[];
   confirmedCloseSwings(left: number, right: number, intervalSeconds: number, bars: readonly Bar[]): (ConfirmedSwing | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
@@ -1344,6 +1354,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_close_changes(intervalSeconds: number): number;
   mw_rebased_percent_changes(anchorAt: bigint): number;
   mw_observed_drawdown(): number;
+  mw_observed_close_distributions(size: number): number;
   mw_regression_channel(startAt: bigint, endAt: bigint): number;
   mw_anchored_vwap(anchorAt: bigint): number;
   mw_confirmed_close_swings(left: number, right: number, intervalSeconds: number): number;
@@ -2425,6 +2436,23 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           peakAt: Number(out.getBigInt64(start, true)),
           peakClose: out.getBigInt64(start + 8, true),
           percent,
+        };
+      });
+    },
+    observedCloseDistributions(bars, size) {
+      if (!Number.isInteger(size) || size < 2 || size > 10_000) {
+        throw new Error('Use 2–10,000 closes per distribution.');
+      }
+      if (bars.length > 100_000) throw new Error('Close distributions support up to 100,000 source bars.');
+      putIndicatorBars(bars, 'Close distribution chart');
+      const outputBytes = output(api.mw_observed_close_distributions(size));
+      return Array.from({ length: outputBytes.byteLength / 56 }, (_, index) => {
+        const start = index * 56;
+        return {
+          firstAt: Number(outputBytes.getBigInt64(start, true)), lastAt: Number(outputBytes.getBigInt64(start + 8, true)),
+          minimum: outputBytes.getBigInt64(start + 16, true), lowerQuartile: outputBytes.getBigInt64(start + 24, true),
+          median: outputBytes.getBigInt64(start + 32, true), upperQuartile: outputBytes.getBigInt64(start + 40, true),
+          maximum: outputBytes.getBigInt64(start + 48, true),
         };
       });
     },
