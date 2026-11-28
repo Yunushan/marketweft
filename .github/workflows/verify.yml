@@ -162,6 +162,10 @@ jobs:
           portable="$RUNNER_TEMP/marketweft-portable"
           unzip -q "reports/$package" -d "$portable"
           MARKETWEFT_PORTABLE_ROOT="$portable" node --test scripts/portable-browser-engines.test.mjs
+          for engine in firefox webkit; do
+            MARKETWEFT_PORTABLE_ROOT="$portable" npx --no-install playwright test \
+              -c apps/terminal/playwright.config.mjs --browser "$engine" portable-upgrade.spec.mjs
+          done
       - id: publish
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

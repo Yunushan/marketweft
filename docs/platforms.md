@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.227.0
+# Platform support · MarketWeft 0.228.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
@@ -20,7 +20,7 @@ A successful web test validates a specific browser, build and host. Producing a 
 
 Run the updated archive at the same local address and open it in the same browser profile. When the terminal shows **Update ready**, close all MarketWeft tabs for that address and reopen it. The new service worker prepares its cache ahead of time. Open pages continue using their original cached build until they close, and the new worker clears the retired cache when it activates.
 
-The Chromium test gives the two builds different entry and replay files. It opens the old replay offline while the update waits, then activates the update, opens the new replay offline, and verifies the same imported quote. [Service-worker lifecycle](https://developer.chrome.com/docs/workbox/service-worker-lifecycle).
+The upgrade fixture gives the two builds different entry and replay filenames. After the replacement finishes caching, it stops the launcher and opens the old research view with the original tab still active. Closing that tab lets the already installed update take over. Chromium, Firefox and WebKit then reopen from the new cache without the server, load the new research code, and preserve the imported quote. [Service-worker lifecycle](https://developer.chrome.com/docs/workbox/service-worker-lifecycle).
 
 ### Firefox and WebKit offline verification
 
@@ -31,6 +31,13 @@ Run the same checks from a checkout with the locked npm dependencies installed. 
 ```sh
 npx --no-install playwright install --with-deps firefox webkit
 MARKETWEFT_PORTABLE_ROOT=/path/to/extracted/MarketWeft node --test scripts/portable-browser-engines.test.mjs
+```
+
+To repeat the upgrade fixture with all three Playwright engines, install Chromium alongside Firefox and WebKit and run the following command with the same extracted archive.
+
+```sh
+MARKETWEFT_PORTABLE_ROOT=/path/to/extracted/MarketWeft npx --no-install playwright test \
+  -c apps/terminal/playwright.config.mjs --browser all portable-upgrade.spec.mjs
 ```
 
 ## Android terminal

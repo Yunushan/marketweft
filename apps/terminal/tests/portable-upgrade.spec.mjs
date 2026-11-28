@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 import { startTerminal } from '../../../scripts/serve-terminal.mjs'
 
-const dist = fileURLToPath(new URL('../dist/', import.meta.url))
+const dist = process.env.MARKETWEFT_PORTABLE_ROOT ? join(process.env.MARKETWEFT_PORTABLE_ROOT, 'dist') :
+  fileURLToPath(new URL('../dist/', import.meta.url))
 const activeCache = worker => /const current = prefix \+ '([a-f0-9]+)'/.exec(worker)?.[1]
 
 async function closeServer(server) {
@@ -17,11 +18,15 @@ async function closeServer(server) {
   await closed
 }
 
-async function expectOfflineReplay(page, module) {
-  const response = page.waitForResponse(response => new URL(response.url()).pathname === '/assets/' + module)
+async function expectOfflineReplay(page, module, cacheName) {
+  expect(await page.evaluate(async ({ name, module }) => {
+    const cache = await caches.open(name)
+    return Boolean(await cache.match(new URL('/assets/' + module, location.origin)))
+  }, { name: cacheName, module })).toBe(true)
+  const requested = page.waitForRequest(request => new URL(request.url()).pathname === '/assets/' + module)
   await page.getByRole('button', { name: 'Historical replay' }).click()
   await expect(page.getByRole('button', { name: 'Open universe replay' })).toBeVisible()
-  expect((await response).fromServiceWorker()).toBe(true)
+  await requested
 }
 
 test('portable browser upgrade keeps each offline page on its own cached build', async ({ page, context }, testInfo) => {
@@ -82,12 +87,12 @@ test('portable browser upgrade keeps each offline page on its own cached build',
     await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update() })
     await expect.poll(() => page.evaluate(async () =>
       (await navigator.serviceWorker.getRegistration())?.waiting?.state)).toBe('installed')
-    expect(await page.evaluate(() => caches.keys())).toEqual([cacheName(firstHash), cacheName(nextHash)])
+    expect(await page.evaluate(async () => (await caches.keys()).sort())).toEqual([cacheName(firstHash), cacheName(nextHash)].sort())
     await expect(page.getByText('Update ready. Close all MarketWeft tabs and reopen this address.', { exact: true })).toBeVisible()
 
-    await context.setOffline(true)
-    await expectOfflineReplay(page, lazyChunk)
-    await context.setOffline(false)
+    await closeServer(server)
+    await assert.rejects(fetch(url), { name: 'TypeError' })
+    await expectOfflineReplay(page, lazyChunk, cacheName(firstHash))
     await page.close()
 
     const reopened = await context.newPage()
@@ -99,8 +104,7 @@ test('portable browser upgrade keeps each offline page on its own cached build',
     await expect(reopened.locator('script[type=module]')).toHaveAttribute('src', './assets/' + nextEntry)
     await expect(reopened.getByRole('heading', { name: 'UPGRADECACHE', exact: true })).toBeVisible()
     await expect(reopened.locator('.quote strong')).toHaveText('14.00')
-    await context.setOffline(true)
-    await expectOfflineReplay(reopened, nextChunk)
+    await expectOfflineReplay(reopened, nextChunk, cacheName(nextHash))
   } finally {
     if (server.listening) await closeServer(server)
   }

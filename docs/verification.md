@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.228.0 · Offline upgrades in Chromium, Firefox and WebKit
+
+- All three Playwright Linux x64 engines verified an original build and a replacement fixture with different entry and lazy replay assets. Both caches were present when the update finished installing.
+- After the test shut down the server, the original tab still loaded its replay module. Closing it allowed the new build to activate and remove the retired cache. The reopened pane loaded the replacement replay module and retained the imported 14.00 close with the server still stopped.
+
+[Portable browser updates](platforms.md#upgrade-the-portable-browser-terminal)
+
 ## 0.227.0 · Firefox and WebKit offline verification
 
 - The Linux x64 package checks exercise Playwright Firefox 159.0 and WebKit 27.2 with the loopback server stopped after cache installation. Both engines reload, import the fixture, read the exact close of 1.234567 and open the cached research view for a February return of +23.4567%.
