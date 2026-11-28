@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.237.0 · Economic releases over MCP
+
+- The installed Python wheel and official MCP client verify independent publication and observation cutoffs, exact schedule and frozen forecast evidence, and a revision chain split across three pages.
+- Read-only schema annotations, exact signed decimal strings, unavailable values, rejected path arguments and a deterministic rewind are checked over standard input and output.
+
+[Economic releases over MCP](local-mcp-research.md#economic-releases)
+
 ## 0.236.0 · Economic release calendar SDKs
 
 - Rust and the packaged SDKs use the synthetic browser fixture to verify independent cutoff equality, rescheduled events, a frozen pre-release forecast and recovery after an out-of-order observation.

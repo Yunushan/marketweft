@@ -9,13 +9,13 @@ from typing import BinaryIO
 
 from . import FinancialMultiples, FinancialSnapshot, FormulaFunction, ResearchEngine, ResearchError, ScreenComparisonLeg, ScreenPrice
 from . import (
-    _MAX_CSV, _MAX_FINANCIAL_CSV, _MAX_MONTHLY_YEARS, _MAX_OPTION_CSV, _MAX_OPTION_DIVIDEND_CSV,
+    _MAX_CSV, _MAX_FINANCIAL_CSV, _MAX_MACRO_CSV, _MAX_MACRO_REPORTS, _MAX_MONTHLY_YEARS, _MAX_OPTION_CSV, _MAX_OPTION_DIVIDEND_CSV,
     _MAX_OPTION_ROWS, _OPTION_STATUSES,
 )
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.11.0"
+SERVER_VERSION = "0.12.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -27,6 +27,7 @@ FINANCIAL_TOOL_NAME = "financial_snapshot_as_of"
 OPTION_SNAPSHOT_TOOL_NAME = "option_snapshot_as_of"
 AMERICAN_OPTION_TOOL_NAME = "american_option_valuation_as_of"
 MONTHLY_RETURNS_TOOL_NAME = "monthly_returns_as_of"
+MACRO_CALENDAR_TOOL_NAME = "macro_calendar_as_of"
 _UTC_SCHEMA = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
 INPUT_SCHEMA = {
     "type": "object",
@@ -124,6 +125,41 @@ MONTHLY_RETURNS_TOOL = {
                     "required": ["history_csv", "first_year", "last_year", "observed_through"], "additionalProperties": False},
     "outputSchema": {"type": "object", "properties": _MONTHLY_OUTPUT,
                      "required": list(_MONTHLY_OUTPUT), "additionalProperties": False},
+}
+_MAX_MACRO_PAGE = 250
+_MACRO_OFFSET = {"type": "integer", "minimum": 0, "maximum": _MAX_MACRO_REPORTS}
+_MACRO_ID = {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,40}$"}
+_MACRO_INPUT = {
+    "csv": {"type": "string", "minLength": 1, "maxLength": _MAX_MACRO_CSV},
+    "published_through": _UTC_SCHEMA, "known_at": _UTC_SCHEMA,
+    "offset": {**_MACRO_OFFSET, "default": 0},
+    "limit": {"type": "integer", "minimum": 1, "maximum": _MAX_MACRO_PAGE, "default": 100},
+}
+_MACRO_ROW = {
+    "release_id": _MACRO_ID, "series_id": _MACRO_ID, "reference_date": {"type": "integer"},
+    "unit": _MACRO_ID, "record_id": _MACRO_ID,
+    "kind": {"enum": ["schedule", "forecast", "actual", "revision"]},
+    "published_at": {"type": "integer"}, "observed_at": {"type": "integer"},
+    "scheduled_at": {"type": ["integer", "null"]},
+    "value_ticks": {"type": ["string", "null"], "pattern": "^-?(0|[1-9][0-9]{0,27})$"},
+    "supersedes": {**_MACRO_ID, "type": ["string", "null"]},
+}
+_MACRO_OUTPUT = {
+    "published_through": _UTC_SCHEMA, "known_at": _UTC_SCHEMA,
+    "total_releases": _MACRO_OFFSET, "total_rows": _MACRO_OFFSET, "offset": _MACRO_OFFSET,
+    "next_offset": {**_MACRO_OFFSET, "type": ["integer", "null"]},
+    "rows": {"type": "array", "maxItems": _MAX_MACRO_PAGE, "items": {
+        "type": "object", "properties": _MACRO_ROW, "required": list(_MACRO_ROW), "additionalProperties": False,
+    }},
+}
+MACRO_CALENDAR_TOOL = {
+    "name": MACRO_CALENDAR_TOOL_NAME,
+    "description": "Replay supplied economic reports through independent publication and observation cutoffs. Follow next_offset with the same CSV and cutoffs to recover every release and revision record.",
+    "annotations": TOOL["annotations"],
+    "inputSchema": {"type": "object", "properties": _MACRO_INPUT,
+                    "required": ["csv", "published_through", "known_at"], "additionalProperties": False},
+    "outputSchema": {"type": "object", "properties": _MACRO_OUTPUT,
+                     "required": list(_MACRO_OUTPUT), "additionalProperties": False},
 }
 SCREEN_INPUT_SCHEMA = {
     "type": "object",
@@ -541,7 +577,7 @@ class ResearchServer:
             if params.get("cursor") is not None:
                 raise RequestError(-32602, "The tool list fits on a single page.")
             return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL,
-                              AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL]}
+                              AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL, MACRO_CALENDAR_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -559,6 +595,8 @@ class ResearchServer:
                 return self._american_option(arguments)
             if name == MONTHLY_RETURNS_TOOL_NAME:
                 return self._monthly_returns(arguments)
+            if name == MACRO_CALENDAR_TOOL_NAME:
+                return self._macro_calendar(arguments)
             raise RequestError(-32602, "Unknown research tool.")
         raise RequestError(-32601, "Method not found.")
 
@@ -615,6 +653,41 @@ class ResearchServer:
                 "prior": _fixed_fields(month.prior, "ticks"), "current": _fixed_fields(month.current, "ticks"),
                 "percent_micros": None if month.percent_micros is None else str(month.percent_micros),
             } for month in page],
+        })
+
+    def _macro_calendar(self, arguments) -> dict:
+        if not isinstance(arguments, dict) or set(arguments) - _MACRO_INPUT.keys():
+            raise RequestError(-32602, "Supply only the documented economic calendar arguments.")
+        required = MACRO_CALENDAR_TOOL["inputSchema"]["required"]
+        if not all(isinstance(arguments.get(field), str) and arguments[field] for field in required):
+            raise RequestError(-32602, "Supply an economic calendar CSV, a publication cutoff and a knowledge cutoff.")
+        offset = _integer(arguments, "offset", 0, 0, _MAX_MACRO_REPORTS)
+        limit = _integer(arguments, "limit", 100, 1, _MAX_MACRO_PAGE)
+        try:
+            releases = self._engine.macro_as_of(**{field: arguments[field] for field in required})
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+
+        evidence = []
+        for release in releases:
+            if release.schedule:
+                evidence.append((release, "schedule", release.schedule))
+            if release.forecast:
+                evidence.append((release, "forecast", release.forecast))
+            evidence.extend((release, "revision" if record.supersedes else "actual", record)
+                            for record in release.actual_history)
+        page = evidence[offset:offset + limit]
+        end = offset + len(page)
+        return _structured({
+            "published_through": arguments["published_through"], "known_at": arguments["known_at"],
+            "total_releases": len(releases), "total_rows": len(evidence), "offset": offset,
+            "next_offset": end if end < len(evidence) else None,
+            "rows": [{
+                "release_id": release.release_id, "series_id": release.series_id, "reference_date": release.reference_date,
+                "unit": release.unit, "kind": kind, "record_id": record.record_id, "published_at": record.published_at,
+                "observed_at": record.observed_at, "scheduled_at": record.scheduled_at,
+                "value_ticks": None if record.value is None else str(record.value), "supersedes": record.supersedes,
+            } for release, kind, record in page],
         })
 
     def _screen(self, arguments) -> dict:

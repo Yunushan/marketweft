@@ -68,7 +68,8 @@ class McpTest(unittest.TestCase):
         tools = replies[2]["result"]["tools"]
         self.assertEqual([item["name"] for item in tools],
                          [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.RANK_COMPARISON_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME,
-                          mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME, mcp.MONTHLY_RETURNS_TOOL_NAME])
+                          mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME, mcp.MONTHLY_RETURNS_TOOL_NAME,
+                          mcp.MACRO_CALENDAR_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -133,6 +134,68 @@ class McpTest(unittest.TestCase):
         self.assertTrue(replies[12]["result"]["isError"])
         self.assertEqual(replies[13]["result"]["structuredContent"]["rows"], [])
         self.assertEqual(replies[14]["result"]["structuredContent"], first)
+
+    def test_macro_calendar_pages_release_evidence_through_independent_cutoffs(self):
+        reports = (ROOT / "crates/core/tests/fixtures/synthetic-macro-calendar.csv").read_text(encoding="utf-8")
+        utc = lambda time: f"2025-04-03T{time}Z"
+        early, late = utc("14:31:59"), utc("14:52:00")
+        wide = reports.replace("2.8,CPI-A1", "-9007199254.740993,CPI-A1")
+        delayed = reports.replace("14:32:00Z,,2.7", "14:49:00Z,,2.7")
+        arguments = {"csv": reports, "published_through": utc("14:50:00"), "known_at": early, "limit": 2}
+
+        def query(request_id, **overrides):
+            return rpc("tools/call", request_id, {"name": mcp.MACRO_CALENDAR_TOOL_NAME,
+                       "arguments": {**arguments, **overrides}})
+
+        process = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(rpc("initialize", 1, INITIALIZE), rpc("notifications/initialized"), rpc("tools/list", 2),
+                       query(3), query(4, known_at=late), query(5, known_at=late, offset=2),
+                       query(6, known_at=late, offset=4), query(7), query(8, csv=wide, known_at=late, offset=4),
+                       query(9, csv=delayed, published_through=utc("14:45:00"), known_at=utc("14:48:00")),
+                       query(10, published_through=utc("14:29:59"), known_at=late),
+                       query(11, offset=True), query(12, limit=251), query(13, csv_path="calendar.csv"),
+                       query(14, published_through="2025-02-29T14:32:00Z"), query(15, offset=10_000),
+                       query(16, published_through=utc("12:00:00")), query(17)),
+            timeout=15, capture_output=True, check=True,
+        )
+        self.assertEqual(process.stderr, b"")
+        replies = {message["id"]: message for message in map(json.loads, process.stdout.splitlines())}
+        tool = next(item for item in replies[2]["result"]["tools"] if item["name"] == "macro_calendar_as_of")
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertFalse(tool["annotations"]["openWorldHint"])
+        self.assertEqual(tool["outputSchema"]["properties"]["rows"]["maxItems"], 250)
+
+        def page(index):
+            return replies[index]["result"]["structuredContent"]
+
+        first = page(3)
+        self.assertEqual(first, page(7))
+        self.assertEqual(first, page(17))
+        self.assertEqual(json.loads(replies[3]["result"]["content"][0]["text"]), first)
+        self.assertEqual((first["known_at"], first["total_releases"], first["total_rows"], first["next_offset"]),
+                         (early, 2, 3, 2))
+        self.assertEqual(first["rows"][0], {"release_id": "INFLATION-MAR", "series_id": "DEMO.CPI",
+            "reference_date": 1740787200, "unit": "percent", "kind": "schedule", "record_id": "CPI-S2",
+            "published_at": 1743689280, "observed_at": 1743689340, "scheduled_at": 1743690600,
+            "value_ticks": None, "supersedes": None})
+        self.assertEqual(first["rows"][1]["record_id"], "CPI-F2")
+        self.assertEqual(first["rows"][1]["value_ticks"], "2500000")
+        self.assertEqual([page(index)["next_offset"] for index in (4, 5, 6)], [2, 4, None])
+        self.assertEqual([page(index)["total_rows"] for index in (4, 5, 6)], [6, 6, 6])
+        rows = [row for index in (4, 5, 6) for row in page(index)["rows"]]
+        self.assertEqual([(row["record_id"], row["kind"], row["value_ticks"], row["supersedes"]) for row in rows], [
+            ("CPI-S2", "schedule", None, None), ("CPI-F2", "forecast", "2500000", None),
+            ("CPI-A0", "actual", "2700000", None), ("CPI-A1", "revision", "2600000", "CPI-A0"),
+            ("CPI-A2", "revision", "2800000", "CPI-A1"), ("PAY-S1", "schedule", None, None),
+        ])
+        self.assertEqual(page(8)["rows"][0]["value_ticks"], "-9007199254740993")
+        self.assertEqual(page(9)["total_rows"], 3)
+        self.assertEqual(page(10)["total_rows"], 3)
+        self.assertEqual([replies[index]["error"]["code"] for index in (11, 12, 13)], [-32602] * 3)
+        self.assertTrue(replies[14]["result"]["isError"])
+        self.assertEqual((page(15)["rows"], page(15)["next_offset"]), ([], None))
+        self.assertEqual((page(16)["rows"], page(16)["total_releases"]), ([], 0))
 
     def test_tool_and_protocol_errors_preserve_the_session(self):
         server = mcp.ResearchServer(ResearchEngine(EXECUTABLE))

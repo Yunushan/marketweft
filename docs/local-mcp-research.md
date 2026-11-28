@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
+MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 
 ```json
 {
@@ -35,6 +35,14 @@ Call the read-only `monthly_returns_as_of` tool with `history_csv`, `first_year`
 Each row includes the year, month, UTC window state, preceding close, current close and return. A close carries its UTC second as an integer and its price ticks as an exact decimal string. `percent_micros` is a decimal string in millionths of a percentage point. Unavailable closes and returns are `null`. Each response includes the applied years and cutoff, and the compatibility text carries the same data as the structured response. [MCP structured tool output](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
 
 The default page contains up to 60 months. Set `limit` from 1 to 120, or pass `next_offset` as `offset` with the same source, years and cutoff. A `null` offset marks the last page. Rewind the cutoff to recover the original visible prices and return values.
+
+## Economic releases
+
+Call the read-only `macro_calendar_as_of` tool with the contents of an authorized economic calendar CSV in `csv`, plus `published_through` and `known_at` in exact `YYYY-MM-DDTHH:MM:SSZ` form. Each cutoff is inclusive. The native engine accepts up to 1 MiB and 10,000 source reports. [Economic calendar input and cutoff rules](macro-calendar.md)
+
+The response echoes the cutoffs and includes `total_releases`, `total_rows`, `offset`, `next_offset` and `rows`. Each row carries the release, series and record IDs, unit, reference date, record kind, publication time, observation time and predecessor ID when available. Scheduled time is present on schedule rows. The numeric `value_ticks` field uses a signed decimal string in integer millionths or `null`. UTC fields in rows use whole Unix seconds.
+
+Rows follow the calendar's release order. Within each release, the visible schedule and forecast precede its actual and revisions. Set `limit` from 1 to 250 evidence rows. The default is 100. Pass `next_offset` as `offset` with the same CSV and cutoffs to continue, including when a revision chain spans pages. A `null` offset marks the end. At the synthetic inflation release's 14:52 UTC observation cutoff, the revisions link `CPI-A0`, `CPI-A1` and `CPI-A2`, while the earlier 14:31:59 UTC cutoff has the schedule and forecast available. [Synthetic economic calendar](../crates/core/tests/fixtures/synthetic-macro-calendar.csv)
 
 ## Financial snapshots
 

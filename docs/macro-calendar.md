@@ -53,6 +53,8 @@ for release in snapshots:
 
 Each result carries the release and series IDs, reference date at midnight UTC, unit, visible schedule and forecast, and the full visible actual revision chain. Record fields preserve the publication and observation times and the superseded record ID. Times are Unix seconds. Values are signed integer millionths in the declared unit, represented by `bigint` in TypeScript and `int` in Python. Unavailable evidence uses `null` or `None`. The synthetic inflation result keeps forecast `CPI-F2` and yields actual values `2700000`, `2600000` and `2800000` as the observation cutoff advances. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md)
 
+Local MCP clients can request these records with the read-only `macro_calendar_as_of` tool. It returns exact decimal-string values and a continuation offset for long histories. [Economic releases over MCP](local-mcp-research.md#economic-releases)
+
 ### Native calendar protocol
 
 Run `marketweft-research macro-calendar` with a UTF-8 request on standard input. The first line contains `marketweft-macro-calendar`, protocol `1`, the publication cutoff and the knowledge cutoff, separated by tabs and followed by LF. Append up to 1 MiB of calendar CSV. Use `YYYY-MM-DDTHH:MM:SSZ` for both cutoffs.
