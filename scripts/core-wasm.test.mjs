@@ -98,6 +98,19 @@ test('anchored TWAP retains signed prices, exact elapsed time and prefix behavio
   assert.throws(() => core.anchoredTwap(0.5, bars), /whole UTC second/);
 });
 
+test('Fibonacci circles return exact signed ray projections and reject coincident anchors', () => {
+  const start = { time: 240, ticks: -4000000 };
+  const end = { time: 150, ticks: 5000000 };
+  const levels = core.fibonacciCircleLevels({ start, end });
+  assert.deepEqual(levels.map(level => level.ratioThousandths), [236, 382, 500, 618, 786, 1000, 1272, 1618, 2618]);
+  assert.deepEqual(levels[0], { ratioThousandths: 236, elapsedSeconds: -21, ticks: -1876000n });
+  assert.deepEqual(levels[5], { ratioThousandths: 1000, elapsedSeconds: -90, ticks: 5000000n });
+  assert.deepEqual(levels.at(-1), { ratioThousandths: 2618, elapsedSeconds: -236, ticks: 19562000n });
+  assert.equal(core.fibonacciCircleLevels({ start: {time:0,ticks:-2e15}, end: {time:0,ticks:2e15} }).at(-1).ticks,
+    8472000000000000n);
+  assert.throws(() => core.fibonacciCircleLevels({ start, end: start }), /two different anchor points/);
+});
+
 test('Mass Index and Detrended Price Oscillator keep exact observed prefixes and signed values', async () => {
   const bars = core.parseCsv(await readFile(new URL(
     '../crates/core/tests/fixtures/synthetic-mass-index-dpo.csv', import.meta.url,

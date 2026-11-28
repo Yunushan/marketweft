@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.253.0 · Fibonacci circles
+
+- Native and Wasm fixtures verify nine ratios and signed backwards time, including an elapsed offset of −21 seconds and a price of −1.876 at 0.236×. Coincident anchors are rejected, and pure horizontal and vertical projections keep exact amounts.
+- Chromium verifies concentric radii in both panes, zoom behavior, a vertical edit and version 74 restoration. Earlier workspace versions remain readable.
+
+[Fibonacci circles](chart-workspace.md#fibonacci-circles)
+
 ## 0.252.0 · Scoped portfolio FX service
 
 - REST reproduces 70, 340 and 362.5 USD at independent cutoffs and returns to 70 USD on rewind. It distinguishes identity conversions from missing rates and retains exact signed 128-bit values.

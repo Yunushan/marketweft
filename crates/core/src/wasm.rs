@@ -269,6 +269,34 @@ pub extern "C" fn mw_fibonacci_channel_levels(
 }
 
 #[no_mangle]
+pub extern "C" fn mw_fibonacci_circle_levels(
+    centre_time: i64,
+    centre_ticks: i64,
+    radius_time: i64,
+    radius_ticks: i64,
+) -> u32 {
+    process(|_| {
+        let levels = crate::fibonacci_circle_levels(
+            DrawingEndpoint {
+                time: centre_time,
+                ticks: centre_ticks,
+            },
+            DrawingEndpoint {
+                time: radius_time,
+                ticks: radius_ticks,
+            },
+        )?;
+        let mut bytes = Vec::with_capacity(levels.len() * 18);
+        for level in levels {
+            bytes.extend_from_slice(&level.ratio_thousandths.to_le_bytes());
+            bytes.extend_from_slice(&level.elapsed_seconds.to_le_bytes());
+            bytes.extend_from_slice(&level.ticks.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_measure_risk_reward(side: u32, entry: i64, stop: i64, target: i64) -> u32 {
     process(|_| {
         let side = match side {

@@ -152,6 +152,40 @@ pub fn fibonacci_channel_levels(
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FibonacciCircleLevel {
+    pub ratio_thousandths: u16,
+    /// Signed elapsed UTC seconds from the centre along the anchor direction.
+    pub elapsed_seconds: i64,
+    /// Price on the same ray at this ratio, rounded to signed millionths.
+    pub ticks: i64,
+}
+
+/// Calculate exact price and time coordinates along the centre-to-radius ray.
+pub fn fibonacci_circle_levels(
+    centre: DrawingEndpoint,
+    radius: DrawingEndpoint,
+) -> Result<[FibonacciCircleLevel; 9], String> {
+    let direction = measure_drawing(centre, radius)?;
+    if direction.elapsed_seconds == 0 && direction.price_ticks == 0 {
+        return Err("Fibonacci circles need two different anchor points.".into());
+    }
+    Ok(
+        [236, 382, 500, 618, 786, 1000, 1272, 1618, 2618].map(|ratio_thousandths| {
+            let ratio = i128::from(ratio_thousandths);
+            FibonacciCircleLevel {
+                ratio_thousandths,
+                elapsed_seconds: rounded_div(i128::from(direction.elapsed_seconds) * ratio, 1000)
+                    as i64,
+                ticks: rounded_div(
+                    i128::from(centre.ticks) * 1000 + i128::from(direction.price_ticks) * ratio,
+                    1000,
+                ) as i64,
+            }
+        }),
+    )
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RiskRewardSide {
     Long,
     Short,

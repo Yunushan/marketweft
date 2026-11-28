@@ -107,6 +107,7 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'ellipse':
     case 'fibonacci':
     case 'fibonacci-fan':
+    case 'fibonacci-circles':
     case 'gann-fan':
     case 'arrow':
       return name + describePoint(entry.start) + ' to ' + describePoint(entry.end)
@@ -224,6 +225,7 @@ export function ChartAnnotations({
     const label = plan ? ['Entry', 'Target', 'Stop'][point] :
       kind === 'fibonacci-extension' ? ['Move start', 'Move end', 'Projection anchor'][point] :
       kind === 'fibonacci-channel' ? ['Baseline start', 'Baseline end', 'Width anchor'][point] :
+      kind === 'fibonacci-circles' ? ['Centre', 'Radius anchor'][point] :
       vertex ? 'Point ' + (point + 1) :
       twoPoints ? point === 0 ? 'Start' : 'End' : ANNOTATION_NAMES[kind]
     const pickLabel = plan || vertex || twoPoints ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
@@ -329,6 +331,21 @@ export function ChartAnnotations({
                 <div className="ohlc chart-overlay-values" role="group" aria-label="Fibonacci fan prices at the end time">
                   {fibonacciFanLevels(entry.start.ticks, entry.end.ticks).map(level =>
                     <span key={level.label}><small>{level.label}</small> {fixed(level.ticks, 6)}</span>)}
+                </div>
+              </details>}
+              {entry.kind === 'fibonacci-circles' && <details className="research-details">
+                <summary>Fibonacci circle levels</summary>
+                <div className="replay-results replay-table-scroll">
+                  <table aria-label="Fibonacci circle anchor projections">
+                    <thead><tr><th scope="col">Ratio</th><th scope="col">Seconds from centre</th>
+                      <th scope="col">Price along anchor direction</th></tr></thead>
+                    <tbody>{core.fibonacciCircleLevels(entry).map(({ ratioThousandths, elapsedSeconds, ticks }) =>
+                      <tr key={ratioThousandths}>
+                        <th scope="row">{ratioThousandths / 1000}×</th>
+                        <td>{elapsedSeconds}</td>
+                        <td>{fixed(ticks, 6)}</td>
+                      </tr>)}</tbody>
+                  </table>
                 </div>
               </details>}
               {entry.kind === 'fibonacci-channel' && <details className="research-details">

@@ -210,6 +210,14 @@ At the end time, the three rays cross the prices reached at 38.2%, 50%, and 61.8
 
 Edit either anchor from the drawing list. The same instrument's drawings project through each pane's timeframe and viewport. A version 53 backup preserves the exact anchors and restores earlier formats. [Backup format](workspace-backup.md).
 
+## Fibonacci circles
+
+Choose **New fibonacci circles**. Enter or pick a **Centre** and **Radius anchor** by UTC time and price. The anchors can share a time or a price, as long as they are distinct.
+
+The chart draws concentric rings from 0.236× to 2.618× the displayed anchor distance. The 1× ring passes through the radius anchor. The rings stay circular as the pane changes scale and are clipped to its price plot. Each pane projects the same UTC and price anchors onto its own chart coordinates. [Fibonacci circle proportions](https://www.tradingview.com/support/solutions/43000518159-fib-circles/)
+
+Open **Fibonacci circle levels** for the signed elapsed UTC seconds and exact price along the anchor direction at each ratio. The table scales the difference between the anchors in source units. It rounds UTC offsets to whole seconds and prices to millionths, with half values rounding away from zero. Charts with irregular observation spacing can display equal elapsed UTC durations at different pixel widths. Workspace backup version 74 preserves both anchors.
+
 ## Fibonacci channel
 
 Choose **New Fibonacci channel** and enter or pick the baseline start, baseline end, and width anchor. The baseline end must be later than its start. The width anchor can use any UTC second between the baseline endpoints, including either endpoint. Its price must differ from the baseline price interpolated at that UTC second. Both positive and negative widths are supported. [Fibonacci channel convention](https://www.metatrader5.com/en/terminal/help/objects/fibo/fibo_channel).

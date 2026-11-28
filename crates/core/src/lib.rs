@@ -136,9 +136,10 @@ pub use dividend::{
 };
 pub use donchian::donchian_channels;
 pub use drawing::{
-    fibonacci_channel_levels, gann_box_levels, gann_fan_levels, measure_drawing,
-    measure_risk_reward, DrawingEndpoint, DrawingMeasurement, FibonacciChannelLevel, GannFanLevel,
-    RiskRewardMeasurement, RiskRewardSide,
+    fibonacci_channel_levels, fibonacci_circle_levels, gann_box_levels, gann_fan_levels,
+    measure_drawing, measure_risk_reward, DrawingEndpoint, DrawingMeasurement,
+    FibonacciChannelLevel, FibonacciCircleLevel, GannFanLevel, RiskRewardMeasurement,
+    RiskRewardSide,
 };
 pub use floor_pivots::{daily_floor_pivots, FloorPivotLevels};
 pub use force_and_volatility::{

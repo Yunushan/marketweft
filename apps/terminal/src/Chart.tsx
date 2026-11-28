@@ -21,7 +21,7 @@ import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, utc, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar, DrawingEndpoint, FibonacciChannelLevel, GannFanLevel, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, RegressionChannel, TickBar, VolumeBar } from './market-core'
+import type { Bar, DrawingEndpoint, FibonacciChannelLevel, FibonacciCircleLevel, GannFanLevel, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, RegressionChannel, TickBar, VolumeBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 export type RegressionDrawingView = {
@@ -199,6 +199,7 @@ function draw(
     fans: ReadonlyMap<string, readonly GannFanLevel[]>
     boxes: ReadonlyMap<string, readonly DrawingEndpoint[]>
     fibonacciChannels: ReadonlyMap<string, readonly FibonacciChannelLevel[]>
+    fibonacciCircles: ReadonlyMap<string, readonly FibonacciCircleLevel[]>
   },
   type: ChartType,
   equivolumeOffsets: readonly bigint[] | undefined,
@@ -1013,6 +1014,17 @@ function draw(
               0, 0, 2 * Math.PI)
             ctx.fill()
             ctx.stroke()
+          } else if (annotation.kind === 'fibonacci-circles') {
+            const levels = drawingLevels.fibonacciCircles.get(annotation.id)
+            const radius = Math.hypot(x2 - x1, y2 - level)
+            if (!levels || radius === 0) continue
+            line(x1, level, x2, y2, '#679aab')
+            for (const { ratioThousandths } of levels) {
+              ctx.strokeStyle = ratioThousandths === 1000 ? '#86d2c9' : '#629db1'
+              ctx.beginPath()
+              ctx.arc(x1, level, radius * ratioThousandths / 1000, 0, 2 * Math.PI)
+              ctx.stroke()
+            }
           } else if (annotation.kind === 'arrow') {
             const length = Math.hypot(x2 - x1, y2 - level)
             if (length === 0) continue
@@ -1313,12 +1325,14 @@ export function Chart({
     const fans = new Map<string, GannFanLevel[]>()
     const boxes = new Map<string, DrawingEndpoint[]>()
     const fibonacciChannels = new Map<string, FibonacciChannelLevel[]>()
+    const fibonacciCircles = new Map<string, FibonacciCircleLevel[]>()
     if (drawingCore) for (const entry of annotations) {
       if (entry.kind === 'gann-fan') fans.set(entry.id, drawingCore.gannFanLevels(entry))
       if (entry.kind === 'gann-box') boxes.set(entry.id, drawingCore.gannBoxLevels(entry))
       if (entry.kind === 'fibonacci-channel') fibonacciChannels.set(entry.id, drawingCore.fibonacciChannelLevels(entry.points))
+      if (entry.kind === 'fibonacci-circles') fibonacciCircles.set(entry.id, drawingCore.fibonacciCircleLevels(entry))
     }
-    return { fans, boxes, fibonacciChannels }
+    return { fans, boxes, fibonacciChannels, fibonacciCircles }
   }, [annotations, drawingCore])
   const needsTimeline = annotations.some(annotation => annotation.kind !== 'price' && annotation.kind !== 'price-range' && annotation.kind !== 'anchored-vwap' && annotation.kind !== 'anchored-twap' && annotation.kind !== 'regression-channel')
   const markerTimeline = useMemo(() => {
