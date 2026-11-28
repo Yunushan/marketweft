@@ -31,6 +31,7 @@ mod force_and_volatility;
 mod formula;
 mod formula_walk;
 mod fundamentals;
+mod fx;
 mod heikin_ashi;
 mod history;
 mod indicator;
@@ -149,6 +150,7 @@ pub use fundamentals::{
     Filing, FinancialBook, MarketCap, Multiple, QuarterlyFinancials, QuarterlyValuation,
     TrailingFourQuarters, Valuation,
 };
+pub use fx::{FxAmount, FxBook, FxCurrencyValue, FxRateEvidence, FxTranslation};
 pub use heikin_ashi::heikin_ashi;
 pub use history::{exact_utc as parse_exact_utc, parse_csv, Bar};
 pub use indicator::{indicator, Average};

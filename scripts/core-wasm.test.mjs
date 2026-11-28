@@ -1893,6 +1893,38 @@ test('Wasm universe queries gate each listing by knowledge and effective time', 
   assert.throws(() => core.universeAsOf(csv, '2025-06-31T14:00:00Z', iso('14:35:00')), /UTC timestamps/);
 });
 
+test('portfolio FX replays exact source currency evidence without translating unavailable rates', async () => {
+  const rates = await readFile(new URL('../crates/core/tests/fixtures/synthetic-portfolio-fx.csv', import.meta.url), 'utf8');
+  const at = time => '2025-06-02T14:' + time + ':00Z';
+  const amounts = [{ currency: 'USD', subtotal: 70000000n }, { currency: 'EUR', subtotal: 225000000n },
+    { currency: 'JPY', subtotal: 1000000n }];
+  const run = (known, reporting = 'USD', effective = '45') => core.portfolioFxAsOf(rates, reporting, at(effective), at(known), amounts);
+  const early = run('45');
+  assert.equal(early.knownSubtotal, 70000000n);
+  assert.deepEqual(early.rows.map(row => [row.currency, row.converted, row.rate]), [
+    ['EUR', null, null], ['JPY', null, null], ['USD', 70000000n, null],
+  ]);
+  const original = run('46');
+  assert.equal(original.knownSubtotal, 340000000n);
+  assert.deepEqual(original.rows[0].rate, {
+    baseCurrency: 'EUR', quoteCurrency: 'USD', rateAt: Date.parse(at('40')) / 1000,
+    observedAt: Date.parse(at('46')) / 1000, rateTicks: 1200000n, inverted: false,
+  });
+  assert.equal(run('49').knownSubtotal, 362500000n);
+  assert.deepEqual(run('50'), run('49'));
+  assert.deepEqual(run('45'), early);
+  assert.equal(run('49', 'USD', '46').knownSubtotal, 351250000n);
+  const inverse = run('49', 'EUR');
+  assert.equal(inverse.knownSubtotal, 278846154n);
+  assert.equal(inverse.rows[2].converted, 53846154n);
+  assert.equal(inverse.rows[2].rate.inverted, true);
+  assert.equal(run('49', 'CAD').knownSubtotal, null);
+  const wide = (1n << 127n) - 1n;
+  const amount = [{ currency: 'EUR', subtotal: wide }];
+  assert.equal(core.portfolioFxAsOf(rates.replace('1.2\n', '1\n'), 'USD', at('45'), at('46'), amount).knownSubtotal, wide);
+  assert.throws(() => core.portfolioFxAsOf(rates, 'USD', at('45'), at('46'), amount), /exceeds the supported fixed-point range/);
+});
+
 test('portfolio income keeps dividend and delisting subtotals separate across observation vintages', async () => {
   const sources = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices',
     'delisting-terms', 'portfolio-dividends'].map(name => readFile(

@@ -23,6 +23,21 @@ With dividend reports loaded, the currency table adds independent dividend recei
 
 The synthetic portfolio holds ALFA-001 and BETA-001. At the 14:10 UTC effective cutoff, BETA-001 has no visible close until knowledge reaches 14:12. The known USD share value then moves from 204 to 764. Once BETA-001 is delisted, its 70 USD receivable is distinct from 225 EUR of marked shares in BETA-002 at 14:45. At 14:50, the USD subtotal is 284, comprising 214 in shares and 70 in delisting cash. A later corrected quantity leaves 64 USD of settled proceeds at 14:58. Revised terms replace that payment with 72 EUR at 15:04.
 
+## Portfolio currency translation
+
+Choose **Load portfolio FX demo**, or add **Portfolio FX rates CSV** when opening your holdings and close reports. Open **Portfolio currency translation** and apply a three-letter reporting currency. The table converts the known currency subtotals shown directly above it. Those subtotals include valued shares, delisting cash and receivables, and dividend subtotals when dividend reports are present. The converted subtotal includes currencies with available conversions. The source table carries the original amounts and the positions table identifies missing valuations.
+
+```csv
+base_currency,quote_currency,rate_at,observed_at,quote_per_base
+EUR,USD,2025-06-02T14:40:00Z,2025-06-02T14:46:00Z,1.2
+```
+
+Supply up to 10,000 reports in 1 MiB with distinct three-letter uppercase currencies and positive rates with at most six decimal places. The rate expresses quote currency units per base currency unit. Observation must occur at or after rate time. Reports with the same pair and rate time are revisions, ordered by their distinct observation times. [ECB exchange-rate conventions](https://data.ecb.europa.eu/methodology/exchange-rates).
+
+The replay uses the latest rate effective by the portfolio cutoff and observed by the knowledge cutoff. When both quote directions are supplied at the same rate time, the later observation wins, and an exact tie selects the direct orientation. The table records the original quote orientation, rate time, observation time and whether it used the reciprocal. A same-currency amount carries through at identity. A currency without a visible pair shows **FX unavailable**. The engine rounds each conversion once to the nearest millionth, with ties away from zero, and sums those amounts.
+
+Set **Effective time** to 14:45 UTC in the demo. The original 225 EUR and 70 USD stay visible at each knowledge cutoff. At 14:45, only 70 USD can be expressed in the default reporting currency. At 14:46, the 1.2 rate gives 340 USD, and at 14:49 the revised 1.3 rate gives 362.5 USD. A later report for an older rate time leaves the subtotal at 362.5 USD. Choosing EUR gives 278.846154 EUR using the same rate as a reciprocal. Rewind knowledge to 14:45 to reproduce the missing FX evidence. [Synthetic FX fixture](../crates/core/tests/fixtures/synthetic-portfolio-fx.csv).
+
 ## Holdings CSV
 
 ```csv

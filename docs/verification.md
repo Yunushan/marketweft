@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.248.0 · Point-in-time portfolio FX translation
+
+- Rust and Wasm verify effective and observation cutoffs, late rates and revisions, reciprocal evidence, signed half-tick rounding and the full signed integer range. Missing rates leave their currency subtotal visible without a converted value.
+- Offline Chromium verifies the 70, 340 and 362.5 USD subtotals and recovers the earlier 70 USD subtotal on rewind. The inverse quote gives 278.846154 EUR, with the original positions and currency subtotals visible throughout.
+
+[Portfolio FX translation](portfolio-replay.md#portfolio-currency-translation)
+
 ## 0.247.0 · Choppiness Index and Stochastic Momentum Index
 
 - Rust and Wasm verify a gap-driven Choppiness value of 200, zero, missing flat windows, signed SMI values, half-tick midpoints and observed prefixes. The SMI signal restarts after a zero smoothed span.

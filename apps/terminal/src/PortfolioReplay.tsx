@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash, PortfolioSuccessorShare } from './market-core'
+import type { FxAmount, MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash, PortfolioSuccessorShare } from './market-core'
 import { SuccessorDeliveryLedger, shareText } from './SuccessorDeliveryLedger'
 import { PortfolioRights } from './PortfolioRights'
 import { PortfolioRightsExercises } from './PortfolioRightsExercises'
@@ -24,10 +24,12 @@ import demoExercises from '../../../crates/core/tests/fixtures/synthetic-rights-
 import demoRightsJournal from '../../../crates/core/tests/fixtures/synthetic-rights-journal.csv?raw'
 import demoCapitalReturns from '../../../crates/core/tests/fixtures/synthetic-capital-returns.csv?raw'
 import demoCapitalBasis from '../../../crates/core/tests/fixtures/synthetic-capital-return-basis.csv?raw'
+import demoFxRates from '../../../crates/core/tests/fixtures/synthetic-portfolio-fx.csv?raw'
 
 type Source = {
   holdings: string; prices: string; terms: string; dividends: string; spinOffs: string
   cashTerms: string; basisTerms: string; successors: string
+  fx?: string
   rights?: { csv: string; reportsName: string; holdingsName: string; exercises?: { csv: string; name: string } }
   capitalReturns?: { csv: string; basis: string; reportsName: string; holdingsName: string; basisName?: string }
 }
@@ -95,9 +97,10 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
   const [exercises, setExercises] = useState<File | null>(null)
   const [capitalReturns, setCapitalReturns] = useState<File | null>(null)
   const [capitalBasis, setCapitalBasis] = useState<File | null>(null)
+  const [fxFile, setFxFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const needsPrices = !(rights || exercises || capitalReturns || capitalBasis) || !!(terms || dividends || spinOffs || cashTerms || basisTerms || successors)
+  const needsPrices = !(rights || exercises || capitalReturns || capitalBasis) || !!(terms || dividends || spinOffs || cashTerms || basisTerms || successors || fxFile)
   const snapshot = useMemo(() => source?.prices
     ? core.portfolioAsOf(membership, source.holdings, source.prices, source.terms, effective, known, source.dividends)
     : null, [core, membership, source, effective, known])
@@ -143,11 +146,12 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
       core.portfolioRightsExercisesAsOf(membership, source.holdings, source.rights.csv, source.rights.exercises.csv, effective, known)
     if (source.capitalReturns)
       core.portfolioCapitalReturnsAsOf(membership, source.holdings, source.capitalReturns.csv, source.capitalReturns.basis, effective, known)
+    if (source.fx) core.portfolioFxAsOf(source.fx, 'USD', effective, known, [])
     setSource(source)
     setError('')
   }
 
-  function startDemo(mode?: 'income' | 'spin-offs' | 'successors' | 'rights' | 'exercises' | 'rights-journal' | 'capital-returns') {
+  function startDemo(mode?: 'income' | 'spin-offs' | 'successors' | 'rights' | 'exercises' | 'rights-journal' | 'capital-returns' | 'fx') {
     try {
       const rightsDemo = mode === 'rights' || mode === 'exercises' || mode === 'rights-journal'
       const exercises = mode === 'rights-journal' ? { csv: demoRightsJournal, name: 'synthetic-rights-journal.csv' }
@@ -156,6 +160,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
         dividends: mode === 'income' ? demoDividends : '', spinOffs: mode === 'spin-offs' ? demoSpinOffs : '',
         cashTerms: mode === 'spin-offs' ? demoCashTerms : '', basisTerms: mode === 'spin-offs' ? demoBasisTerms : '',
         successors: mode === 'successors' ? demoSuccessors : '',
+        fx: mode === 'fx' ? demoFxRates : undefined,
         rights: rightsDemo ? {
           csv: demoRights, reportsName: 'synthetic-subscription-rights.csv', holdingsName: 'synthetic-rights-holdings.csv',
           exercises,
@@ -175,7 +180,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
     setBusy(true)
     try {
       const [holdingCsv, priceCsv, termCsv, dividendCsv, spinOffCsv, cashTermsCsv, basisTermsCsv, successorCsv,
-        rightsCsv, exerciseCsv, capitalReturnsCsv, capitalBasisCsv] = await Promise.all([
+        rightsCsv, exerciseCsv, capitalReturnsCsv, capitalBasisCsv, fxCsv] = await Promise.all([
         readReport(holdings, 2), prices ? readReport(prices, 2) : '', terms ? readReport(terms, 1) : '',
         dividends ? readReport(dividends, 1) : '', spinOffs ? readReport(spinOffs, 1) : '',
         cashTerms ? readReport(cashTerms, 1) : '', basisTerms ? readReport(basisTerms, 1) : '',
@@ -184,6 +189,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
         exercises ? readReport(exercises, 1) : '',
         capitalReturns ? readReport(capitalReturns, 1) : '',
         capitalBasis ? readReport(capitalBasis, 1) : '',
+        fxFile ? readReport(fxFile, 1) : '',
       ])
       if (prices && !priceCsv.trim()) throw new Error('Portfolio closes CSV contains no reports.')
       if (dividends && !dividendCsv.trim()) throw new Error('Portfolio dividends CSV contains no reports.')
@@ -199,8 +205,10 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
       if (capitalReturns && !capitalReturnsCsv.trim()) throw new Error('Portfolio capital returns CSV contains no reports.')
       if (capitalBasis && !capitalReturnsCsv) throw new Error('Supply capital returns with the basis reports.')
       if (capitalBasis && !capitalBasisCsv.trim()) throw new Error('Capital return basis CSV contains no reports.')
+      if (fxFile && !fxCsv.trim()) throw new Error('Portfolio FX rates CSV contains no reports.')
       open({ holdings: holdingCsv, prices: priceCsv, terms: termCsv, dividends: dividendCsv,
         spinOffs: spinOffCsv, cashTerms: cashTermsCsv, basisTerms: basisTermsCsv, successors: successorCsv,
+        fx: fxCsv || undefined,
         rights: rights ? {
           csv: rightsCsv, reportsName: rights.name, holdingsName: holdings.name,
           exercises: exercises ? { csv: exerciseCsv, name: exercises.name } : undefined,
@@ -232,6 +240,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <button className="outline" onClick={() => startDemo('exercises')} disabled={busy}>Load subscription exercise demo</button>
           <button className="outline" onClick={() => startDemo('rights-journal')} disabled={busy}>Load settlement journal demo</button>
           <button className="outline" onClick={() => startDemo('capital-returns')} disabled={busy}>Load capital return demo</button>
+          <button className="outline" onClick={() => startDemo('fx')} disabled={busy}>Load portfolio FX demo</button>
         </div>}
       </div>
       <form className="universe-query" onSubmit={load}>
@@ -283,10 +292,14 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
           <input type="file" accept=".csv,text/csv"
             onChange={event => setCapitalBasis(event.target.files?.[0] ?? null)} />
         </label>
+        <label>Portfolio FX rates CSV (optional)
+          <input type="file" accept=".csv,text/csv"
+            onChange={event => setFxFile(event.target.files?.[0] ?? null)} />
+        </label>
         <button className="outline" disabled={busy || !holdings || (needsPrices && !prices)}>Load portfolio reports</button>
       </form>
       {error && <p role="alert" className="warning replay-error">{error}</p>}
-      {snapshot && <PortfolioResult snapshot={snapshot} />}
+      {snapshot && <PortfolioResult snapshot={snapshot} core={core} fx={source?.fx} effective={effective} known={known} />}
       {rightOfferings && source?.rights && <PortfolioRights rows={rightOfferings} effective={effective} known={known}
         reportsSource={source.rights.reportsName} holdingsSource={source.rights.holdingsName} />}
       {exerciseReports && source?.rights?.exercises && <PortfolioRightsExercises rows={exerciseReports}
@@ -387,11 +400,71 @@ function SpinOffBasisAllocations({ rows }: { rows: PortfolioSpinOffBasis[] }) {
   </div>
 }
 
-function PortfolioResult({ snapshot }: { snapshot: PortfolioSnapshot }) {
+function PortfolioFxValues({ core, reports, effective, known, amounts }: {
+  core: MarketCore; reports: string; effective: string; known: string; amounts: FxAmount[]
+}) {
+  const [currency, setCurrency] = useState('USD')
+  const [reporting, setReporting] = useState('USD')
+  const result = useMemo(() => {
+    try {
+      return { report: core.portfolioFxAsOf(reports, reporting, effective, known, amounts) }
+    } catch (cause) {
+      return { error: cause instanceof Error ? cause.message : 'Could not translate portfolio subtotals.' }
+    }
+  }, [core, reports, reporting, effective, known, amounts])
+  const report = result.report
+  return <details className="research-details">
+    <summary>Portfolio currency translation</summary>
+    <section aria-label="Portfolio currency translation">
+      <form className="universe-query" onSubmit={event => { event.preventDefault(); setReporting(currency) }}>
+        <label>Reporting currency
+          <input required pattern="[A-Z]{3}" maxLength={3} value={currency}
+            onChange={event => setCurrency(event.target.value.toUpperCase())} />
+        </label>
+        <button className="outline" type="submit">Apply reporting currency</button>
+      </form>
+      {result.error && <p className="warning" role="alert">{result.error}</p>}
+      {report && <>
+        <p role="status">Known converted subtotal · {report.knownSubtotal === null ? 'Unavailable' : money(report.knownSubtotal) + ' ' + report.reportingCurrency}</p>
+        <div className="replay-table-scroll">
+          <table className="universe-table" aria-label="Portfolio FX subtotals">
+            <thead><tr><th scope="col">Source currency</th><th scope="col">Known subtotal</th>
+              <th scope="col">Rate evidence</th><th scope="col">Conversion</th>
+              <th scope="col">Rate (UTC)</th><th scope="col">Observed (UTC)</th>
+              <th scope="col">Converted subtotal ({report.reportingCurrency})</th></tr></thead>
+            <tbody>{report.rows.map(row => <tr key={row.currency}>
+              <th scope="row">{row.currency}</th><td>{money(row.subtotal)}</td>
+              <td>{row.rate ? money(row.rate.rateTicks) + ' ' + row.rate.quoteCurrency + '/' + row.rate.baseCurrency : '—'}</td>
+              <td>{row.rate ? (row.rate.inverted ? 'Inverse' : 'Direct') : (row.converted === null ? 'FX unavailable' : 'Identity')}</td>
+              <td>{row.rate ? utc(row.rate.rateAt) : '—'}</td><td>{row.rate ? utc(row.rate.observedAt) : '—'}</td>
+              <td>{row.converted === null ? '—' : money(row.converted)}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      </>}
+    </section>
+  </details>
+}
+
+function PortfolioResult({ snapshot, core, fx, effective, known }: {
+  snapshot: PortfolioSnapshot; core: MarketCore; fx?: string; effective: string; known: string
+}) {
   const count = snapshot.holdings.length
-  const base = new Map(snapshot.totals.map(row => [row.currency, row]))
-  const incomeTotals = new Map(snapshot.income?.totals.map(row => [row.currency, row]))
-  const currencies = [...new Set([...base.keys(), ...incomeTotals.keys()])].sort()
+  const currencies = useMemo(() => {
+    const base = new Map(snapshot.totals.map(row => [row.currency, row]))
+    const incomeTotals = new Map(snapshot.income?.totals.map(row => [row.currency, row]))
+    return [...new Set([...base.keys(), ...incomeTotals.keys()])].sort().map(currency => {
+      const row = base.get(currency)
+      const income = incomeTotals.get(currency)
+      const shares = row?.sharesValue ?? 0n
+      const delistingReceivable = row?.receivable ?? 0n
+      const delistingCash = row?.cash ?? 0n
+      const dividendReceivable = income?.receivable ?? 0n
+      const dividendCash = income?.cash ?? 0n
+      return { currency, shares, delistingReceivable, delistingCash, dividendReceivable, dividendCash,
+        subtotal: shares + delistingReceivable + delistingCash + dividendReceivable + dividendCash }
+    })
+  }, [snapshot])
   return (
     <>
       <p role="status">{count} {count === 1 ? 'holding' : 'holdings'} · {snapshot.unvaluedPositions} without a value</p>
@@ -401,23 +474,17 @@ function PortfolioResult({ snapshot }: { snapshot: PortfolioSnapshot }) {
             <th scope="col">Delisting receivable</th><th scope="col">Delisting cash</th>
             {snapshot.income && <><th scope="col">Dividend receivable</th><th scope="col">Dividend cash</th></>}
             <th scope="col">Known subtotal</th></tr></thead>
-          <tbody>{currencies.map(currency => {
-            const row = base.get(currency)
-            const income = incomeTotals.get(currency)
-            const shares = row?.sharesValue ?? 0n
-            const delistingReceivable = row?.receivable ?? 0n
-            const delistingCash = row?.cash ?? 0n
-            const dividendReceivable = income?.receivable ?? 0n
-            const dividendCash = income?.cash ?? 0n
-            return <tr key={currency}>
+          <tbody>{currencies.map(({ currency, shares, delistingReceivable, delistingCash, dividendReceivable, dividendCash, subtotal }) =>
+            <tr key={currency}>
               <th scope="row">{currency}</th><td>{money(shares)}</td>
               <td>{money(delistingReceivable)}</td><td>{money(delistingCash)}</td>
               {snapshot.income && <><td>{money(dividendReceivable)}</td><td>{money(dividendCash)}</td></>}
-              <td>{money(shares + delistingReceivable + delistingCash + dividendReceivable + dividendCash)}</td>
+              <td>{money(subtotal)}</td>
             </tr>
-          })}</tbody>
+          )}</tbody>
         </table>
       </div>}
+      {fx && <PortfolioFxValues core={core} reports={fx} effective={effective} known={known} amounts={currencies} />}
       {snapshot.income && snapshot.income.dividends.length > 0 && <div className="replay-table-scroll">
         <table className="universe-table" aria-label="Portfolio dividend entitlement">
           <thead><tr><th scope="col">Listing</th><th scope="col">Dividend</th><th scope="col">Ex date (UTC)</th>

@@ -983,6 +983,29 @@ export interface DelistingValuation {
   ledger: { at: number; currency: string; delta: bigint; balance: bigint }[];
 }
 
+export interface FxAmount {
+  currency: string;
+  subtotal: bigint;
+}
+
+export interface FxCurrencyValue extends FxAmount {
+  converted: bigint | null;
+  rate: {
+    baseCurrency: string;
+    quoteCurrency: string;
+    rateAt: number;
+    observedAt: number;
+    rateTicks: bigint;
+    inverted: boolean;
+  } | null;
+}
+
+export interface FxTranslation {
+  reportingCurrency: string;
+  knownSubtotal: bigint | null;
+  rows: FxCurrencyValue[];
+}
+
 export interface PortfolioSnapshot {
   effectiveAt: number;
   knownAt: number;
@@ -1306,6 +1329,8 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string): DelistingValuation;
   portfolioAsOf(membership: string, holdings: string, prices: string, terms: string,
     effectiveAt: string, knownAt: string, dividends?: string): PortfolioSnapshot;
+  portfolioFxAsOf(rates: string, reporting: string, effectiveAt: string, knownAt: string,
+    subtotals: readonly FxAmount[]): FxTranslation;
   portfolioSuccessorSharesAsOf(membership: string, holdings: string, terms: string, effectiveAt: string, knownAt: string): PortfolioSuccessorShare[];
   portfolioRightsAsOf(membership: string, holdings: string, reports: string, effectiveAt: string, knownAt: string): PortfolioRightsOffering[];
   portfolioRightsExercisesAsOf(membership: string, holdings: string, rights: string, exercises: string, effectiveAt: string, knownAt: string): PortfolioRightsExercise[];
@@ -1496,6 +1521,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_relative_series(membershipBytes: number): number;
   mw_listing_risk(membershipBytes: number, intervalSeconds: number, windowPeriods: number, volatilityPeriods: number): number;
   mw_portfolio_scenarios(membershipBytes: number): number;
+  mw_portfolio_fx_as_of(): number;
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
   mw_compare_sector_heatmaps(membershipBytes: number, priceBytes: number): number;
   mw_financial_index(filingBytes: number): number;
@@ -3033,6 +3059,27 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         if (tag === 'L') value.ledger.push({ at: Number(a), currency: b, delta: BigInt(c), balance: BigInt(d) });
       }
       return value;
+    },
+    portfolioFxAsOf(rates, reporting, effectiveAt, knownAt, subtotals) {
+      if (!/^[A-Z]{3}$/.test(reporting) || subtotals.some(({ currency, subtotal }) =>
+        !/^[A-Z]{3}$/.test(currency) || typeof subtotal !== 'bigint')) {
+        throw new Error('Use three-letter currencies and exact integer source subtotals.');
+      }
+      const values = subtotals.map(({ currency, subtotal }) => currency + '=' + subtotal).join('\t');
+      portfolioInput(effectiveAt, knownAt, reporting + '\n' + values + '\n', rates);
+      const [header, ...lines] = decoder.decode(output(api.mw_portfolio_fx_as_of())).trimEnd().split('\n');
+      const [tag, reportingCurrency, knownSubtotal] = header.split('\t');
+      if (tag !== 'H' || reportingCurrency !== reporting) throw new Error('Invalid FX translation evidence.');
+      return { reportingCurrency, knownSubtotal: knownSubtotal ? BigInt(knownSubtotal) : null,
+        rows: lines.map(line => {
+          const [kind, currency, amount, converted, baseCurrency, quoteCurrency, rateAt, observedAt,
+            rateTicks, inverted] = line.split('\t');
+          if (kind !== 'R') throw new Error('Invalid FX source currency evidence.');
+          return { currency, subtotal: BigInt(amount), converted: converted ? BigInt(converted) : null,
+            rate: baseCurrency ? { baseCurrency, quoteCurrency, rateAt: Number(rateAt), observedAt: Number(observedAt),
+              rateTicks: BigInt(rateTicks), inverted: inverted === '1' } : null };
+        }),
+      };
     },
     portfolioAsOf(membership, holdings, prices, terms, effectiveAt, knownAt, dividends = '') {
       portfolioInput(effectiveAt, knownAt, membership, holdings, prices, terms, dividends);
