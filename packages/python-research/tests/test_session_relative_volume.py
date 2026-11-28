@@ -6,14 +6,17 @@ from unittest.mock import patch
 from marketweft_research import ResearchEngine, ResearchError
 
 
-FIXTURES = Path(__file__).resolve().parents[3] / "crates/core/tests/fixtures"
+ROOT = Path(__file__).resolve().parents[3]
+BINARY = "marketweft-research.exe" if os.name == "nt" else "marketweft-research"
+EXECUTABLE = Path(os.environ.get("MARKETWEFT_RESEARCH_BIN", ROOT / "target/release" / BINARY))
+FIXTURES = ROOT / "crates/core/tests/fixtures"
 CALENDAR = (FIXTURES / "synthetic-session-volume-calendar.csv").read_text(encoding="utf-8")
 BARS = (FIXTURES / "synthetic-session-volume-bars.csv").read_text(encoding="utf-8")
 
 
 class SessionRelativeVolumeTests(unittest.TestCase):
     def setUp(self):
-        self.engine = ResearchEngine(os.environ["MARKETWEFT_RESEARCH_BIN"])
+        self.engine = ResearchEngine(EXECUTABLE)
 
     def run_volume(self, known_at, lookback=2):
         return self.engine.session_relative_volume(
