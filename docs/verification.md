@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.257.0 · Equity concentration research transports
+
+- The installed Python wheel passes the read-only MCP tool tests and the official MCP client's offline stdio checks. Before the late close, BETA-001 has an unknown mark and rank. Its weight is 73.298429% after the close and 71.22708% after the revision.
+- The scoped REST response, WebSocket page and gRPC response agree on currency, gross marks, stable listing IDs, weights and ranks. Rewinding restores the missing USD mark and ticker reuse retains the separate EUR listing.
+
+[Concentration service](local-rest-research.md#equity-concentration) · [Concentration MCP tool](local-mcp-research.md#equity-concentration)
+
 ## 0.256.0 · Equity concentration research SDKs
 
 - The installed Python and TypeScript packages reproduce known gross values of 204, 764 and 709 USD as price reports and revisions become visible. Rewinding restores the original missing mark. Both packages keep BETA-002 distinct in EUR after the earlier listing delists.

@@ -11,6 +11,7 @@ service Research {
   rpc CompareUniverseRanks(RankComparisonQuery) returns (RankComparisonPage);
   rpc GetPortfolioScenarios(PortfolioScenariosQuery) returns (PortfolioScenariosPage);
   rpc GetPortfolioFx(PortfolioFxQuery) returns (PortfolioFxPage);
+  rpc GetEquityConcentration(EquityConcentrationQuery) returns (EquityConcentrationPage);
   rpc SnapshotOptions(OptionQuery) returns (OptionPage);
   rpc ValueAmericanOption(AmericanOptionQuery) returns (AmericanOptionResponse);
 }
@@ -215,6 +216,36 @@ message PortfolioFxPage {
   uint32 offset = 6;
   optional uint32 next_offset = 7;
   repeated PortfolioFxRow rows = 8;
+}
+
+message EquityConcentrationQuery {
+  string membership_csv = 1;
+  string holdings_csv = 2;
+  string prices_csv = 3;
+  string effective_at = 4;
+  string known_at = 5;
+  optional uint64 offset = 6;
+  optional uint64 limit = 7;
+}
+
+message EquityConcentrationRow {
+  optional string currency = 1;
+  // Exact currency millionths shared by the group, if any mark is known.
+  optional string gross_mark_ticks = 2;
+  string listing_id = 3;
+  optional string mark_ticks = 4;
+  optional uint32 rank = 5;
+  // Millionths of a percentage point in decimal text.
+  optional string weight_micros = 6;
+}
+
+message EquityConcentrationPage {
+  string effective_at = 1;
+  string known_at = 2;
+  uint32 total_rows = 3;
+  uint32 offset = 4;
+  optional uint32 next_offset = 5;
+  repeated EquityConcentrationRow rows = 6;
 }
 
 message ScreenQuery {

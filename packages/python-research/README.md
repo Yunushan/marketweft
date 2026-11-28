@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.21.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.22.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -42,7 +42,7 @@ Call `portfolio_scenarios(membership_csv, prices_csv, allocations, ...)` with a 
 
 Call `portfolio_fx_as_of(rates_csv, amounts, reporting_currency=..., effective_at=..., known_at=...)` with `FxAmount` records in integer millionths. It returns exact source and converted subtotals with direct or reciprocal evidence. The local MCP tool of the same name pages the currency rows and preserves exact values as decimal strings. [Portfolio FX research SDKs](../../docs/portfolio-replay.md#portfolio-fx-research-sdks) · [Portfolio FX via MCP](../../docs/local-mcp-research.md#portfolio-currency-conversion).
 
-Call `equity_concentration_as_of(membership_csv, holdings_csv, prices_csv, effective_at=..., known_at=...)` to rank marked shares within their quote currencies. Signed marks and percentage-point weights use integer millionths and missing values are `None`. [Equity concentration SDKs](../../docs/portfolio-replay.md#equity-concentration-sdks).
+Call `equity_concentration_as_of(membership_csv, holdings_csv, prices_csv, effective_at=..., known_at=...)` to rank marked shares within their quote currencies. Signed marks and percentage-point weights use integer millionths and missing values are `None`. The read-only MCP tool of the same name returns paged JSON rows. [Equity concentration SDKs](../../docs/portfolio-replay.md#equity-concentration-sdks) · [MCP tool](../../docs/local-mcp-research.md#equity-concentration).
 
 The local MCP server provides paged portfolio paths with exact decimal-string values. [Portfolio scenarios over MCP](../../docs/local-mcp-research.md#portfolio-scenarios).
 

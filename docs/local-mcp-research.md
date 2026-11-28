@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, portfolio scenarios and FX conversion, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, portfolio scenarios, FX conversion, equity concentration, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 
 ```json
 {
@@ -59,6 +59,12 @@ Call the read-only `portfolio_fx_as_of` tool with `rates_csv` contents, a three-
 Every page echoes both cutoffs and shows the known converted subtotal across all currencies. Each row keeps the original subtotal, a converted amount when available, and the quote pair, source and observation times, rate and reciprocal flag when a supporting rate was used. Amounts and rates are decimal strings in millionths. Quote times use whole Unix seconds. An identity conversion has a converted amount and `null` rate. A missing conversion has `null` for both.
 
 Set `limit` from 1 to 1,000 rows. The default is 200. Pass `next_offset` as `offset` with the same CSV, amounts and cutoffs until the offset is `null`. The sample FX report and subtotals of 70 USD and 225 EUR give a known subtotal of 70, 340 and 362.5 USD at 14:45, 14:46 and 14:49 UTC on 2025-06-02, with the effective cutoff fixed at 14:45. [Synthetic FX report](../crates/core/tests/fixtures/synthetic-portfolio-fx.csv)
+
+## Equity concentration
+
+Call the read-only `equity_concentration_as_of` tool with the contents of `membership_csv`, `holdings_csv` and `prices_csv`. Supply the two exact UTC cutoffs as `effective_at` and `known_at`. Use the returned `next_offset` with the same CSVs and cutoffs. `limit` ranges from 1 to 1,000 and defaults to 200. A `null` offset marks the final page.
+
+Rows give the original quote currency, its known gross mark, the listing ID, signed share value, rank and weight. Amounts and weights use decimal strings in integer millionths. The tool preserves `null` for unavailable values and uses the same page fields as the research service. [Equity concentration service](local-rest-research.md#equity-concentration)
 
 ## Financial snapshots
 

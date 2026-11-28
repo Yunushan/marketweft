@@ -37,6 +37,8 @@ The TypeScript SDK exposes `equityConcentrationAsOf(membershipCsv, holdingsCsv, 
 
 Run `marketweft-research equity-concentration` with a version 1 UTF-8 request on stdin. The first line is `marketweft-equity-concentration`, version `1`, membership CSV byte length and holdings CSV byte length, separated with tabs. The next two lines contain effective and known UTC cutoffs. Append the membership, holdings and close CSV contents in order. The first response line repeats the protocol and version, followed by the group count. The `H` row echoes both Unix cutoffs, `G` rows carry the currency and known gross, and each group's `E` rows contain the listing ID, signed mark, rank and weight. Empty fields represent unavailable values.
 
+The same concentration results are available in the read-only MCP server and through screen-scoped REST, WebSocket and gRPC. Each returns paged rows with ranks, missing marks and known gross values. [MCP tool](local-mcp-research.md#equity-concentration) · [Research service](local-rest-research.md#equity-concentration)
+
 ## Portfolio currency translation
 
 Choose **Load portfolio FX demo**, or add **Portfolio FX rates CSV** when opening your holdings and close reports. Open **Portfolio currency translation** and apply a three-letter reporting currency. The table converts the known currency subtotals shown directly above it. Those subtotals include valued shares, delisting cash and receivables, and dividend subtotals when dividend reports are present. The converted subtotal includes currencies with available conversions. The source table carries the original amounts and the positions table identifies missing valuations.

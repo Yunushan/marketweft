@@ -3,10 +3,11 @@ use crate::{
     audit::{Outcome, Transport},
     proto::{
         research_server::{Research, ResearchServer},
-        AmericanOptionQuery, AmericanOptionResponse, FormulaPage, FormulaQuery, MacroCalendarPage,
-        MacroCalendarQuery, MonthlyReturnsPage, MonthlyReturnsQuery, OptionPage, OptionQuery,
-        PortfolioFxPage, PortfolioFxQuery, PortfolioScenariosPage, PortfolioScenariosQuery,
-        RankComparisonPage, RankComparisonQuery, ScreenPage, ScreenQuery,
+        AmericanOptionQuery, AmericanOptionResponse, EquityConcentrationPage,
+        EquityConcentrationQuery, FormulaPage, FormulaQuery, MacroCalendarPage, MacroCalendarQuery,
+        MonthlyReturnsPage, MonthlyReturnsQuery, OptionPage, OptionQuery, PortfolioFxPage,
+        PortfolioFxQuery, PortfolioScenariosPage, PortfolioScenariosQuery, RankComparisonPage,
+        RankComparisonQuery, ScreenPage, ScreenQuery,
     },
     shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
@@ -62,6 +63,10 @@ pub(crate) fn routes(state: Arc<Server>) -> Router {
                 )
                 .route_service(
                     "/marketweft.research.v1.Research/GetPortfolioFx",
+                    service.clone(),
+                )
+                .route_service(
+                    "/marketweft.research.v1.Research/GetEquityConcentration",
                     service.clone(),
                 )
                 .route_layer(from_fn_with_state(
@@ -205,6 +210,13 @@ impl Research for LocalResearch {
         request: GrpcRequest<PortfolioScenariosQuery>,
     ) -> Result<GrpcResponse<PortfolioScenariosPage>, Status> {
         unary(request, analytics::evaluate_portfolio_scenarios).await
+    }
+
+    async fn get_equity_concentration(
+        &self,
+        request: GrpcRequest<EquityConcentrationQuery>,
+    ) -> Result<GrpcResponse<EquityConcentrationPage>, Status> {
+        unary(request, analytics::evaluate_equity_concentration).await
     }
 
     async fn get_portfolio_fx(

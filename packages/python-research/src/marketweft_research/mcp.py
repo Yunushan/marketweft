@@ -13,14 +13,14 @@ from . import (
     ScreenComparisonLeg, ScreenPrice,
 )
 from . import (
-    _MAX_CSV, _MAX_FINANCIAL_CSV, _MAX_FX_CURRENCIES, _MAX_MACRO_CSV, _MAX_MACRO_REPORTS,
+    _MAX_CONCENTRATION_POSITIONS, _MAX_CSV, _MAX_FINANCIAL_CSV, _MAX_FX_CURRENCIES, _MAX_MACRO_CSV, _MAX_MACRO_REPORTS,
     _MAX_MONTHLY_YEARS, _MAX_OPTION_CSV, _MAX_OPTION_DIVIDEND_CSV, _MAX_OPTION_ROWS, _OPTION_STATUSES,
     _PORTFOLIO_START, _WIDE,
 )
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.14.0"
+SERVER_VERSION = "0.15.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -35,6 +35,7 @@ MONTHLY_RETURNS_TOOL_NAME = "monthly_returns_as_of"
 MACRO_CALENDAR_TOOL_NAME = "macro_calendar_as_of"
 PORTFOLIO_SCENARIOS_TOOL_NAME = "portfolio_scenarios_as_of"
 PORTFOLIO_FX_TOOL_NAME = "portfolio_fx_as_of"
+EQUITY_CONCENTRATION_TOOL_NAME = "equity_concentration_as_of"
 _UTC_SCHEMA = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
 INPUT_SCHEMA = {
     "type": "object",
@@ -566,6 +567,46 @@ PORTFOLIO_FX_TOOL = {
 }
 
 
+_CONCENTRATION_TEXT = {
+    **{name: SCREEN_INPUT_SCHEMA["properties"][name] for name in ("membership_csv", "prices_csv")},
+    "holdings_csv": {"type": "string", "minLength": 1, "maxLength": 2 * 1024 * 1024},
+    **_FX_TIMES,
+}
+_CONCENTRATION_OFFSET = {"type": "integer", "minimum": 0, "maximum": _MAX_CONCENTRATION_POSITIONS}
+EQUITY_CONCENTRATION_INPUT = {
+    **_object_schema({
+        **_CONCENTRATION_TEXT,
+        "offset": {**_CONCENTRATION_OFFSET, "default": 0},
+        "limit": {"type": "integer", "minimum": 1, "maximum": MAX_ROWS, "default": 200},
+    }),
+    "required": list(_CONCENTRATION_TEXT),
+}
+EQUITY_CONCENTRATION_OUTPUT = _object_schema({
+    **_FX_TIMES,
+    "total_rows": _CONCENTRATION_OFFSET,
+    "offset": _CONCENTRATION_OFFSET,
+    "next_offset": {**_CONCENTRATION_OFFSET, "type": ["integer", "null"]},
+    "rows": {"type": "array", "maxItems": MAX_ROWS, "items": _object_schema({
+        "currency": {**_FX_CURRENCY, "type": ["string", "null"]},
+        "gross_mark_ticks": _OPTIONAL_TICKS_SCHEMA,
+        "listing_id": _IDENTIFIER_SCHEMA,
+        "mark_ticks": _OPTIONAL_TICKS_SCHEMA,
+        "rank": {"type": ["integer", "null"], "minimum": 1, "maximum": _MAX_CONCENTRATION_POSITIONS},
+        "weight_micros": _OPTIONAL_TICKS_SCHEMA,
+    })},
+})
+EQUITY_CONCENTRATION_TOOL = {
+    "name": EQUITY_CONCENTRATION_TOOL_NAME,
+    "description": (
+        "Rank supplied portfolio holdings by absolute share marks within each quote currency at independent UTC "
+        "cutoffs. Return missing prices, known gross and exact weights. Reuse the input and next_offset to page."
+    ),
+    "annotations": TOOL["annotations"],
+    "inputSchema": EQUITY_CONCENTRATION_INPUT,
+    "outputSchema": EQUITY_CONCENTRATION_OUTPUT,
+}
+
+
 class RequestError(Exception):
     def __init__(self, code: int, message: str):
         super().__init__(message)
@@ -692,7 +733,7 @@ class ResearchServer:
                 raise RequestError(-32602, "The tool list fits on a single page.")
             return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL,
                               AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL, MACRO_CALENDAR_TOOL, PORTFOLIO_SCENARIOS_TOOL,
-                              PORTFOLIO_FX_TOOL]}
+                              PORTFOLIO_FX_TOOL, EQUITY_CONCENTRATION_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -716,6 +757,8 @@ class ResearchServer:
                 return self._portfolio_scenarios(arguments)
             if name == PORTFOLIO_FX_TOOL_NAME:
                 return self._portfolio_fx(arguments)
+            if name == EQUITY_CONCENTRATION_TOOL_NAME:
+                return self._equity_concentration(arguments)
             raise RequestError(-32602, "Unknown research tool.")
         raise RequestError(-32601, "Method not found.")
 
@@ -885,6 +928,34 @@ class ResearchServer:
                 "converted_ticks": None if row.converted is None else str(row.converted),
                 "rate": _fixed_fields(row.rate, "rate_ticks"),
             } for row in page],
+        })
+
+    def _equity_concentration(self, arguments) -> dict:
+        if not isinstance(arguments, dict) or set(arguments) - EQUITY_CONCENTRATION_INPUT["properties"].keys():
+            raise RequestError(-32602, "Supply only the documented equity concentration arguments.")
+        text = {field: arguments.get(field) for field in _CONCENTRATION_TEXT}
+        if not all(isinstance(value, str) and value for value in text.values()):
+            raise RequestError(-32602, "Supply all three CSV contents and both UTC cutoffs.")
+        offset = _integer(arguments, "offset", 0, 0, _MAX_CONCENTRATION_POSITIONS)
+        limit = _integer(arguments, "limit", 200, 1, MAX_ROWS)
+        try:
+            report = self._engine.equity_concentration_as_of(**text)
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+
+        rows = [(group, row) for group in report.groups for row in group.positions]
+        page = rows[offset:offset + limit]
+        end = offset + len(page)
+        return _structured({
+            **{field: text[field] for field in _FX_TIMES},
+            "total_rows": len(rows), "offset": offset, "next_offset": end if end < len(rows) else None,
+            "rows": [{
+                "currency": group.currency,
+                "gross_mark_ticks": None if group.gross_mark is None else str(group.gross_mark),
+                "listing_id": row.listing_id, "rank": row.rank,
+                "mark_ticks": None if row.mark is None else str(row.mark),
+                "weight_micros": None if row.weight_micros is None else str(row.weight_micros),
+            } for group, row in page],
         })
 
     def _screen(self, arguments) -> dict:

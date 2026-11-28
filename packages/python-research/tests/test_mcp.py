@@ -69,7 +69,8 @@ class McpTest(unittest.TestCase):
         self.assertEqual([item["name"] for item in tools],
                          [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.RANK_COMPARISON_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME,
                           mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME, mcp.MONTHLY_RETURNS_TOOL_NAME,
-                          mcp.MACRO_CALENDAR_TOOL_NAME, mcp.PORTFOLIO_SCENARIOS_TOOL_NAME, mcp.PORTFOLIO_FX_TOOL_NAME])
+                          mcp.MACRO_CALENDAR_TOOL_NAME, mcp.PORTFOLIO_SCENARIOS_TOOL_NAME, mcp.PORTFOLIO_FX_TOOL_NAME,
+                          mcp.EQUITY_CONCENTRATION_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -320,6 +321,62 @@ class McpTest(unittest.TestCase):
             self.assertEqual(replies[name]["error"]["code"], -32602)
         self.assertTrue(replies["overflow"]["result"]["isError"])
         self.assertEqual(replies["ping"]["result"], {})
+
+    def test_equity_concentration_pages_missing_and_revised_marks_in_quote_currency(self):
+        fixtures = ROOT / "crates/core/tests/fixtures"
+        arguments = {
+            field: (fixtures / f"synthetic-{fixture}.csv").read_text(encoding="utf-8")
+            for field, fixture in (
+                ("membership_csv", "universe"), ("holdings_csv", "portfolio-holdings"), ("prices_csv", "universe-prices"),
+            )
+        }
+        arguments.update(effective_at="2025-06-02T14:10:00Z", known_at="2025-06-02T14:10:00Z", limit=1)
+
+        def query(request_id, **changes):
+            return rpc("tools/call", request_id, {
+                "name": mcp.EQUITY_CONCENTRATION_TOOL_NAME, "arguments": arguments | changes,
+            })
+
+        process = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(
+                rpc("initialize", "init", INITIALIZE), rpc("notifications/initialized"), rpc("tools/list", "tools"),
+                query("early"), query("missing", offset=1), query("late", known_at="2025-06-02T14:12:00Z"),
+                query("revised", known_at="2025-06-02T14:16:00Z"), query("rewind"),
+                query("reused", effective_at="2025-06-02T14:45:00Z", known_at="2025-06-02T14:45:00Z"),
+                query("bad-field", prices_path="prices.csv"), query("empty-holdings", holdings_csv=""),
+                query("bad-offset", offset=1001), rpc("ping", "ping"),
+            ),
+            timeout=15, capture_output=True, check=True,
+        )
+        self.assertEqual(process.stderr, b"")
+        messages = {reply["id"]: reply for reply in map(json.loads, process.stdout.splitlines())}
+        tool = next(tool for tool in messages["tools"]["result"]["tools"] if tool["name"] == mcp.EQUITY_CONCENTRATION_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertFalse(tool["annotations"]["openWorldHint"])
+        self.assertEqual(tool["outputSchema"]["properties"]["rows"]["items"]["properties"]["rank"]["type"], ["integer", "null"])
+
+        def data(request_id):
+            result = messages[request_id]["result"]
+            self.assertEqual(json.loads(result["content"][0]["text"]), result["structuredContent"])
+            return result["structuredContent"]
+
+        early, missing = data("early"), data("missing")
+        self.assertEqual((early["total_rows"], early["next_offset"], missing["next_offset"]), (2, 1, None))
+        self.assertEqual(missing["rows"][0], {
+            "currency": "USD", "gross_mark_ticks": "204000000", "listing_id": "BETA-001",
+            "mark_ticks": None, "rank": None, "weight_micros": None,
+        })
+        self.assertEqual([data(key)["rows"][0]["weight_micros"] for key in ("late", "revised")],
+                         ["73298429", "71227080"])
+        self.assertEqual(data("rewind"), early)
+        self.assertEqual(data("reused")["rows"][0], {
+            "currency": "EUR", "gross_mark_ticks": "225000000", "listing_id": "BETA-002",
+            "mark_ticks": "225000000", "rank": 1, "weight_micros": "100000000",
+        })
+        for key in ("bad-field", "empty-holdings", "bad-offset"):
+            self.assertEqual(messages[key]["error"]["code"], -32602)
+        self.assertEqual(messages["ping"]["result"], {})
 
     def test_tool_and_protocol_errors_preserve_the_session(self):
         server = mcp.ResearchServer(ResearchEngine(EXECUTABLE))

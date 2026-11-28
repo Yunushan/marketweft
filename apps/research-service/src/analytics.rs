@@ -1,6 +1,7 @@
 use crate::{
     proto::{
-        AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close, FormulaPage,
+        AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close,
+        EquityConcentrationPage, EquityConcentrationQuery, EquityConcentrationRow, FormulaPage,
         FormulaQuery, FormulaRow, MacroCalendarPage, MacroCalendarQuery, MacroCalendarRow,
         MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery, MonthlyReturnsRow,
         OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying, PortfolioFxPage,
@@ -16,9 +17,9 @@ use marketweft_core::{
     monthly_returns, parse_csv, parse_dividends, parse_exact_utc, parse_universe,
     AmericanValuationRequest, CashOptionError, ExerciseStyle, Formula, FormulaFunctionDefinition,
     FormulaLibrary, FxAmount, FxBook, MacroCalendar, MonthWindow, MonthlyClose, OptionAnalytics,
-    OptionBook, OptionSide, PortfolioScenarioConfig, PriceBook, PriceObservation, ReportKind,
-    ScenarioAllocation, ScenarioConfig, ScreenComparisonLeg, ScreenCutoff, ThreeQuantiles,
-    UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
+    OptionBook, OptionSide, PortfolioBook, PortfolioScenarioConfig, PriceBook, PriceObservation,
+    ReportKind, ScenarioAllocation, ScenarioConfig, ScreenComparisonLeg, ScreenCutoff,
+    ThreeQuantiles, UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -37,6 +38,7 @@ pub(crate) enum ResearchPage {
     RankComparison(RankComparisonPage),
     PortfolioScenarios(PortfolioScenariosPage),
     PortfolioFx(PortfolioFxPage),
+    EquityConcentration(EquityConcentrationPage),
     Options(OptionPage),
     AmericanOption(AmericanOptionResponse),
 }
@@ -441,6 +443,66 @@ fn close(price: Option<PriceObservation>) -> Option<Close> {
         ticks: price.ticks.to_string(),
         observed_at: price.observed_at,
     })
+}
+
+pub(crate) fn equity_concentration(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_equity_concentration(request(bytes)?, &mut |page| {
+        emit(ResearchPage::EquityConcentration(page))
+    })
+}
+
+pub(crate) fn evaluate_equity_concentration(
+    query: EquityConcentrationQuery,
+    emit: &mut dyn FnMut(EquityConcentrationPage) -> bool,
+) -> Result<(), ApiError> {
+    let (offset, limit) = pagination(query.offset, query.limit, 1_000)?;
+    let Some((effective, known)) =
+        parse_exact_utc(&query.effective_at).zip(parse_exact_utc(&query.known_at))
+    else {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use YYYY-MM-DDTHH:MM:SSZ equity concentration cutoffs.",
+        ));
+    };
+    let universe = parse_universe(&query.membership_csv).map_err(analytical_error)?;
+    let book = PortfolioBook::parse(&universe, &query.holdings_csv, &query.prices_csv, "")
+        .map_err(analytical_error)?;
+    let groups = book.as_of(effective, known).equity_concentration();
+    let rows: Vec<_> = groups
+        .into_iter()
+        .flat_map(|group| {
+            let gross = group.gross_mark.map(|mark| mark.to_string());
+            group
+                .positions
+                .into_iter()
+                .map(move |row| EquityConcentrationRow {
+                    currency: group.currency.map(str::to_owned),
+                    gross_mark_ticks: gross.clone(),
+                    listing_id: row.listing_id.to_owned(),
+                    mark_ticks: row.mark.map(|mark| mark.to_string()),
+                    rank: row.rank.map(|rank| rank as u32),
+                    weight_micros: row.weight_micros.map(|weight| weight.to_string()),
+                })
+        })
+        .collect();
+    pages(
+        offset,
+        limit,
+        rows.len(),
+        emit,
+        |offset, range, next_offset| EquityConcentrationPage {
+            effective_at: query.effective_at.clone(),
+            known_at: query.known_at.clone(),
+            total_rows: rows.len() as u32,
+            offset,
+            next_offset,
+            rows: rows[range].to_vec(),
+        },
+    );
+    Ok(())
 }
 
 pub(crate) fn portfolio_fx(

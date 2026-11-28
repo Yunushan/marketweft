@@ -23,6 +23,7 @@ The service prints the bound loopback address. The port defaults to 4174. Set `M
 | `POST /v1/universe/rank-comparison` | `MARKETWEFT_SCREEN_TOKEN` | Both CSVs, a shared baseline and two effective and known cutoff pairs |
 | `POST /v1/universe/portfolio-scenarios` | `MARKETWEFT_SCREEN_TOKEN` | Point-in-time membership and price reports, allocations and deterministic sampling settings |
 | `POST /v1/portfolio/fx` | `MARKETWEFT_SCREEN_TOKEN` | `rates_csv`, source subtotals, reporting currency and independent effective and known cutoffs |
+| `POST /v1/portfolio/equity-concentration` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `holdings_csv`, `prices_csv` and independent effective and known cutoffs |
 | `POST /v1/options/snapshot` | `MARKETWEFT_OPTIONS_TOKEN` | `underlying_csv`, `quotes_csv`, `effective_at`, `known_at` and optional `max_age` |
 | `POST /v1/options/american/valuation` | `MARKETWEFT_OPTIONS_TOKEN` | Option CSVs, `contract_id`, both UTC cutoffs, and optional volatility and cash dividends |
 
@@ -80,6 +81,14 @@ Each page echoes the cutoffs and reports the known converted subtotal across all
 
 Connect to `/v1/portfolio/fx/stream` with the screen credential and send the REST query as one text frame. Each page matches its REST equivalent. On reconnect, use the last accepted `next_offset` to resume. Use `wss` on the configured private TLS listener. The unary gRPC method `marketweft.research.v1.Research/GetPortfolioFx` uses the same screen credential in `authorization` metadata and preserves absent quotes and converted values through optional fields. The same admission controls, managed quotas and audit receipts apply to all three transports. [Research Protobuf schema](../apps/research-service/proto/research.proto)
 
+## Equity concentration
+
+Send `POST /v1/portfolio/equity-concentration` with a screen bearer credential and the membership, holdings and close CSV contents. Supply `effective_at` and `known_at` as exact UTC timestamps. The membership CSV accepts up to 1 MiB, and each holdings or closes CSV accepts up to 2 MiB. Both cutoffs apply before ranking marks by absolute value within the original quote currency. [Equity concentration method and fixture](portfolio-replay.md#equity-concentration)
+
+Each page contains `total_rows`, `offset`, `next_offset`, both cutoffs and its `rows`. A row carries the `listing_id`, quote currency, known gross for that currency, signed share value, rank and weight. The `gross_mark_ticks` and `mark_ticks` values are decimal strings in currency millionths. The `weight_micros` decimal string uses millionths of a percentage point. Unavailable values are `null`. Set `limit` between 1 and 1,000. The default is 200. Continue with the same input and `next_offset` until it is `null`.
+
+Connect to `/v1/portfolio/equity-concentration/stream` with the same screen credential and send one copy of the REST request in a JSON text frame. The socket streams REST-shaped pages and closes after the last. The gRPC method `marketweft.research.v1.Research/GetEquityConcentration` returns one typed page over HTTP/2 and uses the screen bearer token in `authorization` metadata. Shared screen admission, quota and audit rules apply. [Research Protobuf schema](../apps/research-service/proto/research.proto)
+
 ## WebSocket streaming
 
 Connect to `ws://127.0.0.1:4174/v1/formula/stream` or `ws://127.0.0.1:4174/v1/universe/screen/stream`, using the port printed by the service. Use a client that can set the `Authorization: Bearer <token>` header on the upgrade request. Each path requires the same scope as its REST equivalent. Option snapshots also have a stream at `/v1/options/snapshot/stream` under the options scope. The Host and Origin checks apply to the upgrade.
@@ -109,6 +118,7 @@ Use a Protobuf client over HTTP/2 at the printed service address. The default lo
 | `CompareUniverseRanks` | `MARKETWEFT_SCREEN_TOKEN` |
 | `GetPortfolioScenarios` | `MARKETWEFT_SCREEN_TOKEN` |
 | `GetPortfolioFx` | `MARKETWEFT_SCREEN_TOKEN` |
+| `GetEquityConcentration` | `MARKETWEFT_SCREEN_TOKEN` |
 | `SnapshotOptions` | `MARKETWEFT_OPTIONS_TOKEN` |
 | `ValueAmericanOption` | `MARKETWEFT_OPTIONS_TOKEN` |
 

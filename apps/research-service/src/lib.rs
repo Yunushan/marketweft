@@ -536,6 +536,14 @@ fn route_authority(
         )
         .route("/v1/portfolio/fx", post(portfolio_fx))
         .route("/v1/portfolio/fx/stream", get(websocket::portfolio_fx))
+        .route(
+            "/v1/portfolio/equity-concentration",
+            post(equity_concentration),
+        )
+        .route(
+            "/v1/portfolio/equity-concentration/stream",
+            get(websocket::equity_concentration),
+        )
         .route("/v1/options/snapshot", post(option_snapshot))
         .route("/v1/options/snapshot/stream", get(websocket::options))
         .route("/v1/options/american/valuation", post(american_option))
@@ -748,6 +756,19 @@ async fn portfolio_scenarios(
         request,
         Scope::Screen,
         analytics::portfolio_scenarios,
+    )
+    .await
+}
+
+async fn equity_concentration(
+    State(state): State<Arc<Server>>,
+    request: Request,
+) -> Result<Json<ResearchPage>, ApiError> {
+    execute(
+        state,
+        request,
+        Scope::Screen,
+        analytics::equity_concentration,
     )
     .await
 }
