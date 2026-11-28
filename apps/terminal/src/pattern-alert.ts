@@ -6,6 +6,8 @@ export const patternNames: Record<CandlePatternHit['kind'], string> = {
   doji: 'Doji',
   'bullish-engulfing': 'Bullish engulfing',
   'bearish-engulfing': 'Bearish engulfing',
+  piercing: 'Piercing',
+  'dark-cloud-cover': 'Dark cloud cover',
 }
 
 type PatternBarEvidence = {

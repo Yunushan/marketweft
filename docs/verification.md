@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.239.0 · Piercing and Dark Cloud Cover
+
+- Rust and Wasm verify signed gap and midpoint boundaries, inclusive observation times, missing intervals and session resets. Rust also checks half-tick comparisons at both fixed-point price limits.
+- Offline Chromium verifies the early-close cutoff, deterministic rewind, deduplicated inbox entries and exported OHLCV for both observed candles.
+
+[Piercing and Dark Cloud Cover](candlestick-patterns.md#piercing-and-dark-cloud-cover)
+
 ## 0.238.0 · Economic release service transports
 
 - Native service tests verify formula-scope admission, independent release and knowledge cutoffs, exact decimal ticks and revision chains split across REST and resumable WebSocket pages.

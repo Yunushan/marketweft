@@ -2426,3 +2426,21 @@ test('candle pattern replay retains exact observation cutoffs across missing bar
   }
   assert.throws(() => core.replayCandlePatterns(calendar, 0, bars, expected[0].observedAt), /Replay interval/);
 });
+
+test('piercing and dark cloud cover use observed signed gaps and the exact prior midpoint', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
+  const [calendar, source] = await Promise.all([
+    fixture('synthetic-candle-pattern-sessions'), fixture('synthetic-piercing-dark-cloud'),
+  ]);
+  const bars = core.parseCsv(source);
+  const expected = [
+    ['piercing', 1, '2026-01-12T14:02:00Z'],
+    ['dark-cloud-cover', 2, '2026-01-12T14:03:00Z'],
+    ['bearish-engulfing', 6, '2026-01-12T14:08:00Z'],
+    ['dark-cloud-cover', 9, '2026-01-13T14:02:30Z'],
+  ].map(([kind, barIndex, time]) => ({ kind, barIndex, observedAt: Date.parse(time) / 1000 }));
+  for (const [index, hit] of expected.entries()) {
+    assert.deepEqual(core.replayCandlePatterns(calendar, 60, bars, hit.observedAt - 1), expected.slice(0, index));
+    assert.deepEqual(core.replayCandlePatterns(calendar, 60, bars, hit.observedAt), expected.slice(0, index + 1));
+  }
+});

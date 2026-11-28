@@ -6,6 +6,8 @@ pub enum CandlePattern {
     Doji = 0,
     BullishEngulfing = 1,
     BearishEngulfing = 2,
+    Piercing = 3,
+    DarkCloudCover = 4,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -15,7 +17,7 @@ pub struct CandlePatternHit {
     pub observed_at: i64,
 }
 
-fn engulfing(previous: &Bar, current: &Bar) -> Option<CandlePattern> {
+fn pair_pattern(previous: &Bar, current: &Bar) -> Option<CandlePattern> {
     let (previous_open, previous_close) = (previous.open, previous.close);
     let (open, close) = (current.open, current.close);
     if previous_open > previous_close
@@ -31,6 +33,23 @@ fn engulfing(previous: &Bar, current: &Bar) -> Option<CandlePattern> {
         && (open > previous_close || close < previous_open)
     {
         return Some(CandlePattern::BearishEngulfing);
+    }
+    // Compare twice the close to the prior body sum so odd-tick midpoints
+    // remain exact. A midpoint or prior-open tie is outside either rule.
+    let midpoint_twice = previous_open + previous_close;
+    if previous_open > previous_close
+        && open < previous.low
+        && close * 2 > midpoint_twice
+        && close < previous_open
+    {
+        return Some(CandlePattern::Piercing);
+    }
+    if previous_close > previous_open
+        && open > previous.high
+        && close * 2 < midpoint_twice
+        && close > previous_open
+    {
+        return Some(CandlePattern::DarkCloudCover);
     }
     None
 }
@@ -65,7 +84,7 @@ pub fn replay_candle_patterns(
                 observed_at: event.observed_at,
             });
         }
-        if let Some(kind) = previous.and_then(|prior| engulfing(prior, bar)) {
+        if let Some(kind) = previous.and_then(|prior| pair_pattern(prior, bar)) {
             hits.push(CandlePatternHit {
                 kind,
                 bar_index,

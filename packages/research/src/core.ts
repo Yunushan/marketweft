@@ -294,7 +294,7 @@ export interface DrawingMeasurement {
 }
 
 const replayKinds = ['open', 'bar', 'missing', 'close'] as const;
-const candlePatternKinds = ['doji', 'bullish-engulfing', 'bearish-engulfing'] as const;
+const candlePatternKinds = ['doji', 'bullish-engulfing', 'bearish-engulfing', 'piercing', 'dark-cloud-cover'] as const;
 export interface CandlePatternHit {
   kind: typeof candlePatternKinds[number];
   barIndex: number;

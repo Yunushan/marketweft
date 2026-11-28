@@ -33,9 +33,9 @@ At 14:02 UTC the fixture first crosses the threshold. At 14:03 the correction cr
 
 ## Candlestick pattern alerts
 
-In [candlestick pattern replay](candlestick-patterns.md), select **Scan observed candles**, choose a **Pattern alert rule**, and select **Save pattern alerts**. The rule saves every matching candle in that observed prefix. The available rules are Doji, Bullish engulfing and Bearish engulfing. Saving a shorter prefix after rewinding leaves existing inbox entries intact.
+In candlestick pattern replay, select **Scan observed candles**, choose a **Pattern alert rule**, and select **Save pattern alerts**. The rule saves every matching candle in that observed prefix. The available rules are Doji, Bullish engulfing, Bearish engulfing, Piercing and Dark Cloud Cover. Saving a shorter prefix after rewinding leaves existing inbox entries intact. [Candlestick pattern replay](candlestick-patterns.md)
 
-The inbox shows these records alongside threshold and moving-average crossings. **Show evidence** includes the rule revision, the triggering bar's raw OHLCV values, its opening time and when it became known. Engulfing records include the previous raw candle and its observation time. The replay context digest hashes the instrument key, interval and calendar. The record ID combines that digest, rule revision, pattern and triggering bar time. Replaying an identical record adds no duplicate. Conflicting evidence under the same ID cancels the batch.
+The inbox shows these records alongside threshold and moving-average crossings. **Show evidence** includes the rule revision, the triggering bar's raw OHLCV values, its opening time and when it became known. Two-candle records include the previous raw candle and its observation time. The replay context digest hashes the instrument key, interval and calendar. The record ID combines that digest, rule revision, pattern and triggering bar time. Replaying an identical record adds no duplicate. Conflicting evidence under the same ID cancels the batch.
 
 Structured source grants must allow both automated use and storage when saving raw evidence. The inbox remains local to IndexedDB on the current browser origin.
 

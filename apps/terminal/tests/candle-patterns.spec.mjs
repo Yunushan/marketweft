@@ -64,6 +64,92 @@ test('offline candle pattern scans disclose only observations at the active repl
   await expect(rows).toHaveCount(3)
 })
 
+test('piercing and dark cloud cover rewind across the early close and export exact signed evidence', async ({ page, context }) => {
+  const [csv, calendar] = await Promise.all([fixture('synthetic-piercing-dark-cloud'), fixture('synthetic-candle-pattern-sessions')])
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+
+  await openImport(page, 'REVERSALS', csv)
+  const dialog = page.getByRole('dialog')
+  await dialog.getByText('Series details', { exact: true }).click()
+  for (const right of ['Display', 'Automated use', 'Storage', 'Redistribution']) {
+    await dialog.getByRole('combobox', { name: right, exact: true }).selectOption('granted')
+  }
+  await submitImport(page, 'REVERSALS')
+  await page.getByRole('button', { name: 'Historical replay' }).click()
+  await page.getByLabel('Session calendar CSV', { exact: true }).setInputFiles({
+    name: 'sessions.csv', mimeType: 'text/csv', buffer: Buffer.from(calendar),
+  })
+  await page.getByLabel('Bar interval in seconds', { exact: true }).fill('60')
+  await page.getByRole('button', { name: 'Start replay', exact: true }).click()
+  await page.getByText('Candlestick patterns', { exact: true }).click()
+
+  const next = page.getByRole('button', { name: 'Next event', exact: true })
+  const previous = page.getByRole('button', { name: 'Previous event', exact: true })
+  const scan = page.getByRole('button', { name: 'Scan observed candles', exact: true })
+  const rows = page.getByRole('table', { name: 'Observed candlestick patterns', exact: true }).locator('tbody tr')
+  const save = page.getByRole('button', { name: 'Save pattern alerts', exact: true })
+  const rule = page.getByLabel('Pattern alert rule')
+  async function step(count) { for (let i = 0; i < count; i++) await next.click() }
+  async function match(name, opened, observed) {
+    await expect(rows.first().getByRole('cell')).toHaveText([name, opened, observed])
+  }
+  await step(2)
+  await scan.click()
+  await expect(rows).toHaveCount(0)
+  await step(1)
+  await scan.click()
+  await match('Piercing', '2026-01-12T14:01:00Z', '2026-01-12T14:02:00Z')
+  await rule.selectOption('piercing')
+  await save.click()
+  await expect(page.getByText('1 new pattern alert saved.', { exact: true })).toBeVisible()
+  await step(1)
+  await scan.click()
+  await match('Dark cloud cover', '2026-01-12T14:02:00Z', '2026-01-12T14:03:00Z')
+  await step(3)
+  await scan.click()
+  await expect(rows).toHaveCount(2)
+
+  await step(6)
+  await scan.click()
+  await expect(rows).toHaveCount(3)
+  await step(1)
+  await scan.click()
+  await match('Dark cloud cover', '2026-01-13T14:02:00Z', '2026-01-13T14:02:30Z')
+  await expect(rows).toHaveCount(4)
+  await rule.selectOption('dark-cloud-cover')
+  await save.click()
+  await expect(page.getByText('2 new pattern alerts saved.', { exact: true })).toBeVisible()
+  await previous.click()
+  await scan.click()
+  await expect(rows).toHaveCount(3)
+  await save.click()
+  await expect(page.getByText('0 new pattern alerts saved.', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Change replay', exact: true }).click()
+  await page.getByRole('button', { name: 'Open replay alerts', exact: true }).click()
+  const inbox = page.getByRole('table', { name: 'Saved alerts', exact: true })
+  await expect(inbox.locator('tbody tr')).toHaveCount(3)
+  const earlyClose = inbox.getByRole('row', { name: /2026-01-13T14:02:30Z/ })
+  await earlyClose.getByText('Show evidence', { exact: true }).click()
+  await expect(earlyClose).toContainText('Dark cloud cover')
+  const [download] = await Promise.all([
+    page.waitForEvent('download'), earlyClose.getByRole('button', { name: 'Download webhook event', exact: true }).click(),
+  ])
+  const exported = JSON.parse(await readFile(await download.path(), 'utf8'))
+  expect(exported.data.rule.pattern).toBe('dark-cloud-cover')
+  expect(exported.observed_at).toBe('2026-01-13T14:02:30Z')
+  expect(exported.data.current.ticks).toEqual({ open: 0, high: 1000000, low: -8000000, close: -5000000, volume: 10000000 })
+  expect(exported.data.previous.ticks).toEqual({ open: -7000000, high: -1000000, low: -8000000, close: -2000000, volume: 9000000 })
+  expect(exported.data.previous.observedAt).toBe(exported.data.current.measuredAt)
+  await page.reload()
+  await page.getByRole('button', { name: 'Historical replay', exact: true }).click()
+  await page.getByRole('button', { name: 'Open replay alerts', exact: true }).click()
+  await expect(inbox.locator('tbody tr')).toHaveCount(3)
+})
+
 test('a restricted source blocks pattern scans without changing imported history', async ({ page }) => {
   const [csv, calendar] = await Promise.all([fixture('synthetic-candle-patterns'), fixture('synthetic-candle-pattern-sessions')])
   await page.goto('/')

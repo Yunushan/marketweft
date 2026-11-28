@@ -58,6 +58,9 @@ Use two trades per bar and compare cutoffs at 2025-06-02T14:00:00Z and
 
 Choose Historical replay and Start demo for the NYSE session example. Replay
 reveals each bar at its scheduled close and marks missing intervals in-session.
+For Piercing and Dark Cloud Cover, import piercing-dark-cloud.csv, then choose
+candle-pattern-sessions.csv and 60 seconds in Historical replay. Scan observed
+candles after 14:02 UTC on January 12 and the January 13 early close.
 To replay your own import, choose a matching UTC session calendar and bar
 interval. The replay-*.csv files let you try the import workflow with the demo.
 
@@ -286,6 +289,8 @@ def main():
     files["financial-filings.csv"] = (fixture / "synthetic-financial-filings.csv").read_bytes()
     files["financial-market-caps.csv"] = (fixture / "synthetic-financial-market-caps.csv").read_bytes()
     files["macro-calendar.csv"] = (fixture / "synthetic-macro-calendar.csv").read_bytes()
+    files["piercing-dark-cloud.csv"] = (fixture / "synthetic-piercing-dark-cloud.csv").read_bytes()
+    files["candle-pattern-sessions.csv"] = (fixture / "synthetic-candle-pattern-sessions.csv").read_bytes()
     for kind in ("underlying", "quotes"):
         files[f"option-{kind}.csv"] = (fixture / f"synthetic-option-{kind}.csv").read_bytes()
     for kind in ("rules", "observations"):
