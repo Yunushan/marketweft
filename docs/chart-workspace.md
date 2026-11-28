@@ -442,6 +442,14 @@ Each pane uses the bars available to its selected history and timeframe. Both st
 
 Both studies use observed bars and preserve separate pane settings. Research CSV names include the configured periods, such as `elder_force_13` and `chaikin_volatility_10_10`. Their settings use workspace backup version 59.
 
+### Percentage Price Oscillator and normalized ATR
+
+**PPO** shows the difference between fast and slow close EMAs as a percentage of the signed slow EMA. The defaults are 12, 26 and 9 bars for the fast EMA, slow EMA and signal. The signal is an EMA of the oscillator, and the histogram is the oscillator minus the signal. A zero slow EMA leaves a gap. The next signal starts after a complete window of defined oscillator values. [Percentage Price Oscillator formula](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/percentage-price-oscillator-ppo)
+
+**Normalized ATR** divides the chart's Wilder ATR by the signed close of the same observed bar and scales the result to percent. The shared ATR seeds with the first complete true-range window, using high minus low for the first bar. The default is 14 bars. A zero close leaves a gap. A zero range with a nonzero close yields 0%. Negative closes produce signed percentages. [Normalized Average True Range formula](https://ta-lib.org/functions/natr.html)
+
+The studies save independent periods for each pane. Research CSV columns use exact signed values with up to six decimal places, including `ppo_line_12_26_9`, `ppo_signal_12_26_9`, `ppo_histogram_12_26_9` and `natr_14` with the defaults. Workspace backup version 69 stores these settings and reads earlier formats.
+
 ### Stochastic RSI and Ultimate Oscillator
 
 **Stochastic RSI** places the current Wilder RSI within the highest and lowest RSI values in a complete observed window, on a 0–100% scale. The defaults are 14 bars for Wilder RSI, 14 for its range, 3 for %K smoothing and 3 for %D smoothing. The two smoothing stages use simple averages over complete defined windows. An unchanged RSI range leaves a gap. A current RSI at the bottom of a nonflat range gives a raw value of 0%. The panel guides are at 20% and 80%. [Stochastic RSI formula](https://www.tradingview.com/support/solutions/43000502333-stochastic-rsi-stoch-rsi/)

@@ -102,8 +102,8 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
             onChange={event => { setExtraValues({ ...extraValues, [key]: event.target.value }); setError(null) }} />
         </label>)}
         <button type="submit" disabled={saving}>Apply {name}</button>
-        {error && <p role="alert">{error !== 'period' ? error : kind === 'macd' ?
-          'Enter whole MACD periods from 1 through 100,000 bars.' : kind === 'keltner' ?
+        {error && <p role="alert">{error !== 'period' ? error : kind === 'macd' || kind === 'ppo' ?
+          `Enter whole ${name} periods from 1 through 100,000 bars.` : kind === 'keltner' ?
           'Enter whole EMA and ATR periods from 1 through 100,000 bars.' : kind === 'stochastic' ?
           'Enter whole Stochastic periods from 1 through 100,000 bars.' :
           kind === 'stochastic_rsi' ? 'Enter a whole Wilder RSI period from 2 through 100,000 bars and other periods from 1 through 100,000 bars.' :

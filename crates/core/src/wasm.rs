@@ -4051,6 +4051,14 @@ pub extern "C" fn mw_atr(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_normalized_average_true_range(period: usize) -> u32 {
+    process(|input| {
+        crate::normalized_average_true_range(period, &decode_bars(input)?)
+            .map(encode_wide_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_bollinger_bands(period: usize) -> u32 {
     process(|input| {
         crate::bollinger_bands(period, &indicator_closes(input)?).map(encode_price_bands)
@@ -4503,6 +4511,21 @@ pub extern "C" fn mw_macd(fast: usize, slow: usize, signal: usize) -> u32 {
         for value in values {
             for ticks in [value.line, value.signal, value.histogram] {
                 bytes.extend_from_slice(&ticks.unwrap_or(i64::MIN).to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_percentage_price_oscillator(fast: usize, slow: usize, signal: usize) -> u32 {
+    process(|input| {
+        let values =
+            crate::percentage_price_oscillator(fast, slow, signal, &indicator_closes(input)?)?;
+        let mut bytes = Vec::with_capacity(values.len() * 48);
+        for value in values {
+            for ticks in [value.line, value.signal, value.histogram] {
+                bytes.extend_from_slice(&ticks.unwrap_or(i128::MIN).to_le_bytes());
             }
         }
         Ok(bytes)

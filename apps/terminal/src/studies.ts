@@ -5,6 +5,7 @@ import type { ExportOverlay } from './chart-export'
 export const STUDIES = {
   rsi: { name: 'RSI', label: 'Relative Strength Index', minPeriod: 2, defaultPeriod: 14, color: '#8eb3fa' },
   atr: { name: 'ATR', label: 'Average True Range', minPeriod: 1, defaultPeriod: 14, color: '#e6ab66' },
+  natr: { name: 'Normalized ATR', label: 'Normalized Average True Range', minPeriod: 1, defaultPeriod: 14, color: '#bdb1ef' },
   bb: { name: 'Bollinger Bands', label: 'Bollinger Bands', minPeriod: 1, defaultPeriod: 20 },
   bb_percent_b: { name: 'Bollinger %B', label: 'Bollinger %B', minPeriod: 1, defaultPeriod: 20, color: '#e797c7' },
   bb_bandwidth: { name: 'BandWidth', label: 'Bollinger BandWidth', minPeriod: 1, defaultPeriod: 20, color: '#6acec6' },
@@ -15,6 +16,7 @@ export const STUDIES = {
   ultimate: { name: 'Ultimate Oscillator', label: 'Ultimate Oscillator', minPeriod: 1, defaultPeriod: 7, periodLabel: 'Ultimate Oscillator short', color: '#79cdb5' },
   williams_r: { name: 'Williams %R', label: 'Williams %R', minPeriod: 1, defaultPeriod: 14, color: '#ceaeec' },
   macd: { name: 'MACD', label: 'Moving Average Convergence Divergence', minPeriod: 1, defaultPeriod: 12, periodLabel: 'MACD fast', color: '#9abdfd' },
+  ppo: { name: 'PPO', label: 'Percentage Price Oscillator', minPeriod: 1, defaultPeriod: 12, periodLabel: 'PPO fast', color: '#a1e4c5' },
   obv: { name: 'On-Balance Volume', label: 'On-Balance Volume', color: '#79c9b2' },
   adl: { name: 'Accumulation/Distribution Line', label: 'Accumulation/Distribution Line', color: '#e4ac7f' },
   chaikin_money_flow: { name: 'Chaikin Money Flow', label: 'Chaikin Money Flow', minPeriod: 1, defaultPeriod: 20, color: '#7ed2ca' },
@@ -61,6 +63,8 @@ export const EXTRA_STUDY_PERIODS = {
   ultimateLongPeriod: { label: 'Ultimate Oscillator long', defaultPeriod: 28 },
   slowPeriod: { label: 'MACD slow', defaultPeriod: 26 },
   macdSignalPeriod: { label: 'MACD signal', defaultPeriod: 9 },
+  ppoSlowPeriod: { label: 'PPO slow', defaultPeriod: 26 },
+  ppoSignalPeriod: { label: 'PPO signal', defaultPeriod: 9 },
   chaikinSlowPeriod: { label: 'Chaikin slow', defaultPeriod: 10 },
   volatilityLookback: { label: 'Chaikin Volatility comparison', defaultPeriod: 10 },
   coppockFirstPeriod: { label: 'Coppock first change', defaultPeriod: 11 },
@@ -74,6 +78,7 @@ const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPerio
   stochastic_rsi: ['stochRsiLookback', 'stochRsiSmoothing', 'stochRsiSignal'],
   ultimate: ['ultimateMiddlePeriod', 'ultimateLongPeriod'],
   macd: ['slowPeriod', 'macdSignalPeriod'],
+  ppo: ['ppoSlowPeriod', 'ppoSignalPeriod'],
   chaikin_oscillator: ['chaikinSlowPeriod'],
   chaikin_volatility: ['volatilityLookback'],
   coppock: ['coppockFirstPeriod', 'coppockSecondPeriod'],
@@ -235,17 +240,19 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
         { color: STUDIES[kind].color, series: core.ultimateOscillator(period, medium, long, bars) },
       ] }]
     }
-    if (kind === 'macd') {
-      const slow = study.slowPeriod ?? EXTRA_STUDY_PERIODS.slowPeriod.defaultPeriod
-      const signal = study.macdSignalPeriod ?? EXTRA_STUDY_PERIODS.macdSignalPeriod.defaultPeriod
-      const rows = core.macd(period, slow, signal, bars)
-      return [{ kind, periods: [period, slow, signal], unit: 'price', zeroLine: true, lines: [
-        { key: 'line', label: 'Line', color: STUDIES.macd.color, series: rows.map(row => row.line) },
+    if (kind === 'macd' || kind === 'ppo') {
+      const [slow, signal] = extraStudyPeriods(kind).map(key => study[key] ?? EXTRA_STUDY_PERIODS[key].defaultPeriod)
+      const rows = kind === 'macd' ? core.macd(period, slow, signal, bars) : core.percentagePriceOscillator(period, slow, signal, bars)
+      return [{ kind, periods: [period, slow, signal], unit: kind === 'macd' ? 'price' : undefined, zeroLine: true, lines: [
+        { key: 'line', label: 'Line', color: STUDIES[kind].color, series: rows.map(row => row.line) },
         { key: 'signal', label: 'Signal', color: '#f4c384', series: rows.map(row => row.signal) },
         { key: 'histogram', label: 'Histogram', color: '#458b77', series: rows.map(row => row.histogram),
           histogram: { negativeColor: '#a3687f' } },
       ] }]
     }
+    if (kind === 'natr') return [{ kind, periods: [period], zeroLine: true, lines: [
+      { color: STUDIES[kind].color, series: core.normalizedAverageTrueRange(period, bars) },
+    ] }]
     if (kind === 'chaikin_oscillator') {
       const slow = study.chaikinSlowPeriod ?? EXTRA_STUDY_PERIODS.chaikinSlowPeriod.defaultPeriod
       return [{ kind, periods: [period, slow], unit: 'volume', zeroLine: true, lines: [
@@ -360,8 +367,9 @@ export function studyPeriodOrderError(kind: StudyKind, settings: StudySettings):
       return 'The Ultimate Oscillator short, medium and long periods must increase in that order.'
     return
   }
-  if (kind !== 'macd' && kind !== 'chaikin_oscillator') return
-  const slow = kind === 'macd' ? settings.slowPeriod : settings.chaikinSlowPeriod
+  if (kind !== 'macd' && kind !== 'chaikin_oscillator' && kind !== 'ppo') return
+  const slow = kind === 'macd' ? settings.slowPeriod :
+    kind === 'ppo' ? settings.ppoSlowPeriod : settings.chaikinSlowPeriod
   if (settings.period === undefined || slow === undefined || settings.period >= slow)
     return `The ${STUDIES[kind].name} fast period must be shorter than the slow period.`
 }

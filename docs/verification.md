@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.240.0 · Percentage Price Oscillator and normalized ATR
+
+- Rust and Wasm verify each observed prefix, signed denominators, a zero slow EMA and recovery of the PPO signal after that gap. A zero close leaves normalized ATR unavailable, while a nonzero close and zero range return 0%. Wide results remain exact beyond signed 64-bit bounds.
+- Offline Chromium checks exact signed CSV, separate pane periods, and restoration of versions 68 and 69 with earlier settings retained.
+
+[PPO and normalized ATR](chart-workspace.md#percentage-price-oscillator-and-normalized-atr)
+
 ## 0.239.0 · Piercing and Dark Cloud Cover
 
 - Rust and Wasm verify signed gap and midpoint boundaries, inclusive observation times, missing intervals and session resets. Rust also checks half-tick comparisons at both fixed-point price limits.

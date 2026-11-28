@@ -40,6 +40,7 @@ mod macro_calendar;
 mod macro_wire;
 mod monthly_returns;
 mod moving_averages;
+mod normalized_indicators;
 mod option_cash;
 mod option_chain;
 mod option_price;
@@ -155,6 +156,9 @@ pub use monthly_returns::{
 pub use moving_averages::{
     double_exponential_moving_average, hull_moving_average, kaufman_adaptive_moving_average,
     kaufman_efficiency_ratio, linearly_weighted_average, triple_exponential_moving_average,
+};
+pub use normalized_indicators::{
+    normalized_average_true_range, percentage_price_oscillator, PpoValue,
 };
 pub use option_cash::CashOptionDividend;
 pub use option_chain::{

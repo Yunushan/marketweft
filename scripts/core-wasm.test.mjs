@@ -83,6 +83,31 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('PPO and normalized ATR preserve signed wide percentages and independent zero behavior', async () => {
+  const input = await readFile(new URL('../crates/core/tests/fixtures/synthetic-normalized-indicators.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(input);
+  const ppo = [
+    [null, null, null], [-100000000n, null, null], [200000000n, 50000000n, 150000000n],
+    [null, null, null], [50000000n, null, null], [0n, 25000000n, -25000000n],
+    [100000000n, 75000000n, 25000000n], [0n, 25000000n, -25000000n],
+    [null, null, null], [50000000n, null, null], [0n, 25000000n, -25000000n], [0n, 8333333n, -8333333n],
+  ].map(([line, signal, histogram]) => ({ line, signal, histogram }));
+  const natr = [-33333333n, null, 133333333n, -800000000n, 150000000n, 50000000n, -175000000n,
+    -100000000n, 300000000n, 66666667n, 50000000n, 0n];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.percentagePriceOscillator(1, 2, 2, bars.slice(0, end)), ppo.slice(0, end));
+    assert.deepEqual(core.normalizedAverageTrueRange(1, bars.slice(0, end)), natr.slice(0, end));
+  }
+  const wide = core.parseCsv('time,open,high,low,close,volume\n' +
+    '2025-01-01,-1999999999.999998,2000000000,-2000000000,-1999999999.999998,0\n' +
+    '2025-01-02,2000000000,2000000000,-2000000000,2000000000,0\n');
+  assert.equal(core.percentagePriceOscillator(1, 2, 1, wide)[1].line, 199999999999999900000000n);
+  const oneTick = core.parseCsv('time,open,high,low,close,volume\n' +
+    '2025-01-01,0,2000000000,-2000000000,0.000001,0\n');
+  assert.deepEqual(core.normalizedAverageTrueRange(1, oneTick), [400000000000000000000000n]);
+  assert.throws(() => core.percentagePriceOscillator(2, 2, 1, bars), /fast period shorter/);
+});
+
 test('Stochastic RSI and Ultimate Oscillator preserve warm-up, genuine zero and stable observed prefixes', async () => {
   const input = await readFile(new URL('../crates/core/tests/fixtures/synthetic-stochastic-rsi-ultimate.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(input);

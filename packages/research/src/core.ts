@@ -1273,6 +1273,8 @@ export interface MarketCore {
   chaikinMoneyFlow(period: number, bars: readonly Bar[]): (bigint | null)[];
   chaikinOscillator(fast: number, slow: number, bars: readonly Bar[]): (bigint | null)[];
   macd(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
+  percentagePriceOscillator(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
+  normalizedAverageTrueRange(period: number, bars: readonly Bar[]): (bigint | null)[];
   williamsPercentR(period: number, bars: readonly Bar[]): (bigint | null)[];
   stochasticOscillator(lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
   stochasticRsi(rsi: number, lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
@@ -1437,6 +1439,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_chaikin_money_flow(period: number): number;
   mw_chaikin_oscillator(fast: number, slow: number): number;
   mw_macd(fast: number, slow: number, signal: number): number;
+  mw_percentage_price_oscillator(fast: number, slow: number, signal: number): number;
+  mw_normalized_average_true_range(period: number): number;
   mw_williams_percent_r(period: number): number;
   mw_stochastic_oscillator(lookback: number, smoothing: number, signal: number): number;
   mw_stochastic_rsi(rsi: number, lookback: number, smoothing: number, signal: number): number;
@@ -2821,6 +2825,24 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return Array.from({ length: bars.length }, (_, index) => ({
         line: value(index * 24), signal: value(index * 24 + 8), histogram: value(index * 24 + 16),
       }));
+    },
+    percentagePriceOscillator(fast, slow, signal, bars) {
+      if (![fast, slow, signal].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD || fast >= slow)
+        throw new Error('PPO requires 1–100,000 bar periods and a fast period shorter than the slow period.');
+      putIndicatorCloses(bars);
+      const out = output(api.mw_percentage_price_oscillator(fast, slow, signal));
+      function value(offset: number) {
+        const ticks = signed128(out, offset);
+        return ticks === WIDE_MISSING ? null : ticks;
+      }
+      return Array.from({ length: bars.length }, (_, index) => ({
+        line: value(index * 48), signal: value(index * 48 + 16), histogram: value(index * 48 + 32),
+      }));
+    },
+    normalizedAverageTrueRange(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'Normalized ATR');
+      return readWideIndicator(output(api.mw_normalized_average_true_range(period)), bars.length);
     },
     williamsPercentR(period, bars) {
       return observedIndicator(api.mw_williams_percent_r, period, bars, 'Williams %R');
