@@ -187,7 +187,7 @@ async fn v1_audit_receipts_and_autoincrement_survive_options_scope_migration() {
             (43, "options".into(), Some("completed".into()))
         ]
     );
-    assert_eq!(verify_audit_snapshot(&live).unwrap().schema_version, 2);
+    assert_eq!(verify_audit_snapshot(&live).unwrap().schema_version, 3);
 }
 
 #[tokio::test]

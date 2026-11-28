@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.206.0 · Durable research quotas
+
+- The hosted Rust fixture verifies that REST, WebSocket and gRPC spend the same quota per managed credential. Two service processes competing for the final admission produce one accepted request, and a separately issued credential retains its own allowance.
+- Restart and audit recovery preserve the consumed allowance. The quota transaction rolls back if it cannot write its audit receipt. A later UTC minute resets the allowance, and a backward clock step retains the recorded window.
+- The migration fixture opens a version 2 audit snapshot, upgrades it to version 3 and preserves the receipt sequence.
+
+[Durable research quotas](local-rest-research.md#durable-research-quotas)
+
 ## 0.205.0 · Paper matching against recorded depth
 
 - The Wasm and TypeScript SDK fixtures verify later quote eligibility, whole-share fills, price and time priority, repeated size, a sequence gap and matching resuming at a fresh snapshot. The fill receipts identify exact capture sequences above JavaScript’s safe integer range.
