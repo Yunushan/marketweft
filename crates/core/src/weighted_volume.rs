@@ -1,5 +1,6 @@
 use crate::{
     history::{typical_sum, validate_bar_time, validate_ohlcv},
+    price_momentum::percent_change,
     screen::{decimal_ratio, rounded_div},
     Bar, MAX_BARS,
 };
@@ -40,6 +41,66 @@ fn validate_period(period: usize, bars: &[Bar]) -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+/// Percentage change from the reported volume exactly one lookback earlier.
+/// A zero baseline volume has no defined rate of change.
+pub fn volume_rate_of_change(period: usize, bars: &[Bar]) -> Result<Vec<Option<i128>>, String> {
+    validate_period(period, bars)?;
+    let mut previous_time = None;
+    bars.iter()
+        .enumerate()
+        .map(|(index, bar)| {
+            validate_ohlcv(bar, index)?;
+            validate_bar_time(bar.time, previous_time, index)?;
+            previous_time = Some(bar.time);
+            Ok(index
+                .checked_sub(period)
+                .and_then(|prior| percent_change(bar.volume, bars[prior].volume)))
+        })
+        .collect()
+}
+
+/// Subtract the long simple volume average from the short simple volume
+/// average, rounding the difference once to whole volume ticks.
+pub fn volume_oscillator(
+    fast: usize,
+    slow: usize,
+    bars: &[Bar],
+) -> Result<Vec<Option<i64>>, String> {
+    validate_period(fast, bars)?;
+    validate_period(slow, bars)?;
+    if fast >= slow {
+        return Err(
+            "The Volume Oscillator fast period must be shorter than the slow period.".into(),
+        );
+    }
+    let (fast_weight, slow_weight) = (fast as i128, slow as i128);
+    let mut fast_sum = 0_i128;
+    let mut slow_sum = 0_i128;
+    let mut previous_time = None;
+    bars.iter()
+        .enumerate()
+        .map(|(index, bar)| {
+            validate_ohlcv(bar, index)?;
+            validate_bar_time(bar.time, previous_time, index)?;
+            previous_time = Some(bar.time);
+            fast_sum += i128::from(bar.volume);
+            slow_sum += i128::from(bar.volume);
+            if let Some(expired) = index.checked_sub(fast) {
+                fast_sum -= i128::from(bars[expired].volume);
+            }
+            if let Some(expired) = index.checked_sub(slow) {
+                slow_sum -= i128::from(bars[expired].volume);
+            }
+            Ok((index + 1 >= slow).then(|| {
+                rounded_div(
+                    fast_sum * slow_weight - slow_sum * fast_weight,
+                    fast_weight * slow_weight,
+                ) as i64
+            }))
+        })
+        .collect()
 }
 
 /// Returns the Money Flow Index in six-place percentage points. Direction is

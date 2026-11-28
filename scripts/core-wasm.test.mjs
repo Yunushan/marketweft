@@ -66,6 +66,20 @@ test('scalar plugin series keeps inclusive UTC starting and ending rows and a sh
   assert.deepEqual(run(60, 60), [{ time: 60, close: -5n, value: -4n }]);
 });
 
+test('volume change studies preserve exact gaps, fractions, zero and observed prefixes', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-volume-change-studies.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const rates = [null, null, -100000000n, null, null, 0n, 75000000n, -37500000n];
+  const oscillator = [null, null, -333333n, 333333n, 666667n, 0n, 250000n, 125000n];
+  for (let length = 0; length <= bars.length; length++) {
+    assert.deepEqual(core.volumeRateOfChange(2, bars.slice(0, length)), rates.slice(0, length));
+    assert.deepEqual(core.volumeOscillator(2, 3, bars.slice(0, length)), oscillator.slice(0, length));
+  }
+  const wide = core.parseCsv('time,open,high,low,close,volume\n0,1,1,1,1,0.000001\n60,1,1,1,1,2000000000\n');
+  assert.deepEqual(core.volumeRateOfChange(1, wide), [null, 199999999999999900000000n]);
+  assert.throws(() => core.volumeOscillator(3, 2, bars), /fast period must be shorter/);
+});
+
 test('Vertical Horizontal Filter and Psychological Line preserve warmup, flat paths and exact ratios', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-directional-close-studies.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(csv);

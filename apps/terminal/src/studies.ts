@@ -27,6 +27,10 @@ export const STUDIES = {
   obv: { name: 'On-Balance Volume', label: 'On-Balance Volume', color: '#79c9b2' },
   adl: { name: 'Accumulation/Distribution Line', label: 'Accumulation/Distribution Line', color: '#e4ac7f' },
   pvt: { name: 'Price Volume Trend', label: 'Price Volume Trend', color: '#c4ac78' },
+  vroc: { name: 'Volume Rate of Change', label: 'Volume Rate of Change', minPeriod: 1,
+    defaultPeriod: 14, color: '#9fbbd9' },
+  volume_oscillator: { name: 'Volume Oscillator', label: 'Volume Oscillator', minPeriod: 1,
+    defaultPeriod: 5, periodLabel: 'Volume Oscillator fast', color: '#9ecfb8' },
   chaikin_money_flow: { name: 'Chaikin Money Flow', label: 'Chaikin Money Flow', minPeriod: 1, defaultPeriod: 20, color: '#7ed2ca' },
   chaikin_oscillator: { name: 'Chaikin Oscillator', label: 'Chaikin Oscillator', minPeriod: 1, defaultPeriod: 3,
     periodLabel: 'Chaikin fast', color: '#d39ce1' },
@@ -83,6 +87,7 @@ export const EXTRA_STUDY_PERIODS = {
   ppoSignalPeriod: { label: 'PPO signal', defaultPeriod: 9 },
   chaikinSlowPeriod: { label: 'Chaikin slow', defaultPeriod: 10 },
   volatilityLookback: { label: 'Chaikin Volatility comparison', defaultPeriod: 10 },
+  volumeOscillatorSlowPeriod: { label: 'Volume Oscillator slow', defaultPeriod: 10 },
   coppockFirstPeriod: { label: 'Coppock first change', defaultPeriod: 11 },
   coppockSecondPeriod: { label: 'Coppock second change', defaultPeriod: 14 },
   adxPeriod: { label: 'ADX smoothing', defaultPeriod: 14 },
@@ -99,6 +104,7 @@ const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPerio
   ppo: ['ppoSlowPeriod', 'ppoSignalPeriod'],
   chaikin_oscillator: ['chaikinSlowPeriod'],
   chaikin_volatility: ['volatilityLookback'],
+  volume_oscillator: ['volumeOscillatorSlowPeriod'],
   coppock: ['coppockFirstPeriod', 'coppockSecondPeriod'],
   dmi: ['adxPeriod'],
   adxr: ['adxPeriod'],
@@ -362,6 +368,15 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
         { color: STUDIES.roc.color, series: core.rateOfChange(period, bars) },
       ] }]
     }
+    if (kind === 'vroc') return [{ kind, periods: [period], zeroLine: true, lines: [
+      { color: STUDIES.vroc.color, series: core.volumeRateOfChange(period, bars) },
+    ] }]
+    if (kind === 'volume_oscillator') {
+      const slow = study.volumeOscillatorSlowPeriod ?? EXTRA_STUDY_PERIODS.volumeOscillatorSlowPeriod.defaultPeriod
+      return [{ kind, periods: [period, slow], unit: 'volume', zeroLine: true, lines: [
+        { color: STUDIES.volume_oscillator.color, series: core.volumeOscillator(period, slow, bars) },
+      ] }]
+    }
     if (kind === 'coppock') {
       const first = study.coppockFirstPeriod ?? EXTRA_STUDY_PERIODS.coppockFirstPeriod.defaultPeriod
       const second = study.coppockSecondPeriod ?? EXTRA_STUDY_PERIODS.coppockSecondPeriod.defaultPeriod
@@ -414,6 +429,12 @@ export function studyOverlays(studies: StudyValues[]): ExportOverlay[] {
 export function isStudyKind(key: string): key is StudyKind {
   return Object.hasOwn(STUDIES, key)
 }
+const ORDERED_SLOW_PERIODS: Partial<Record<StudyKind, ExtraStudyPeriod>> = {
+  macd: 'slowPeriod',
+  ppo: 'ppoSlowPeriod',
+  chaikin_oscillator: 'chaikinSlowPeriod',
+  volume_oscillator: 'volumeOscillatorSlowPeriod',
+}
 export function studyPeriodOrderError(kind: StudyKind, settings: StudySettings): string | undefined {
   if (kind === 'ultimate') {
     const { period, ultimateMiddlePeriod: medium, ultimateLongPeriod: long } = settings
@@ -421,9 +442,9 @@ export function studyPeriodOrderError(kind: StudyKind, settings: StudySettings):
       return 'The Ultimate Oscillator short, medium and long periods must increase in that order.'
     return
   }
-  if (kind !== 'macd' && kind !== 'chaikin_oscillator' && kind !== 'ppo') return
-  const slow = kind === 'macd' ? settings.slowPeriod :
-    kind === 'ppo' ? settings.ppoSlowPeriod : settings.chaikinSlowPeriod
+  const slowKey = ORDERED_SLOW_PERIODS[kind]
+  if (slowKey === undefined) return
+  const slow = settings[slowKey]
   if (settings.period === undefined || slow === undefined || settings.period >= slow)
     return `The ${STUDIES[kind].name} fast period must be shorter than the slow period.`
 }

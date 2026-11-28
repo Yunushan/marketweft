@@ -472,6 +472,14 @@ Both studies use observed bars and preserve separate pane settings. Research CSV
 
 The studies save independent periods for each pane. Research CSV columns use exact signed values with up to six decimal places, including `ppo_line_12_26_9`, `ppo_signal_12_26_9`, `ppo_histogram_12_26_9` and `natr_14` with the defaults. Workspace backup version 69 stores these settings and reads earlier formats.
 
+### Volume Rate of Change and Volume Oscillator
+
+**Volume Rate of Change** measures the percentage change from the reported volume exactly one window earlier. The default is 14 observed bars. A zero baseline volume leaves the result unavailable. A zero current volume against a positive baseline gives −100%, and equal positive volumes give 0%. Results use six decimal places in percentage points. [Volume Rate of Change reference](https://developer.ninjatrader.com/docs/desktop/volume_rate_of_change_vroc)
+
+**Volume Oscillator** subtracts the slow simple average of reported volume from the fast simple average. The periods default to 5 and 10 bars, and the fast period must be shorter. The core rounds the difference once to six decimal places in volume units. A complete all-zero window produces an oscillator value of zero. [Volume Oscillator calculation](https://help.ctrader.com/indicators/built-in/volume/volume-oscillator/)
+
+Both studies use observed bars across timestamp gaps. Research CSV includes `vroc_14` and `volume_oscillator_5_10` at the default periods. Workspace backup version 77 keeps each pane’s settings.
+
 ### Vertical Horizontal Filter and Psychological Line
 
 **Vertical Horizontal Filter** divides the span of the latest `N` observed closes by the sum of the latest `N` absolute close-to-close changes. It needs a preceding close for the first change. The default window is 28 bars. A flat price path leaves the ratio unavailable. A flat span with a measurable path can produce zero. Results are rounded to six places and appear on a 0–1 scale. [Vertical Horizontal Filter calculation](https://traders.com/Documentation/FEEDbk_docs/2000/07/Abstracts_new/Gopalakrishnan/Gopalakrishnan.html)

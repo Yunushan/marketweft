@@ -82,10 +82,12 @@ const MASS_AND_DETRENDED_PRICE_BACKUP_VERSION = 73
 const FIBONACCI_CIRCLES_BACKUP_VERSION = 74
 const PVT_AND_ADXR_BACKUP_VERSION = 75
 const DIRECTIONAL_CLOSE_STUDIES_BACKUP_VERSION = 76
+const VOLUME_CHANGE_STUDIES_BACKUP_VERSION = 77
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
   const studies = Object.values(preferences.studies ?? {})
+  if (studies.some(pane => pane?.vroc || pane?.volume_oscillator)) return VOLUME_CHANGE_STUDIES_BACKUP_VERSION
   if (studies.some(pane => pane?.vhf || pane?.psychological_line)) return DIRECTIONAL_CLOSE_STUDIES_BACKUP_VERSION
   if (studies.some(pane => pane?.pvt || pane?.adxr)) return PVT_AND_ADXR_BACKUP_VERSION
   if (Object.values(preferences.annotations ?? {}).some(entries => entries.some(entry => entry.kind === 'fibonacci-circles')))
@@ -286,6 +288,7 @@ export async function verifyWorkspaceBackup(
     FIBONACCI_CIRCLES_BACKUP_VERSION,
     PVT_AND_ADXR_BACKUP_VERSION,
     DIRECTIONAL_CLOSE_STUDIES_BACKUP_VERSION,
+    VOLUME_CHANGE_STUDIES_BACKUP_VERSION,
     PRICE_VOLUME_SCATTER_BACKUP_VERSION,
     NORMALIZED_PRICE_AND_RANGE_BACKUP_VERSION,
     STOCHASTIC_RSI_AND_ULTIMATE_BACKUP_VERSION,

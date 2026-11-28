@@ -1291,6 +1291,8 @@ export interface MarketCore {
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
   cumulativeVolume(bars: readonly Bar[]): CumulativeVolume[];
   priceVolumeTrend(bars: readonly Bar[]): (bigint | null)[];
+  volumeRateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
+  volumeOscillator(fast: number, slow: number, bars: readonly Bar[]): (bigint | null)[];
   aroon(period: number, bars: readonly Bar[]): (AroonValue | null)[];
   commodityChannelIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   closeChanges(intervalSeconds: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1479,6 +1481,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
   mw_cumulative_volume(): number;
   mw_price_volume_trend(): number;
+  mw_volume_rate_of_change(period: number): number;
+  mw_volume_oscillator(fast: number, slow: number): number;
   mw_aroon(period: number): number;
   mw_commodity_channel_index(period: number): number;
   mw_close_changes(intervalSeconds: number): number;
@@ -2901,6 +2905,18 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       if (bars.length > MAX_INDICATOR_PERIOD) throw new Error('Price Volume Trend supports up to 100,000 observed bars.');
       putIndicatorBars(bars, 'Price Volume Trend');
       return readWideIndicator(output(api.mw_price_volume_trend()), bars.length);
+    },
+    volumeRateOfChange(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'Volume Rate of Change');
+      return readWideIndicator(output(api.mw_volume_rate_of_change(period)), bars.length);
+    },
+    volumeOscillator(fast, slow, bars) {
+      validateIndicatorHistory(fast, bars.length);
+      validateIndicatorHistory(slow, bars.length);
+      if (fast >= slow) throw new Error('The Volume Oscillator fast period must be shorter than the slow period.');
+      putIndicatorBars(bars, 'Volume Oscillator');
+      return readIndicatorTicks(output(api.mw_volume_oscillator(fast, slow)), bars.length);
     },
     adxRating(diPeriod, adxPeriod, bars) {
       if (![diPeriod, adxPeriod].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)

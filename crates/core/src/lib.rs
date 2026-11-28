@@ -224,7 +224,9 @@ pub use scalar_plugin::{
     evaluate_scalar_plugin, evaluate_scalar_plugin_series, ScalarPluginPoint,
     MAX_SCALAR_PLUGIN_BYTES, MAX_SCALAR_PLUGIN_SERIES_BARS,
 };
-pub use weighted_volume::{money_flow_index, volume_weighted_average};
+pub use weighted_volume::{
+    money_flow_index, volume_oscillator, volume_rate_of_change, volume_weighted_average,
+};
 pub type RenkoBrick = PriceMovement;
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use rsi::relative_strength_index;

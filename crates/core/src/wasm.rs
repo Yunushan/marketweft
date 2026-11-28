@@ -4487,6 +4487,20 @@ pub extern "C" fn mw_vortex_indicator(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_volume_rate_of_change(period: usize) -> u32 {
+    process(|input| {
+        crate::volume_rate_of_change(period, &decode_bars(input)?).map(encode_wide_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_volume_oscillator(fast: usize, slow: usize) -> u32 {
+    process(|input| {
+        crate::volume_oscillator(fast, slow, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_price_volume_trend() -> u32 {
     process(|input| {
         crate::price_volume_trend(&decode_bars(input)?).map(encode_wide_indicator_values)

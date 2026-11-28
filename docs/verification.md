@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.261.0 · Volume Rate of Change and Volume Oscillator
+
+- Rust and Wasm verify each observed prefix with zero baselines, a genuine zero change, fractional volumes, one rounding of the difference of averages and a rate wider than signed 64-bit ticks.
+- Chromium rejects reversed fast and slow periods, exports both studies offline and preserves the imported history through versions 76 and 77. The fixture returns −37.5% and −64.285714% for the independently configured rate panes, and 0.125 volume units for the oscillator.
+
+[Volume Rate of Change and Volume Oscillator](chart-workspace.md#volume-rate-of-change-and-volume-oscillator)
+
 ## 0.260.0 · Vertical Horizontal Filter and Psychological Line
 
 - Rust and Wasm verify every prefix of the same signed fixture. The Vertical Horizontal Filter distinguishes a zero span with a measurable price path from a flat, unavailable path. The Psychological Line preserves exact 33.333333% and genuine 0%.
