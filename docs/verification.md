@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.290.0 · Recorded time and sales
+
+- Rust and Wasm verify inclusive observation time, capture order for an earlier execution observed late, exact signed prices and the full unsigned 64-bit sequence range. Six-column reports keep unknown sides.
+- Offline Chromium verifies chart and keyboard selection, comparison instrument scope, paging and byte-identical CSV after rewinding and reimporting.
+
 ## 0.289.0 · True Range histogram
 
 - Rust and Wasm verify exact nonnegative spans across signed prices and UTC gaps, genuine zeros, full signed price bounds and unchanged observed prefixes.

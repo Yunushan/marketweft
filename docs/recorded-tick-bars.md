@@ -24,3 +24,13 @@ The first response row has the protocol name, version and bar count. The `T` row
 4. Open, high, low, close and traded volume in millionths.
 
 The sample trade tape returns `2000003000001` trillionths with a provisional flag at `2025-06-02T14:00:01Z`. At `2025-06-02T14:00:02Z`, the completed first bar has `5000003000001` trillionths and capture sequences `9007199254740993` to `9007199254740995`. [Synthetic notional trade tape](../crates/core/tests/fixtures/synthetic-notional-trades.csv)
+
+## Recorded time and sales
+
+Open **Recorded time and sales** for the primary instrument or **Comparison time and sales** for the comparison instrument. Choose a local trade CSV and optionally enter an exact **Known through (UTC)** timestamp. MarketWeft includes captures observed by that second and plots them in capture sequence order. The table gives execution time, observation time, exact sequence, signed price, size and reported aggressor.
+
+The plot’s horizontal positions follow capture order. Larger dots indicate larger prints within the current page. Click a dot or choose its sequence in the table to highlight it. Each page shows up to 50 prints. The CSV includes every print in the current cutoff, in the same capture order. You can reopen that CSV with the same instrument.
+
+The input accepts the six-column trade format and the optional seventh `aggressor` column. Values are `buy`, `sell` and `unknown`. An absent aggressor is shown as unknown. [Synthetic time-and-sales fixture](../crates/core/tests/fixtures/synthetic-recorded-prints.csv)
+
+In the fixture, two trades are observable at 14:00:00 UTC on June 2, 2025. A trade executed at 13:59:57 UTC becomes visible at 14:00:02 UTC after both earlier captures. The final trade has capture sequence `18446744073709551615`. Rewind to 14:00:00 UTC to reproduce the earlier CSV.

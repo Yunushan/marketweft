@@ -675,6 +675,10 @@ With NASDAQ:NVDA selected, try the packaged `notional-trades.csv` and a target o
 
 The **Recorded tick bars** tool builds an independent chart from captured trades using an observation cutoff and trade count. [Recorded tick bars](recorded-tick-bars.md)
 
+## Recorded time and sales
+
+Open the time-and-sales view to inspect exact recorded prints in capture order. The cutoff follows observation time, and the table retains the separate execution time and reported aggressor. [Recorded time and sales](recorded-tick-bars.md#recorded-time-and-sales)
+
 ## True Strength Index and Klinger Oscillator
 
 Choose **True Strength Index** or **Klinger Oscillator** in **Indicators**. Each chart pane saves its own fast, slow and signal periods. The fast period must be shorter than the slow period. Both studies provide their oscillator and signal lines in the analysis CSV.

@@ -8,6 +8,8 @@ import { Mark } from './Icons'
 import type { MarketCore, NotionalBar, RangeBar, TickBar, VolumeBar } from './market-core'
 import type { Asset } from './workspace'
 
+export { TradePrintResearch } from './TradePrintResearch'
+
 type Bars =
   { mode: 'tick'; bars: TickBar[] } | { mode: 'range'; bars: RangeBar[] } |
   { mode: 'volume'; bars: VolumeBar[] } | { mode: 'notional'; bars: NotionalBar[] }

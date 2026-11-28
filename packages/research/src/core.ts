@@ -271,6 +271,15 @@ export interface TradeClassificationQuery {
   maxQuoteAgeSeconds: number;
 }
 
+export interface RecordedTradePrint {
+  executedAt: number;
+  observedAt: number;
+  sequence: bigint;
+  priceTicks: bigint;
+  sizeTicks: bigint;
+  reportedSide: 'buy' | 'sell' | 'unknown';
+}
+
 export type TradeSideBasis = 'reported' | 'quote-midpoint' | 'at-midpoint' | 'no-depth' |
   'unsynchronized-depth' | 'incomplete-quote' | 'stale-quote' | 'locked-quote';
 
@@ -1364,6 +1373,7 @@ export interface MarketCore {
   recordedRangeBars(instrument: string, csv: string, targetRangeTicks: bigint, knownAt?: string): RangeBar[];
   recordedVolumeBars(instrument: string, csv: string, targetVolumeTicks: bigint, knownAt?: string): VolumeBar[];
   recordedNotionalBars(instrument: string, csv: string, targetNotionalTicks: bigint, knownAt?: string): NotionalBar[];
+  recordedTradePrints(instrument: string, csv: string, knownAt?: string): RecordedTradePrint[];
   footprintWindow(instrument: string, csv: string): FootprintWindow;
   recordedFootprint(instrument: string, csv: string, query: FootprintQuery): FootprintBar[];
   recordedPriceProfile(instrument: string, csv: string, query: FootprintQuery, valueAreaBasisPoints: number): PriceProfile;
@@ -1566,6 +1576,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_kagi(reversalTicks: bigint): number;
   mw_point_and_figure(boxTicks: bigint): number;
   mw_tick_bars(targetTrades: number): number;
+  mw_recorded_trade_prints(): number;
   mw_range_bars(targetRangeTicks: bigint): number;
   mw_volume_bars(targetVolumeTicks: bigint): number;
   mw_notional_bars(targetNotionalTicks: bigint): number;
@@ -2559,6 +2570,28 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           volumeTicks: out.getBigInt64(start + 40, true),
           targetNotionalTicks: out.getBigInt64(start + 80, true),
           grossNotionalTrillionths: signed128(out, start + 88),
+        };
+      });
+    },
+    recordedTradePrints(instrument, csv, knownAt = '') {
+      if (/[\r\n]/.test(instrument + knownAt) ||
+        (knownAt && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(knownAt))) {
+        throw new Error('Use a single instrument and an exact UTC observation cutoff.');
+      }
+      textInput([instrument, knownAt, csv].join('\n'));
+      const out = output(api.mw_recorded_trade_prints());
+      if (out.byteLength % 41 !== 0) throw new Error('Invalid recorded trade print response size.');
+      return Array.from({ length: out.byteLength / 41 }, (_, index) => {
+        const start = index * 41;
+        const side = (['unknown', 'buy', 'sell'] as const)[out.getUint8(start + 40)];
+        if (!side) throw new Error('Invalid reported trade side.');
+        return {
+          executedAt: Number(out.getBigInt64(start, true)),
+          observedAt: Number(out.getBigInt64(start + 8, true)),
+          sequence: out.getBigUint64(start + 16, true),
+          priceTicks: out.getBigInt64(start + 24, true),
+          sizeTicks: out.getBigInt64(start + 32, true),
+          reportedSide: side,
         };
       });
     },

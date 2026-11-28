@@ -33,6 +33,16 @@ pub struct TradeTape {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RecordedTradePrint {
+    pub executed_at: i64,
+    pub observed_at: i64,
+    pub sequence: u64,
+    pub price_ticks: i64,
+    pub size_ticks: i64,
+    pub reported_side: AggressorSide,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TickBar {
     pub bar: Bar,
     pub available_at: i64,
@@ -169,6 +179,27 @@ impl TradeTape {
                 .partition_point(|trade| trade.observed_at <= time)
         });
         &self.trades[..end]
+    }
+
+    /// Expose the captured prints in observation order through an inclusive cutoff.
+    pub fn recorded_prints(
+        &self,
+        known_at: Option<i64>,
+    ) -> Result<impl ExactSizeIterator<Item = RecordedTradePrint> + '_, String> {
+        if known_at.is_some_and(|time| !valid_second(time)) {
+            return Err("Use a supported UTC observation cutoff.".into());
+        }
+        Ok(self
+            .observed_prefix(known_at)
+            .iter()
+            .map(|trade| RecordedTradePrint {
+                executed_at: trade.executed_at,
+                observed_at: trade.observed_at,
+                sequence: trade.sequence,
+                price_ticks: trade.price,
+                size_ticks: trade.size,
+                reported_side: trade.side,
+            }))
     }
 
     /// Group the observed prefix in capture order. A short final group is provisional.

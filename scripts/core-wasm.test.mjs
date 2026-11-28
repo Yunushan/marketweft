@@ -10,6 +10,28 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('recorded trade prints preserve inclusive observation order, reported sides and full sequences', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-recorded-prints.csv', import.meta.url), 'utf8');
+  const at = cutoff => core.recordedTradePrints('NASDAQ:NVDA', csv, cutoff);
+  assert.deepEqual(at('2025-06-02T13:59:59Z'), []);
+  const first = at('2025-06-02T14:00:00Z');
+  assert.equal(first.length, 2);
+  assert.deepEqual(first[0], { executedAt: 1748872798, observedAt: 1748872800, sequence: 9007199254740993n,
+    priceTicks: -2000001n, sizeTicks: 1000001n, reportedSide: 'buy' });
+  assert.deepEqual(first[1], { executedAt: 1748872799, observedAt: 1748872800, sequence: 9007199254740994n,
+    priceTicks: 0n, sizeTicks: 250000n, reportedSide: 'unknown' });
+  assert.deepEqual(at('2025-06-02T14:00:01Z'), first);
+  const late = at('2025-06-02T14:00:02Z');
+  assert.deepEqual(late.slice(0, 2), first);
+  assert.equal(late[2].executedAt, 1748872797);
+  assert.equal(late[2].observedAt, 1748872802);
+  assert.equal(late[2].reportedSide, 'sell');
+  assert.equal(at().at(-1).sequence, (1n << 64n) - 1n);
+  assert.deepEqual(at('2025-06-02T14:00:00Z'), first);
+  assert.throws(() => at('2025-06-02'), /exact UTC/);
+  assert.throws(() => core.recordedTradePrints('NASDAQ:MSFT', csv), /match the selected chart/);
+});
+
 test('True Range keeps exact previous observations, including through UTC gaps', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-true-range.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(csv);

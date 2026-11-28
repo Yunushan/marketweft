@@ -64,6 +64,8 @@ Use two trades per bar and compare cutoffs at 2025-06-02T14:00:00Z and
 For recorded notional bars, load notional-trades.csv for NASDAQ:NVDA and set
 a target of 5 quote units. Advance from 14:00:01 to 14:00:02 UTC on June 2,
 2025 to see the provisional bar complete on the next observed trade.
+Open Recorded time and sales for NASDAQ:NVDA with recorded-prints.csv.
+Compare 14:00:00 and 14:00:02 UTC to see the earlier execution arrive late.
 
 Choose Historical replay and Start demo for the NYSE session example. Replay
 reveals each bar at its scheduled close and marks missing intervals in-session.
@@ -273,6 +275,7 @@ def main():
     files["replay-ohlcv.csv"] = (fixture / "nyse-2025-replay-ohlcv.csv").read_bytes()
     files["tick-trades.csv"] = (fixture / "synthetic-tick-trades.csv").read_bytes()
     files["notional-trades.csv"] = (fixture / "synthetic-notional-trades.csv").read_bytes()
+    files["recorded-prints.csv"] = (fixture / "synthetic-recorded-prints.csv").read_bytes()
     files["formula-bars.csv"] = (fixture / "synthetic-formula-bars.csv").read_bytes()
     files["formula-strategy.mwstrategy.json"] = (fixture / "synthetic-formula-strategy.mwstrategy.json").read_bytes()
     files["formula-library.mwformula.json"] = (fixture / "synthetic-formula-library.mwformula.json").read_bytes()

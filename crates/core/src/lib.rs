@@ -260,8 +260,8 @@ pub use stochastic::{stochastic_oscillator, stochastic_rsi, StochasticValue};
 pub use strength_and_volume::{klinger_oscillator, true_strength_index, OscillatorSignal};
 pub use tick_bars::{
     AggressorSide, FlowVolume, FootprintBar, FootprintLevel, PriceProfile, ProfileArea,
-    ProfileLevel, TickBar, TradeClassification, TradeClassificationConfig, TradeSideBasis,
-    TradeTape, TradeWindow,
+    ProfileLevel, RecordedTradePrint, TickBar, TradeClassification, TradeClassificationConfig,
+    TradeSideBasis, TradeTape, TradeWindow,
 };
 pub use timeframe::{
     aggregate_session_timeframe, aggregate_timeframe, SessionTimeframeBar, TimeframeBar,

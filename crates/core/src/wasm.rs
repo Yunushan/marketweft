@@ -3556,6 +3556,29 @@ fn trade_bar_input(input: &[u8]) -> Result<(Instrument, Option<i64>, &str), Stri
 }
 
 #[no_mangle]
+pub extern "C" fn mw_recorded_trade_prints() -> u32 {
+    process(|input| {
+        let (instrument, cutoff, csv) = trade_bar_input(input)?;
+        let tape = crate::TradeTape::parse_execution(csv, &instrument)?;
+        let prints = tape.recorded_prints(cutoff)?;
+        let mut bytes = Vec::with_capacity(41 * prints.len());
+        for row in prints {
+            bytes.extend_from_slice(&row.executed_at.to_le_bytes());
+            bytes.extend_from_slice(&row.observed_at.to_le_bytes());
+            bytes.extend_from_slice(&row.sequence.to_le_bytes());
+            bytes.extend_from_slice(&row.price_ticks.to_le_bytes());
+            bytes.extend_from_slice(&row.size_ticks.to_le_bytes());
+            bytes.push(match row.reported_side {
+                crate::AggressorSide::Unknown => 0,
+                crate::AggressorSide::Buy => 1,
+                crate::AggressorSide::Sell => 2,
+            });
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_tick_bars(target_trades: u32) -> u32 {
     process(|input| {
         let (instrument, cutoff, csv) = trade_bar_input(input)?;
