@@ -69,3 +69,42 @@ fn wide_products_and_volume_and_target_limits_remain_exact() {
         .unwrap_err()
         .contains("OHLCV range"));
 }
+
+#[test]
+fn native_protocol_echoes_exact_cutoffs_and_preserves_wide_fields() {
+    use marketweft_core::research::{notional_bars_request, MAX_NOTIONAL_BARS_REQUEST_BYTES};
+    let request = |id, target, cutoff, csv| {
+        format!("marketweft-notional-bars\t1\n{id}\n{target}\n{cutoff}\n{csv}")
+    };
+    let at = |cutoff| {
+        notional_bars_request(request("NASDAQ:NVDA", "5000000", cutoff, FIXTURE).as_bytes())
+            .unwrap()
+    };
+    let early = at("2025-06-02T14:00:01Z");
+    assert_eq!(
+        early.lines().collect::<Vec<_>>(),
+        [
+            "marketweft-notional-bars\t1\t1",
+            "T\tNASDAQ:NVDA\t5000000\t1748872801",
+            "1748872800\t1748872800\t9007199254740993\t9007199254740994\t2\t0\t2000003000001\t-2000001\t0\t-2000001\t0\t1250001",
+        ]
+    );
+    let full = at("");
+    assert_eq!(full.lines().nth(1), Some("T\tNASDAQ:NVDA\t5000000\t"));
+    assert_eq!(
+        full.lines().nth(2),
+        Some("1748872800\t1748872802\t9007199254740993\t9007199254740995\t3\t1\t5000003000001\t-2000001\t3000000\t-2000001\t3000000\t2250001")
+    );
+    assert_eq!(early, at("2025-06-02T14:00:01Z"));
+    for invalid in [
+        request("NASDAQ:NVDA", "0", "", FIXTURE),
+        request("NASDAQ:NVDA", "5.5", "", FIXTURE),
+        request("nasdaq:nvda", "5", "", FIXTURE),
+        request("NYSE:IBM", "5", "", FIXTURE),
+        request("NASDAQ:NVDA", "5", "2025-02-29T14:00:01Z", FIXTURE),
+        request("NASDAQ:NVDA", "5", "", FIXTURE).replacen("\t1\n", "\t2\n", 1),
+    ] {
+        assert!(notional_bars_request(invalid.as_bytes()).is_err());
+    }
+    assert!(notional_bars_request(&vec![b'a'; MAX_NOTIONAL_BARS_REQUEST_BYTES + 1]).is_err());
+}

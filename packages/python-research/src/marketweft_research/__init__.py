@@ -18,6 +18,7 @@ __all__ = [
     "FxAmount", "FxCurrencyValue", "FxRateEvidence", "FxTranslation",
     "MacroRecord", "MacroRelease",
     "MonthlyClose", "MonthlyReturn",
+    "NotionalBar", "NotionalBarsSnapshot",
     "OptionChainAnalytics", "OptionChainQuote", "OptionChainSnapshot", "OptionUnderlyingQuote",
     "PortfolioAllocationListing", "PortfolioAllocationSample", "PortfolioAllocationSnapshot",
     "PortfolioScenarioCoverage", "PortfolioScenarioPath", "PortfolioScenarioResult", "ScenarioAllocation",
@@ -40,6 +41,7 @@ _MAX_SCALAR_PLUGIN = 64 * 1024
 _MAX_SCALAR_SERIES = 256
 _MONTHLY_PROTOCOL = "marketweft-monthly-returns"
 _MACRO_PROTOCOL = "marketweft-macro-calendar"
+_NOTIONAL_BARS_PROTOCOL = "marketweft-notional-bars"
 _ALLOCATION_PROTOCOL = "marketweft-portfolio-allocation"
 _PORTFOLIO_PROTOCOL = "marketweft-portfolio-scenarios"
 _FX_PROTOCOL = "marketweft-portfolio-fx"
@@ -198,6 +200,30 @@ class PortfolioAllocationSnapshot:
     listings: tuple[PortfolioAllocationListing, ...]
     sample: PortfolioAllocationSample | None
     maximum_weight_basis_points: int | None = None
+
+
+@dataclass(frozen=True)
+class NotionalBar:
+    first_observed_at: int
+    available_at: int
+    first_sequence: int
+    last_sequence: int
+    observed_trades: int
+    complete: bool
+    gross_notional_trillionths: int
+    open_ticks: int
+    high_ticks: int
+    low_ticks: int
+    close_ticks: int
+    volume_ticks: int
+
+
+@dataclass(frozen=True)
+class NotionalBarsSnapshot:
+    instrument: str
+    target_notional_ticks: int
+    known_at: int | None
+    bars: tuple[NotionalBar, ...]
 
 
 @dataclass(frozen=True)
@@ -629,6 +655,41 @@ def _fx_translation(
     if subtotal != (sum(converted_amounts) if converted_amounts else None):
         raise ResearchError("Portfolio FX subtotal does not match the converted currency amounts.")
     return FxTranslation(reporting, subtotal, tuple(values))
+
+
+def _notional_bars(output: bytes, instrument: str, target: int, cutoff: int | None) -> NotionalBarsSnapshot:
+    count, rows = _response(output, _NOTIONAL_BARS_PROTOCOL)
+    count = _whole(count)
+    if not 0 <= count <= 100_000 or len(rows) != count + 1:
+        raise ResearchError("Invalid notional bars row count.")
+    if rows[0].split("\t") != ["T", instrument, str(target), "" if cutoff is None else str(cutoff)]:
+        raise ResearchError("Notional bar settings differ from the request.")
+    bars = []
+    previous_time, previous_sequence, total_trades = _MIN_UTC_SECOND, 0, 0
+    for index, row in enumerate(rows[1:]):
+        fields = row.split("\t")
+        if len(fields) != 12:
+            raise ResearchError("Invalid notional bar row.")
+        start, available = map(_whole, fields[:2])
+        first, last = map(_i128, fields[2:4])
+        trades, complete = map(_whole, fields[4:6])
+        gross = _i128(fields[6])
+        opened, high, low, closed, volume = map(_whole, fields[7:])
+        total_trades += trades
+        if (not previous_time <= start <= available <= (_MAX_UTC_SECOND if cutoff is None else cutoff)
+                or not previous_sequence < first <= last < 1 << 64
+                or not 1 <= trades <= last - first + 1 or total_trades > 100_000
+                or not -_MAX_PRICE_TICKS <= low <= min(opened, closed)
+                or not max(opened, closed) <= high <= _MAX_PRICE_TICKS
+                or not 1 <= volume <= _MAX_PRICE_TICKS
+                or not 0 <= gross <= max(abs(low), abs(high)) * volume
+                or complete != int(gross >= target * 1_000_000)
+                or not complete and index < count - 1):
+            raise ResearchError("Invalid or inconsistent notional bar evidence.")
+        bars.append(NotionalBar(start, available, first, last, trades, bool(complete), gross,
+                                opened, high, low, closed, volume))
+        previous_time, previous_sequence = available, last
+    return NotionalBarsSnapshot(instrument, target, cutoff, tuple(bars))
 
 
 def _portfolio_allocation(
@@ -1299,6 +1360,29 @@ class ResearchEngine:
             raise ValueError("Membership and prices CSV exceed the screen input limits.")
         header = "\t".join(("marketweft-rank-comparison", "1", str(len(membership)), *times)).encode("ascii") + b"\n"
         return _rank_comparison_result(self._invoke(header + membership + prices, "rank-compare"))
+
+    def recorded_notional_bars(
+        self, instrument: str, trades_csv: str, target_notional_ticks: int, *, known_at: str | None = None,
+    ) -> NotionalBarsSnapshot:
+        """Group observed whole trades by their exact gross quote notional."""
+        if not isinstance(instrument, str) or not _INSTRUMENT.fullmatch(instrument):
+            raise ValueError("Use a canonical recorded instrument.")
+        if type(target_notional_ticks) is not int or not 1 <= target_notional_ticks <= _MAX_PRICE_TICKS:
+            raise ValueError("Use a positive notional target in whole millionths.")
+        cutoff = None
+        if known_at is not None:
+            if not isinstance(known_at, str) or not _UTC.fullmatch(known_at):
+                raise ValueError("Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.")
+            try:
+                cutoff = _epoch_second(datetime.fromisoformat(known_at[:-1]))
+            except ValueError as error:
+                raise ValueError("Use a valid UTC observation cutoff.") from error
+        source = trades_csv.encode("utf-8")
+        if len(source) > _MAX_CSV:
+            raise ValueError("Trade CSV exceeds 8 MiB.")
+        header = "\n".join((_NOTIONAL_BARS_PROTOCOL + "\t1", instrument, str(target_notional_ticks), known_at or "", ""))
+        output = self._invoke(header.encode("ascii") + source, "notional-bars")
+        return _notional_bars(output, instrument, target_notional_ticks, cutoff)
 
     def portfolio_allocation_as_of(
         self, membership_csv: str, prices_csv: str, listing_ids: Sequence[str], *,

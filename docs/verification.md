@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.282.0 · Recorded notional bar SDKs
+
+- The native protocol and installed SDKs reproduce the provisional and completed bars at exact cutoffs, retain a full unsigned 64-bit capture sequence and a gross product above signed 64-bit range, and reproduce the earlier result on rewind.
+- Python checks the echoed cutoff and target, row bounds, capture order and completion flags before returning the snapshot.
+
 ## 0.281.0 · Recorded notional bars
 
 - Rust and Wasm verify exact trillionth-scale products, the capture order of same-second trades, signed and zero prices, inclusive cutoffs and unchanged completed prefixes. One test keeps a product above signed 64-bit range exact.

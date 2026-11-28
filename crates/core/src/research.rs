@@ -21,8 +21,8 @@ use crate::screen::MAX_PRICE_BYTES;
 use crate::universe::{valid_id, MAX_MEMBERSHIP_BYTES};
 use crate::{
     parse_csv, parse_dividends, parse_universe, AmericanValuation, AmericanValuationRequest,
-    FinancialBook, Formula, OptionBook, PriceBook, ScreenComparisonRow, ScreenCutoff,
-    FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_INPUT_BYTES,
+    FinancialBook, Formula, Instrument, OptionBook, PriceBook, ScreenComparisonRow, ScreenCutoff,
+    TradeTape, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_INPUT_BYTES,
 };
 use std::fmt::Write;
 
@@ -40,6 +40,7 @@ pub const MAX_SCALAR_PLUGIN_SERIES_REQUEST_BYTES: usize =
     MAX_SCALAR_PLUGIN_REQUEST_BYTES + MAX_INPUT_BYTES;
 pub const MAX_MONTHLY_RETURNS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
 pub const MAX_MACRO_CALENDAR_REQUEST_BYTES: usize = MAX_MACRO_CSV_BYTES + 128;
+pub const MAX_NOTIONAL_BARS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 160;
 pub const MAX_PORTFOLIO_ALLOCATION_REQUEST_BYTES: usize =
     MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 1024;
 pub const MAX_PORTFOLIO_SCENARIOS_REQUEST_BYTES: usize =
@@ -142,6 +143,62 @@ pub fn portfolio_fx_request(bytes: &[u8]) -> Result<String, String> {
         report.rows.len(),
         fx_rows(report)
     ))
+}
+
+/// Aggregate recorded trades at an independent observation cutoff.
+pub fn notional_bars_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_NOTIONAL_BARS_REQUEST_BYTES {
+        return Err("Notional bars request exceeds its byte limit.".into());
+    }
+    let input = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 notional bars request.")?;
+    let mut fields = input.splitn(5, '\n');
+    let [Some("marketweft-notional-bars\t1"), Some(instrument), Some(target), Some(known), Some(csv)] =
+        std::array::from_fn(|_| fields.next())
+    else {
+        return Err("Invalid notional bars request or protocol version.".into());
+    };
+    let (venue, symbol) = instrument
+        .split_once(':')
+        .ok_or("Use a canonical recorded instrument.")?;
+    let id = Instrument::new(venue, symbol)?;
+    if instrument != id.to_string() {
+        return Err("Use a canonical recorded instrument.".into());
+    }
+    let target = target
+        .parse::<i64>()
+        .map_err(|_| "Use a positive notional target in whole millionths.")?;
+    let cutoff = if known.is_empty() {
+        None
+    } else {
+        Some(exact_utc(known).ok_or("Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.")?)
+    };
+    let bars = TradeTape::parse_execution(csv, &id)?.notional_bars(target, cutoff)?;
+    let cutoff = cutoff.map_or_else(String::new, |value| value.to_string());
+    let mut report = format!(
+        "marketweft-notional-bars\t{PROTOCOL_VERSION}\t{}\nT\t{instrument}\t{target}\t{cutoff}\n",
+        bars.len()
+    );
+    for entry in bars {
+        let bar = entry.bar;
+        writeln!(
+            report,
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            bar.time,
+            entry.available_at,
+            entry.first_sequence,
+            entry.last_sequence,
+            entry.observed_trades,
+            u8::from(entry.complete()),
+            entry.gross_notional,
+            bar.open,
+            bar.high,
+            bar.low,
+            bar.close,
+            bar.volume,
+        )
+        .unwrap();
+    }
+    Ok(report)
 }
 
 /// Estimate long-only portfolio weights from point-in-time common return intervals.

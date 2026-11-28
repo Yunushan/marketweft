@@ -4,7 +4,7 @@ import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, Form
 export type {
   AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
   EquityConcentration, EquityTargetDrift, Filing, FinancialIssuer, FinancialSnapshot,
-  FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
+  FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, NotionalBar, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   JointScenarioPath, JointScenarioQuery, JointScenarioReport, PortfolioAllocationQuery, PortfolioAllocationReport, PortfolioVarianceQuery, ScenarioAllocation,
   FxAmount, FxCurrencyValue, FxTranslation,
   OptionUnavailable, OptionUnderlying, PaperConfig, PaperDepthSnapshot, PaperSnapshot, QuarterlyValuation,
@@ -55,6 +55,7 @@ export interface MarketResearch {
   equityTargetDriftAsOf(membership: string, holdings: string, closes: string, terms: string, targets: string,
     effectiveAt: string, knownAt: string): EquityTargetSnapshot
   recordedDepthSweep: MarketCore['recordedDepthSweep']
+  recordedNotionalBars: MarketCore['recordedNotionalBars']
   classifyRecordedTrades: MarketCore['classifyRecordedTrades']
   paperDepthIndex: MarketCore['paperDepthIndex']
   paperDepthReplay: MarketCore['paperDepthReplay']
@@ -100,6 +101,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
       return { effectiveAt: Date.parse(effectiveAt) / 1000, knownAt: Date.parse(knownAt) / 1000, rows }
     },
     recordedDepthSweep: core.recordedDepthSweep,
+    recordedNotionalBars: core.recordedNotionalBars,
     classifyRecordedTrades: core.classifyRecordedTrades,
     paperDepthIndex: core.paperDepthIndex,
     paperDepthReplay: core.paperDepthReplay,

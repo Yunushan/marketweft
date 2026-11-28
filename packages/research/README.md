@@ -76,3 +76,5 @@ The last three parameters are the known time, maximum quote age in seconds and l
 Call `portfolioAllocationAsOf(membershipCsv, pricesCsv, listingIds, query)` to estimate long-only portfolio weights from common observed returns. The query takes `from`, `through`, `known` and `intervalSeconds`. The result carries the applied cutoffs, each listing's return count and both weights in basis points. [Portfolio allocation SDKs](../../docs/portfolio-scenarios.md#portfolio-allocation-sdks)
 
 Set `maximumWeightBasisPoints` on the query for a uniform per-listing ceiling. The result echoes an explicit ceiling even when there are too few common returns to estimate weights.
+
+Call `recordedNotionalBars('NASDAQ:NVDA', tradesCsv, 5_000_000n, '2025-06-02T14:00:02Z')` to build notional bars with an inclusive cutoff and a five-unit target. Each row includes `grossNotionalTrillionths` and both capture sequences as `bigint`. [Recorded notional bar SDKs](../../docs/recorded-tick-bars.md#recorded-notional-bar-sdks)

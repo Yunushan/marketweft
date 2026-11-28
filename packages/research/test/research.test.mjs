@@ -9,6 +9,25 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK builds recorded notional bars with exact wide values and cutoff rewind', async () => {
+  const csv = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-notional-trades.csv', import.meta.url), 'utf8')
+  const engine = await createResearchEngine(wasm)
+  const at = known => engine.recordedNotionalBars('NASDAQ:NVDA', csv, 5_000_000n, known)
+  const early = at('2025-06-02T14:00:01Z')
+  assert.equal(early[0].complete, false)
+  assert.equal(early[0].grossNotionalTrillionths, 2_000_003_000_001n)
+  assert.equal(early[0].lastSequence, 9_007_199_254_740_994n)
+  const full = at()
+  assert.deepEqual(full.map(row => [row.complete, row.grossNotionalTrillionths]),
+    [[true, 5_000_003_000_001n], [true, 5_000_000_000_000n], [true, 5_250_000_500_000n], [false, 800_000_800_000n]])
+  assert.deepEqual(at('2025-06-02T14:00:02Z'), full.slice(0, 1))
+  assert.deepEqual(at('2025-06-02T14:00:01Z'), early)
+  const wide = csv.split('\n')[0] + '\nNASDAQ:NVDA,1748872800,1748872800,18446744073709551615,-2000000000,2000000000\n'
+  const [bar] = engine.recordedNotionalBars('NASDAQ:NVDA', wide, 1n)
+  assert.equal(bar.firstSequence, (1n << 64n) - 1n)
+  assert.equal(bar.grossNotionalTrillionths, (2_000_000_000_000_000n) ** 2n)
+})
+
 test('the public SDK preserves allocation cutoffs and common coverage through a late close', async () => {
   const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8')
   const [membership, prices] = await Promise.all([fixture('membership'), fixture('prices')])
