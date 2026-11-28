@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.224.0 · Elder Force Index and Chaikin Volatility
+
+- Rust and Wasm verify observed-bar warm-up, exact signed ratios, wide force values and percentages, zero volume, and a missing zero baseline. Rust checks the 100,000-bar bound.
+- Offline Chromium verifies different smoothing and comparison periods in two panes, exact signed CSV and restoration of versions 58 and 59 with the earlier oscillator settings preserved.
+
+[Elder Force Index and Chaikin Volatility](chart-workspace.md#elder-force-index-and-chaikin-volatility)
+
 ## 0.223.0 · Native upgrade baseline download recovery
 
 - Downloader fixtures reproduce a DNS error from the native upgrade job, a timeout, an interrupted archive transfer and temporary HTTP errors. They verify the retry limit, the prescribed delay for HTTP 429 and a complete restart after a partial transfer.

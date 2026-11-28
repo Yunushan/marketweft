@@ -4284,6 +4284,21 @@ fn encode_wide_indicator_values(values: Vec<Option<i128>>) -> Vec<u8> {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_elder_force_index(period: usize) -> u32 {
+    process(|input| {
+        crate::elder_force_index(period, &decode_bars(input)?).map(encode_wide_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_chaikin_volatility(smoothing: usize, comparison: usize) -> u32 {
+    process(|input| {
+        crate::chaikin_volatility(smoothing, comparison, &decode_bars(input)?)
+            .map(encode_wide_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_balance_of_power() -> u32 {
     process(|input| crate::balance_of_power(&decode_bars(input)?).map(encode_indicator_values))
 }

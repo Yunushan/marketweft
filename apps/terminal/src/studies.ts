@@ -31,6 +31,9 @@ export const STUDIES = {
   trix: { name: 'TRIX', label: 'TRIX', minPeriod: 1, defaultPeriod: 30, color: '#dfba79' },
   vortex: { name: 'Vortex', label: 'Vortex Indicator', minPeriod: 1, defaultPeriod: 14 },
   bop: { name: 'Balance of Power', label: 'Balance of Power', color: '#b5a2e5' },
+  elder_force: { name: 'Elder Force Index', label: 'Elder Force Index', minPeriod: 1, defaultPeriod: 13, color: '#e5b57f' },
+  chaikin_volatility: { name: 'Chaikin Volatility', label: 'Chaikin Volatility', minPeriod: 1, defaultPeriod: 10,
+    periodLabel: 'Chaikin Volatility smoothing', color: '#a2cee5' },
   aroon: { name: 'Aroon', label: 'Aroon', minPeriod: 1, defaultPeriod: 25 },
   aroon_oscillator: { name: 'Aroon Oscillator', label: 'Aroon Oscillator', minPeriod: 1, defaultPeriod: 25, color: '#98c9ef' },
 } as const
@@ -43,6 +46,7 @@ export const EXTRA_STUDY_PERIODS = {
   slowPeriod: { label: 'MACD slow', defaultPeriod: 26 },
   macdSignalPeriod: { label: 'MACD signal', defaultPeriod: 9 },
   chaikinSlowPeriod: { label: 'Chaikin slow', defaultPeriod: 10 },
+  volatilityLookback: { label: 'Chaikin Volatility comparison', defaultPeriod: 10 },
   adxPeriod: { label: 'ADX smoothing', defaultPeriod: 14 },
 } as const
 type ExtraStudyPeriod = keyof typeof EXTRA_STUDY_PERIODS
@@ -51,6 +55,7 @@ const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPerio
   stochastic: ['smoothPeriod', 'signalPeriod'],
   macd: ['slowPeriod', 'macdSignalPeriod'],
   chaikin_oscillator: ['chaikinSlowPeriod'],
+  chaikin_volatility: ['volatilityLookback'],
   dmi: ['adxPeriod'],
 }
 export function extraStudyPeriods(kind: StudyKind): readonly ExtraStudyPeriod[] {
@@ -202,6 +207,15 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     if (kind === 'chaikin_money_flow') {
       return [{ kind, periods: [period], zeroLine: true, lines: [
         { color: STUDIES[kind].color, series: core.chaikinMoneyFlow(period, bars) },
+      ] }]
+    }
+    if (kind === 'elder_force') return [{ kind, periods: [period], unit: 'index', zeroLine: true, lines: [
+      { color: STUDIES[kind].color, series: core.elderForceIndex(period, bars) },
+    ] }]
+    if (kind === 'chaikin_volatility') {
+      const comparison = study.volatilityLookback ?? EXTRA_STUDY_PERIODS.volatilityLookback.defaultPeriod
+      return [{ kind, periods: [period, comparison], zeroLine: true, lines: [
+        { color: STUDIES[kind].color, series: core.chaikinVolatility(period, comparison, bars) },
       ] }]
     }
     if (kind === 'aroon' || kind === 'aroon_oscillator') {

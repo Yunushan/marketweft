@@ -406,6 +406,14 @@ Enable **Vortex** in either pane and choose a lookback from one to 100,000 obser
 
 Each pane uses the bars available to its selected history and timeframe. Both studies round once to six decimal places. The research CSV uses `vortex_positive_14`, `vortex_negative_14` and `bop`, with the chosen lookback in the Vortex column names. A saved Vortex or Balance of Power setting uses workspace backup version 58.
 
+### Elder Force Index and Chaikin Volatility
+
+**Elder Force Index** multiplies the signed change between consecutive closes by the current bar's volume. The EMA starts after a full period of close pairs and defaults to 13. The core keeps trillionths during smoothing and rounds the reported force to millionths. Zero current volume contributes zero force. [Elder Force Index formula](https://www.tradingview.com/support/solutions/43000502259-elder-s-force-index-efi/).
+
+**Chaikin Volatility** smooths the high-minus-low range with an EMA, then reports the signed percentage change over a separate comparison period. Both periods default to 10. The moving average uses millionths, and a zero comparison baseline leaves the value empty. The first percentage requires a complete EMA and an earlier complete EMA at the comparison distance. [Chaikin Volatility formula](https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/volatility).
+
+Both studies use observed bars and preserve separate pane settings. Research CSV names include the configured periods, such as `elder_force_13` and `chaikin_volatility_10_10`. Their settings use workspace backup version 59.
+
 ## Monthly returns calendar
 
 Open **Monthly returns calendar** from the workspace for the selected primary instrument. Choose up to 30 consecutive UTC calendar years and set an inclusive **Observed through (UTC)** timestamp. The calendar uses the bar timestamps and closes in the selected history. Each cell compares the last close through that cutoff with the last close in the immediately preceding UTC month, including the December observation for the first displayed January when available.

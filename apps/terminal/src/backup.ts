@@ -64,10 +64,12 @@ const MOMENTUM_OSCILLATORS_BACKUP_VERSION = 55
 const MOVING_AVERAGES_BACKUP_VERSION = 56
 const GANN_FAN_BACKUP_VERSION = 57
 const RANGE_OSCILLATORS_BACKUP_VERSION = 58
+const FORCE_AND_VOLATILITY_BACKUP_VERSION = 59
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
   const studies = Object.values(preferences.studies ?? {})
+  if (studies.some(pane => pane?.elder_force || pane?.chaikin_volatility)) return FORCE_AND_VOLATILITY_BACKUP_VERSION
   if (studies.some(pane => pane?.vortex || pane?.bop)) return RANGE_OSCILLATORS_BACKUP_VERSION
   if (Object.values(preferences.annotations ?? {}).some(entries => entries.some(entry => entry.kind === 'gann-fan')))
     return GANN_FAN_BACKUP_VERSION
@@ -240,7 +242,7 @@ export async function verifyWorkspaceBackup(
   if (typeof file.version !== 'number' || ![
     CLOSE_DISTRIBUTION_BACKUP_VERSION,
     MOMENTUM_OSCILLATORS_BACKUP_VERSION,
-    RANGE_OSCILLATORS_BACKUP_VERSION, GANN_FAN_BACKUP_VERSION, MOVING_AVERAGES_BACKUP_VERSION,
+    FORCE_AND_VOLATILITY_BACKUP_VERSION, RANGE_OSCILLATORS_BACKUP_VERSION, GANN_FAN_BACKUP_VERSION, MOVING_AVERAGES_BACKUP_VERSION,
     SINGLE_PANE_BACKUP_VERSION, COMPARISON_BACKUP_VERSION, DRAWING_BACKUP_VERSION,
     INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
     STRUCTURED_GRANT_BACKUP_VERSION,

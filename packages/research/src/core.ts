@@ -1245,6 +1245,8 @@ export interface MarketCore {
   trix(period: number, bars: readonly Bar[]): (bigint | null)[];
   vortexIndicator(period: number, bars: readonly Bar[]): (VortexValue | null)[];
   balanceOfPower(bars: readonly Bar[]): (bigint | null)[];
+  elderForceIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
+  chaikinVolatility(smoothing: number, comparison: number, bars: readonly Bar[]): (bigint | null)[];
   linearlyWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   doubleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   tripleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1375,6 +1377,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_gann_fan_levels(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
   mw_vortex_indicator(period: number): number;
   mw_balance_of_power(): number;
+  mw_elder_force_index(period: number): number;
+  mw_chaikin_volatility(smoothing: number, comparison: number): number;
   mw_measure_risk_reward(side: number, entry: bigint, stop: bigint, target: bigint): number;
   mw_indicator(kind: number, period: number): number;
   mw_atr(period: number): number;
@@ -2593,6 +2597,17 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
       return readWideIndicator(output(api.mw_trix(period)), bars.length);
+    },
+    elderForceIndex(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'Elder Force Index');
+      return readWideIndicator(output(api.mw_elder_force_index(period)), bars.length);
+    },
+    chaikinVolatility(smoothing, comparison, bars) {
+      validateIndicatorHistory(smoothing, bars.length);
+      validateIndicatorHistory(comparison, bars.length);
+      putIndicatorBars(bars, 'Chaikin Volatility');
+      return readWideIndicator(output(api.mw_chaikin_volatility(smoothing, comparison)), bars.length);
     },
     vortexIndicator(period, bars) {
       validateIndicatorHistory(period, bars.length);

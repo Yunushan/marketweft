@@ -83,6 +83,18 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('Elder Force Index and Chaikin Volatility keep signed, wide and unavailable values in Wasm', () => {
+  const bars = [[0, 1, 2, 0, 1, 1], [60, 1, 4, 0, 3, 2], [120, 3, 4, -2, -1, 1],
+    [300, -1, 3, -1, 2, 3], [360, 2, 3, 1, 2, 0], [420, 2, 5, 1, 2, 2]].map(
+      ([time, open, high, low, close, volume]) => ({ time, open, high, low, close, volume }));
+  assert.deepEqual(core.elderForceIndex(2, bars), [null, null, 0n, 6000000n, 2000000n, 666667n]);
+  assert.deepEqual(core.chaikinVolatility(2, 2, bars), [null, null, null, 44444433n, -44444440n, -17094001n]);
+  const wide = core.parseCsv('time,open,high,low,close,volume\n0,-2000000000,-1999999999.999999,-2000000000,-2000000000,0\n1,2000000000,2000000000,-2000000000,2000000000,2000000000');
+  assert.equal(core.elderForceIndex(1, wide)[1], 8000000000000000000000000n);
+  assert.equal(core.chaikinVolatility(1, 1, wide)[1], 399999999999999900000000n);
+  assert.throws(() => core.chaikinVolatility(2, 0, bars), /indicator period/);
+});
+
 test('Vortex and Balance of Power preserve signed bars and wide exact ratios in Wasm', () => {
   const bars = [[0, -4, -2, -5, -3], [60, -3, 0, -4, -1], [240, 1, 3, 0, 0],
     [300, 0, 0, 0, 0], [360, 0, 0, 0, 0], [500, 0, 2, -2, 0]].map(([time, open, high, low, close]) => ({

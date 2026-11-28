@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.223.0 · 0BSD**
+**0.224.0 · 0BSD**
 
 **لغات التوثيق**
 
@@ -21,18 +21,18 @@ MarketWeft محطة بحث محلية للمحللين والمطورين وال
 
 <div dir="rtl">
 
-يعيد MarketWeft 0.223.0 تنزيل حزم الاختبار المرجعية للترقية بعد انقطاعات الشبكة القصيرة ويتحقق من الحزمة كاملة قبل استخدامها. يضيف MarketWeft 0.7.0 فرز أعضاء الكون حسب عائد السعر وفق البيانات المعروفة عند وقت الاستعلام. تشمل إعادة التشغيل وفق الجلسات تجزئات الأسهم والتوزيعات النقدية وتغير العضوية والشطب. يتضمن المستودع أيضًا مراقب TypeScript للقراءة فقط لخدمة trading-bot مستقلة وغلاف Tauri تجريبيًا. لا تزال تغذيات البيانات وإدخال الأوامر والمثبّتات الموقّعة والاستضافة متعددة المستخدمين على خارطة الطريق.
+يضيف MarketWeft 0.224.0 مؤشري Elder Force Index وChaikin Volatility بقيم موجبة أو سالبة دقيقة وإعدادات مستقلة لكل لوحة. يضيف MarketWeft 0.7.0 فرز أعضاء الكون حسب عائد السعر وفق البيانات المعروفة عند وقت الاستعلام. تشمل إعادة التشغيل وفق الجلسات تجزئات الأسهم والتوزيعات النقدية وتغير العضوية والشطب. يتضمن المستودع أيضًا مراقب TypeScript للقراءة فقط لخدمة trading-bot مستقلة وغلاف Tauri تجريبيًا. لا تزال تغذيات البيانات وإدخال الأوامر والمثبّتات الموقّعة والاستضافة متعددة المستخدمين على خارطة الطريق.
 
 </div>
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Native upgrade baselines](../platforms.md#native-upgrade-baselines)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Elder Force Index and Chaikin Volatility](../chart-workspace.md#elder-force-index-and-chaikin-volatility)
 
 <!-- section:02 -->
 ## تشغيل المحطة المحمولة
 
 <div dir="rtl">
 
-نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.223.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
+نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.224.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
 
 </div>
 

@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.223.0 · 0BSD**
+**0.224.0 · 0BSD**
 
 **ドキュメントの言語**
 
@@ -15,14 +15,14 @@
 
 MarketWeft はアナリスト、開発者、運用者向けのローカル優先の調査端末です。利用権がある OHLCV を開き、ローソク足と出来高を表示し、固定小数点で SMA と EMA を計算します。ウォッチリスト、選択銘柄、指標を IndexedDB に保存します。資材のキャッシュ後はオフラインで使えます。同梱の価格と出来高は合成データです。プロバイダーの口座は不要です。
 
-MarketWeft 0.223.0 は、一時的な通信障害後にアップグレード検証用の旧版パッケージを再取得し、使用前に全体を検証します。 MarketWeft 0.7.0 は、照会時点で利用可能な情報に基づき、価格リターンでユニバースを順位付けします。取引セッション単位のリプレイは、株式分割、現金配当、構成銘柄の変更、上場廃止に対応します。独立した trading-bot サービスの読み取り専用 TypeScript オブザーバーと、実験的な Tauri ラッパーも含まれます。データ配信、注文、署名済みインストーラー、マルチユーザー運用はロードマップに残っています。
+MarketWeft 0.224.0 は、正確な符号付きの値とペインごとの設定を備えた Elder Force Index と Chaikin Volatility を追加します。 MarketWeft 0.7.0 は、照会時点で利用可能な情報に基づき、価格リターンでユニバースを順位付けします。取引セッション単位のリプレイは、株式分割、現金配当、構成銘柄の変更、上場廃止に対応します。独立した trading-bot サービスの読み取り専用 TypeScript オブザーバーと、実験的な Tauri ラッパーも含まれます。データ配信、注文、署名済みインストーラー、マルチユーザー運用はロードマップに残っています。
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Native upgrade baselines](../platforms.md#native-upgrade-baselines)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Elder Force Index and Chaikin Volatility](../chart-workspace.md#elder-force-index-and-chaikin-volatility)
 
 <!-- section:02 -->
 ## ポータブル端末を起動
 
-成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.223.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
+成功した GitHub 検証実行から browser-terminal-attempt-N をダウンロードし、MarketWeft-browser-0.224.0.zip を展開します。dist/ を serve-terminal.mjs の隣に置き、同じディレクトリで以下のコマンドを実行します。WebAssembly、Canvas、BigInt、IndexedDB 対応のブラウザーで http://127.0.0.1:4173/ を開きます。Node.js 22.12 以上が必要で、npm によるインストールは不要です。切断前に Offline ready を待ちます。
 
 ```sh
 node serve-terminal.mjs
