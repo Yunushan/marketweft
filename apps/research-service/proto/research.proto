@@ -10,6 +10,7 @@ service Research {
   rpc ScreenUniverse(ScreenQuery) returns (ScreenPage);
   rpc CompareUniverseRanks(RankComparisonQuery) returns (RankComparisonPage);
   rpc GetRecordedNotionalBars(RecordedNotionalBarsQuery) returns (RecordedNotionalBarsPage);
+  rpc GetRecordedTradePrints(RecordedTradePrintsQuery) returns (RecordedTradePrintsPage);
   rpc GetListingDownsideRisk(ListingDownsideRiskQuery) returns (ListingDownsideRiskPage);
   rpc GetPortfolioAllocation(PortfolioAllocationQuery) returns (PortfolioAllocationResponse);
   rpc GetPortfolioScenarios(PortfolioScenariosQuery) returns (PortfolioScenariosPage);
@@ -212,6 +213,34 @@ message RecordedNotionalBarsPage {
   uint32 offset = 5;
   optional uint32 next_offset = 6;
   repeated RecordedNotionalBar bars = 7;
+}
+
+message RecordedTradePrintsQuery {
+  string instrument = 1;
+  string trades_csv = 2;
+  optional string known_at = 3;
+  optional uint64 offset = 4;
+  optional uint64 limit = 5;
+}
+
+message RecordedTradePrint {
+  sint64 executed_at = 1;
+  sint64 observed_at = 2;
+  // Unsigned 64-bit capture sequence in decimal text.
+  string sequence = 3;
+  // Signed price and positive size in millionths, encoded as decimal text.
+  string price_ticks = 4;
+  string size_ticks = 5;
+  string reported_side = 6;
+}
+
+message RecordedTradePrintsPage {
+  string instrument = 1;
+  optional string known_at = 2;
+  uint32 total_prints = 3;
+  uint32 offset = 4;
+  optional uint32 next_offset = 5;
+  repeated RecordedTradePrint prints = 6;
 }
 
 message ListingDownsideRiskQuery {

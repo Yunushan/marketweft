@@ -200,3 +200,5 @@ Call `ResearchEngine.listing_downside_risk_as_of(membership_csv, prices_csv, "A"
 The read-only MCP tool `listing_downside_risk_as_of` exposes the same calculation in pages. [Listing downside risk over MCP](../../docs/local-mcp-research.md#listing-downside-risk)
 
 Call `ResearchEngine.recorded_trade_prints("NASDAQ:NVDA", trades_csv, known_at="2025-06-02T14:00:00Z")` to get individual capture records. The snapshot includes the applied cutoff and prints with exact trade times, full capture sequences, signed prices and sizes in millionths, and reported side. [Recorded print SDKs](../../docs/recorded-tick-bars.md#recorded-print-sdks)
+
+The MCP server offers the same records as read-only pages with exact decimal strings for sequence, price and size. [Recorded trade prints over MCP](../../docs/local-mcp-research.md#recorded-trade-prints)

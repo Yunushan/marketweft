@@ -93,6 +93,14 @@ The result echoes the instrument, target and cutoff and returns `total_bars`, `o
 
 Connect to `/v1/trades/notional-bars/stream` for paged WebSocket results. Reuse the same tape, cutoff and target with `next_offset` to resume. The typed gRPC method `marketweft.research.v1.Research/GetRecordedNotionalBars` returns one matching page. Both use the screen authorization, admission and audit rules shared with REST. [Research Protobuf schema](../apps/research-service/proto/research.proto)
 
+## Recorded trade prints
+
+Send `POST /v1/trades/prints` with a screen bearer credential. Supply the canonical `instrument` and the contents of `trades_csv`, up to 8 MiB or 100,000 trades. Set `known_at` to an exact UTC second to include observations through that second. Omit it to include all captures. The optional `offset` and `limit` default to zero and 200. The maximum page size is 1,000. [CSV format and fixture](recorded-tick-bars.md#recorded-time-and-sales)
+
+The page reports `instrument`, `known_at`, `total_prints`, `offset`, `next_offset` and `prints` in capture order. Each print includes `executed_at` and `observed_at` as whole Unix seconds, plus the captured `reported_side` of `buy`, `sell` or `unknown`. The exact unsigned `sequence`, signed `price_ticks` and positive `size_ticks` are decimal strings. Price and size use millionths.
+
+Connect to `/v1/trades/prints/stream` to stream the same page shape. On reconnect, submit the same input and cutoff with `next_offset` from the last accepted page. The unary gRPC method `marketweft.research.v1.Research/GetRecordedTradePrints` returns one matching typed page. The three transports share authorization, admission and audit rules. [Protobuf schema](../apps/research-service/proto/research.proto) · [Read-only MCP](local-mcp-research.md#recorded-trade-prints)
+
 ## Listing downside risk
 
 Send `POST /v1/risk/listings/downside` with a screen bearer credential. Supply `membership_csv`, `prices_csv`, `left_listing_id`, `right_listing_id`, `from_at`, `through_at`, `known_at`, `interval_seconds` and `window_periods`. The reports accept up to 1 MiB and 2 MiB respectively. Use distinct listing IDs and whole-second UTC cutoffs, with the end on the chosen grid. `volatility_periods` defaults to one. [How downside deviation is calculated](listing-risk.md#downside-deviation)

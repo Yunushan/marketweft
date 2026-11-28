@@ -12,14 +12,15 @@ use crate::{
         PortfolioFxRow, PortfolioScenarioCoverage, PortfolioScenarioPath,
         PortfolioScenarioPercentiles, PortfolioScenariosPage, PortfolioScenariosQuery,
         RankComparisonLeg, RankComparisonPage, RankComparisonQuery, RankComparisonRow,
-        RecordedNotionalBar, RecordedNotionalBarsPage, RecordedNotionalBarsQuery, ScreenPage,
+        RecordedNotionalBar, RecordedNotionalBarsPage, RecordedNotionalBarsQuery,
+        RecordedTradePrint, RecordedTradePrintsPage, RecordedTradePrintsQuery, ScreenPage,
         ScreenQuery, ScreenRow,
     },
     ApiError,
 };
 use axum::http::StatusCode;
 use marketweft_core::{
-    monthly_returns, parse_csv, parse_dividends, parse_exact_utc, parse_universe,
+    monthly_returns, parse_csv, parse_dividends, parse_exact_utc, parse_universe, AggressorSide,
     AmericanValuationRequest, CashOptionError, EquityTargetBook, ExerciseStyle, Formula,
     FormulaFunctionDefinition, FormulaLibrary, FxAmount, FxBook, Instrument, ListingRiskQuery,
     MacroCalendar, MonthWindow, MonthlyClose, OptionAnalytics, OptionBook, OptionSide,
@@ -44,6 +45,7 @@ pub(crate) enum ResearchPage {
     Screen(ScreenPage),
     RankComparison(RankComparisonPage),
     RecordedNotionalBars(RecordedNotionalBarsPage),
+    RecordedTradePrints(RecordedTradePrintsPage),
     ListingDownsideRisk(ListingDownsideRiskPage),
     PortfolioAllocation(PortfolioAllocationResponse),
     PortfolioScenarios(PortfolioScenariosPage),
@@ -678,27 +680,24 @@ pub(crate) fn recorded_notional_bars(
     })
 }
 
-pub(crate) fn evaluate_recorded_notional_bars(
-    query: RecordedNotionalBarsQuery,
-    emit: &mut dyn FnMut(RecordedNotionalBarsPage) -> bool,
-) -> Result<(), ApiError> {
-    let (offset, limit) = pagination(query.offset, query.limit, MAX_BARS as u64)?;
-    let Some((venue, symbol)) = query.instrument.split_once(':') else {
+fn recorded_trade_settings(
+    identity: &str,
+    known_at: Option<&str>,
+) -> Result<(Instrument, Option<i64>), ApiError> {
+    let Some((venue, symbol)) = identity.split_once(':') else {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "Use a canonical recorded instrument.",
         ));
     };
     let instrument = Instrument::new(venue, symbol).map_err(analytical_error)?;
-    if instrument.to_string() != query.instrument {
+    if instrument.to_string() != identity {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "Use a canonical recorded instrument.",
         ));
     }
-    let cutoff = query
-        .known_at
-        .as_deref()
+    let cutoff = known_at
         .map(|time| {
             parse_exact_utc(time).ok_or_else(|| {
                 ApiError::new(
@@ -708,6 +707,16 @@ pub(crate) fn evaluate_recorded_notional_bars(
             })
         })
         .transpose()?;
+    Ok((instrument, cutoff))
+}
+
+pub(crate) fn evaluate_recorded_notional_bars(
+    query: RecordedNotionalBarsQuery,
+    emit: &mut dyn FnMut(RecordedNotionalBarsPage) -> bool,
+) -> Result<(), ApiError> {
+    let (offset, limit) = pagination(query.offset, query.limit, MAX_BARS as u64)?;
+    let (instrument, cutoff) =
+        recorded_trade_settings(&query.instrument, query.known_at.as_deref())?;
     let target = i64::try_from(query.target_notional_ticks)
         .map_err(|_| analytical_error("Use a positive six-place notional target.".into()))?;
     let bars = TradeTape::parse_execution(&query.trades_csv, &instrument)
@@ -740,6 +749,60 @@ pub(crate) fn evaluate_recorded_notional_bars(
                     low_ticks: row.bar.low.to_string(),
                     close_ticks: row.bar.close.to_string(),
                     volume_ticks: row.bar.volume.to_string(),
+                })
+                .collect(),
+        },
+    );
+    Ok(())
+}
+
+pub(crate) fn recorded_trade_prints(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_recorded_trade_prints(request(bytes)?, &mut |page| {
+        emit(ResearchPage::RecordedTradePrints(page))
+    })
+}
+
+pub(crate) fn evaluate_recorded_trade_prints(
+    query: RecordedTradePrintsQuery,
+    emit: &mut dyn FnMut(RecordedTradePrintsPage) -> bool,
+) -> Result<(), ApiError> {
+    let (offset, limit) = pagination(query.offset, query.limit, MAX_BARS as u64)?;
+    let (instrument, cutoff) =
+        recorded_trade_settings(&query.instrument, query.known_at.as_deref())?;
+    let tape =
+        TradeTape::parse_execution(&query.trades_csv, &instrument).map_err(analytical_error)?;
+    let prints = tape
+        .recorded_prints(cutoff)
+        .map_err(analytical_error)?
+        .collect::<Vec<_>>();
+    pages(
+        offset,
+        limit,
+        prints.len(),
+        emit,
+        |offset, range, next_offset| RecordedTradePrintsPage {
+            instrument: query.instrument.clone(),
+            known_at: query.known_at.clone(),
+            total_prints: prints.len() as u32,
+            offset,
+            next_offset,
+            prints: prints[range]
+                .iter()
+                .map(|row| RecordedTradePrint {
+                    executed_at: row.executed_at,
+                    observed_at: row.observed_at,
+                    sequence: row.sequence.to_string(),
+                    price_ticks: row.price_ticks.to_string(),
+                    size_ticks: row.size_ticks.to_string(),
+                    reported_side: match row.reported_side {
+                        AggressorSide::Buy => "buy",
+                        AggressorSide::Sell => "sell",
+                        AggressorSide::Unknown => "unknown",
+                    }
+                    .into(),
                 })
                 .collect(),
         },

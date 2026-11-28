@@ -527,6 +527,11 @@ fn route_authority(
         .route("/v1/universe/screen", post(screen))
         .route("/v1/universe/rank-comparison", post(rank_comparison))
         .route("/v1/trades/notional-bars", post(recorded_notional_bars))
+        .route("/v1/trades/prints", post(recorded_trade_prints))
+        .route(
+            "/v1/trades/prints/stream",
+            get(websocket::recorded_trade_prints),
+        )
         .route("/v1/risk/listings/downside", post(listing_downside_risk))
         .route(
             "/v1/risk/listings/downside/stream",
@@ -779,6 +784,19 @@ async fn recorded_notional_bars(
         request,
         Scope::Screen,
         analytics::recorded_notional_bars,
+    )
+    .await
+}
+
+async fn recorded_trade_prints(
+    State(state): State<Arc<Server>>,
+    request: Request,
+) -> Result<Json<ResearchPage>, ApiError> {
+    execute(
+        state,
+        request,
+        Scope::Screen,
+        analytics::recorded_trade_prints,
     )
     .await
 }

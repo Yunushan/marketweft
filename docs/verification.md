@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.292.0 · Recorded trade print transports
+
+- REST, resumed WebSocket and typed gRPC verify screen authorization, exact page parity, delayed observation at the inclusive cutoff, signed prices, the maximum unsigned sequence and rewind.
+- The isolated Python wheel and official MCP client verify read-only discovery, matching text and structured pages, decimal evidence and recovery after invalid input.
+
 ## 0.291.0 · Recorded print SDKs
 
 - The native command and installed SDKs verify exact cutoff counts, delayed executions in capture order, signed price millionths, reported side, a full unsigned 64-bit sequence and deterministic rewind.

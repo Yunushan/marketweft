@@ -20,7 +20,7 @@ from . import (
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.19.0"
+SERVER_VERSION = "0.20.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -37,6 +37,7 @@ PORTFOLIO_SCENARIOS_TOOL_NAME = "portfolio_scenarios_as_of"
 PORTFOLIO_ALLOCATION_TOOL_NAME = "portfolio_allocation_as_of"
 NOTIONAL_BARS_TOOL_NAME = "recorded_notional_bars"
 LISTING_DOWNSIDE_RISK_TOOL_NAME = "listing_downside_risk_as_of"
+RECORDED_TRADE_PRINTS_TOOL_NAME = "recorded_trade_prints"
 PORTFOLIO_FX_TOOL_NAME = "portfolio_fx_as_of"
 EQUITY_CONCENTRATION_TOOL_NAME = "equity_concentration_as_of"
 EQUITY_TARGET_TOOL_NAME = "equity_target_drift_as_of"
@@ -779,6 +780,33 @@ LISTING_DOWNSIDE_RISK_TOOL = {
     "outputSchema": LISTING_DOWNSIDE_RISK_OUTPUT,
 }
 
+RECORDED_TRADE_PRINTS_INPUT = _object_schema({
+    name: NOTIONAL_BARS_INPUT["properties"][name]
+    for name in ("instrument", "trades_csv", "known_at", "offset", "limit")
+}, optional=("known_at", "offset", "limit"))
+RECORDED_TRADE_PRINTS_OUTPUT = _object_schema({
+    "instrument": _NOTIONAL_INSTRUMENT,
+    "known_at": {**_UTC_SCHEMA, "type": ["string", "null"]},
+    "total_prints": _NOTIONAL_BAR_COUNT,
+    "offset": _NOTIONAL_BAR_COUNT,
+    "next_offset": {**_NOTIONAL_BAR_COUNT, "type": ["integer", "null"]},
+    "prints": {"type": "array", "maxItems": MAX_ROWS, "items": _object_schema({
+        "executed_at": _TIME_SCHEMA,
+        "observed_at": _TIME_SCHEMA,
+        "sequence": _CAPTURE_SEQUENCE,
+        "price_ticks": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]{0,15})$"},
+        "size_ticks": {"type": "string", "pattern": "^[1-9][0-9]{0,15}$"},
+        "reported_side": {"type": "string", "enum": ["buy", "sell", "unknown"]},
+    })},
+})
+RECORDED_TRADE_PRINTS_TOOL = {
+    "name": RECORDED_TRADE_PRINTS_TOOL_NAME,
+    "description": "Read one page of exact trade prints in capture order through an inclusive UTC observation cutoff.",
+    "annotations": TOOL["annotations"],
+    "inputSchema": RECORDED_TRADE_PRINTS_INPUT,
+    "outputSchema": RECORDED_TRADE_PRINTS_OUTPUT,
+}
+
 
 class RequestError(Exception):
     def __init__(self, code: int, message: str):
@@ -907,7 +935,7 @@ class ResearchServer:
             return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL,
                               AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL, MACRO_CALENDAR_TOOL, PORTFOLIO_SCENARIOS_TOOL,
                               PORTFOLIO_FX_TOOL, EQUITY_CONCENTRATION_TOOL, EQUITY_TARGET_TOOL, PORTFOLIO_ALLOCATION_TOOL,
-                              NOTIONAL_BARS_TOOL, LISTING_DOWNSIDE_RISK_TOOL]}
+                              NOTIONAL_BARS_TOOL, LISTING_DOWNSIDE_RISK_TOOL, RECORDED_TRADE_PRINTS_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -933,6 +961,8 @@ class ResearchServer:
                 return self._notional_bars(arguments)
             if name == LISTING_DOWNSIDE_RISK_TOOL_NAME:
                 return self._listing_downside_risk(arguments)
+            if name == RECORDED_TRADE_PRINTS_TOOL_NAME:
+                return self._recorded_trade_prints(arguments)
             if name == PORTFOLIO_SCENARIOS_TOOL_NAME:
                 return self._portfolio_scenarios(arguments)
             if name == PORTFOLIO_FX_TOOL_NAME:
@@ -1063,6 +1093,30 @@ class ResearchServer:
             "instrument": report.instrument, "target_notional_ticks": report.target_notional_ticks, "known_at": known,
             "total_bars": len(report.bars), "offset": offset, "next_offset": end if end < len(report.bars) else None,
             "bars": bars,
+        })
+
+    def _recorded_trade_prints(self, arguments) -> dict:
+        if (not isinstance(arguments, dict)
+                or set(arguments) - RECORDED_TRADE_PRINTS_INPUT["properties"].keys()
+                or set(RECORDED_TRADE_PRINTS_INPUT["required"]) - arguments.keys()):
+            raise RequestError(-32602, "Supply the documented recorded trade print arguments.")
+        instrument, trades = arguments["instrument"], arguments["trades_csv"]
+        known = arguments.get("known_at")
+        if (not isinstance(instrument, str) or not instrument or not isinstance(trades, str) or not trades
+                or "known_at" in arguments and not isinstance(known, str)):
+            raise RequestError(-32602, "Supply an instrument, trade CSV contents and an optional UTC cutoff as text.")
+        offset = _integer(arguments, "offset", 0, 0, 100_000)
+        limit = _integer(arguments, "limit", 200, 1, MAX_ROWS)
+        try:
+            report = self._engine.recorded_trade_prints(instrument, trades, known_at=known)
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+        page = report.prints[offset:offset + limit]
+        end = offset + len(page)
+        return _structured({
+            "instrument": report.instrument, "known_at": known, "total_prints": len(report.prints),
+            "offset": offset, "next_offset": end if end < len(report.prints) else None,
+            "prints": [_fixed_fields(row, "sequence", "price_ticks", "size_ticks") for row in page],
         })
 
     def _listing_downside_risk(self, arguments) -> dict:

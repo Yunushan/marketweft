@@ -9,7 +9,8 @@ use crate::{
         MacroCalendarQuery, MonthlyReturnsPage, MonthlyReturnsQuery, OptionPage, OptionQuery,
         PortfolioAllocationQuery, PortfolioAllocationResponse, PortfolioFxPage, PortfolioFxQuery,
         PortfolioScenariosPage, PortfolioScenariosQuery, RankComparisonPage, RankComparisonQuery,
-        RecordedNotionalBarsPage, RecordedNotionalBarsQuery, ScreenPage, ScreenQuery,
+        RecordedNotionalBarsPage, RecordedNotionalBarsQuery, RecordedTradePrintsPage,
+        RecordedTradePrintsQuery, ScreenPage, ScreenQuery,
     },
     shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
@@ -61,6 +62,10 @@ pub(crate) fn routes(state: Arc<Server>) -> Router {
                 )
                 .route_service(
                     "/marketweft.research.v1.Research/GetRecordedNotionalBars",
+                    service.clone(),
+                )
+                .route_service(
+                    "/marketweft.research.v1.Research/GetRecordedTradePrints",
                     service.clone(),
                 )
                 .route_service(
@@ -228,6 +233,13 @@ impl Research for LocalResearch {
         request: GrpcRequest<RecordedNotionalBarsQuery>,
     ) -> Result<GrpcResponse<RecordedNotionalBarsPage>, Status> {
         unary(request, analytics::evaluate_recorded_notional_bars).await
+    }
+
+    async fn get_recorded_trade_prints(
+        &self,
+        request: GrpcRequest<RecordedTradePrintsQuery>,
+    ) -> Result<GrpcResponse<RecordedTradePrintsPage>, Status> {
+        unary(request, analytics::evaluate_recorded_trade_prints).await
     }
 
     async fn get_listing_downside_risk(

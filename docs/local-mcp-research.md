@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, recorded notional bars, portfolio scenarios, minimum-variance allocation, FX conversion, equity concentration, equity target drift, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, recorded notional bars and individual trade prints, portfolio scenarios, minimum-variance allocation, FX conversion, equity concentration, equity target drift, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 
 ```json
 {
@@ -71,6 +71,12 @@ Use `offset` and `limit` to page the windows in chronological order. The default
 Call the read-only `recorded_notional_bars` tool with the canonical `instrument`, the contents of `trades_csv`, and a positive integer `target_notional_ticks` in quote millionths. Supply an optional exact UTC `known_at` cutoff to evaluate recorded observations through that second. Omit it to use every recorded trade. [Trade CSV and SDKs](recorded-tick-bars.md#recorded-notional-bar-sdks)
 
 Results echo the target and cutoff and report `total_bars`, `offset`, `next_offset`, and the current page of bars. Reuse the same tape, target and cutoff with the returned `next_offset`. Pages default to 200 bars and accept a limit up to 1,000. The capture sequences and gross notional in trillionths are decimal strings. A bar row also includes exact signed OHLCV in millionths, the trade count, a completion flag and both UTC times as whole Unix seconds.
+
+## Recorded trade prints
+
+Call the read-only `recorded_trade_prints` tool with the canonical `instrument` and `trades_csv` contents. Set `known_at` to apply an inclusive UTC observation cutoff. Set `limit` from 1 to 1,000, with a default of 200. Pass `next_offset` with the same tape and cutoff to retrieve the next page in capture order. Sequence, price and size are exact decimal strings.
+
+With the sample tape, the 13:59:57 UTC execution first appears at the 14:00:02 UTC observation cutoff. A query at 14:00:00 UTC returns the original two prints, including the signed first price and the unknown side of the second print. [Trade fixture](recorded-tick-bars.md#recorded-time-and-sales) · [Shared service fields](local-rest-research.md#recorded-trade-prints)
 
 ## Portfolio currency conversion
 

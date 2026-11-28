@@ -72,7 +72,7 @@ class McpTest(unittest.TestCase):
                           mcp.MACRO_CALENDAR_TOOL_NAME, mcp.PORTFOLIO_SCENARIOS_TOOL_NAME, mcp.PORTFOLIO_FX_TOOL_NAME,
                           mcp.EQUITY_CONCENTRATION_TOOL_NAME, mcp.EQUITY_TARGET_TOOL_NAME,
                           mcp.PORTFOLIO_ALLOCATION_TOOL_NAME, mcp.NOTIONAL_BARS_TOOL_NAME,
-                          mcp.LISTING_DOWNSIDE_RISK_TOOL_NAME])
+                          mcp.LISTING_DOWNSIDE_RISK_TOOL_NAME, mcp.RECORDED_TRADE_PRINTS_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -573,6 +573,56 @@ class McpTest(unittest.TestCase):
         self.assertTrue(replies["bad-date"]["result"]["isError"])
         self.assertEqual(data("rewind"), before)
         self.assertEqual(replies["ping"]["result"], {})
+
+    def test_recorded_trade_prints_pages_preserve_cutoff_and_exact_wire_values(self):
+        fixture = ROOT / "crates/core/tests/fixtures/synthetic-recorded-prints.csv"
+        arguments = {
+            "instrument": "NASDAQ:NVDA", "trades_csv": fixture.read_text(encoding="utf-8"),
+            "known_at": "2025-06-02T14:00:00Z", "limit": 2,
+        }
+
+        def query(request_id, **changes):
+            return rpc("tools/call", request_id, {
+                "name": mcp.RECORDED_TRADE_PRINTS_TOOL_NAME, "arguments": arguments | changes,
+            })
+
+        process = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(
+                rpc("initialize", "init", INITIALIZE), rpc("notifications/initialized"),
+                rpc("tools/list", "tools"), query("early"),
+                query("delayed", known_at="2025-06-02T14:00:02Z", offset=2),
+                query("full", known_at="2025-06-02T14:00:04Z", offset=2),
+                query("invalid", known_at=None), query("over", limit=1001), query("rewind"),
+            ), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=15,
+        )
+        replies = {item["id"]: item for item in map(json.loads, process.stdout.splitlines())}
+        tool = next(item for item in replies["tools"]["result"]["tools"]
+                    if item["name"] == mcp.RECORDED_TRADE_PRINTS_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertEqual(set(tool["inputSchema"]["required"]), {"instrument", "trades_csv"})
+        self.assertEqual(tool["outputSchema"]["properties"]["prints"]["items"]["properties"]["sequence"]["type"],
+                         "string")
+        early = replies["early"]["result"]["structuredContent"]
+        self.assertEqual(json.loads(replies["early"]["result"]["content"][0]["text"]), early)
+        self.assertEqual(early["total_prints"], 2)
+        self.assertIsNone(early["next_offset"])
+        self.assertEqual(early["prints"][0], {
+            "executed_at": 1748872798, "observed_at": 1748872800, "sequence": "9007199254740993",
+            "price_ticks": "-2000001", "size_ticks": "1000001", "reported_side": "buy",
+        })
+        self.assertEqual(early["prints"][1]["price_ticks"], "0")
+        self.assertEqual(early["prints"][1]["reported_side"], "unknown")
+        delayed = replies["delayed"]["result"]["structuredContent"]
+        self.assertEqual(delayed["total_prints"], 3)
+        self.assertEqual((delayed["prints"][0]["executed_at"], delayed["prints"][0]["observed_at"]),
+                         (1748872797, 1748872802))
+        full = replies["full"]["result"]["structuredContent"]
+        self.assertEqual(full["prints"][1]["sequence"], "18446744073709551615")
+        self.assertEqual(full["prints"][1]["reported_side"], "sell")
+        self.assertEqual(replies["invalid"]["error"]["code"], -32602)
+        self.assertEqual(replies["over"]["error"]["code"], -32602)
+        self.assertEqual(replies["rewind"]["result"]["structuredContent"], early)
 
     def test_listing_downside_risk_pages_preserve_losses_and_rewind(self):
         fixtures = ROOT / "crates/core/tests/fixtures"
