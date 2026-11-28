@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.36.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.37.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -75,6 +75,8 @@ assert result.rows[-1].baseline_sum_ticks == 300_000_000
 ```
 
 Each row carries the raw volume, exact sum, mean and ratio in integer millionths, with the prior-session count and the count of matching observations. The ratio is `None` when the baseline is unavailable or zero. [Native process format](../../docs/historical-replay.md#native-and-python-session-relative-volume)
+
+Use the read-only MCP tool `session_relative_volume` to retrieve the same evidence a page at a time. [MCP session relative volume](../../docs/local-mcp-research.md#session-relative-volume)
 
 ## Financial snapshots
 

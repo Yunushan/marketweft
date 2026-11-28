@@ -109,6 +109,14 @@ The page includes `total_events`, `offset`, `next_offset`, and the ordered `even
 
 Connect to `/v1/dividends/ledger/stream` for the same page shape. Reconnect using the last accepted page's `next_offset` with the same reports and cutoff. The unary gRPC method `marketweft.research.v1.Research/GetDividendLedger` returns one matching page. The transports share screen authorization, admission and audit. [Protobuf schema](../apps/research-service/proto/research.proto) · [Read-only MCP](local-mcp-research.md#dividend-ledger)
 
+## Session relative volume
+
+Use `POST /v1/session-relative-volume` with a screen-scoped bearer credential. Supply `calendar_csv`, `bars_csv`, `interval_seconds`, `lookback_sessions`, and `known_at` as an exact UTC timestamp. The optional `offset` and `limit` select a page. The default page holds 200 rows and the maximum is 1,000. An empty prefix returns an empty page with the requested settings.
+
+Connect to `/v1/session-relative-volume/stream` and send the same JSON to stream pages. Resume with the original inputs and a returned `next_offset`. The typed unary RPC is `marketweft.research.v1.Research/GetSessionRelativeVolume` and uses `SessionRelativeVolumeQuery`.
+
+Each row carries the zero-based bar index, UTC observation seconds, session offset and interval duration, eligible session count, matched session count, and exact raw volume, baseline sum, average and ratio. The four fixed-point fields are decimal strings in millionths. A blank baseline uses a null average, while an observed zero baseline has average `"0"` and a null ratio. A true zero ratio is `"0"`. [Replay calculation and fixtures](historical-replay.md#session-relative-volume)
+
 ## Listing downside risk
 
 Send `POST /v1/risk/listings/downside` with a screen bearer credential. Supply `membership_csv`, `prices_csv`, `left_listing_id`, `right_listing_id`, `from_at`, `through_at`, `known_at`, `interval_seconds` and `window_periods`. The reports accept up to 1 MiB and 2 MiB respectively. Use distinct listing IDs and whole-second UTC cutoffs, with the end on the chosen grid. `volatility_periods` defaults to one. [How downside deviation is calculated](listing-risk.md#downside-deviation)

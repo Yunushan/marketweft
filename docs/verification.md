@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.307.0 · Session relative volume transports
+
+- REST, resumed WebSocket and typed gRPC return identical screen-scoped pages, including the exact baseline sum, shortened interval, unavailable average and observed zero.
+- The installed Python wheel and official MCP client verify read-only discovery, matching text and structured pages, validation and identical rewind.
+
 ## 0.306.0 · Native and Python session relative volume
 
 - The native process verifies inclusive cutoff, validated UTF-8 calendar boundaries, exact shortened intervals and distinct missing and zero baselines.

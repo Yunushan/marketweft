@@ -84,6 +84,10 @@ Call the read-only `dividend_ledger` tool with `instrument`, `dividends_csv` and
 
 Balances and signed movements are exact decimal strings in millionths. Unknown entitlements and unavailable withholding fields are `null`. Repeating the input and cutoff reproduces the same earlier page after a later currency revision or holdings correction. [Ledger data and examples](cash-dividends.md#reported-withholding) · [Shared service fields](local-rest-research.md#dividend-ledger)
 
+## Session relative volume
+
+Call `session_relative_volume` with the calendar CSV, OHLCV CSV, whole-second interval, prior-session lookback and exact UTC observation cutoff. The tool accepts the same named fields and pagination as the local REST method. Each page returns the requested settings, row count and continuation offset. Its fixed-point fields are decimal strings, with null for unavailable averages and ratios. It uses the same local read-only engine as the installed Python SDK. [Service and pagination](local-rest-research.md#session-relative-volume) · [Calculation and fixture](historical-replay.md#session-relative-volume)
+
 ## Portfolio currency conversion
 
 Call the read-only `portfolio_fx_as_of` tool with `rates_csv` contents, a three-letter uppercase `reporting_currency`, and exact UTC `effective_at` and `known_at` cutoffs. Supply `amounts` as an array of source currency and `subtotal_ticks` objects. Send each currency once and use signed decimal strings in integer millionths for subtotals. The FX CSV accepts up to 1 MiB of UTF-8 data. [Portfolio FX inputs and rate selection](portfolio-replay.md#portfolio-currency-translation)

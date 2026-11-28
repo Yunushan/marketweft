@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.306.0 · 0BSD**
+**0.307.0 · 0BSD**
 
 **Idiomas da documentação**
 
@@ -15,14 +15,14 @@
 
 MarketWeft é um terminal de pesquisa local para analistas, desenvolvedores e operadores. Abre arquivos OHLCV autorizados, exibe velas e volume, calcula SMA e EMA em ponto fixo e guarda a lista, o instrumento selecionado e os indicadores em IndexedDB. Após armazenar os recursos em cache, funciona sem conexão. As cotações e volumes fornecidos são sintéticos e dispensam conta.
 
-O MarketWeft 0.306.0 oferece o volume relativo da sessão pelo comando nativo e pelo SDK Python. MarketWeft 0.7.0 acrescenta a triagem do universo por retorno de preço com os dados conhecidos no instante da consulta. A reprodução por sessões inclui desdobramentos, dividendos em dinheiro, composição do universo e cancelamentos de listagem. O repositório traz um observador TypeScript somente leitura para o serviço independente trading-bot e um invólucro experimental Tauri. Feeds de fornecedores, ordens, instaladores assinados e hospedagem multiusuário permanecem no roteiro.
+O MarketWeft 0.307.0 disponibiliza o volume relativo da sessão via REST, WebSocket, gRPC e MCP somente leitura. MarketWeft 0.7.0 acrescenta a triagem do universo por retorno de preço com os dados conhecidos no instante da consulta. A reprodução por sessões inclui desdobramentos, dividendos em dinheiro, composição do universo e cancelamentos de listagem. O repositório traz um observador TypeScript somente leitura para o serviço independente trading-bot e um invólucro experimental Tauri. Feeds de fornecedores, ordens, instaladores assinados e hospedagem multiusuário permanecem no roteiro.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Native and Python session relative volume](../historical-replay.md#native-and-python-session-relative-volume) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Session relative volume service](../local-rest-research.md#session-relative-volume) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
 
 <!-- section:02 -->
 ## Iniciar o terminal portátil
 
-Baixe browser-terminal-attempt-N de uma verificação bem-sucedida no GitHub. Extraia MarketWeft-browser-0.306.0.zip, mantenha dist/ junto de serve-terminal.mjs e execute o comando na pasta. Acesse http://127.0.0.1:4173/ em navegador atual com WebAssembly, Canvas, BigInt e IndexedDB. Use Node.js 22.12 ou superior. O pacote dispensa instalação npm. Espere Offline ready para desconectar.
+Baixe browser-terminal-attempt-N de uma verificação bem-sucedida no GitHub. Extraia MarketWeft-browser-0.307.0.zip, mantenha dist/ junto de serve-terminal.mjs e execute o comando na pasta. Acesse http://127.0.0.1:4173/ em navegador atual com WebAssembly, Canvas, BigInt e IndexedDB. Use Node.js 22.12 ou superior. O pacote dispensa instalação npm. Espere Offline ready para desconectar.
 
 ```sh
 node serve-terminal.mjs

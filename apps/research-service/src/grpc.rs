@@ -11,7 +11,7 @@ use crate::{
         PortfolioAllocationResponse, PortfolioFxPage, PortfolioFxQuery, PortfolioScenariosPage,
         PortfolioScenariosQuery, RankComparisonPage, RankComparisonQuery, RecordedNotionalBarsPage,
         RecordedNotionalBarsQuery, RecordedTradePrintsPage, RecordedTradePrintsQuery, ScreenPage,
-        ScreenQuery,
+        ScreenQuery, SessionRelativeVolumePage, SessionRelativeVolumeQuery,
     },
     shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
@@ -71,6 +71,10 @@ pub(crate) fn routes(state: Arc<Server>) -> Router {
                 )
                 .route_service(
                     "/marketweft.research.v1.Research/GetDividendLedger",
+                    service.clone(),
+                )
+                .route_service(
+                    "/marketweft.research.v1.Research/GetSessionRelativeVolume",
                     service.clone(),
                 )
                 .route_service(
@@ -252,6 +256,13 @@ impl Research for LocalResearch {
         request: GrpcRequest<DividendLedgerQuery>,
     ) -> Result<GrpcResponse<DividendLedgerPage>, Status> {
         unary(request, analytics::evaluate_dividend_ledger).await
+    }
+
+    async fn get_session_relative_volume(
+        &self,
+        request: GrpcRequest<SessionRelativeVolumeQuery>,
+    ) -> Result<GrpcResponse<SessionRelativeVolumePage>, Status> {
+        unary(request, analytics::evaluate_session_volume).await
     }
 
     async fn get_listing_downside_risk(

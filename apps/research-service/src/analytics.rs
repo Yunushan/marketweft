@@ -15,21 +15,22 @@ use crate::{
         RankComparisonLeg, RankComparisonPage, RankComparisonQuery, RankComparisonRow,
         RecordedNotionalBar, RecordedNotionalBarsPage, RecordedNotionalBarsQuery,
         RecordedTradePrint, RecordedTradePrintsPage, RecordedTradePrintsQuery, ScreenPage,
-        ScreenQuery, ScreenRow,
+        ScreenQuery, ScreenRow, SessionRelativeVolumePage, SessionRelativeVolumeQuery,
+        SessionRelativeVolumeRow,
     },
     ApiError,
 };
 use axum::http::StatusCode;
 use marketweft_core::{
     monthly_returns, parse_csv, parse_dividend_positions, parse_dividends, parse_exact_utc,
-    parse_replay_dividends, parse_universe, AggressorSide, AmericanValuationRequest,
-    CashOptionError, DividendKind, EquityTargetBook, ExerciseStyle, Formula,
-    FormulaFunctionDefinition, FormulaLibrary, FxAmount, FxBook, Instrument, ListingRiskQuery,
-    MacroCalendar, MonthWindow, MonthlyClose, OptionAnalytics, OptionBook, OptionSide,
-    PortfolioBook, PortfolioScenarioConfig, PortfolioVarianceQuery, PriceBook, PriceObservation,
-    ReportKind, ScenarioAllocation, ScenarioConfig, ScreenComparisonLeg, ScreenCutoff,
-    ThreeQuantiles, TradeTape, UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_BARS,
-    MAX_MONTHLY_RETURN_YEARS,
+    parse_replay_dividends, parse_sessions, parse_universe, session_relative_volume, AggressorSide,
+    AmericanValuationRequest, CashOptionError, DividendKind, EquityTargetBook, ExerciseStyle,
+    Formula, FormulaFunctionDefinition, FormulaLibrary, FxAmount, FxBook, Instrument,
+    ListingRiskQuery, MacroCalendar, MonthWindow, MonthlyClose, OptionAnalytics, OptionBook,
+    OptionSide, PortfolioBook, PortfolioScenarioConfig, PortfolioVarianceQuery, PriceBook,
+    PriceObservation, ReportKind, ScenarioAllocation, ScenarioConfig, ScreenComparisonLeg,
+    ScreenCutoff, ThreeQuantiles, TradeTape, UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS,
+    MAX_BARS, MAX_MONTHLY_RETURN_YEARS,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -49,6 +50,7 @@ pub(crate) enum ResearchPage {
     RecordedNotionalBars(RecordedNotionalBarsPage),
     RecordedTradePrints(RecordedTradePrintsPage),
     DividendLedger(DividendLedgerPage),
+    SessionRelativeVolume(SessionRelativeVolumePage),
     ListingDownsideRisk(ListingDownsideRiskPage),
     PortfolioAllocation(PortfolioAllocationResponse),
     PortfolioScenarios(PortfolioScenariosPage),
@@ -899,6 +901,68 @@ pub(crate) fn evaluate_dividend_ledger(
                 .collect(),
         }
     });
+    Ok(())
+}
+
+pub(crate) fn session_volume(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_session_volume(request(bytes)?, &mut |page| {
+        emit(ResearchPage::SessionRelativeVolume(page))
+    })
+}
+
+pub(crate) fn evaluate_session_volume(
+    query: SessionRelativeVolumeQuery,
+    emit: &mut dyn FnMut(SessionRelativeVolumePage) -> bool,
+) -> Result<(), ApiError> {
+    let (offset, limit) = pagination(query.offset, query.limit, MAX_BARS as u64)?;
+    let known = parse_exact_utc(&query.known_at).ok_or_else(|| {
+        ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use a YYYY-MM-DDTHH:MM:SSZ session volume observation cutoff.",
+        )
+    })?;
+    let sessions = parse_sessions(&query.calendar_csv).map_err(analytical_error)?;
+    let bars = parse_csv(&query.bars_csv).map_err(analytical_error)?;
+    let points = session_relative_volume(
+        &sessions,
+        &bars,
+        query.interval_seconds,
+        query.lookback_sessions as usize,
+        known,
+    )
+    .map_err(analytical_error)?;
+    pages(
+        offset,
+        limit,
+        points.len(),
+        emit,
+        |offset, range, next_offset| SessionRelativeVolumePage {
+            known_at: query.known_at.clone(),
+            interval_seconds: query.interval_seconds,
+            lookback_sessions: query.lookback_sessions,
+            total_rows: points.len() as u32,
+            offset,
+            next_offset,
+            rows: points[range]
+                .iter()
+                .map(|point| SessionRelativeVolumeRow {
+                    bar_index: point.bar_index as u32,
+                    observed_at: point.observed_at,
+                    offset_seconds: point.offset_seconds,
+                    duration_seconds: point.duration_seconds,
+                    previous_sessions: point.previous_sessions,
+                    contributing_sessions: point.contributing_sessions,
+                    volume_ticks: point.volume_ticks.to_string(),
+                    baseline_sum_ticks: point.baseline_sum_ticks.to_string(),
+                    average_ticks: point.average_ticks.map(|value| value.to_string()),
+                    relative_ticks: point.relative_ticks.map(|value| value.to_string()),
+                })
+                .collect(),
+        },
+    );
     Ok(())
 }
 

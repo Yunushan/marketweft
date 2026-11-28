@@ -73,7 +73,7 @@ class McpTest(unittest.TestCase):
                           mcp.EQUITY_CONCENTRATION_TOOL_NAME, mcp.EQUITY_TARGET_TOOL_NAME,
                           mcp.PORTFOLIO_ALLOCATION_TOOL_NAME, mcp.NOTIONAL_BARS_TOOL_NAME,
                           mcp.LISTING_DOWNSIDE_RISK_TOOL_NAME, mcp.RECORDED_TRADE_PRINTS_TOOL_NAME,
-                          mcp.DIVIDEND_LEDGER_TOOL_NAME])
+                          mcp.DIVIDEND_LEDGER_TOOL_NAME, mcp.SESSION_RELATIVE_VOLUME_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -676,6 +676,45 @@ class McpTest(unittest.TestCase):
         self.assertEqual(replies["ambiguous"]["error"]["code"], -32602)
         self.assertEqual(replies["invalid"]["error"]["code"], -32602)
         self.assertEqual(replies["rewind"]["result"]["structuredContent"], pay)
+
+    def test_session_relative_volume_pages_report_exact_cutoff_and_baseline(self):
+        fixtures = ROOT / "crates/core/tests/fixtures"
+        params = {
+            "calendar_csv": (fixtures / "synthetic-session-volume-calendar.csv").read_text(encoding="utf-8"),
+            "bars_csv": (fixtures / "synthetic-session-volume-bars.csv").read_text(encoding="utf-8"),
+            "known_at": "2025-11-05T14:33:00Z", "interval_seconds": 60, "lookback_sessions": 2,
+            "offset": 6, "limit": 2,
+        }
+
+        def query(request_id, **changes):
+            return rpc("tools/call", request_id, {
+                "name": mcp.SESSION_RELATIVE_VOLUME_TOOL_NAME, "arguments": params | changes,
+            })
+
+        process = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(rpc("initialize", "init", INITIALIZE), rpc("notifications/initialized"),
+                       rpc("tools/list", "tools"), query("early", known_at="2025-11-05T14:30:59Z"),
+                       query("first"), query("tail", offset=8), query("invalid", interval_seconds=True),
+                       query("rewind")), capture_output=True, check=True, timeout=15,
+        )
+        replies = {item["id"]: item for item in map(json.loads, process.stdout.splitlines())}
+        tool = next(item for item in replies["tools"]["result"]["tools"] if item["name"] == mcp.SESSION_RELATIVE_VOLUME_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        early = replies["early"]["result"]["structuredContent"]
+        self.assertEqual(early["total_rows"], 7)
+        self.assertEqual(early["rows"][0]["duration_seconds"], 30)
+        first = replies["first"]["result"]["structuredContent"]
+        self.assertEqual(json.loads(replies["first"]["result"]["content"][0]["text"]), first)
+        self.assertEqual(first["next_offset"], 8)
+        self.assertEqual(first["rows"][1]["relative_ticks"], "3000000")
+        self.assertEqual(first["rows"][1]["baseline_sum_ticks"], "300000000")
+        tail = replies["tail"]["result"]["structuredContent"]
+        self.assertIsNone(tail["next_offset"])
+        self.assertEqual([row["average_ticks"] for row in tail["rows"]], [None, "0"])
+        self.assertTrue(all(row["relative_ticks"] is None for row in tail["rows"]))
+        self.assertEqual(replies["invalid"]["error"]["code"], -32602)
+        self.assertEqual(replies["rewind"]["result"]["structuredContent"], first)
 
     def test_listing_downside_risk_pages_preserve_losses_and_rewind(self):
         fixtures = ROOT / "crates/core/tests/fixtures"

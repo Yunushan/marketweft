@@ -537,6 +537,11 @@ fn route_authority(
             "/v1/dividends/ledger/stream",
             get(websocket::dividend_ledger),
         )
+        .route("/v1/session-relative-volume", post(session_volume))
+        .route(
+            "/v1/session-relative-volume/stream",
+            get(websocket::session_volume),
+        )
         .route("/v1/risk/listings/downside", post(listing_downside_risk))
         .route(
             "/v1/risk/listings/downside/stream",
@@ -811,6 +816,13 @@ async fn dividend_ledger(
     request: Request,
 ) -> Result<Json<ResearchPage>, ApiError> {
     execute(state, request, Scope::Screen, analytics::dividend_ledger).await
+}
+
+async fn session_volume(
+    State(state): State<Arc<Server>>,
+    request: Request,
+) -> Result<Json<ResearchPage>, ApiError> {
+    execute(state, request, Scope::Screen, analytics::session_volume).await
 }
 
 async fn listing_downside_risk(

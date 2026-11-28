@@ -12,6 +12,7 @@ service Research {
   rpc GetRecordedNotionalBars(RecordedNotionalBarsQuery) returns (RecordedNotionalBarsPage);
   rpc GetRecordedTradePrints(RecordedTradePrintsQuery) returns (RecordedTradePrintsPage);
   rpc GetDividendLedger(DividendLedgerQuery) returns (DividendLedgerPage);
+  rpc GetSessionRelativeVolume(SessionRelativeVolumeQuery) returns (SessionRelativeVolumePage);
   rpc GetListingDownsideRisk(ListingDownsideRiskQuery) returns (ListingDownsideRiskPage);
   rpc GetPortfolioAllocation(PortfolioAllocationQuery) returns (PortfolioAllocationResponse);
   rpc GetPortfolioScenarios(PortfolioScenariosQuery) returns (PortfolioScenariosPage);
@@ -65,6 +66,39 @@ message DividendLedgerPage {
   uint32 offset = 5;
   optional uint32 next_offset = 6;
   repeated DividendLedgerEvent events = 7;
+}
+
+message SessionRelativeVolumeQuery {
+  string calendar_csv = 1;
+  string bars_csv = 2;
+  uint32 interval_seconds = 3;
+  uint32 lookback_sessions = 4;
+  string known_at = 5;
+  optional uint64 offset = 6;
+  optional uint64 limit = 7;
+}
+
+message SessionRelativeVolumeRow {
+  uint32 bar_index = 1;
+  int64 observed_at = 2;
+  uint32 offset_seconds = 3;
+  uint32 duration_seconds = 4;
+  uint32 previous_sessions = 5;
+  uint32 contributing_sessions = 6;
+  string volume_ticks = 7;
+  string baseline_sum_ticks = 8;
+  optional string average_ticks = 9;
+  optional string relative_ticks = 10;
+}
+
+message SessionRelativeVolumePage {
+  string known_at = 1;
+  uint32 interval_seconds = 2;
+  uint32 lookback_sessions = 3;
+  uint32 total_rows = 4;
+  uint32 offset = 5;
+  optional uint32 next_offset = 6;
+  repeated SessionRelativeVolumeRow rows = 7;
 }
 
 message FormulaFunction {

@@ -20,7 +20,7 @@ from . import (
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.21.0"
+SERVER_VERSION = "0.22.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -39,6 +39,7 @@ NOTIONAL_BARS_TOOL_NAME = "recorded_notional_bars"
 LISTING_DOWNSIDE_RISK_TOOL_NAME = "listing_downside_risk_as_of"
 RECORDED_TRADE_PRINTS_TOOL_NAME = "recorded_trade_prints"
 DIVIDEND_LEDGER_TOOL_NAME = "dividend_ledger"
+SESSION_RELATIVE_VOLUME_TOOL_NAME = "session_relative_volume"
 PORTFOLIO_FX_TOOL_NAME = "portfolio_fx_as_of"
 EQUITY_CONCENTRATION_TOOL_NAME = "equity_concentration_as_of"
 EQUITY_TARGET_TOOL_NAME = "equity_target_drift_as_of"
@@ -855,6 +856,46 @@ DIVIDEND_LEDGER_TOOL = {
     "outputSchema": DIVIDEND_LEDGER_OUTPUT,
 }
 
+_SESSION_VOLUME_INTERVAL = {"type": "integer", "minimum": 1, "maximum": 86_400}
+_SESSION_VOLUME_LOOKBACK = {"type": "integer", "minimum": 1, "maximum": 10_000}
+_SESSION_VOLUME_CSV_FIELDS = ("calendar_csv", "bars_csv", "known_at")
+SESSION_RELATIVE_VOLUME_INPUT = _object_schema({
+    "calendar_csv": {"type": "string", "minLength": 1, "maxLength": 1024 * 1024},
+    "bars_csv": {"type": "string", "minLength": 1, "maxLength": 8 * 1024 * 1024},
+    "known_at": _UTC_SCHEMA,
+    "interval_seconds": _SESSION_VOLUME_INTERVAL,
+    "lookback_sessions": _SESSION_VOLUME_LOOKBACK,
+    "offset": _NOTIONAL_BAR_COUNT,
+    "limit": INPUT_SCHEMA["properties"]["limit"],
+}, optional=("offset", "limit"))
+SESSION_RELATIVE_VOLUME_OUTPUT = _object_schema({
+    "known_at": _UTC_SCHEMA,
+    "interval_seconds": _SESSION_VOLUME_INTERVAL,
+    "lookback_sessions": _SESSION_VOLUME_LOOKBACK,
+    "total_rows": _NOTIONAL_BAR_COUNT,
+    "offset": _NOTIONAL_BAR_COUNT,
+    "next_offset": {**_NOTIONAL_BAR_COUNT, "type": ["integer", "null"]},
+    "rows": {"type": "array", "maxItems": MAX_ROWS, "items": _object_schema({
+        "bar_index": _NOTIONAL_BAR_COUNT,
+        "observed_at": _TIME_SCHEMA,
+        "offset_seconds": {"type": "integer", "minimum": 0, "maximum": 86_399},
+        "duration_seconds": _SESSION_VOLUME_INTERVAL,
+        **dict.fromkeys(("previous_sessions", "contributing_sessions"),
+                         {"type": "integer", "minimum": 0, "maximum": 10_000}),
+        "volume_ticks": _TICKS_SCHEMA,
+        "baseline_sum_ticks": _TICKS_SCHEMA,
+        "average_ticks": _OPTIONAL_TICKS_SCHEMA,
+        "relative_ticks": _OPTIONAL_TICKS_SCHEMA,
+    })},
+})
+SESSION_RELATIVE_VOLUME_TOOL = {
+    "name": SESSION_RELATIVE_VOLUME_TOOL_NAME,
+    "description": "Compare one page of known bar volumes with like-duration intervals in prior sessions.",
+    "annotations": TOOL["annotations"],
+    "inputSchema": SESSION_RELATIVE_VOLUME_INPUT,
+    "outputSchema": SESSION_RELATIVE_VOLUME_OUTPUT,
+}
+
 
 class RequestError(Exception):
     def __init__(self, code: int, message: str):
@@ -984,7 +1025,7 @@ class ResearchServer:
                               AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL, MACRO_CALENDAR_TOOL, PORTFOLIO_SCENARIOS_TOOL,
                               PORTFOLIO_FX_TOOL, EQUITY_CONCENTRATION_TOOL, EQUITY_TARGET_TOOL, PORTFOLIO_ALLOCATION_TOOL,
                               NOTIONAL_BARS_TOOL, LISTING_DOWNSIDE_RISK_TOOL, RECORDED_TRADE_PRINTS_TOOL,
-                              DIVIDEND_LEDGER_TOOL]}
+                              DIVIDEND_LEDGER_TOOL, SESSION_RELATIVE_VOLUME_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -1014,6 +1055,8 @@ class ResearchServer:
                 return self._recorded_trade_prints(arguments)
             if name == DIVIDEND_LEDGER_TOOL_NAME:
                 return self._dividend_ledger(arguments)
+            if name == SESSION_RELATIVE_VOLUME_TOOL_NAME:
+                return self._session_relative_volume(arguments)
             if name == PORTFOLIO_SCENARIOS_TOOL_NAME:
                 return self._portfolio_scenarios(arguments)
             if name == PORTFOLIO_FX_TOOL_NAME:
@@ -1205,6 +1248,34 @@ class ResearchServer:
             "instrument": report.instrument, "known_at": known, "fixed_shares": report.fixed_shares,
             "total_events": len(report.events), "offset": offset,
             "next_offset": end if end < len(report.events) else None, "events": events,
+        })
+
+    def _session_relative_volume(self, arguments) -> dict:
+        schema = SESSION_RELATIVE_VOLUME_INPUT
+        if (not isinstance(arguments, dict) or set(arguments) - schema["properties"].keys()
+                or set(schema["required"]) - arguments.keys()):
+            raise RequestError(-32602, "Supply the documented session relative volume arguments.")
+        fields = {name: arguments[name] for name in _SESSION_VOLUME_CSV_FIELDS}
+        if not all(isinstance(value, str) and value for value in fields.values()):
+            raise RequestError(-32602, "Supply calendar CSV, OHLCV CSV and a UTC cutoff as text.")
+        interval = _integer(arguments, "interval_seconds", 0, 1, 86_400)
+        lookback = _integer(arguments, "lookback_sessions", 0, 1, 10_000)
+        offset = _integer(arguments, "offset", 0, 0, 100_000)
+        limit = _integer(arguments, "limit", 200, 1, MAX_ROWS)
+        try:
+            report = self._engine.session_relative_volume(
+                **fields, interval_seconds=interval, lookback_sessions=lookback,
+            )
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+        page = report.rows[offset:offset + limit]
+        end = offset + len(page)
+        return _structured({
+            "known_at": fields["known_at"], "interval_seconds": interval,
+            "lookback_sessions": lookback, "total_rows": len(report.rows), "offset": offset,
+            "next_offset": end if end < len(report.rows) else None,
+            "rows": [_fixed_fields(row, "volume_ticks", "baseline_sum_ticks", "average_ticks", "relative_ticks")
+                     for row in page],
         })
 
     def _listing_downside_risk(self, arguments) -> dict:

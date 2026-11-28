@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.306.0 · 0BSD**
+**0.307.0 · 0BSD**
 
 **لغات التوثيق**
 
@@ -21,18 +21,18 @@ MarketWeft محطة بحث محلية للمحللين والمطورين وال
 
 <div dir="rtl">
 
-يتيح MarketWeft 0.306.0 الحجم النسبي للجلسة عبر الأمر الأصلي وحزمة Python. MarketWeft 0.7.0 فرز أعضاء الكون حسب عائد السعر وفق البيانات المعروفة عند وقت الاستعلام. تشمل إعادة التشغيل وفق الجلسات تجزئات الأسهم والتوزيعات النقدية وتغير العضوية والشطب. يتضمن المستودع أيضًا مراقب TypeScript للقراءة فقط لخدمة trading-bot مستقلة وغلاف Tauri تجريبيًا. لا تزال تغذيات البيانات وإدخال الأوامر والمثبّتات الموقّعة والاستضافة متعددة المستخدمين على خارطة الطريق.
+يتيح MarketWeft 0.307.0 الحجم النسبي للجلسة عبر REST وWebSocket وgRPC وMCP للقراءة فقط. MarketWeft 0.7.0 فرز أعضاء الكون حسب عائد السعر وفق البيانات المعروفة عند وقت الاستعلام. تشمل إعادة التشغيل وفق الجلسات تجزئات الأسهم والتوزيعات النقدية وتغير العضوية والشطب. يتضمن المستودع أيضًا مراقب TypeScript للقراءة فقط لخدمة trading-bot مستقلة وغلاف Tauri تجريبيًا. لا تزال تغذيات البيانات وإدخال الأوامر والمثبّتات الموقّعة والاستضافة متعددة المستخدمين على خارطة الطريق.
 
 </div>
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Native and Python session relative volume](../historical-replay.md#native-and-python-session-relative-volume) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Session relative volume service](../local-rest-research.md#session-relative-volume) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
 
 <!-- section:02 -->
 ## تشغيل المحطة المحمولة
 
 <div dir="rtl">
 
-نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.306.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
+نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.307.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
 
 </div>
 
