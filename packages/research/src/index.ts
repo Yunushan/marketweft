@@ -81,6 +81,8 @@ export interface MarketResearch {
   recordedTradePrints: MarketCore['recordedTradePrints']
   rollingCloseStandardDeviation: MarketCore['rollingCloseStandardDeviation']
   rollingCloseOrderStatistics: MarketCore['rollingCloseOrderStatistics']
+  easeOfMovement: MarketCore['easeOfMovement']
+  negativeVolumeIndex: MarketCore['negativeVolumeIndex']
   leastSquaresMovingAverage: MarketCore['leastSquaresMovingAverage']
   replayCandlePatterns: MarketCore['replayCandlePatterns']
   observedTimeUnderwater: MarketCore['observedTimeUnderwater']
@@ -146,6 +148,8 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     recordedTradePrints: core.recordedTradePrints,
     rollingCloseStandardDeviation: core.rollingCloseStandardDeviation,
     rollingCloseOrderStatistics: core.rollingCloseOrderStatistics,
+    easeOfMovement: core.easeOfMovement,
+    negativeVolumeIndex: core.negativeVolumeIndex,
     leastSquaresMovingAverage: core.leastSquaresMovingAverage,
     replayCandlePatterns: core.replayCandlePatterns,
     observedTimeUnderwater: core.observedTimeUnderwater,

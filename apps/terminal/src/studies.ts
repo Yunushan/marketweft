@@ -43,6 +43,9 @@ export const STUDIES = {
   obv: { name: 'On-Balance Volume', label: 'On-Balance Volume', color: '#79c9b2' },
   adl: { name: 'Accumulation/Distribution Line', label: 'Accumulation/Distribution Line', color: '#e4ac7f' },
   pvt: { name: 'Price Volume Trend', label: 'Price Volume Trend', color: '#c4ac78' },
+  ease_of_movement: { name: 'Ease of Movement', label: 'Ease of Movement',
+    minPeriod: 1, defaultPeriod: 14, color: '#7ad0b7' },
+  negative_volume_index: { name: 'Negative Volume Index', label: 'Negative Volume Index', color: '#d1aceb' },
   vroc: { name: 'Volume Rate of Change', label: 'Volume Rate of Change', minPeriod: 1,
     defaultPeriod: 14, color: '#9fbbd9' },
   volume_oscillator: { name: 'Volume Oscillator', label: 'Volume Oscillator', minPeriod: 1,
@@ -255,6 +258,9 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     if (kind === 'pvt') return [{ kind, periods: [], unit: 'volume', zeroLine: true, lines: [
       { color: STUDIES.pvt.color, series: core.priceVolumeTrend(bars) },
     ] }]
+    if (kind === 'negative_volume_index') return [{ kind, periods: [], unit: 'index', guides: [1000], lines: [
+      { color: STUDIES[kind].color, series: core.negativeVolumeIndex(bars) },
+    ] }]
     if (kind === 'bop') return [{ kind, periods: [], unit: 'index', lines: [
       { color: STUDIES.bop.color, series: core.balanceOfPower(bars) },
     ] }]
@@ -270,6 +276,9 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       { color: STUDIES[kind].color, series: core.williamsAccumulationDistribution(bars) },
     ] }]
     const { period = STUDIES[kind].defaultPeriod } = study
+    if (kind === 'ease_of_movement') return [{ kind, periods: [period], unit: 'index', zeroLine: true, lines: [
+      { color: STUDIES[kind].color, series: core.easeOfMovement(period, bars) },
+    ] }]
     if (kind === 'bb') return [priceBands(kind, [period], core.bollingerBands(period, bars))]
     if (kind === 'close_stddev') return [{ kind, periods: [period], unit: 'price', zeroLine: true, lines: [
       { color: STUDIES[kind].color, series: core.rollingCloseStandardDeviation(period, bars) },

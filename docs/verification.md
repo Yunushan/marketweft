@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.303.0 · Ease of Movement and Negative Volume Index
+
+- Rust checks signed half-tick rounding, zero volume and range, every observed prefix and an exact 100,000-bar Ease of Movement calculation. The Negative Volume Index tests cover rising, equal and falling volume, an unavailable zero-close update and an out-of-range cumulative result.
+- Wasm, the TypeScript SDK and offline Chromium agree on the sample's signed and blank values. Chromium checks exact CSV export, independent periods, and restoration of older and version 93 workspaces.
+
 ## 0.302.0 · Reported paper dividend withholding
 
 - Rust, Wasm and the public TypeScript SDK verify entitlement from fills observed before ex. At pay, the sample's 4 USD gross and 1 USD withheld credit exactly 3 USD to the paper account.

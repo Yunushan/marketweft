@@ -2343,6 +2343,23 @@ test('portfolio FX replays exact source currency evidence without translating un
   assert.throws(() => core.portfolioFxAsOf(rates, 'USD', at('45'), at('46'), amount), /exceeds the supported fixed-point range/);
 });
 
+test('volume movement Wasm keeps warm-up, genuine zero and unavailable index updates distinct', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-volume-movement.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(source);
+  const raw = core.easeOfMovement(1, bars);
+  assert.deepEqual(raw, [null, 2_000_000n, 2_000_000n, -3_000_000n, -4_000_000n, 0n, 0n, -18_000_000n, 8_000_000n, 8_000_000n, 0n]);
+  const averaged = core.easeOfMovement(3, bars);
+  assert.deepEqual(averaged, [null, null, null, 333_333n, -1_666_667n, -2_333_333n, -1_333_333n,
+    -6_000_000n, -3_333_333n, -666_667n, 5_333_333n]);
+  const index = core.negativeVolumeIndex(bars);
+  assert.deepEqual(index, [1_000_000_000n, 1_200_000_000n, 1_200_000_000n, 1_200_000_000n, 1_066_666_667n,
+    1_066_666_667n, 1_200_000_000n, 1_200_000_000n, null, 1_800_000_000n, 1_800_000_000n]);
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.easeOfMovement(3, bars.slice(0, end)), averaged.slice(0, end));
+    assert.deepEqual(core.negativeVolumeIndex(bars.slice(0, end)), index.slice(0, end));
+  }
+});
+
 test('portfolio income keeps dividend and delisting subtotals separate across observation vintages', async () => {
   const sources = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices',
     'delisting-terms', 'portfolio-dividends'].map(name => readFile(

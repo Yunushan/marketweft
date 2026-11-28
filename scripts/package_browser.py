@@ -52,6 +52,8 @@ Import close-dispersion.csv and enable Close Standard Deviation with a two-bar
 window. Two equal closes give zero, and the first bar has no complete window.
 Import close-order-statistics.csv and enable Rolling Median and Close
 Percentile Rank with a three-bar period. The last result is -1 and 25 percent.
+Import volume-movement.csv and enable Ease of Movement and Negative Volume
+Index. A three-move window ends at 5.333333 and the index ends at 1800.
 Import rolling-regression.csv and enable Least Squares Moving Average with a
 three-bar period. The last fitted close is -3.5.
 Import true-range.csv and choose True Range histogram to inspect exact
@@ -345,6 +347,7 @@ def main():
     files["acceleration-bands.csv"] = (fixture / "synthetic-acceleration-bands.csv").read_bytes()
     files["close-dispersion.csv"] = (fixture / "synthetic-close-dispersion.csv").read_bytes()
     files["close-order-statistics.csv"] = (fixture / "synthetic-close-order-statistics.csv").read_bytes()
+    files["volume-movement.csv"] = (fixture / "synthetic-volume-movement.csv").read_bytes()
     files["rolling-regression.csv"] = (fixture / "synthetic-rolling-regression.csv").read_bytes()
     files["true-range.csv"] = (fixture / "synthetic-true-range.csv").read_bytes()
     files["time-underwater.csv"] = (fixture / "synthetic-time-underwater.csv").read_bytes()

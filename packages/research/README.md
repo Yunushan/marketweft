@@ -38,6 +38,8 @@ Call `portfolioAsOf(membership, holdings, closes, delistingTerms, effectiveAt, k
 
 Call `crossSectionReplay(membership, prices, liquidity, from, through, known, config, actions)` to run the simulated ranking and cash ledger on local reports. Dividend postings with reported withholding preserve signed gross, withheld and net amounts, together with the receipt ID for net cash that reaches the paper account. [Paper dividend withholding](../../docs/paper-corporate-cash.md#reported-paper-dividend-withholding)
 
+Call `easeOfMovement(period, bars)` or `negativeVolumeIndex(bars)` for exact values indexed by observed bars. Each result carries `bigint` millionths or `null` for an unavailable observation. [Ease of Movement and Negative Volume Index](../../docs/chart-workspace.md#ease-of-movement-and-negative-volume-index)
+
 Call `equityConcentrationAsOf(membershipCsv, holdingsCsv, pricesCsv, effectiveAt, knownAt)` for ranked source-currency groups and known gross marked share values. Both marks and weights use `bigint`. [Equity concentration SDKs](../../docs/portfolio-replay.md#equity-concentration-sdks).
 
 Call `equityTargetDriftAsOf(membershipCsv, holdingsCsv, pricesCsv, termsCsv, targetsCsv, effectiveAt, knownAt)` to compare actual equity weights with reported targets. The result includes both cutoffs and exact `bigint` weights and drift. [Equity target research SDKs](../../docs/portfolio-replay.md#equity-target-research-sdks)

@@ -82,6 +82,7 @@ mod ultimate;
 mod universe;
 mod vigor_and_demarker;
 mod volume_bars;
+mod volume_movement;
 mod walk_forward;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
@@ -272,6 +273,7 @@ pub use ultimate::ultimate_oscillator;
 pub use universe::{parse_universe, UniverseAction, UniverseBook, UniverseChange};
 pub use vigor_and_demarker::{demarker, relative_vigor, RelativeVigorValue};
 pub use volume_bars::VolumeBar;
+pub use volume_movement::{ease_of_movement, negative_volume_index};
 pub use walk_forward::{
     walk_forward, CandidateScore, SmaCandidate, WalkForwardConfig, WalkForwardFold,
 };

@@ -404,6 +404,14 @@ The sample with a two-bar period yields a blank, 3, 0, 1.5 and 0 in observation 
 
 The default period is 20 observed closes. Each study accepts 2–100,000 observations and stores its own period for each pane. At a period of three, the sample includes tied ranks of 75% and 25%, and its final median is −1. The exports use `rolling_median_3` and `close_percentile_rank_3`. Workspace backups with these settings use version 92. [Synthetic close fixture](../crates/core/tests/fixtures/synthetic-close-order-statistics.csv)
 
+### Ease of Movement and Negative Volume Index
+
+**Ease of Movement** multiplies the change between consecutive high–low midpoints by the current high–low range, divides by current volume and scales by 10,000. The panel averages the trailing results with a default window of 14 observed moves. A bar with zero range or volume contributes zero. The first bar has no previous midpoint. The calculation rounds each move and the rolling mean to millionths, with half ticks away from zero. [TA-Lib Ease of Movement reference](https://ta-lib.org/functions/emv.html)
+
+**Negative Volume Index** starts at 1,000 and compounds the close-to-close price ratio only when volume falls strictly from the previous observed bar. Equal and rising volume leave the index unchanged. A lower-volume update with a zero close on either side leaves that row blank and retains the preceding index. If the cumulative index exceeds its supported integer range, it stays unavailable for the remainder of that series. [TradingView formula reference](https://www.tradingview.com/pine-script-reference/v6/#var_ta.nvi)
+
+Use the sample to compare a three-move window with a four-move window. The final Ease of Movement is 5.333333 and −0.5 respectively, and the final Negative Volume Index is 1,800. The analysis CSV exports signed millionths as decimals and preserves warm-up and unavailable rows as empty cells. [Volume movement fixture](../crates/core/tests/fixtures/synthetic-volume-movement.csv)
+
 ### Stochastic Oscillator
 
 Enable **Stochastic Oscillator** in either pane’s indicator settings. Its panel shows %K and %D on a common 0% to 100% scale. The defaults are 14 bars for the lookback, 3 for %K smoothing and 3 for %D. Each pane saves all three periods, and each can be from 1 through 100,000 bars. [StockCharts’ full Stochastic Oscillator calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/stochastic-oscillator-fast-slow-and-full).

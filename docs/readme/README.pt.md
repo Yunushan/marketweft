@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.302.0 · 0BSD**
+**0.303.0 · 0BSD**
 
 **Idiomas da documentação**
 
@@ -15,14 +15,14 @@
 
 MarketWeft é um terminal de pesquisa local para analistas, desenvolvedores e operadores. Abre arquivos OHLCV autorizados, exibe velas e volume, calcula SMA e EMA em ponto fixo e guarda a lista, o instrumento selecionado e os indicadores em IndexedDB. Após armazenar os recursos em cache, funciona sem conexão. As cotações e volumes fornecidos são sintéticos e dispensam conta.
 
-O MarketWeft 0.302.0 reproduz os dividendos líquidos em dinheiro e as retenções informadas na conta simulada. MarketWeft 0.7.0 acrescenta a triagem do universo por retorno de preço com os dados conhecidos no instante da consulta. A reprodução por sessões inclui desdobramentos, dividendos em dinheiro, composição do universo e cancelamentos de listagem. O repositório traz um observador TypeScript somente leitura para o serviço independente trading-bot e um invólucro experimental Tauri. Feeds de fornecedores, ordens, instaladores assinados e hospedagem multiusuário permanecem no roteiro.
+O MarketWeft 0.303.0 adiciona Facilidade de Movimento e Índice de Volume Negativo. MarketWeft 0.7.0 acrescenta a triagem do universo por retorno de preço com os dados conhecidos no instante da consulta. A reprodução por sessões inclui desdobramentos, dividendos em dinheiro, composição do universo e cancelamentos de listagem. O repositório traz um observador TypeScript somente leitura para o serviço independente trading-bot e um invólucro experimental Tauri. Feeds de fornecedores, ordens, instaladores assinados e hospedagem multiusuário permanecem no roteiro.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Paper dividend withholding](../paper-corporate-cash.md#reported-paper-dividend-withholding) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Ease of Movement and Negative Volume Index](../chart-workspace.md#ease-of-movement-and-negative-volume-index) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
 
 <!-- section:02 -->
 ## Iniciar o terminal portátil
 
-Baixe browser-terminal-attempt-N de uma verificação bem-sucedida no GitHub. Extraia MarketWeft-browser-0.302.0.zip, mantenha dist/ junto de serve-terminal.mjs e execute o comando na pasta. Acesse http://127.0.0.1:4173/ em navegador atual com WebAssembly, Canvas, BigInt e IndexedDB. Use Node.js 22.12 ou superior. O pacote dispensa instalação npm. Espere Offline ready para desconectar.
+Baixe browser-terminal-attempt-N de uma verificação bem-sucedida no GitHub. Extraia MarketWeft-browser-0.303.0.zip, mantenha dist/ junto de serve-terminal.mjs e execute o comando na pasta. Acesse http://127.0.0.1:4173/ em navegador atual com WebAssembly, Canvas, BigInt e IndexedDB. Use Node.js 22.12 ou superior. O pacote dispensa instalação npm. Espere Offline ready para desconectar.
 
 ```sh
 node serve-terminal.mjs

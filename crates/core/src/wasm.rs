@@ -4829,6 +4829,18 @@ pub extern "C" fn mw_price_volume_trend() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_ease_of_movement(period: usize) -> u32 {
+    process(|input| {
+        crate::ease_of_movement(period, &decode_bars(input)?).map(encode_wide_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_negative_volume_index() -> u32 {
+    process(|input| crate::negative_volume_index(&decode_bars(input)?).map(encode_indicator_values))
+}
+
+#[no_mangle]
 pub extern "C" fn mw_adx_rating(di_period: usize, adx_period: usize) -> u32 {
     process(|input| {
         crate::adx_rating(di_period, adx_period, &decode_bars(input)?).map(encode_indicator_values)

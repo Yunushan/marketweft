@@ -1412,6 +1412,8 @@ export interface MarketCore {
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
   cumulativeVolume(bars: readonly Bar[]): CumulativeVolume[];
   priceVolumeTrend(bars: readonly Bar[]): (bigint | null)[];
+  easeOfMovement(period: number, bars: readonly Bar[]): (bigint | null)[];
+  negativeVolumeIndex(bars: readonly Bar[]): (bigint | null)[];
   volumeRateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   volumeOscillator(fast: number, slow: number, bars: readonly Bar[]): (bigint | null)[];
   aroon(period: number, bars: readonly Bar[]): (AroonValue | null)[];
@@ -1629,6 +1631,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
   mw_cumulative_volume(): number;
   mw_price_volume_trend(): number;
+  mw_ease_of_movement(period: number): number;
+  mw_negative_volume_index(): number;
   mw_volume_rate_of_change(period: number): number;
   mw_volume_oscillator(fast: number, slow: number): number;
   mw_aroon(period: number): number;
@@ -3227,6 +3231,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       if (bars.length > MAX_INDICATOR_PERIOD) throw new Error('Price Volume Trend supports up to 100,000 observed bars.');
       putIndicatorBars(bars, 'Price Volume Trend');
       return readWideIndicator(output(api.mw_price_volume_trend()), bars.length);
+    },
+    easeOfMovement(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'Ease of Movement');
+      return readWideIndicator(output(api.mw_ease_of_movement(period)), bars.length);
+    },
+    negativeVolumeIndex(bars) {
+      if (bars.length > MAX_INDICATOR_PERIOD) throw new Error('Negative Volume Index supports up to 100,000 observed bars.');
+      putIndicatorBars(bars, 'Negative Volume Index');
+      return readIndicatorTicks(output(api.mw_negative_volume_index()), bars.length);
     },
     volumeRateOfChange(period, bars) {
       validateIndicatorHistory(period, bars.length);

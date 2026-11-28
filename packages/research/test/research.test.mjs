@@ -9,6 +9,19 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK returns signed Ease of Movement and the causal Negative Volume Index', async () => {
+  const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-volume-movement.csv', import.meta.url), 'utf8')
+  const engine = await createResearchEngine(wasm)
+  const bars = engine.parseBars(source)
+  const movement = engine.easeOfMovement(3, bars)
+  const index = engine.negativeVolumeIndex(bars)
+  assert.deepEqual(movement.slice(0, 5), [null, null, null, 333_333n, -1_666_667n])
+  assert.deepEqual(engine.easeOfMovement(1, bars).slice(5, 8), [0n, 0n, -18_000_000n])
+  assert.deepEqual(index.slice(5, 10), [1_066_666_667n, 1_200_000_000n, 1_200_000_000n, null, 1_800_000_000n])
+  assert.deepEqual(engine.easeOfMovement(3, bars.slice(0, 8)), movement.slice(0, 8))
+  assert.deepEqual(engine.negativeVolumeIndex(bars.slice(0, 8)), index.slice(0, 8))
+})
+
 test('the public SDK connects net paper dividends to cash receipts and retains full withholding', async () => {
   const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8')
   const [membership, prices, liquidity, dividends] = await Promise.all(
