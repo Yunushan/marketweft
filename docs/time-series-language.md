@@ -66,3 +66,11 @@ Rust callers use `evaluate_scalar_plugin(module, ticks)`. The TypeScript researc
 Use `ResearchEngine.evaluate_scalar_plugin(module, ticks)` with the local `marketweft-research` executable. It accepts the compiled module as `bytes` and the input as a signed 64-bit Python integer in millionths. With the packaged increment plugin, an input of `-123456789` returns `-123456788` exactly. [Python research SDK](../packages/python-research/README.md)
 
 The `marketweft-research scalar-plugin` command reads an ASCII header followed immediately by the raw module on stdin. Its version 1 header is `marketweft-scalar-plugin<TAB>1<TAB><input><LF>`. The response contains the same header with the output integer and ends after the line feed. A rejected invocation exits unsuccessfully and reports the error on stderr. The CLI and Python SDK use the same interpreter and budgets as the browser.
+
+### Scalar plugins on observed closes
+
+Open **Scalar plugin on observed closes** in **Time-series formulas**. Select a binary module and an inclusive UTC range. The terminal evaluates the selected history's recorded closes and shows the source time, input and result for each row. Gaps in the supplied history remain gaps. Each row starts a fresh instance of the same module. The terminal initially selects the latest 256 available bars.
+
+One evaluation accepts up to 256 closes and uses at most one million fuel units in total, while each row retains the scalar ABI's per-call lifetime and limits. A trap rejects the series. Evaluation requires the source's automated-use permission. CSV export rechecks redistribution permission and includes the instrument, source, module SHA-256, both UTC bounds and exact values.
+
+Rust callers use `evaluate_scalar_plugin_series(module, bars, from, through)`. The TypeScript SDK exposes `evaluateScalarPluginSeries` with the same UTC seconds and returns signed `bigint` millionths. [TypeScript research SDK](../packages/research/README.md)

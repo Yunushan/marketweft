@@ -32,6 +32,22 @@ test('the packaged SDK evaluates a bounded scalar plugin with exact bigint input
   assert.match(await readFile(new URL('../dist/WASM-THIRD-PARTY.txt', import.meta.url), 'utf8'), /wasmi 2\.0\.3/)
 })
 
+test('the packaged SDK exports exact plugin series at separate UTC cutoffs', async () => {
+  const file = new URL('../../../crates/core/tests/fixtures/scalar-plugins.txt', import.meta.url)
+  const [source, research] = await Promise.all([readFile(file, 'utf8'), createResearchEngine(wasm)])
+  const increment = Buffer.from(/^increment ([a-f0-9]+)$/m.exec(source)[1], 'hex')
+  const at = '2025-06-03T14:00:00Z'
+  const first = Date.parse(at) / 1000
+  const bars = research.parseBars('time,open,high,low,close,volume\n' +
+    at + ',-0.000005,-0.000005,-0.000005,-0.000005,1\n' +
+    '2025-06-03T14:03:00Z,0.000003,0.000003,0.000003,0.000003,1\n')
+  assert.deepEqual(research.evaluateScalarPluginSeries(increment, bars, first - 120, first - 1), [])
+  const one = { time: first, close: -5n, value: -4n }
+  assert.deepEqual(research.evaluateScalarPluginSeries(increment, bars, first, first), [one])
+  assert.deepEqual(research.evaluateScalarPluginSeries(increment, bars, first, first + 180),
+    [one, { time: first + 180, close: 3n, value: 4n }])
+})
+
 test('the packaged SDK reports depth sweep cutoffs and exact fixed-point execution', async () => {
   const depth = new URL('../../../crates/core/tests/fixtures/synthetic-depth.csv', import.meta.url)
   const [reports, research] = await Promise.all([readFile(depth, 'utf8'), createResearchEngine(wasm)])

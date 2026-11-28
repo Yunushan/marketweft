@@ -92,6 +92,12 @@ export interface PointFigureBox {
   mark: 'X' | 'O';
 }
 
+export interface ScalarPluginPoint {
+  time: number;
+  close: bigint;
+  value: bigint;
+}
+
 export interface FormulaResult {
   version: number;
   values: (bigint | null)[];
@@ -1181,6 +1187,7 @@ export type RegressionChannel = { observations: number; startTicks: bigint; endT
 export interface MarketCore {
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
   evaluateScalarPlugin(module: Uint8Array, ticks: bigint): bigint;
+  evaluateScalarPluginSeries(module: Uint8Array, bars: readonly Bar[], from: number, through: number): ScalarPluginPoint[];
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
   heikinAshi(bars: readonly Bar[]): Bar[];
@@ -1371,6 +1378,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_bollinger_measures(period: number): number;
   mw_formula_version(): number;
   mw_evaluate_scalar_plugin(ticks: bigint): number;
+  mw_evaluate_scalar_plugin_series(moduleBytes: number, from: bigint, through: bigint): number;
   mw_evaluate_formula(sourceBytes: number): number;
   mw_evaluate_formula_library(sourceBytes: number, libraryBytes: number): number;
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
@@ -1472,6 +1480,7 @@ const SPLIT_ID_BYTES = 40;
 const REVISED_SPLIT_BYTES = LEGACY_SPLIT_BYTES + SPLIT_ID_BYTES;
 export const DEFAULT_INDICATOR_PERIODS = { sma: 20, ema: 9 } as const;
 export const MAX_INDICATOR_PERIOD = 100_000;
+export const MAX_SCALAR_PLUGIN_SERIES_BARS = 256;
 
 export function validIndicatorPeriod(period: unknown): period is number {
   return typeof period === 'number' && Number.isInteger(period) &&
@@ -2005,6 +2014,23 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const dest = input(module.byteLength);
       new Uint8Array(dest.buffer, dest.byteOffset, dest.byteLength).set(module);
       return output(api.mw_evaluate_scalar_plugin(ticks)).getBigInt64(0, true);
+    },
+    evaluateScalarPluginSeries(module, bars, from, through) {
+      if (typeof api.mw_evaluate_scalar_plugin_series !== 'function')
+        throw new Error('Plugin series require a compatible MarketWeft calculation engine.');
+      if (module.byteLength > 64 * 1024) throw new Error('Scalar plugin exceeds 64 KiB.');
+      if (bars.length > 100_000) throw new Error('Scalar plugin series support up to 100,000 source bars.');
+      if (!Number.isSafeInteger(from) || !Number.isSafeInteger(through))
+        throw new Error('Use integer UTC seconds for scalar plugin closes.');
+      const dest = input(module.byteLength + bars.length * 48);
+      new Uint8Array(dest.buffer, dest.byteOffset, module.byteLength).set(module);
+      bars.forEach((bar, index) => putBar(dest, module.byteLength + index * 48, bar, 'Scalar plugin'));
+      const result = output(api.mw_evaluate_scalar_plugin_series(module.byteLength, BigInt(from), BigInt(through)));
+      return Array.from({ length: result.byteLength / 24 }, (_, index) => {
+        const offset = index * 24;
+        return { time: Number(result.getBigInt64(offset, true)), close: result.getBigInt64(offset + 8, true),
+          value: result.getBigInt64(offset + 16, true) };
+      });
     },
     evaluateFormula(source, bars, functions) {
       const sourceBytes = encoder.encode(source);

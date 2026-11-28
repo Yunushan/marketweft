@@ -180,7 +180,10 @@ pub use range_bars::RangeBar;
 pub use range_position::williams_percent_r;
 pub use regression_channel::{regression_channel, RegressionChannel};
 pub use renko::renko;
-pub use scalar_plugin::{evaluate_scalar_plugin, MAX_SCALAR_PLUGIN_BYTES};
+pub use scalar_plugin::{
+    evaluate_scalar_plugin, evaluate_scalar_plugin_series, ScalarPluginPoint,
+    MAX_SCALAR_PLUGIN_BYTES, MAX_SCALAR_PLUGIN_SERIES_BARS,
+};
 pub use weighted_volume::{money_flow_index, volume_weighted_average};
 pub type RenkoBrick = PriceMovement;
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};

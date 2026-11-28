@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.211.0 · Scalar plugins on observed closes
+
+- Native Rust and the Wasm bridge verify inclusive UTC ranges, gaps, signed millionths and independent state across observations. Each program fits the individual fuel budget in the aggregate-limit test. The series is rejected when the program uses too much fuel across the selected closes.
+- Offline Chromium verifies the first cutoff, the later close, byte-identical CSV after rewind and the module digest. Separate tests cover automated-use and redistribution grants.
+
+[Scalar plugins on observed closes](time-series-language.md#scalar-plugins-on-observed-closes)
+
 ## 0.210.0 · Native and Python scalar plugin conformance
 
 - The local Rust research executable and Python SDK share the same scalar-module fixtures as the browser and TypeScript SDK. The tests preserve the signed 64-bit boundary and exact negative millionth output, isolate module state across calls and recover after rejected imports and exhausted fuel.

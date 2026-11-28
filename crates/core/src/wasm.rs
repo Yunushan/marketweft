@@ -4299,6 +4299,28 @@ pub extern "C" fn mw_evaluate_scalar_plugin(ticks: i64) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_evaluate_scalar_plugin_series(
+    module_bytes: usize,
+    from: i64,
+    through: i64,
+) -> u32 {
+    process(|input| {
+        let (module, bars) = input
+            .split_at_checked(module_bytes)
+            .ok_or("Invalid scalar plugin series payload.")?;
+        let points =
+            crate::evaluate_scalar_plugin_series(module, &decode_bars(bars)?, from, through)?;
+        let mut bytes = Vec::with_capacity(points.len() * 24);
+        for point in points {
+            bytes.extend_from_slice(&point.time.to_le_bytes());
+            bytes.extend_from_slice(&point.close.to_le_bytes());
+            bytes.extend_from_slice(&point.value.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_formula_version() -> u32 {
     crate::FORMULA_VERSION
 }

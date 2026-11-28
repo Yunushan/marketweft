@@ -7,7 +7,7 @@ export type {
   FormulaFunction, FormulaResult, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   OptionUnavailable, OptionUnderlying, PaperConfig, PaperDepthSnapshot, PaperSnapshot, QuarterlyValuation,
   ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
-  ScreenPrice, ScreenRow, TradeClassification, TradeClassificationQuery, TradeSideBasis, TrailingFourQuarters,
+  ScalarPluginPoint, ScreenPrice, ScreenRow, TradeClassification, TradeClassificationQuery, TradeSideBasis, TrailingFourQuarters,
 } from './core.js'
 
 export const RESEARCH_SDK_VERSION = 1
@@ -18,6 +18,7 @@ export interface MarketResearch {
   parseBars(csv: string): Bar[]
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult
   evaluateScalarPlugin: MarketCore['evaluateScalarPlugin']
+  evaluateScalarPluginSeries: MarketCore['evaluateScalarPluginSeries']
   universeScreen: MarketCore['universeScreen']
   compareUniverseRanks: MarketCore['compareUniverseRanks']
   recordedDepthSweep: MarketCore['recordedDepthSweep']
@@ -42,6 +43,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     parseBars: core.parseCsv,
     evaluateFormula: core.evaluateFormula,
     evaluateScalarPlugin: core.evaluateScalarPlugin,
+    evaluateScalarPluginSeries: core.evaluateScalarPluginSeries,
     universeScreen: core.universeScreen,
     compareUniverseRanks: core.compareUniverseRanks,
     recordedDepthSweep: core.recordedDepthSweep,

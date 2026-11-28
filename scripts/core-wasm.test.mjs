@@ -30,6 +30,24 @@ test('scalar plugins preserve exact signed values and enforce instance isolation
   assert.equal(run('increment', -123456789n), -123456788n);
 });
 
+test('scalar plugin series keeps inclusive UTC starting and ending rows and a shared fuel budget', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/scalar-plugins.txt', import.meta.url), 'utf8');
+  const module = name => Buffer.from(source.match(new RegExp('^' + name + ' ([a-f0-9]+)$', 'm'))[1], 'hex');
+  const point = (time, close) => ({ time, open: close, high: close, low: close, close, volume: 1 });
+  const history = [point(60, -0.000005), point(180, 0.000003), point(240, -0.000001)];
+  const increment = module('increment');
+  const run = (from, through) => core.evaluateScalarPluginSeries(increment, history, from, through);
+  assert.deepEqual(run(0, 59), []);
+  assert.deepEqual(run(60, 60), [{ time: 60, close: -5n, value: -4n }]);
+  assert.deepEqual(run(180, 241), [{ time: 180, close: 3n, value: 4n }, { time: 240, close: -1n, value: 0n }]);
+  assert.deepEqual(core.evaluateScalarPluginSeries(module('state'), history, 0, 240).map(row => row.value), [1n, 1n, 1n]);
+  assert.throws(() => run(180, 60), /ordered UTC range/);
+  const window = Array.from({ length: 257 }, (_, time) => point(time, 5));
+  assert.throws(() => core.evaluateScalarPluginSeries(increment, window, 0, 256), /256 observed closes/);
+  assert.throws(() => core.evaluateScalarPluginSeries(module('counted'), window, 0, 255), /execution budget/);
+  assert.deepEqual(run(60, 60), [{ time: 60, close: -5n, value: -4n }]);
+});
+
 test('subscription rights keep the fractional entitlement, whole exercise and exact cash requirement in Wasm', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, reports] = await Promise.all([

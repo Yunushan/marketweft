@@ -207,6 +207,9 @@ functions and evaluate gap(close) >= 13 as the entry. Download the
 strategy package to carry the definitions into another workspace.
 Under Scalar Wasm plugin, load scalar-increment.wasm and enter -123.456789.
 The result is -123.456788 and includes the module SHA-256.
+Use the same module in Scalar plugin on observed closes. With formula-bars.csv
+selected, choose 2025-04-03T14:00:00Z through 2025-04-03T14:01:00Z to see
+10.000001 and 12.000001 with their original close timestamps.
 Expand Recorded trade execution and load backtest-trades.csv or use the
 sample execution trades. Set effective time to 2025-04-03T14:11:00Z.
 Compare knowledge at 14:05:29, 14:05:30 and 14:11:10 UTC, then export the
