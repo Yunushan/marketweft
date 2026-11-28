@@ -1,6 +1,6 @@
 use crate::{
-    history::exact_utc, parse_delistings, DelistingBook, DelistingState, PriceBook,
-    PriceObservation, UniverseAction, UniverseBook, UniverseChange,
+    history::exact_utc, parse_delistings, screen::rounded_div, DelistingBook, DelistingState,
+    PriceBook, PriceObservation, UniverseAction, UniverseBook, UniverseChange, SCALE,
 };
 use std::{
     collections::BTreeMap,
@@ -102,6 +102,22 @@ pub struct PortfolioSnapshot<'a> {
     pub rows: Vec<PortfolioRow<'a>>,
     pub totals: BTreeMap<&'a str, PortfolioCurrency>,
     pub unvalued_positions: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EquityConcentrationPosition<'a> {
+    pub listing_id: &'a str,
+    pub mark: Option<i128>,
+    pub rank: Option<usize>,
+    /// Millionths of a percentage point of known gross marked shares.
+    pub weight_micros: Option<i64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EquityConcentration<'a> {
+    pub currency: Option<&'a str>,
+    pub gross_mark: Option<i128>,
+    pub positions: Vec<EquityConcentrationPosition<'a>>,
 }
 
 struct PositionSeries {
@@ -235,6 +251,58 @@ impl<'a> PortfolioBook<'a> {
 }
 
 impl<'a> PortfolioSnapshot<'a> {
+    /// Rank live share holdings by absolute observed mark within each quote
+    /// currency. Keep unpriced holdings visible and exclude delisting claims.
+    pub fn equity_concentration(&self) -> Vec<EquityConcentration<'a>> {
+        let mut groups = BTreeMap::<_, Vec<_>>::new();
+        for row in &self.rows {
+            if matches!(
+                row.state,
+                PortfolioState::MarkedShares
+                    | PortfolioState::MissingClose
+                    | PortfolioState::ListingUnobserved
+            ) {
+                groups.entry(row.currency).or_default().push(row);
+            }
+        }
+        groups
+            .into_iter()
+            .map(|(currency, mut rows)| {
+                rows.sort_unstable_by(|a, b| {
+                    b.value
+                        .map(i128::abs)
+                        .cmp(&a.value.map(i128::abs))
+                        .then_with(|| a.listing_id.cmp(b.listing_id))
+                });
+                let gross_mark = rows
+                    .iter()
+                    .filter_map(|row| row.value.map(i128::abs))
+                    .reduce(|a, b| a + b);
+                let denominator = gross_mark.filter(|gross| *gross > 0);
+                let positions = rows
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, row)| {
+                        let weight_micros = row.value.zip(denominator).map(|(mark, total)| {
+                            rounded_div(mark.abs() * i128::from(100 * SCALE), total) as i64
+                        });
+                        EquityConcentrationPosition {
+                            listing_id: row.listing_id,
+                            mark: row.value,
+                            rank: weight_micros.map(|_| index + 1),
+                            weight_micros,
+                        }
+                    })
+                    .collect();
+                EquityConcentration {
+                    currency,
+                    gross_mark,
+                    positions,
+                }
+            })
+            .collect()
+    }
+
     fn include(&mut self, row: PortfolioRow<'a>) {
         if let Some((currency, value)) = row.currency.zip(row.value) {
             let total = self.totals.entry(currency).or_default();

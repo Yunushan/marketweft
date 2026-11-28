@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { FxAmount, MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash, PortfolioSuccessorShare } from './market-core'
+import type { EquityConcentration, FxAmount, MarketCore, PortfolioSnapshot, PortfolioSpinOff, PortfolioSpinOffBasis, PortfolioSpinOffCash, PortfolioSuccessorShare } from './market-core'
 import { SuccessorDeliveryLedger, shareText } from './SuccessorDeliveryLedger'
 import { PortfolioRights } from './PortfolioRights'
 import { PortfolioRightsExercises } from './PortfolioRightsExercises'
@@ -75,6 +75,29 @@ const successorShareStates: Record<PortfolioSuccessorShare['state'], string> = {
   delivered: 'Shares delivered',
 }
 const money = (value: bigint) => fixed(value, 6)
+
+function EquityConcentrationValues({ groups }: { groups: EquityConcentration[] }) {
+  return <details className="research-details">
+    <summary>Equity concentration</summary>
+    <section aria-label="Portfolio equity concentration">
+      {groups.map(({ currency, grossMark, positions }) => {
+        const label = currency ?? 'Currency unavailable'
+        const missing = positions.filter(row => row.mark === null).length
+        return <div key={label} className="replay-table-scroll">
+          <p>{label} · Known gross {grossMark === null ? '—' : money(grossMark)} · {missing} without a close</p>
+          <table className="universe-table" aria-label={label + ' equity weights'}>
+            <thead><tr><th scope="col">Listing</th><th scope="col">Signed share value</th>
+              <th scope="col">Rank</th><th scope="col">Weight of known gross</th></tr></thead>
+            <tbody>{positions.map(row => <tr key={row.listing}>
+              <th scope="row">{row.listing}</th><td>{row.mark === null ? '—' : money(row.mark)}</td>
+              <td>{row.rank ?? '—'}</td><td>{row.weightMicros === null ? '—' : money(row.weightMicros) + '%'}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      })}
+    </section>
+  </details>
+}
 
 async function readReport(file: File, max: number) {
   if (file.size > max * 1024 * 1024) throw new Error(file.name + ' exceeds ' + max + ' MiB.')
@@ -485,6 +508,7 @@ function PortfolioResult({ snapshot, core, fx, effective, known }: {
         </table>
       </div>}
       {fx && <PortfolioFxValues core={core} reports={fx} effective={effective} known={known} amounts={currencies} />}
+      {snapshot.equityConcentration.length > 0 && <EquityConcentrationValues groups={snapshot.equityConcentration} />}
       {snapshot.income && snapshot.income.dividends.length > 0 && <div className="replay-table-scroll">
         <table className="universe-table" aria-label="Portfolio dividend entitlement">
           <thead><tr><th scope="col">Listing</th><th scope="col">Dividend</th><th scope="col">Ex date (UTC)</th>

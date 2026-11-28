@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.255.0 · Point-in-time portfolio equity concentration
+
+- At the fixed 14:10 UTC effective cutoff, the original mark leaves BETA-001 without rank. The late 14:12 report puts it first at 73.298429% of known USD gross. The 14:16 revision changes its weight to 71.22708%. Rewinding restores the original missing mark.
+- At 14:45 UTC, BETA-002 has 100% of known EUR equity. BETA-001’s delisting receivable stays in the existing currency subtotal. Native tests also check equal magnitudes, signed values and undefined weights on zero gross.
+
+[Equity concentration](portfolio-replay.md#equity-concentration)
+
 ## 0.254.0 · Price Volume Trend and ADX Rating
 
 - Native and Wasm fixtures verify exact signed volumes and a contribution wider than a signed 64-bit integer. A zero prior close leaves a gap, and the next available contribution resumes the prior subtotal.

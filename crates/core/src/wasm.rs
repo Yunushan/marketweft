@@ -1117,6 +1117,31 @@ fn portfolio_report(
         snapshot.effective_at, snapshot.known_at, snapshot.unvalued_positions
     )
     .unwrap();
+    for group in snapshot.equity_concentration() {
+        writeln!(
+            text,
+            "G\t{}\t{}",
+            group.currency.unwrap_or_default(),
+            group
+                .gross_mark
+                .map(|mark| mark.to_string())
+                .unwrap_or_default()
+        )
+        .unwrap();
+        for row in group.positions {
+            writeln!(
+                text,
+                "E\t{}\t{}\t{}\t{}",
+                row.listing_id,
+                row.mark.map(|mark| mark.to_string()).unwrap_or_default(),
+                row.rank.map(|rank| rank.to_string()).unwrap_or_default(),
+                row.weight_micros
+                    .map(|weight| weight.to_string())
+                    .unwrap_or_default(),
+            )
+            .unwrap();
+        }
+    }
     for (currency, totals) in snapshot.totals {
         writeln!(
             text,

@@ -23,6 +23,14 @@ With dividend reports loaded, the currency table adds independent dividend recei
 
 The synthetic portfolio holds ALFA-001 and BETA-001. At the 14:10 UTC effective cutoff, BETA-001 has no visible close until knowledge reaches 14:12. The known USD share value then moves from 204 to 764. Once BETA-001 is delisted, its 70 USD receivable is distinct from 225 EUR of marked shares in BETA-002 at 14:45. At 14:50, the USD subtotal is 284, comprising 214 in shares and 70 in delisting cash. A later corrected quantity leaves 64 USD of settled proceeds at 14:58. Revised terms replace that payment with 72 EUR at 15:04.
 
+## Equity concentration
+
+Open **Equity concentration** in the portfolio results. Each quote currency shows the absolute value of its known marked shares and the number of holdings without a close. The table keeps each signed share value and ranks its absolute magnitude. Holdings with equal magnitudes are ordered by stable listing ID. The weight is the absolute share value divided by the currency’s known gross share value, rounded to six decimal places in percentage points. Missing marks have no rank or weight. When all known marks are zero, each weight and rank stays unavailable.
+
+The concentration uses exact closes at the selected effective time, including revisions observed by the knowledge time. It includes holdings after a universe removal. After a known effective delisting, the existing cash and receivable tables carry the proceeds. The equity concentration groups marked shares by their original quote currencies. Holdings with unobserved listings appear under **Currency unavailable** until their listing evidence is visible.
+
+In **Load portfolio demo**, keep the effective time at 14:10 UTC on 2025-06-02. At the 14:10 knowledge cutoff, the known USD gross is 204 and BETA-001 has no rank. At 14:12, BETA-001 has 73.298429% of 764 USD. At 14:16, its revised mark gives it 71.22708% of 709 USD. Returning knowledge to 14:10 restores the missing mark. At both 14:45 cutoffs, BETA-002 has 100% of the 225 EUR in marked equity.
+
 ## Portfolio currency translation
 
 Choose **Load portfolio FX demo**, or add **Portfolio FX rates CSV** when opening your holdings and close reports. Open **Portfolio currency translation** and apply a three-letter reporting currency. The table converts the known currency subtotals shown directly above it. Those subtotals include valued shares, delisting cash and receivables, and dividend subtotals when dividend reports are present. The converted subtotal includes currencies with available conversions. The source table carries the original amounts and the positions table identifies missing valuations.

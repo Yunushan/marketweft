@@ -1006,6 +1006,12 @@ export interface FxTranslation {
   rows: FxCurrencyValue[];
 }
 
+export interface EquityConcentration {
+  currency: string | null;
+  grossMark: bigint | null;
+  positions: { listing: string; mark: bigint | null; rank: number | null; weightMicros: bigint | null }[];
+}
+
 export interface PortfolioSnapshot {
   effectiveAt: number;
   knownAt: number;
@@ -1020,6 +1026,7 @@ export interface PortfolioSnapshot {
     }[];
   };
   totals: { currency: string; sharesValue: bigint; receivable: bigint; cash: bigint }[];
+  equityConcentration: EquityConcentration[];
   holdings: {
     listing: string;
     instrument: string | null;
@@ -3139,14 +3146,23 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const [, effective, known, unavailable] = header.split('\t');
       const report: PortfolioSnapshot = {
         effectiveAt: Number(effective), knownAt: Number(known), unvaluedPositions: Number(unavailable),
-        holdings: [], totals: [],
+        holdings: [], totals: [], equityConcentration: [],
       };
       const income: NonNullable<PortfolioSnapshot['income']> | undefined = dividends
         ? { totals: [], dividends: [] } : undefined;
       if (income) report.income = income;
       for (const row of rows) {
         const [kind, ...fields] = row.split('\t');
-        if (kind === 'C') {
+        if (kind === 'G') {
+          const [currency, gross] = fields;
+          report.equityConcentration.push({ currency: currency || null, grossMark: gross ? BigInt(gross) : null, positions: [] });
+        } else if (kind === 'E') {
+          const group = report.equityConcentration.at(-1);
+          if (!group) throw new Error('Invalid portfolio equity concentration evidence.');
+          const [listing, mark, rank, weight] = fields;
+          group.positions.push({ listing, mark: mark ? BigInt(mark) : null, rank: rank ? Number(rank) : null,
+            weightMicros: weight ? BigInt(weight) : null });
+        } else if (kind === 'C') {
           const [currency, sharesValue, receivable, cash] = fields;
           report.totals.push({ currency, sharesValue: BigInt(sharesValue), receivable: BigInt(receivable), cash: BigInt(cash) });
         } else if (kind === 'I' && income) {

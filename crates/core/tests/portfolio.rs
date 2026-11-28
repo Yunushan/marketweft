@@ -47,6 +47,78 @@ fn valuation_tracks_open_holdings_late_closes_and_unobserved_listings() {
 }
 
 #[test]
+fn equity_concentration_reranks_late_marks_and_keeps_delisted_cash_outside_share_weights() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let portfolio = PortfolioBook::parse(&universe, HOLDINGS, PRICES, DELISTING).unwrap();
+    let summary = |effective, known| {
+        portfolio
+            .as_of(t(effective), t(known))
+            .equity_concentration()
+    };
+    let missing = summary(10, 10);
+    assert_eq!(missing[0].gross_mark, Some(204 * MILLION));
+    assert_eq!(missing[0].positions[0].weight_micros, Some(100_000_000));
+    assert_eq!(missing[0].positions[1].listing_id, "BETA-001");
+    assert_eq!(missing[0].positions[1].rank, None);
+    let listed = summary(10, 12);
+    assert_eq!(listed[0].gross_mark, Some(764 * MILLION));
+    assert_eq!(listed[0].positions[0].listing_id, "BETA-001");
+    assert_eq!(listed[0].positions[0].rank, Some(1));
+    assert_eq!(listed[0].positions[0].weight_micros, Some(73_298_429));
+    assert_eq!(listed[0].positions[1].weight_micros, Some(26_701_571));
+    let revised = summary(10, 16);
+    assert_eq!(revised[0].gross_mark, Some(709 * MILLION));
+    assert_eq!(revised[0].positions[0].weight_micros, Some(71_227_080));
+    assert_eq!(summary(10, 10), missing);
+
+    let unobserved = summary(6, 6);
+    assert_eq!(unobserved[0].currency, None);
+    assert_eq!(unobserved[0].positions[0].listing_id, "BETA-001");
+    let reused = summary(45, 45);
+    assert_eq!(reused[0].currency, Some("EUR"));
+    assert_eq!(reused[0].gross_mark, Some(225 * MILLION));
+    assert_eq!(reused[0].positions[0].listing_id, "BETA-002");
+    assert_eq!(reused[1].currency, Some("USD"));
+    assert_eq!(reused[1].gross_mark, None);
+    assert_eq!(reused[1].positions[0].listing_id, "ALFA-001");
+    assert!(reused.iter().all(|group| group
+        .positions
+        .iter()
+        .all(|row| row.listing_id != "BETA-001")));
+}
+
+#[test]
+fn concentration_keeps_signed_marks_equal_magnitudes_and_all_zero_exposure_distinct() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let portfolio = PortfolioBook::parse(&universe, HOLDINGS, PRICES, DELISTING).unwrap();
+    let mut snapshot = portfolio.as_of(t(10), t(16));
+    snapshot.rows[1].value = Some(-204 * MILLION);
+    let groups = snapshot.equity_concentration();
+    let usd = &groups[0];
+    assert_eq!(usd.gross_mark, Some(408 * MILLION));
+    assert_eq!(
+        usd.positions
+            .iter()
+            .map(|row| (row.listing_id, row.mark, row.rank, row.weight_micros))
+            .collect::<Vec<_>>(),
+        [
+            ("ALFA-001", Some(204 * MILLION), Some(1), Some(50_000_000)),
+            ("BETA-001", Some(-204 * MILLION), Some(2), Some(50_000_000))
+        ]
+    );
+
+    for row in &mut snapshot.rows {
+        row.value = Some(0);
+    }
+    let groups = snapshot.equity_concentration();
+    assert_eq!(groups[0].gross_mark, Some(0));
+    assert!(groups[0]
+        .positions
+        .iter()
+        .all(|row| row.mark == Some(0) && row.rank.is_none() && row.weight_micros.is_none()));
+}
+
+#[test]
 fn delisting_proceeds_follow_held_lots_and_currency_without_inheriting_a_reused_ticker() {
     let universe = parse_universe(MEMBERSHIP).unwrap();
     let portfolio = PortfolioBook::parse(&universe, HOLDINGS, PRICES, DELISTING).unwrap();
