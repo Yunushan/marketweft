@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.250.0 · Read-only portfolio FX over MCP
+
+- The installed local MCP server returns two bounded currency pages and identifies a missing EUR conversion and USD identity conversion at 14:45 UTC. Earlier and revised observations produce exact known totals of 70, 340 and 362.5 USD, and rewinding restores the first page.
+- An official MCP client validates the structured result, exact signed 128-bit decimal amounts, reciprocal evidence, and 351.25 USD after moving the effective cutoff forward while holding the observation cutoff fixed. Direct stdio tests also reject file path arguments, numeric instead of decimal-string subtotals, and overflows.
+
+[Portfolio FX via MCP](local-mcp-research.md#portfolio-currency-conversion)
+
 ## 0.249.0 · Portfolio FX research SDKs
 
 - The native CLI and installed Python and TypeScript SDKs reproduce known subtotals of 70, 340 and 362.5 USD as FX observations become visible. Rewinding restores 70 USD and the EUR subtotal with its missing rate.

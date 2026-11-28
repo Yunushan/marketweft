@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, portfolio scenarios, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, portfolio scenarios and FX conversion, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 
 ```json
 {
@@ -51,6 +51,14 @@ Call the read-only `portfolio_scenarios_as_of` tool with `membership_csv` and `p
 Each page echoes the dates, seed, horizon and block size. It reports complete return vectors, eligible blocks, listing coverage, loss paths and the 5th, 50th and 95th percentiles across all paths. Ending value and fees use decimal strings in millionths of portfolio currency. Drawdown uses decimal strings in millionths of the portfolio's peak value.
 
 Path numbers start at 1. Use `limit` from 1 to 250, with a default of 100. Pass `next_offset` as `offset` with identical inputs to fetch the next page. A `null` offset marks the last page. The synthetic pair's three-move blocks give one eligible block at 14:06 UTC, four when the late close becomes known at 14:07, and two after the membership removal becomes known at 14:08. [Portfolio scenario fixture and cutoff example](portfolio-scenarios.md#research-sdks).
+
+## Portfolio currency conversion
+
+Call the read-only `portfolio_fx_as_of` tool with `rates_csv` contents, a three-letter uppercase `reporting_currency`, and exact UTC `effective_at` and `known_at` cutoffs. Supply `amounts` as an array of source currency and `subtotal_ticks` objects. Send each currency once and use signed decimal strings in integer millionths for subtotals. The FX CSV accepts up to 1 MiB of UTF-8 data. [Portfolio FX inputs and rate selection](portfolio-replay.md#portfolio-currency-translation)
+
+Every page echoes both cutoffs and shows the known converted subtotal across all currencies. Each row keeps the original subtotal, a converted amount when available, and the quote pair, source and observation times, rate and reciprocal flag when a supporting rate was used. Amounts and rates are decimal strings in millionths. Quote times use whole Unix seconds. An identity conversion has a converted amount and `null` rate. A missing conversion has `null` for both.
+
+Set `limit` from 1 to 1,000 rows. The default is 200. Pass `next_offset` as `offset` with the same CSV, amounts and cutoffs until the offset is `null`. The sample FX report and subtotals of 70 USD and 225 EUR give a known subtotal of 70, 340 and 362.5 USD at 14:45, 14:46 and 14:49 UTC on 2025-06-02, with the effective cutoff fixed at 14:45. [Synthetic FX report](../crates/core/tests/fixtures/synthetic-portfolio-fx.csv)
 
 ## Financial snapshots
 

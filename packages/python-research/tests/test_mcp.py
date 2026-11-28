@@ -69,7 +69,7 @@ class McpTest(unittest.TestCase):
         self.assertEqual([item["name"] for item in tools],
                          [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.RANK_COMPARISON_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME,
                           mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME, mcp.MONTHLY_RETURNS_TOOL_NAME,
-                          mcp.MACRO_CALENDAR_TOOL_NAME, mcp.PORTFOLIO_SCENARIOS_TOOL_NAME])
+                          mcp.MACRO_CALENDAR_TOOL_NAME, mcp.PORTFOLIO_SCENARIOS_TOOL_NAME, mcp.PORTFOLIO_FX_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -250,6 +250,75 @@ class McpTest(unittest.TestCase):
             self.assertEqual(replies[name]["error"]["code"], -32602)
         self.assertTrue(replies["gap"]["result"]["isError"])
         self.assertIn("No complete return block", replies["gap"]["result"]["content"][0]["text"])
+        self.assertEqual(replies["ping"]["result"], {})
+
+    def test_portfolio_fx_pages_exact_totals_and_evidence_at_independent_cutoffs(self):
+        rates = (ROOT / "crates/core/tests/fixtures/synthetic-portfolio-fx.csv").read_text(encoding="utf-8")
+        arguments = {
+            "rates_csv": rates, "reporting_currency": "USD",
+            "effective_at": "2025-06-02T14:45:00Z", "known_at": "2025-06-02T14:45:00Z",
+            "amounts": [{"currency": "USD", "subtotal_ticks": "70000000"},
+                        {"currency": "EUR", "subtotal_ticks": "225000000"}],
+            "limit": 1,
+        }
+        wide = str(-(1 << 127))
+
+        def query(request_id, **changes):
+            return rpc("tools/call", request_id, {
+                "name": mcp.PORTFOLIO_FX_TOOL_NAME, "arguments": arguments | changes,
+            })
+
+        process = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(
+                rpc("initialize", "init", INITIALIZE), rpc("notifications/initialized"), rpc("tools/list", "tools"),
+                query("missing"), query("identity", offset=1),
+                query("original", known_at="2025-06-02T14:46:00Z"),
+                query("revised", known_at="2025-06-02T14:49:00Z"),
+                query("inverse", known_at="2025-06-02T14:49:00Z", reporting_currency="EUR", offset=1),
+                query("later-effective", effective_at="2025-06-02T14:46:00Z", known_at="2025-06-02T14:49:00Z"),
+                query("wide", amounts=[{"currency": "USD", "subtotal_ticks": wide}]), query("empty", amounts=[]),
+                query("bad-path", rates_path="rates.csv"), query("numeric", amounts=[{"currency": "USD", "subtotal_ticks": 1}]),
+                query("overflow", amounts=[{"currency": "USD", "subtotal_ticks": str(1 << 127)}]),
+                query("bad-offset", offset=True), query("rewind"), rpc("ping", "ping"),
+            ),
+            timeout=15, capture_output=True, check=True,
+        )
+        self.assertEqual(process.stderr, b"")
+        replies = {reply["id"]: reply for reply in map(json.loads, process.stdout.splitlines())}
+        tool = next(tool for tool in replies["tools"]["result"]["tools"] if tool["name"] == mcp.PORTFOLIO_FX_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertFalse(tool["annotations"]["openWorldHint"])
+        self.assertEqual(tool["inputSchema"]["properties"]["amounts"]["items"]["properties"]["subtotal_ticks"]["type"], "string")
+
+        def data(request_id):
+            result = replies[request_id]["result"]
+            self.assertEqual(json.loads(result["content"][0]["text"]), result["structuredContent"])
+            return result["structuredContent"]
+
+        missing, identity = data("missing"), data("identity")
+        self.assertEqual((missing["total_rows"], missing["next_offset"], identity["next_offset"]), (2, 1, None))
+        self.assertEqual(missing["rows"][0], {"currency": "EUR", "subtotal_ticks": "225000000",
+                                             "converted_ticks": None, "rate": None})
+        self.assertEqual(identity["rows"][0], {"currency": "USD", "subtotal_ticks": "70000000",
+                                              "converted_ticks": "70000000", "rate": None})
+        self.assertEqual([data(cutoff)["known_subtotal_ticks"] for cutoff in ("missing", "original", "revised", "rewind")],
+                         ["70000000", "340000000", "362500000", "70000000"])
+        self.assertEqual(data("rewind"), missing)
+        revised_quote = data("revised")["rows"][0]["rate"]
+        self.assertEqual(revised_quote, {
+            "base_currency": "EUR", "quote_currency": "USD", "rate_at": 1748875200,
+            "observed_at": 1748875740, "rate_ticks": "1300000", "inverted": False,
+        })
+        inverse = data("inverse")
+        self.assertEqual((inverse["reporting_currency"], inverse["known_subtotal_ticks"]), ("EUR", "278846154"))
+        self.assertEqual(inverse["rows"][0]["rate"], revised_quote | {"inverted": True})
+        self.assertEqual(data("later-effective")["known_subtotal_ticks"], "351250000")
+        self.assertEqual(data("wide")["known_subtotal_ticks"], wide)
+        self.assertEqual((data("empty")["known_subtotal_ticks"], data("empty")["rows"]), (None, []))
+        for name in ("bad-path", "numeric", "bad-offset"):
+            self.assertEqual(replies[name]["error"]["code"], -32602)
+        self.assertTrue(replies["overflow"]["result"]["isError"])
         self.assertEqual(replies["ping"]["result"], {})
 
     def test_tool_and_protocol_errors_preserve_the_session(self):
