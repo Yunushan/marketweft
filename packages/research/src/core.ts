@@ -233,6 +233,12 @@ export interface DepthSweep {
   } | null;
 }
 
+export interface PaperDepthSnapshot {
+  ledger: PaperSnapshot;
+  depthStatus: DepthStatus;
+  lastDepth: DepthStamp | null;
+}
+
 export interface TradeClassificationQuery {
   from: string;
   through: string;
@@ -1279,6 +1285,9 @@ export interface MarketCore {
   alertReplay(rules: string, observations: string, effective: string, known: string): AlertCrossing[];
   paperIndex(csv: string): number[];
   paperReplay(csv: string, cutoff: string, config: PaperConfig): PaperSnapshot;
+  paperDepthIndex(instrument: string, controls: string, depth: string): number[];
+  paperDepthReplay(instrument: string, controls: string, depth: string, cutoff: string,
+    config: PaperConfig): PaperDepthSnapshot;
   backtestIndex(calendar: string, bars: string, interval: number): number[];
   backtest(instrument: string, calendar: string, bars: string, interval: number,
     cutoff: string, config: BacktestConfig): BacktestResult;
@@ -1400,6 +1409,9 @@ interface MarketExports extends WebAssembly.Exports {
   mw_alert_replay(ruleBytes: number): number;
   mw_paper_index(): number;
   mw_paper_replay(): number;
+  mw_paper_depth_input(bytes: number): number;
+  mw_paper_depth_index(controlsBytes: number): number;
+  mw_paper_depth_replay(controlsBytes: number): number;
   mw_cross_section_replay(membershipBytes: number, priceBytes: number): number;
   mw_cross_section_actions(membershipBytes: number, priceBytes: number, liquidityBytes: number, dividendBytes: number): number;
   mw_cross_section_walk(membershipBytes: number, priceBytes: number, liquidityBytes: number, dividendBytes: number): number;
@@ -1912,6 +1924,24 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       offset += chunk.length;
     }
     return { calendarBytes: sessionBytes.length, barBytes: barBytes.length };
+  }
+
+  function putPaperDepthInput(instrument: string, controls: string, depth: string, settings: string[] = []) {
+    if (/[\r\n]/.test(instrument)) throw new Error('Use a single depth instrument.');
+    const header = encoder.encode([instrument, ...settings, ''].join('\n'));
+    const controlsBytes = encoder.encode(controls);
+    const depthBytes = encoder.encode(depth);
+    if (controlsBytes.length > 2 * 1024 * 1024 || depthBytes.length > LIMIT) {
+      throw new Error('Use up to 2 MiB of paper controls and 8 MiB of depth reports.');
+    }
+    const size = header.length + controlsBytes.length + depthBytes.length;
+    const ptr = api.mw_paper_depth_input(size);
+    if (!ptr) throw new Error('The calculation engine could not allocate paper depth input.');
+    const dest = new Uint8Array(api.memory.buffer, ptr, size);
+    dest.set(header);
+    dest.set(controlsBytes, header.length);
+    dest.set(depthBytes, header.length + controlsBytes.length);
+    return controlsBytes.length;
   }
 
   function encodeFormulaFunctions(functions: readonly FormulaFunction[] = []) {
@@ -3268,6 +3298,21 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       textInput([cutoff, paperSettings(config), csv].join('\n'));
       const text = decoder.decode(output(api.mw_paper_replay()));
       return decodePaper(text);
+    },
+    paperDepthIndex(instrument, controls, depth) {
+      const bytes = output(api.mw_paper_depth_index(putPaperDepthInput(instrument, controls, depth)));
+      return Array.from({ length: bytes.byteLength / 8 }, (_, index) => Number(bytes.getBigInt64(index * 8, true)));
+    },
+    paperDepthReplay(instrument, controls, depth, cutoff, config) {
+      if (cutoff.length !== 20 || /[\n\r]/.test(cutoff)) {
+        throw new Error('Paper cutoff requires a YYYY-MM-DDTHH:MM:SSZ timestamp.');
+      }
+      const controlsBytes = putPaperDepthInput(instrument, controls, depth, [cutoff, paperSettings(config)]);
+      const text = decoder.decode(output(api.mw_paper_depth_replay(controlsBytes)));
+      const [status, received, ...ledger] = text.split('\n');
+      const [sequence, event, observed] = received.split('\t');
+      return { ledger: decodePaper(ledger.join('\n')), depthStatus: decodeDepthStatus(status),
+        lastDepth: sequence ? { sequence: BigInt(sequence), eventAt: Number(event), observedAt: Number(observed) } : null };
     },
     backtestIndex(calendar, bars, interval) {
       validateInterval(interval);

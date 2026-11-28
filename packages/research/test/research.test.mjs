@@ -50,6 +50,21 @@ test('the packaged SDK keeps declared and inferred trade sides with their earlie
   assert.equal(later[7].quote.stamp.sequence, 9007199254740994n)
 })
 
+test('the packaged SDK distinguishes paper fills, a gap and recovered depth', async () => {
+  const fixture = name => new URL('../../../crates/core/tests/fixtures/synthetic-paper-depth-' + name + '.csv', import.meta.url)
+  const [controls, depth, research] = await Promise.all([
+    readFile(fixture('controls'), 'utf8'), readFile(fixture('liquidity'), 'utf8'), createResearchEngine(wasm),
+  ])
+  const config = { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' }
+  const time = sec => '2025-06-02T14:00:0' + sec + 'Z'
+  const query = sec => research.paperDepthReplay('NASDAQ:NVDA', controls, depth, time(sec), config)
+  assert.equal(research.paperDepthIndex('NASDAQ:NVDA', controls, depth).length, 9)
+  assert.equal(query(4).ledger.positions[0].shares, 4n)
+  assert.equal(query(6).depthStatus.kind, 'sequence-gap')
+  assert.equal(query(7).ledger.cash, 697500000n)
+  assert.equal(query(9).ledger.halted, true)
+})
+
 test('function libraries stay scoped to each evaluation and engine', async () => {
   const [first, second] = await Promise.all([
     createResearchEngine(wasm), createResearchEngine(wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength)),

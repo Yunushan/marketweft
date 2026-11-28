@@ -184,6 +184,10 @@ a threshold or moving-average webhook event.
 
 Open Paper ledger under Historical replay and Start paper demo, or load
 paper-events.csv. Step through reserves, partial fills, fees and the halt.
+Choose Start paper depth demo or upload paper-depth-controls.csv and
+paper-depth-liquidity.csv with NASDAQ:NVDA. Step through 14:00:02 UTC
+for the first two-share fill, 14:00:05 for the sequence gap and 14:00:07
+for the recovered sell. Download paper depth receipts to audit the fills.
 
 Open Bar backtest under Historical replay and Start backtest demo, or load
 backtest-sessions.csv and backtest-bars.csv with a 60-second bar interval.
@@ -290,6 +294,8 @@ def main():
         },
     }, indent=2) + "\n").encode("utf-8")
     files["paper-events.csv"] = (fixture / "synthetic-paper-events.csv").read_bytes()
+    for kind in ("controls", "liquidity"):
+        files[f"paper-depth-{kind}.csv"] = (fixture / f"synthetic-paper-depth-{kind}.csv").read_bytes()
     for kind in ("sessions", "bars", "trades"):
         files[f"backtest-{kind}.csv"] = (fixture / f"synthetic-backtest-{kind}.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))

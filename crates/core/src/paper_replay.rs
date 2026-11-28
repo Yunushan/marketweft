@@ -125,6 +125,10 @@ impl PaperReplay {
         Ok(Self { events })
     }
 
+    pub(crate) fn events(&self) -> &[PaperEvent] {
+        &self.events
+    }
+
     pub fn cutoffs(&self) -> Vec<i64> {
         let mut times: Vec<_> = self.events.iter().map(|event| event.observed_at).collect();
         times.dedup();

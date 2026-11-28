@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.205.0 · Paper matching against recorded depth
+
+- The Wasm and TypeScript SDK fixtures verify later quote eligibility, whole-share fills, price and time priority, repeated size, a sequence gap and matching resuming at a fresh snapshot. The fill receipts identify exact capture sequences above JavaScript’s safe integer range.
+- Offline Chromium verifies CSV import and receipt export, reserves of 303.3 after the first fill, cash of 599.6 before recovery, cash of 697.5 after recovery, realized loss of 2.2, cancellation and halt at the same observation time as a depth frame. Rewind reproduces the earlier receipt CSV byte for byte.
+- The local 0.204.0 to 0.205.0 portable upgrade preserved the saved quote and replayed the bundled paper controls and depth through recovery and halt while offline.
+
+[Paper depth matching](paper-ledger.md#match-paper-orders-against-recorded-depth)
+
 ## 0.204.0 · Recorded trade-side classification
 
 - The Rust fixture verifies strict quote timing across equal timestamps, independent execution and observation cutoffs, exact midpoint ties, quote-age rejection, locked books, gaps and recovery.

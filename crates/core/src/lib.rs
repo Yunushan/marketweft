@@ -104,7 +104,7 @@ pub use delisting::{
 };
 pub use depth::{
     BestQuote, DepthExecution, DepthLevel, DepthStamp, DepthStatus, DepthSweep, DepthTape,
-    DepthView, StampedDepthLevel,
+    DepthView, PaperDepthReplay, PaperDepthReport, StampedDepthLevel,
 };
 pub use directional::{directional_movement, DirectionalMovement};
 pub use dividend::{

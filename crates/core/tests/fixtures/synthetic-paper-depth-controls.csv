@@ -1,0 +1,7 @@
+event_id,observed_at,kind,order_id,instrument,side,shares,price,source_id,price_at
+ORDER-A,2025-06-02T14:00:00Z,submit,A,NASDAQ:NVDA,buy,2,100,,
+ORDER-B,2025-06-02T14:00:00Z,submit,B,NASDAQ:NVDA,buy,3,101,,
+ORDER-SELL,2025-06-02T14:00:05Z,submit,SELL,NASDAQ:NVDA,sell,2,100,,
+CANCEL-A,2025-06-02T14:00:08Z,cancel,A,,,,,,
+ORDER-SELL-B,2025-06-02T14:00:08Z,submit,SELL-B,NASDAQ:NVDA,sell,1,101,,
+HALT,2025-06-02T14:00:09Z,halt,,,,,,,

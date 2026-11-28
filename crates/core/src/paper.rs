@@ -109,7 +109,7 @@ pub struct Order {
 }
 
 impl Order {
-    fn working(&self) -> bool {
+    pub(crate) fn working(&self) -> bool {
         matches!(
             self.status,
             OrderStatus::Open | OrderStatus::PartiallyFilled

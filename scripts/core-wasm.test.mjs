@@ -788,6 +788,41 @@ test('paper successor delivery journal transports holding receipts and signed ch
   assert.deepEqual(journal(through), first);
 });
 
+test('paper depth matching enforces later quotes, shared liquidity, resync and control priority', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
+  const [controls, depth] = await Promise.all([fixture('synthetic-paper-depth-controls'), fixture('synthetic-paper-depth-liquidity')]);
+  const instrument = 'NASDAQ:NVDA';
+  const config = { startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2' };
+  const at = seconds => '2025-06-02T14:00:0' + seconds + 'Z';
+  const query = (seconds, events = controls) => core.paperDepthReplay(instrument, events, depth, at(seconds), config);
+  assert.deepEqual(core.paperDepthIndex(instrument, controls, depth), [0, 2, 3, 4, 5, 6, 7, 8, 9].map(sec => Date.parse(at(sec)) / 1000));
+  assert.equal(query(0).ledger.cash, 1000000000n);
+  const first = query(2);
+  assert.equal(first.ledger.cash, 799800000n);
+  assert.equal(first.ledger.reserved, 303300000n);
+  assert.deepEqual(query(3).ledger, first.ledger);
+  const expansion = query(4).ledger;
+  assert.equal(expansion.cash, 599600000n);
+  assert.deepEqual(expansion.receipts.filter(row => row.kind === 'fill').map(row => [row.orderId, row.shares, row.sourceId]), [
+    ['B', 2n, 'DEPTH-9007199254740994-1'], ['B', 1n, 'DEPTH-9007199254740996-1'], ['A', 1n, 'DEPTH-9007199254740996-1'],
+  ]);
+  const earlier = query(2, controls.replace('buy,3,101', 'buy,3,100'));
+  assert.equal(earlier.ledger.receipts.at(-1).orderId, 'A');
+  const gap = query(6);
+  assert.equal(gap.ledger.cash, expansion.cash);
+  assert.deepEqual(gap.depthStatus, { kind: 'sequence-gap', expected: 9007199254740997n, received: 9007199254740998n });
+  assert.equal(gap.lastDepth.sequence, 9007199254740999n);
+  const recovered = query(7);
+  assert.equal(recovered.ledger.cash, 697500000n);
+  assert.equal(recovered.ledger.realized, -2200000n);
+  assert.equal(recovered.ledger.positions[0].cost, 300300000n);
+  assert.equal(query(8).ledger.orders[0].status, 'canceled');
+  assert.equal(query(9).ledger.halted, true);
+  assert.equal(query(9).ledger.cash, recovered.ledger.cash);
+  assert.deepEqual(query(2), first);
+  assert.throws(() => query(4, controls.replace('ORDER-A', 'DEPTH-F-12-1')), /reserved DEPTH-F-/);
+});
+
 test('paper capital returns transport pre-ex fill evidence, exact cash and isolated fold scores', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
   const [membership, prices, liquidity, walkLiquidity, dividends, delistings, successorShares, capitalReturns] = await Promise.all([

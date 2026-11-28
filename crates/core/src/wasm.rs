@@ -2178,6 +2178,61 @@ pub extern "C" fn mw_paper_replay() -> u32 {
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_paper_depth_input(len: usize) -> *mut u8 {
+    allocate_input(len, MAX_INPUT_BYTES + 2 * 1024 * 1024 + 512)
+}
+
+#[no_mangle]
+pub extern "C" fn mw_paper_depth_index(control_bytes: usize) -> u32 {
+    process(|input| {
+        let (instrument, csvs) = recorded_source(input)?;
+        let (controls, depth) = csvs
+            .split_at_checked(control_bytes)
+            .ok_or("Invalid paper control file length.")?;
+        let replay = crate::PaperDepthReplay::parse(controls, depth, &instrument)?;
+        Ok(replay
+            .cutoffs()
+            .into_iter()
+            .flat_map(i64::to_le_bytes)
+            .collect())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_paper_depth_replay(control_bytes: usize) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let (instrument, rest) = recorded_source(input)?;
+        let [cutoff, settings, csvs] = rest
+            .splitn(3, '\n')
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|_| "Supply the paper cutoff, account settings and reports.")?;
+        let cutoff =
+            exact_utc(cutoff).ok_or("Paper cutoff requires a YYYY-MM-DDTHH:MM:SSZ timestamp.")?;
+        let config = parse_paper_config(settings)?;
+        let (controls, depth) = csvs
+            .split_at_checked(control_bytes)
+            .ok_or("Invalid paper control file length.")?;
+        let replay = crate::PaperDepthReplay::parse(controls, depth, &instrument)?;
+        let report = replay.account_at(config, cutoff)?;
+        let mut text = depth_status_text(report.status);
+        text.push('\n');
+        if let Some(stamp) = report.received {
+            write!(
+                &mut text,
+                "{}\t{}\t{}",
+                stamp.sequence, stamp.event_at, stamp.observed_at
+            )
+            .unwrap();
+        }
+        text.push('\n');
+        text.push_str(&encode_paper(&report.ledger));
+        Ok(text.into_bytes())
+    })
+}
+
 fn encode_paper(ledger: &crate::PaperAccount) -> String {
     use std::fmt::Write;
     let mut text = String::new();

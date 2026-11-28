@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { MarketCore, PaperConfig, PaperSnapshot } from './market-core'
+import type { MarketCore, PaperConfig, PaperDepthSnapshot, PaperSnapshot } from './market-core'
+import { depthStatusText } from './depth-status'
+import { quoteText } from './chart-export'
+import { downloadFile } from './download'
 import { Mark } from './Icons'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demo from '../../../crates/core/tests/fixtures/synthetic-paper-events.csv?raw'
+import demoControls from '../../../crates/core/tests/fixtures/synthetic-paper-depth-controls.csv?raw'
+import demoDepth from '../../../crates/core/tests/fixtures/synthetic-paper-depth-liquidity.csv?raw'
 
 const defaults: PaperConfig = {
   startingCash: '1000', positionLimit: '10', exposureLimit: '1200', feePerShare: '0.1', feePerOrder: '2',
@@ -35,14 +40,33 @@ const receipts: Record<string, string> = {
 const statuses: Record<string, string> = { open: 'Open', partial: 'Partially filled', filled: 'Filled', canceled: 'Canceled' }
 const amount = (value: bigint) => fixed(value, 6)
 
-type Source = { csv: string; name: string; times: number[] }
+type DepthSource = { instrument: string; csv: string; name: string }
+type Source = { csv: string; name: string; times: number[]; depth?: DepthSource }
 type Query = { at: string; config: PaperConfig }
+type View = { query: Query; ledger: PaperSnapshot; depth?: PaperDepthSnapshot }
+
+function downloadDepthReceipts(source: Source, view: View) {
+  const { depth, ledger, query } = view
+  if (!source.depth || !depth) return
+  const header = 'instrument,control_source,depth_source,known_utc,book_state,last_depth_sequence,starting_cash,position_limit,committed_cost_limit,fee_per_share,fee_per_order,event_id,observed_utc,kind,order_id,source_id,price_utc,shares,price,status,cash_change,fee,realized_change'
+  const prefix = [quoteText(source.depth.instrument), quoteText(source.name), quoteText(source.depth.name), query.at,
+    depth.depthStatus.kind, depth.lastDepth?.sequence ?? '', ...configFields.map(([key]) => query.config[key])]
+  const rows = ledger.receipts.map(row => [...prefix, quoteText(row.id), utc(row.observedAt), row.kind,
+    row.orderId ? quoteText(row.orderId) : '', row.sourceId ? quoteText(row.sourceId) : '',
+    row.priceAt === null ? '' : utc(row.priceAt), row.shares ?? '', row.price === null ? '' : amount(row.price),
+    row.status, amount(row.cashDelta), amount(row.fee), amount(row.realizedDelta)].join(','))
+  const csv = [header, ...rows].join('\r\n') + '\r\n'
+  downloadFile('paper-depth-receipts.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+}
 
 export function PaperReplay({ core, close }: { core: MarketCore; close: () => void }) {
   const [source, setSource] = useState<Source | null>(null)
   const [draft, setDraft] = useState<Query>({ at: '', config: defaults })
-  const [view, setView] = useState<{ query: Query; ledger: PaperSnapshot } | null>(null)
+  const [view, setView] = useState<View | null>(null)
   const [file, setFile] = useState<File | null>(null)
+  const [controlFile, setControlFile] = useState<File | null>(null)
+  const [depthFile, setDepthFile] = useState<File | null>(null)
+  const [depthInstrument, setDepthInstrument] = useState('NASDAQ:NVDA')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const heading = useRef<HTMLHeadingElement>(null)
@@ -50,15 +74,16 @@ export function PaperReplay({ core, close }: { core: MarketCore; close: () => vo
 
   function evaluate(input: Source, requested: Query) {
     const query = { ...requested, at: requested.at.trim() }
-    const ledger = core.paperReplay(input.csv, query.at, query.config)
+    const depth = input.depth && core.paperDepthReplay(input.depth.instrument, input.csv, input.depth.csv, query.at, query.config)
+    const ledger = depth?.ledger ?? core.paperReplay(input.csv, query.at, query.config)
     setDraft(query)
-    setView({ query, ledger })
+    setView({ query, ledger, depth })
     setError('')
   }
 
-  function start(csv: string, name: string) {
-    const times = core.paperIndex(csv)
-    const book = { csv, name, times }
+  function start(csv: string, name: string, depth?: DepthSource) {
+    const times = depth ? core.paperDepthIndex(depth.instrument, csv, depth.csv) : core.paperIndex(csv)
+    const book = { csv, name, times, depth }
     evaluate(book, { at: utc(times[0]), config: defaults })
     setSource(book)
   }
@@ -68,6 +93,15 @@ export function PaperReplay({ core, close }: { core: MarketCore; close: () => vo
       start(demo, 'Synthetic paper orders and fills')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open the paper demo.')
+    }
+  }
+
+  function startDepthDemo() {
+    try {
+      start(demoControls, 'Synthetic paper depth controls',
+        { instrument: 'NASDAQ:NVDA', csv: demoDepth, name: 'Synthetic paper depth liquidity' })
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not open the depth matching demo.')
     }
   }
 
@@ -82,6 +116,27 @@ export function PaperReplay({ core, close }: { core: MarketCore; close: () => vo
       start(csv, file.name)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load paper events.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function loadDepth(event: FormEvent) {
+    event.preventDefault()
+    if (!controlFile || !depthFile) return
+    setBusy(true)
+    setError('')
+    try {
+      if (controlFile.size > 2 * 1024 * 1024 || depthFile.size > 8 * 1024 * 1024) {
+        throw new Error('Use up to 2 MiB of paper controls and 8 MiB of depth reports.')
+      }
+      const [controlBytes, depthBytes] = await Promise.all([controlFile.arrayBuffer(), depthFile.arrayBuffer()])
+      const decode = new TextDecoder('utf-8', { fatal: true })
+      start(decode.decode(controlBytes), controlFile.name, {
+        instrument: depthInstrument.trim().toUpperCase(), csv: decode.decode(depthBytes), name: depthFile.name,
+      })
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not load depth matching reports.')
     } finally {
       setBusy(false)
     }
@@ -125,16 +180,36 @@ export function PaperReplay({ core, close }: { core: MarketCore; close: () => vo
               </label>
               <button className="primary" disabled={busy || !file}>Load paper ledger</button>
             </form>
+            <section className="side-card replay-panel">
+              <h2>Replay orders against recorded depth</h2>
+              <button className="outline" disabled={busy} onClick={startDepthDemo}>Start paper depth demo</button>
+              <form className="universe-query" onSubmit={loadDepth}>
+                <label>Paper depth instrument
+                  <input required value={depthInstrument} onChange={event => setDepthInstrument(event.target.value)} />
+                </label>
+                <label>Paper depth controls CSV
+                  <input type="file" required accept=".csv,text/csv" disabled={busy}
+                    onChange={event => setControlFile(event.target.files?.[0] ?? null)} />
+                </label>
+                <label>Paper order book CSV
+                  <input type="file" required accept=".csv,text/csv" disabled={busy}
+                    onChange={event => setDepthFile(event.target.files?.[0] ?? null)} />
+                </label>
+                <button className="outline" disabled={busy || !controlFile || !depthFile}>Load paper depth replay</button>
+              </form>
+            </section>
           </div>
         ) : (
           <>
             <section className="side-card replay-panel">
               <div className="replay-heading">
-                <div><h2>Simulation inputs</h2><p>{source.name}</p></div>
+                <div><h2>Simulation inputs</h2><p>{source.name}{source.depth && ' · ' + source.depth.name}</p></div>
                 <button className="outline" onClick={() => {
                   setSource(null)
                   setView(null)
                   setFile(null)
+                  setControlFile(null)
+                  setDepthFile(null)
                   setError('')
                   heading.current?.focus()
                 }}>Change event file</button>
@@ -164,6 +239,8 @@ export function PaperReplay({ core, close }: { core: MarketCore; close: () => vo
             <section className="side-card replay-panel replay-results" aria-labelledby="paper-account">
               <h2 id="paper-account">Simulated account</h2>
               <p role="status">Observed through {view.query.at} · {ledger.halted ? 'Halted' : 'Active'}</p>
+              {view.depth && <p>{depthStatusText(view.depth.depthStatus)}
+                {view.depth.lastDepth && ' · Depth sequence ' + view.depth.lastDepth.sequence}</p>}
               <dl className="replay-times">
                 {([
                   ['Cash balance', ledger.cash], ['Reserved cash', ledger.reserved],
@@ -206,6 +283,9 @@ export function PaperReplay({ core, close }: { core: MarketCore; close: () => vo
                   ))}</tbody>
                 </table>
               </div>
+              {view.depth && <button className="outline" onClick={() => downloadDepthReceipts(source, view)}>
+                Download paper depth receipts
+              </button>}
             </section>
           </>
         )}

@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { quoteText } from './chart-export'
 import { downloadFile } from './download'
+import { depthStatusText } from './depth-status'
 import { fixed } from './fixed-point'
 import { Mark } from './Icons'
-import type { DepthLevel, DepthStamp, DepthStatus, DepthSweep, MarketCore, RecordedDepth } from './market-core'
+import type { DepthLevel, DepthStamp, DepthSweep, MarketCore, RecordedDepth } from './market-core'
 import { utc } from './workspace'
 import type { Asset } from './workspace'
 import demo from '../../../crates/core/tests/fixtures/synthetic-depth.csv?raw'
@@ -13,18 +14,6 @@ type Source = { csv: string; name: string; checkpoints: number[] }
 type Snapshot = { source: Source; cutoff: string; depth: RecordedDepth }
 type SweepRequest = { side: 'buy' | 'sell'; size: string; limit: string }
 const VISIBLE_LEVELS = 50
-
-function statusText(status: DepthStatus) {
-  switch (status.kind) {
-    case 'no-observation': return 'No frames observed by this cutoff.'
-    case 'awaiting-snapshot': return 'Waiting for the first complete snapshot.'
-    case 'synchronized': return 'Synchronized'
-    case 'sequence-gap':
-      return 'Sequence gap. Expected ' + status.expected + ', received ' + status.received + '. Waiting for a new snapshot.'
-    case 'crossed':
-      return 'Crossed order book at sequence ' + status.sequence + '. Waiting for a new snapshot.'
-  }
-}
 
 function stampFields(stamp: DepthStamp | null) {
   return stamp ? [stamp.sequence, utc(stamp.eventAt), utc(stamp.observedAt)] : ['', '', '']
@@ -267,7 +256,7 @@ export function DepthResearch({ core, asset, close }: { core: MarketCore; asset:
           <section className="side-card replay-panel replay-results" aria-labelledby="depth-results">
             <div className="replay-heading">
               <h2 id="depth-results">Order book at cutoff</h2>
-              <p role="status">{statusText(depth.status)}</p>
+              <p role="status">{depthStatusText(depth.status)}</p>
             </div>
             <dl className="replay-times">
               <div><dt>Source</dt><dd>{view.source.name}</dd></div>

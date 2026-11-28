@@ -7,6 +7,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const HEADER: &str = "instrument,event_at,observed_at,sequence,kind,side,price,size";
 
+#[path = "paper_depth.rs"]
+mod paper_depth;
+pub use paper_depth::{PaperDepthReplay, PaperDepthReport};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DepthStamp {
     pub event_at: i64,
