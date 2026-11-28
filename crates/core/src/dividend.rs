@@ -105,6 +105,7 @@ pub(crate) struct DividendSchedule<'a> {
     pub(crate) at: i64,
     kind: DividendKind,
     pub(crate) row: &'a Dividend,
+    pub(crate) withholding_per_share: Option<i64>,
 }
 
 struct DividendState<'a> {
@@ -212,7 +213,15 @@ impl DividendBook {
         for revisions in self.rows.chunk_by(|a, b| a.id == b.id) {
             for (i, row) in revisions.iter().enumerate() {
                 let next = revisions.get(i + 1).map(|r| r.observed_at);
-                let mut append = |at, kind| schedule.push(DividendSchedule { at, kind, row });
+                let withholding_per_share = self.withholding_for(row);
+                let mut append = |at, kind| {
+                    schedule.push(DividendSchedule {
+                        at,
+                        kind,
+                        row,
+                        withholding_per_share,
+                    })
+                };
                 append(row.observed_at, DividendKind::Report);
                 // A scheduled transition belongs only to the revision visible at that time.
                 // At a tie the new report replaces the earlier schedule.
@@ -267,8 +276,12 @@ impl DividendBook {
                         .flatten()
                 })
             };
-            while let Some(DividendSchedule { kind, row, .. }) =
-                schedule.next_if(|event| event.at == at)
+            while let Some(DividendSchedule {
+                kind,
+                row,
+                withholding_per_share,
+                ..
+            }) = schedule.next_if(|event| event.at == at)
             {
                 let state = active.entry(&row.id).or_insert(DividendState {
                     row,
@@ -277,7 +290,7 @@ impl DividendBook {
                     shares: None,
                 });
                 state.row = row;
-                state.withholding_per_share = self.withholding_for(row);
+                state.withholding_per_share = withholding_per_share;
                 events.push(state.post(at, kind, shares_for(row.ex_at)));
             }
             if let Some(effective) = earliest_change {

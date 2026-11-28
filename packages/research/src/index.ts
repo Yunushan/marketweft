@@ -4,6 +4,7 @@ import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, Form
 export type {
   AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, CandlePatternHit, CloseOrderStatistics, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
   DividendEvent, DividendMovement,
+  CrossSectionActions, CrossSectionConfig, CrossSectionDividendPosting, CrossSectionReport,
   EquityConcentration, EquityTargetDrift, Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, NotionalBar, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   JointScenarioPath, JointScenarioQuery, JointScenarioReport, PortfolioAllocationQuery, PortfolioAllocationReport, PortfolioVarianceQuery, ScenarioAllocation,
@@ -70,6 +71,7 @@ export interface MarketResearch {
   portfolioScenarios: MarketCore['portfolioScenarios']
   portfolioFxAsOf: MarketCore['portfolioFxAsOf']
   portfolioAsOf: MarketCore['portfolioAsOf']
+  crossSectionReplay: MarketCore['crossSectionReplay']
   equityConcentrationAsOf(membership: string, holdings: string, closes: string,
     effectiveAt: string, knownAt: string): EquityConcentrationSnapshot
   equityTargetDriftAsOf(membership: string, holdings: string, closes: string, terms: string, targets: string,
@@ -129,6 +131,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     portfolioScenarios: core.portfolioScenarios,
     portfolioFxAsOf: core.portfolioFxAsOf,
     portfolioAsOf: core.portfolioAsOf,
+    crossSectionReplay: core.crossSectionReplay,
     equityConcentrationAsOf(membership, holdings, closes, effectiveAt, knownAt) {
       const report = core.portfolioAsOf(membership, holdings, closes, '', effectiveAt, knownAt)
       return { effectiveAt: report.effectiveAt, knownAt: report.knownAt, groups: report.equityConcentration }

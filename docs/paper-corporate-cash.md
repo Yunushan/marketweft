@@ -28,6 +28,14 @@ Open **Start corporate cash demo** in Universe replay. In Cross-sectional paper 
 
 Rewind knowledge to 14:05 UTC to reproduce the earlier CSV. The packaged files also support the upload workflow after the terminal cache is ready.
 
+## Reported paper dividend withholding
+
+Upload the extended [portfolio dividend CSV](portfolio-replay.md#reported-portfolio-dividend-withholding) as **Paper dividends CSV**. Each row supplies gross and reported withheld amounts per share. The paper account credits net cash in its own currency. The corporate cash table and CSV separately show signed gross, withholding and net movements. A fully withheld dividend records the gross and withheld amounts with zero net cash. Only a nonzero net movement in the account currency has a cash receipt. The nine-column input retains its gross payment behavior and original CSV columns.
+
+Start the corporate cash demo, use sample liquidity and corporate reports, then replace the dividends with the extended fixture. Keep effective time at 14:06 UTC. At known 14:05, the two pre-ex shares earn 4 USD gross and the account receives 3 USD after withholding. At 14:06 a revised rate returns another 0.50 USD. At 14:07 the report reverses the USD payment and records a fully withheld 6 EUR payment. At 14:08 the cancellation reverses the EUR gross and withholding. Returning to known 14:05 produces identical CSV bytes. [Paper dividend withholding fixture](../crates/core/tests/fixtures/synthetic-paper-dividend-withholding.csv)
+
+The TypeScript SDK exposes the same report through `crossSectionReplay(membership, prices, liquidity, from, through, known, config, actions)`. Each extended `dividendPostings` row returns `grossDelta`, `withholdingDelta` and net `cashDelta` as signed `bigint` millionths. Match a non-null `receiptId` against the simulated cash receipts. [TypeScript SDK](../packages/research/README.md)
+
 ## Successor share claims
 
 Under **Corporate cash reports**, upload a **Paper successor share terms CSV**. The [portfolio successor CSV format](portfolio-replay.md#delisting-successor-shares-csv) identifies the delisting and successor by stable listing ID and contains dated exchange ratios and delivery terms. Paper replay uses the simulated holding immediately before the effective delisting, with fills recorded at observation time. A fill reported at the exact effective time falls outside the entitlement. The latest terms known at the cutoff supply the ratio and delivery status. An explicit zero ratio removes the stock value, and a canceled delisting removes the claim and restores the ordinary holding through the cash workflow.

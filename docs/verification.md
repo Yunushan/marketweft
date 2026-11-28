@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.302.0 · Reported paper dividend withholding
+
+- Rust, Wasm and the public TypeScript SDK verify entitlement from fills observed before ex. At pay, the sample's 4 USD gross and 1 USD withheld credit exactly 3 USD to the paper account.
+- Offline Chromium and the paper cash CSV verify a withholding refund, USD reversal, fully withheld EUR payment and cancellation. Only nonzero net moves in the account currency have receipt IDs. Rewind reproduces the earlier CSV exactly.
+
 ## 0.301.0 · Reported portfolio dividend withholding
 
 - Rust, Wasm and the public TypeScript SDK verify the gross receivable, net cash and reported withholding across two independent cutoffs. The fixtures cover a same-currency withholding revision, USD-to-CAD restatement, a fully withheld payment with zero net, a late holding correction, cancellation and exact rewind.

@@ -527,6 +527,8 @@ fn pays_dividends_only_on_pre_ex_shares_and_tracks_late_currency_corrections() {
     assert!(replay(4, 7).dividend_postings.is_empty());
     let paid = replay(6, 6);
     let payment = &paid.dividend_postings[0];
+    assert!(!paid.has_reported_dividend_withholding);
+    assert_eq!(payment.withholding_delta, None);
     assert_eq!(paid.dividend_postings.len(), 1);
     assert_eq!(payment.entitled_shares, 2);
     assert_eq!(payment.posted_at, start + 300);
@@ -554,6 +556,87 @@ fn pays_dividends_only_on_pre_ex_shares_and_tracks_late_currency_corrections() {
     assert!(revised.dividend_postings[2].receipt_id.is_none());
     assert_eq!(revised.cash, 536_600_000);
     assert_eq!(paid, replay(6, 6));
+}
+
+#[test]
+fn paper_dividend_withholding_posts_only_net_same_currency_cash_and_rewinds() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let book = PriceBook::parse(&universe, PRICES).unwrap();
+    let liquidity = LiquidityTape::parse(&universe, LIQUIDITY).unwrap();
+    let start = universe.checkpoints()[0];
+    let dividends = include_str!("fixtures/synthetic-paper-dividend-withholding.csv");
+    let replay = |effective: i64, known: i64| {
+        let mut config = settings(start, known);
+        config.through_at = start + effective * 60;
+        book.cross_section_with_dividends(&liquidity, config, dividends, "USD")
+            .unwrap()
+    };
+
+    let before = replay(6, 4);
+    assert!(before.has_reported_dividend_withholding);
+    assert!(before.dividend_postings.is_empty());
+    assert!(replay(4, 8).dividend_postings.is_empty());
+    let paid = replay(6, 5);
+    assert_eq!(paid.cash, 539_600_000);
+    let refunded = replay(6, 6);
+    assert_eq!(refunded.cash, 540_100_000);
+    assert_eq!(refunded.dividend_postings[..1], paid.dividend_postings);
+    let reversed = replay(6, 7);
+    assert_eq!(reversed.cash, before.cash);
+    assert_eq!(reversed.decisions, refunded.decisions);
+    assert_eq!(
+        &reversed.events[..refunded.events.len()],
+        refunded.events.as_slice()
+    );
+    let cancelled = replay(6, 8);
+    assert_eq!(cancelled.cash, before.cash);
+    assert_eq!(cancelled.events, reversed.events);
+    let postings: Vec<_> = cancelled
+        .dividend_postings
+        .iter()
+        .map(|posting| {
+            if let Some(id) = &posting.receipt_id {
+                let receipt = cancelled
+                    .events
+                    .iter()
+                    .find(|row| &row.event.id == id)
+                    .unwrap();
+                assert_eq!(receipt.receipt.cash_delta, posting.cash_delta);
+            }
+            assert_eq!(posting.entitled_shares, 2);
+            (
+                posting.currency.as_str(),
+                posting.gross_delta,
+                posting.withholding_delta.unwrap(),
+                posting.cash_delta,
+                posting.receipt_id.is_some(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        postings,
+        [
+            ("USD", 4_000_000, 1_000_000, 3_000_000, true),
+            ("USD", 0, -500_000, 500_000, true),
+            ("USD", -4_000_000, -500_000, -3_500_000, true),
+            ("EUR", 6_000_000, 6_000_000, 0, false),
+            ("EUR", -6_000_000, -6_000_000, 0, false),
+        ]
+    );
+    assert_eq!(replay(6, 5), paid);
+
+    let local = dividends.replace(",EUR,", ",USD,");
+    let mut config = settings(start, 8);
+    config.through_at = start + 6 * 60;
+    let local = book
+        .cross_section_with_dividends(&liquidity, config, &local, "USD")
+        .unwrap();
+    let cancellation = local.dividend_postings.last().unwrap();
+    assert_eq!(cancellation.currency, "USD");
+    assert_eq!(cancellation.withholding_delta, Some(-6_000_000));
+    assert_eq!(cancellation.cash_delta, 0);
+    assert!(cancellation.receipt_id.is_none());
+    assert_eq!(local.cash, before.cash);
 }
 
 #[test]

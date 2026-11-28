@@ -1320,6 +1320,8 @@ test('paper corporate cash preserves revised proceeds and exact dividend currenc
   }, { accountCurrency: 'USD', dividends, delistings });
   assert.deepEqual(run(7, 4).delistingPostings, []);
   const receivable = run(5);
+  assert.equal(Object.hasOwn(receivable, 'hasReportedDividendWithholding'), false);
+  assert.equal(Object.hasOwn(receivable.dividendPostings[0], 'grossDelta'), false);
   assert.equal(receivable.cash, 540600000n);
   assert.equal(receivable.delistingClaims[0].state, 'receivable');
   assert.equal(receivable.delistingClaims[0].amount, 500000000n);
@@ -1337,6 +1339,28 @@ test('paper corporate cash preserves revised proceeds and exact dividend currenc
   assert.equal(restored.positions[0].cost, 463400000n);
   assert.equal(restored.cash, 536600000n);
   assert.deepEqual(run(5), receivable);
+});
+
+test('paper Wasm separates gross, withheld and net dividend movements in each currency', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, prices, liquidity, dividends] = await Promise.all(
+    ['listing-risk-membership', 'listing-risk-prices', 'cross-section-liquidity', 'paper-dividend-withholding'].map(fixture));
+  const utc = minute => '2025-06-02T14:0' + minute + ':00Z';
+  const run = known => core.crossSectionReplay(membership, prices, liquidity, utc(1), utc(6), utc(known), {
+    paper: { startingCash: '1000', positionLimit: '10', exposureLimit: '1000', feePerShare: '0.1', feePerOrder: '0.5' },
+    decisionSeconds: '60', lookbackSeconds: '60', topListings: '1', targetShares: '4', limitBuffer: '1000', participation: '10000',
+  }, { accountCurrency: 'USD', dividends, delistings: '' });
+  assert.equal(run(4).hasReportedDividendWithholding, true);
+  assert.deepEqual(run(4).dividendPostings, []);
+  const paid = run(5);
+  const corrected = run(8);
+  assert.deepEqual(corrected.dividendPostings.map(row => [row.currency, row.grossDelta, row.withholdingDelta, row.cashDelta]), [
+    ['USD', 4_000_000n, 1_000_000n, 3_000_000n], ['USD', 0n, -500_000n, 500_000n],
+    ['USD', -4_000_000n, -500_000n, -3_500_000n], ['EUR', 6_000_000n, 6_000_000n, 0n],
+    ['EUR', -6_000_000n, -6_000_000n, 0n],
+  ]);
+  assert.ok(corrected.dividendPostings.slice(-2).every(row => row.receiptId === null));
+  assert.deepEqual(run(5), paid);
 });
 
 test('cross-sectional paper replay executes only later observed liquidity and reconciles turnover', async () => {

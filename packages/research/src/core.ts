@@ -826,10 +826,12 @@ export interface CrossSectionDividendPosting {
   shares: bigint;
   currency: string;
   cashDelta: bigint;
+  grossDelta?: bigint;
+  withholdingDelta?: bigint;
   receiptId: string | null;
 }
 
-export interface CrossSectionCapitalReturnPosting extends Omit<CrossSectionDividendPosting, 'dividendId'> {
+export interface CrossSectionCapitalReturnPosting extends Omit<CrossSectionDividendPosting, 'dividendId' | 'grossDelta' | 'withholdingDelta'> {
   actionId: string;
 }
 
@@ -893,6 +895,7 @@ export interface CrossSectionReport {
   decisions: { at: number; eligible: number; missing: number; selected: string[] }[];
   positions: { listingId: string; shares: bigint; cost: bigint; mark: bigint | null }[];
   receipts: (PaperReceipt & { listingId: string; side: string })[];
+  hasReportedDividendWithholding?: true;
   dividendPostings: CrossSectionDividendPosting[];
   capitalReturnClaims: CrossSectionCapitalReturnClaim[];
   capitalReturnPostings: CrossSectionCapitalReturnPosting[];
@@ -3982,12 +3985,13 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       }
       const text = decoder.decode(bytes);
       const [header, ...rows] = text.slice(0, -1).split('\n');
-      const [tag, cash, reserved, fees, turnover, equity] = header.split('\t');
+      const [tag, cash, reserved, fees, turnover, equity, withholding] = header.split('\t');
       if (tag !== 'H') throw new Error('Invalid cross-sectional replay summary.');
       const report: CrossSectionReport = { cash: BigInt(cash), reservedCash: BigInt(reserved),
         fees: BigInt(fees), turnover: BigInt(turnover), equity: equity ? BigInt(equity) : null,
         decisions: [], positions: [], receipts: [], dividendPostings: [], delistingClaims: [], delistingPostings: [],
         successorClaims: [], capitalReturnClaims: [], capitalReturnPostings: [] };
+      if (withholding === '1') report.hasReportedDividendWithholding = true;
       for (const row of rows) {
         const [type, a, b, c, d] = row.split('\t', 5);
         if (type === 'D') report.decisions.push({ at: Number(a), eligible: Number(b),
@@ -3997,11 +4001,12 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         else if (type === 'E') report.receipts.push({ listingId: a, side: b,
           ...decodePaperReceipt(row.split('\t').slice(3)) });
         else if (type === 'V' || type === 'R') {
-          const [, listingId, actionId, posted, observed, ex, pay, shares, currency, cash, receipt] = row.split('\t');
+          const [, listingId, actionId, posted, observed, ex, pay, shares, currency, cash, receipt, gross, withheld] = row.split('\t');
           const posting = { listingId, postedAt: Number(posted),
             observedAt: Number(observed), exAt: Number(ex), payAt: Number(pay), shares: BigInt(shares),
             currency, cashDelta: BigInt(cash), receiptId: receipt || null };
-          if (type === 'V') report.dividendPostings.push({ ...posting, dividendId: actionId });
+          if (type === 'V') report.dividendPostings.push({ ...posting, dividendId: actionId,
+            ...(gross === undefined ? {} : { grossDelta: BigInt(gross), withholdingDelta: BigInt(withheld) }) });
           else report.capitalReturnPostings.push({ ...posting, actionId });
         } else if (type === 'K') {
           const [, listingId, actionId, observed, ex, pay, shares, currency, amount, state, receipt] = row.split('\t');

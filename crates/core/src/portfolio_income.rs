@@ -49,12 +49,12 @@ pub(crate) struct PortfolioIncomeReports {
 }
 
 impl PortfolioIncomeReports {
-    pub(crate) fn parse(universe: &UniverseBook, csv: &str) -> Result<Self, String> {
-        Self::parse_named(universe, csv, HEADER, "dividend")
+    pub(crate) fn parse_replay(universe: &UniverseBook, csv: &str) -> Result<Self, String> {
+        Self::parse_inner(universe, csv, HEADER, "dividend", true)
     }
 
-    pub(super) fn parse_replay(universe: &UniverseBook, csv: &str) -> Result<Self, String> {
-        Self::parse_inner(universe, csv, HEADER, "dividend", true)
+    pub(crate) fn has_reported_withholding(&self) -> bool {
+        self.has_reported_withholding
     }
 
     pub(super) fn parse_named(

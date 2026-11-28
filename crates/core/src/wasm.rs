@@ -1969,7 +1969,7 @@ fn encode_cross_section_walk(folds: &[crate::CrossSectionFold]) -> String {
 fn encode_cross_section(report: crate::CrossSectionReport) -> String {
     use std::fmt::Write;
     let mut text = String::new();
-    writeln!(
+    write!(
         &mut text,
         "H\t{}\t{}\t{}\t{}\t{}",
         report.cash,
@@ -1979,6 +1979,10 @@ fn encode_cross_section(report: crate::CrossSectionReport) -> String {
         optional_number(report.equity)
     )
     .unwrap();
+    if report.has_reported_dividend_withholding {
+        text.push_str("\t1");
+    }
+    text.push('\n');
     for row in report.decisions {
         writeln!(
             &mut text,
@@ -2012,7 +2016,7 @@ fn encode_cross_section(report: crate::CrossSectionReport) -> String {
         write_paper_receipt(&mut text, &row.event, &row.receipt, fields);
     }
     for row in report.dividend_postings {
-        writeln!(
+        write!(
             &mut text,
             "V\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             row.listing_id,
@@ -2027,6 +2031,10 @@ fn encode_cross_section(report: crate::CrossSectionReport) -> String {
             row.receipt_id.as_deref().unwrap_or("")
         )
         .unwrap();
+        if let Some(withheld) = row.withholding_delta {
+            write!(text, "\t{}\t{withheld}", row.gross_delta).unwrap();
+        }
+        text.push('\n');
     }
     for row in report.capital_return_postings {
         writeln!(

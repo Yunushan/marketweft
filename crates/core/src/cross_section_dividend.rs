@@ -13,14 +13,31 @@ pub struct CrossSectionDividendPosting {
     pub entitled_shares: u64,
     pub currency: String,
     pub cash_delta: i128,
+    pub gross_delta: i128,
+    pub withholding_delta: Option<i128>,
     pub receipt_id: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct Payment {
+    gross: i128,
+    withholding: i128,
+}
+
+impl Payment {
+    fn difference(self, previous: Self) -> Self {
+        Self {
+            gross: self.gross - previous.gross,
+            withholding: self.withholding - previous.withholding,
+        }
+    }
 }
 
 pub(super) struct DividendReplay<'a> {
     currency: &'a str,
     pub postings: Vec<CrossSectionDividendPosting>,
     schedule: Peekable<vec::IntoIter<(&'a str, DividendSchedule<'a>)>>,
-    paid: BTreeMap<(&'a str, &'a str), (&'a str, i128)>,
+    paid: BTreeMap<(&'a str, &'a str), (&'a str, Payment)>,
 }
 
 impl<'a> DividendReplay<'a> {
@@ -51,7 +68,7 @@ impl<'a> DividendReplay<'a> {
     ) -> Result<(), String> {
         let mut changes = self.next_postings(effective, replay.holdings.as_ref().unwrap());
         for posting in &mut changes {
-            if posting.currency == self.currency {
+            if posting.currency == self.currency && posting.cash_delta != 0 {
                 posting.receipt_id = Some(replay.post_cash(
                     &posting.listing_id,
                     posting.posted_at,
@@ -79,17 +96,22 @@ impl<'a> DividendReplay<'a> {
             .get(listing)
             .and_then(|history| history.range(..report.ex_at).next_back())
             .map_or(0, |(_, observation)| u64::from(observation.shares));
-        let amount = if report.pay_at <= effective.min(event.at) {
-            i128::from(entitled_shares) * i128::from(report.amount_per_share)
+        let zero = Payment::default();
+        let payment = if report.pay_at <= effective.min(event.at) {
+            let shares = i128::from(entitled_shares);
+            Payment {
+                gross: shares * i128::from(report.amount_per_share),
+                withholding: shares * i128::from(event.withholding_per_share.unwrap_or_default()),
+            }
         } else {
-            0
+            zero
         };
         let previous = self.paid.remove(&key);
-        if amount != 0 {
-            self.paid.insert(key, (report.currency.as_str(), amount));
+        if payment != zero {
+            self.paid.insert(key, (report.currency.as_str(), payment));
         }
 
-        let posting = |currency: &str, cash_delta: i128| CrossSectionDividendPosting {
+        let posting = |currency: &str, delta: Payment| CrossSectionDividendPosting {
             listing_id: listing.to_owned(),
             dividend_id: report.id.clone(),
             posted_at: event.at,
@@ -98,19 +120,21 @@ impl<'a> DividendReplay<'a> {
             pay_at: report.pay_at,
             entitled_shares,
             currency: currency.to_owned(),
-            cash_delta,
+            cash_delta: delta.gross - delta.withholding,
+            gross_delta: delta.gross,
+            withholding_delta: event.withholding_per_share.map(|_| delta.withholding),
             receipt_id: None,
         };
         let mut changes = Vec::new();
-        let mut delta = amount;
+        let mut delta = payment;
         if let Some((currency, paid)) = previous {
             if currency == report.currency {
-                delta -= paid;
+                delta = payment.difference(paid);
             } else {
-                changes.push(posting(currency, -paid));
+                changes.push(posting(currency, zero.difference(paid)));
             }
         }
-        if delta != 0 {
+        if delta != zero {
             changes.push(posting(&report.currency, delta));
         }
         changes

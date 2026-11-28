@@ -119,24 +119,28 @@ function Receipts({ rows }: { rows: (PaperReceipt & { listingId: string; side: s
 function CorporateCash({ report, run, props }: {
   report: CrossSectionReport; run: CorporateReports; props: ReplayProps
 }) {
+  const hasWithholding = report.hasReportedDividendWithholding
   const rows = [
     ...report.dividendPostings.map(row => ({
       kind: 'Dividend movement', id: row.dividendId, listing: row.listingId,
       at: row.postedAt, effective: row.exAt, observed: row.observedAt, terms: null,
       pay: row.payAt, shares: row.shares, status: '', currency: row.currency,
       amount: null, delta: row.cashDelta, receipt: row.receiptId,
+      gross: row.grossDelta ?? null, withheld: row.withholdingDelta ?? null,
     })),
     ...report.delistingClaims.map(claim => ({
       kind: 'Delisting claim', id: claim.changeId, listing: claim.listingId,
       at: null, effective: claim.effectiveAt, observed: claim.observedAt, terms: claim.termsObservedAt,
       pay: claim.payAt, shares: claim.shares, status: claim.state, currency: claim.currency,
       amount: claim.amount, delta: null, receipt: null,
+      gross: null, withheld: null,
     })),
     ...report.delistingPostings.map(({ claim, postedAt, cashDelta, receiptId }) => ({
       kind: 'Delisting movement', id: claim.changeId, listing: claim.listingId,
       at: postedAt, effective: claim.effectiveAt, observed: claim.observedAt, terms: claim.termsObservedAt,
       pay: claim.payAt, shares: claim.shares, status: claim.state, currency: claim.currency,
       amount: claim.amount, delta: cashDelta, receipt: receiptId,
+      gross: null, withheld: null,
     })),
   ].sort((left, right) => (left.at ?? Infinity) - (right.at ?? Infinity))
   const date = (value: number | null) => value === null ? '' : utc(value)
@@ -149,9 +153,11 @@ function CorporateCash({ report, run, props }: {
     const source = [props.membershipSource, props.priceSource, run.dividends?.name ?? '',
       run.delistings?.name ?? '', run.accountCurrency, props.effective, props.known].map(quoteText)
     const header = 'membership_source,price_source,dividend_source,delisting_source,account_currency,effective_through_utc,known_through_utc,kind,listing,source_id,posted_utc,ex_or_delisting_utc,report_observed_utc,terms_observed_utc,pay_utc,shares,state,currency,amount,cash_change,receipt_id'
-    const csv = [header, ...rows.map(row => [...source, row.kind, row.listing, row.id,
+    const columns = hasWithholding ? header + ',gross_dividend_change,withholding_change' : header
+    const csv = [columns, ...rows.map(row => [...source, row.kind, row.listing, row.id,
       date(row.at), date(row.effective), date(row.observed), date(row.terms), date(row.pay),
       row.shares, row.status, row.currency ?? '', decimal(row.amount), decimal(row.delta), row.receipt ?? '',
+      ...(hasWithholding ? [decimal(row.gross), decimal(row.withheld)] : []),
     ].join(','))].join('\r\n') + '\r\n'
     downloadFile('paper-corporate-cash.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }))
   }
@@ -162,12 +168,17 @@ function CorporateCash({ report, run, props }: {
         <thead><tr><th scope="col">Event</th><th scope="col">Listing</th><th scope="col">Source ID</th>
           <th scope="col">Posted UTC</th><th scope="col">Effective UTC</th><th scope="col">Pay UTC</th>
           <th scope="col">Shares</th><th scope="col">Status</th><th scope="col">Currency</th>
-          <th scope="col">Proceeds</th><th scope="col">Cash change</th><th scope="col">Receipt</th></tr></thead>
+          <th scope="col">Proceeds</th><th scope="col">{hasWithholding ? 'Net cash change' : 'Cash change'}</th>
+          <th scope="col">Receipt</th>
+          {hasWithholding && <><th scope="col">Gross dividend change</th><th scope="col">Withholding change</th></>}
+        </tr></thead>
         <tbody>{rows.slice(current * 100, (current + 1) * 100).map((row, index) => (
           <tr key={current * 100 + index}><th scope="row">{row.kind}</th><td>{row.listing}</td>
             <td>{row.id}</td><td>{date(row.at) || '—'}</td><td>{date(row.effective)}</td><td>{date(row.pay) || '—'}</td>
             <td>{row.shares.toString()}</td><td>{row.status || '—'}</td><td>{row.currency ?? '—'}</td>
-            <td>{money(row.amount)}</td><td>{money(row.delta)}</td><td>{row.receipt ?? '—'}</td></tr>
+            <td>{money(row.amount)}</td><td>{money(row.delta)}</td><td>{row.receipt ?? '—'}</td>
+            {hasWithholding && <><td>{money(row.gross)}</td><td>{money(row.withheld)}</td></>}
+          </tr>
         ))}</tbody>
       </table>
     </div>

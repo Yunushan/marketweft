@@ -138,6 +138,9 @@ Keep effective time at 2025-06-02T14:06:00Z, then advance knowledge from
 14:04 to 14:08 UTC to see the receivable, payment, terms revision and
 cancellation. The cross-section membership, dividend and delisting CSVs
 support the same workflow through file uploads.
+Replace the sample dividends with paper-dividend-withholding.csv to
+follow gross payment, withholding, net cash and currency reversals.
+Download corporate cash at known 14:05 and again after rewinding there.
 Add the sample successor share terms or upload paper-successor-shares.csv.
 With effective time at 14:06, compare knowledge at 14:06 and 14:07 UTC to
 see a delivered 4/3 shares become a receivable of two shares after revision.
@@ -326,6 +329,7 @@ def main():
     files["cross-section-walk-liquidity.csv"] = (fixture / "synthetic-cross-section-walk-liquidity.csv").read_bytes()
     files["cross-section-membership.csv"] = (fixture / "synthetic-cross-section-membership.csv").read_bytes()
     files["cross-section-dividends.csv"] = (fixture / "synthetic-cross-section-dividends.csv").read_bytes()
+    files["paper-dividend-withholding.csv"] = (fixture / "synthetic-paper-dividend-withholding.csv").read_bytes()
     files["cross-section-delisting.csv"] = (fixture / "synthetic-cross-section-delisting.csv").read_bytes()
     files["paper-successor-shares.csv"] = (fixture / "synthetic-paper-successor-shares.csv").read_bytes()
     files["paper-capital-returns.csv"] = (fixture / "synthetic-paper-capital-returns.csv").read_bytes()

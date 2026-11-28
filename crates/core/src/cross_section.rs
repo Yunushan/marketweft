@@ -105,7 +105,7 @@ impl<'a> CorporateReports<'a> {
             return Err("Use a three-letter uppercase paper account currency.".into());
         }
         let income = (!sources.dividends.is_empty())
-            .then(|| PortfolioIncomeReports::parse(prices.universe, sources.dividends))
+            .then(|| PortfolioIncomeReports::parse_replay(prices.universe, sources.dividends))
             .transpose()?;
         let delistings = if sources.delistings.is_empty() {
             DelistingBook::new(prices.universe.clone(), Vec::new())?
@@ -227,6 +227,7 @@ pub struct CrossSectionReport {
     pub fees: i128,
     pub turnover: i128,
     pub equity: Option<i128>,
+    pub has_reported_dividend_withholding: bool,
     pub dividend_postings: Vec<CrossSectionDividendPosting>,
     pub capital_return_claims: Vec<CrossSectionCapitalReturnClaim>,
     pub capital_return_postings: Vec<CrossSectionCapitalReturnPosting>,
@@ -631,9 +632,8 @@ impl PriceBook<'_> {
         let step = i64::from(config.decision_seconds);
         let account_currency = corporate.map_or("", |reports| reports.currency);
         let successors = corporate.and_then(|reports| reports.successors.as_ref());
-        let mut dividends = corporate
-            .and_then(|reports| reports.income.as_ref())
-            .map(|income| DividendReplay::new(income, account_currency));
+        let income = corporate.and_then(|reports| reports.income.as_ref());
+        let mut dividends = income.map(|income| DividendReplay::new(income, account_currency));
         let return_reports = corporate.and_then(|reports| reports.capital_returns.as_ref());
         let mut capital_returns =
             return_reports.map(|reports| DividendReplay::new(reports, account_currency));
@@ -904,6 +904,8 @@ impl PriceBook<'_> {
             fees,
             turnover,
             equity,
+            has_reported_dividend_withholding: income
+                .is_some_and(PortfolioIncomeReports::has_reported_withholding),
             dividend_postings: dividends.map_or_else(Vec::new, |income| income.postings),
             capital_return_claims,
             capital_return_postings: capital_returns.map_or_else(Vec::new, |reports| {

@@ -9,6 +9,29 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK connects net paper dividends to cash receipts and retains full withholding', async () => {
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8')
+  const [membership, prices, liquidity, dividends] = await Promise.all(
+    ['listing-risk-membership', 'listing-risk-prices', 'cross-section-liquidity', 'paper-dividend-withholding'].map(fixture))
+  const engine = await createResearchEngine(wasm)
+  const utc = minute => '2025-06-02T14:0' + minute + ':00Z'
+  const run = known => engine.crossSectionReplay(membership, prices, liquidity, utc(1), utc(6), utc(known), {
+    paper: { startingCash: '1000', positionLimit: '10', exposureLimit: '1000', feePerShare: '0.1', feePerOrder: '0.5' },
+    decisionSeconds: '60', lookbackSeconds: '60', topListings: '1', targetShares: '4', limitBuffer: '1000', participation: '10000',
+  }, { accountCurrency: 'USD', dividends, delistings: '' })
+  const paid = run(5)
+  const payment = paid.dividendPostings[0]
+  assert.equal(paid.cash, 539_600_000n)
+  assert.equal(paid.receipts.find(row => row.id === payment.receiptId).cashDelta, 3_000_000n)
+  assert.equal(run(6).cash, 540_100_000n)
+  const reversed = run(7)
+  assert.equal(reversed.cash, 536_600_000n)
+  const foreign = reversed.dividendPostings.at(-1)
+  assert.deepEqual([foreign.currency, foreign.grossDelta, foreign.withholdingDelta, foreign.cashDelta, foreign.receiptId],
+    ['EUR', 6_000_000n, 6_000_000n, 0n, null])
+  assert.deepEqual(run(5), paid)
+})
+
 test('the public SDK values net portfolio dividends with the withholding known at each cutoff', async () => {
   const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8')
   const [membership, holdings, closes, terms, dividends] = await Promise.all(

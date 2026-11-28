@@ -36,6 +36,8 @@ Call `portfolioFxAsOf(ratesCsv, reporting, effectiveAt, knownAt, amounts)` for e
 
 Call `portfolioAsOf(membership, holdings, closes, delistingTerms, effectiveAt, knownAt, dividends)` for the portfolio's point-in-time holdings, currency subtotals and optional dividends. With a reported withholding column, the same `bigint` income figures distinguish gross receivables, net payments and withholding. [Portfolio dividend withholding](../../docs/portfolio-replay.md#reported-portfolio-dividend-withholding)
 
+Call `crossSectionReplay(membership, prices, liquidity, from, through, known, config, actions)` to run the simulated ranking and cash ledger on local reports. Dividend postings with reported withholding preserve signed gross, withheld and net amounts, together with the receipt ID for net cash that reaches the paper account. [Paper dividend withholding](../../docs/paper-corporate-cash.md#reported-paper-dividend-withholding)
+
 Call `equityConcentrationAsOf(membershipCsv, holdingsCsv, pricesCsv, effectiveAt, knownAt)` for ranked source-currency groups and known gross marked share values. Both marks and weights use `bigint`. [Equity concentration SDKs](../../docs/portfolio-replay.md#equity-concentration-sdks).
 
 Call `equityTargetDriftAsOf(membershipCsv, holdingsCsv, pricesCsv, termsCsv, targetsCsv, effectiveAt, knownAt)` to compare actual equity weights with reported targets. The result includes both cutoffs and exact `bigint` weights and drift. [Equity target research SDKs](../../docs/portfolio-replay.md#equity-target-research-sdks)
