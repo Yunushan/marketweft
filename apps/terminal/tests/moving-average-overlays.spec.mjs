@@ -50,7 +50,7 @@ test('four signed price overlays have exact readouts and restore per-pane settin
   await page.getByLabel('Comparison instrument').selectOption('LOCAL:AVERAGES')
   const menu = page.getByRole('button', { name: /Indicators/ })
   async function apply(pane, name, period) {
-    const settings = page.getByRole('form', { name: pane + ' chart ' + name })
+    const settings = page.getByRole('form', { name: pane + ' chart ' + name, exact: true })
     await settings.getByLabel('Show ' + name).check()
     await settings.getByLabel(name + ' period (bars)').fill(String(period))
     const save = settings.getByRole('button', { name: 'Apply ' + name })
