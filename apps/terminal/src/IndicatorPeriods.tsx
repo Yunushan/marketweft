@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { OverlayPeriods } from './catalog-schema'
 import { MAX_INDICATOR_PERIOD, validIndicatorPeriod } from './market-core'
-import { extraStudyPeriods, EXTRA_STUDY_PERIODS, STUDIES, validStudyPeriod, validStudyPeriodOrder } from './studies'
+import { extraStudyPeriods, EXTRA_STUDY_PERIODS, STUDIES, studyPeriodOrderError, validStudyPeriod } from './studies'
 import type { StudyKind, StudySettings } from './studies'
 
 export function IndicatorPeriods({ label, periods, saving, onApply }: {
@@ -58,7 +58,7 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
   const [extraValues, setExtraValues] = useState(() => Object.fromEntries(extraPeriods.map(key =>
     [key, String(settings[key] ?? EXTRA_STUDY_PERIODS[key].defaultPeriod)],
   )))
-  const [error, setError] = useState<'period' | 'order' | null>(null)
+  const [error, setError] = useState<string | null>(null)
   return (
     <form className="indicator-periods" aria-label={label} onSubmit={event => {
       event.preventDefault()
@@ -80,8 +80,9 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
         }
         next[key] = parsed
       }
-      if (!validStudyPeriodOrder(kind, next)) {
-        setError('order')
+      const orderError = studyPeriodOrderError(kind, next)
+      if (orderError) {
+        setError(orderError)
         return
       }
       onApply(next)
@@ -101,11 +102,12 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
             onChange={event => { setExtraValues({ ...extraValues, [key]: event.target.value }); setError(null) }} />
         </label>)}
         <button type="submit" disabled={saving}>Apply {name}</button>
-        {error && <p role="alert">{error === 'order' ?
-          `The ${name} fast period must be shorter than the slow period.` : kind === 'macd' ?
+        {error && <p role="alert">{error !== 'period' ? error : kind === 'macd' ?
           'Enter whole MACD periods from 1 through 100,000 bars.' : kind === 'keltner' ?
           'Enter whole EMA and ATR periods from 1 through 100,000 bars.' : kind === 'stochastic' ?
           'Enter whole Stochastic periods from 1 through 100,000 bars.' :
+          kind === 'stochastic_rsi' ? 'Enter a whole Wilder RSI period from 2 through 100,000 bars and other periods from 1 through 100,000 bars.' :
+          kind === 'ultimate' ? 'Enter whole Ultimate Oscillator periods from 1 through 100,000 bars.' :
           `Enter a whole ${name} period from ${minPeriod} through 100,000 bars.`}</p>}
       </fieldset>
     </form>

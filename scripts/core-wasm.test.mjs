@@ -83,6 +83,24 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('Stochastic RSI and Ultimate Oscillator preserve warm-up, genuine zero and stable observed prefixes', async () => {
+  const input = await readFile(new URL('../crates/core/tests/fixtures/synthetic-stochastic-rsi-ultimate.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(input);
+  const k = [null, null, null, 0n, 0n, null, null, null, 100000000n, 0n, 100000000n, 0n, 0n, 0n];
+  const d = [null, null, null, null, 0n, null, null, null, null, 50000000n, 50000000n, 50000000n, 0n, 0n];
+  const stoch = k.map((percentK, index) => ({ percentK, percentD: d[index] }));
+  const ultimate = [
+    null, null, null, 64166667n, 21428571n, null, null, null, 75000000n, 21428571n,
+    42857143n, 12380952n, 3571429n, 0n,
+  ];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.stochasticRsi(2, 2, 1, 2, bars.slice(0, end)), stoch.slice(0, end));
+    assert.deepEqual(core.ultimateOscillator(1, 2, 3, bars.slice(0, end)), ultimate.slice(0, end));
+  }
+  assert.throws(() => core.stochasticRsi(1, 2, 1, 2, bars), /RSI period from 2/);
+  assert.throws(() => core.ultimateOscillator(1, 3, 2, bars), /increase strictly/);
+});
+
 test('opening gaps preserve exact source timestamps, missing history, true zero and signed differences', async () => {
   const input = await readFile(new URL('../crates/core/tests/fixtures/synthetic-opening-gaps.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(input);

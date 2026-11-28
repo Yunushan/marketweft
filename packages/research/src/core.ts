@@ -1275,6 +1275,8 @@ export interface MarketCore {
   macd(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
   williamsPercentR(period: number, bars: readonly Bar[]): (bigint | null)[];
   stochasticOscillator(lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
+  stochasticRsi(rsi: number, lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
+  ultimateOscillator(short: number, medium: number, long: number, bars: readonly Bar[]): (bigint | null)[];
   bollingerMeasures(period: number, bars: readonly Bar[]): BollingerMeasures[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
   replayCandlePatterns(calendar: string, intervalSeconds: number, bars: readonly Bar[], knownAt: number): CandlePatternHit[];
@@ -1437,6 +1439,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_macd(fast: number, slow: number, signal: number): number;
   mw_williams_percent_r(period: number): number;
   mw_stochastic_oscillator(lookback: number, smoothing: number, signal: number): number;
+  mw_stochastic_rsi(rsi: number, lookback: number, smoothing: number, signal: number): number;
+  mw_ultimate_oscillator(short: number, medium: number, long: number): number;
   mw_bollinger_measures(period: number): number;
   mw_formula_version(): number;
   mw_evaluate_scalar_plugin(ticks: bigint): number;
@@ -1956,6 +1960,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const ticks = out.getBigInt64(index * 8, true);
       return ticks === MISSING ? null : ticks;
     });
+  }
+
+  function readStochasticValues(out: DataView, length: number): StochasticValue[] {
+    function value(offset: number) {
+      const ticks = out.getBigInt64(offset, true);
+      return ticks === MISSING ? null : ticks;
+    }
+    return Array.from({ length }, (_, index) => ({
+      percentK: value(index * 16), percentD: value(index * 16 + 8),
+    }));
   }
 
   function observedCloseIndicator(
@@ -2815,14 +2829,21 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       if (![lookback, smoothing, signal].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)
         throw new Error('Series and indicator periods must fit within 100,000 bars.');
       putIndicatorBars(bars, 'Stochastic Oscillator');
-      const out = output(api.mw_stochastic_oscillator(lookback, smoothing, signal));
-      function value(offset: number) {
-        const ticks = out.getBigInt64(offset, true);
-        return ticks === MISSING ? null : ticks;
-      }
-      return Array.from({ length: bars.length }, (_, index) => ({
-        percentK: value(index * 16), percentD: value(index * 16 + 8),
-      }));
+      return readStochasticValues(output(api.mw_stochastic_oscillator(lookback, smoothing, signal)), bars.length);
+    },
+    stochasticRsi(rsi, lookback, smoothing, signal, bars) {
+      if (rsi < 2 || ![rsi, lookback, smoothing, signal].every(validIndicatorPeriod) ||
+          bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Stochastic RSI requires an RSI period from 2 through 100,000 and other periods from 1 through 100,000 bars.');
+      putIndicatorCloses(bars);
+      return readStochasticValues(output(api.mw_stochastic_rsi(rsi, lookback, smoothing, signal)), bars.length);
+    },
+    ultimateOscillator(short, medium, long, bars) {
+      if (![short, medium, long].every(validIndicatorPeriod) || short >= medium || medium >= long ||
+          bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Ultimate Oscillator periods must increase strictly within 1–100,000 bars, with at most 100,000 source bars.');
+      putIndicatorBars(bars, 'Ultimate Oscillator');
+      return readIndicatorTicks(output(api.mw_ultimate_oscillator(short, medium, long)), bars.length);
     },
     bollingerMeasures(period, bars) {
       validateIndicatorHistory(period, bars.length);

@@ -31,8 +31,7 @@ pub(crate) fn rolling_extrema<T>(
     bars: &[Bar],
     mut measure: impl FnMut(usize, usize, usize) -> T,
 ) -> Result<Vec<Option<T>>, String> {
-    let mut highs: VecDeque<usize> = VecDeque::new();
-    let mut lows: VecDeque<usize> = VecDeque::new();
+    let mut extrema = RollingExtrema::default();
     let mut result = Vec::with_capacity(bars.len());
     let mut previous_time = None;
     for (index, bar) in bars.iter().enumerate() {
@@ -40,28 +39,57 @@ pub(crate) fn rolling_extrema<T>(
         validate_bar_time(bar.time, previous_time, index)?;
         previous_time = Some(bar.time);
 
+        result.push(
+            extrema
+                .advance(window, index, |at| bars[at].high, |at| bars[at].low)
+                .map(|(high, low)| measure(index, high, low)),
+        );
+    }
+    Ok(result)
+}
+
+#[derive(Default)]
+pub(crate) struct RollingExtrema {
+    highs: VecDeque<usize>,
+    lows: VecDeque<usize>,
+}
+
+impl RollingExtrema {
+    pub(crate) fn advance(
+        &mut self,
+        window: usize,
+        index: usize,
+        high: impl Fn(usize) -> i64,
+        low: impl Fn(usize) -> i64,
+    ) -> Option<(usize, usize)> {
         let start = (index + 1).saturating_sub(window);
         // Keep only possible extrema in the current window. An equal newer
         // extreme replaces an older one because it expires later.
-        if highs.front().is_some_and(|&front| front < start) {
-            highs.pop_front();
+        if self.highs.front().is_some_and(|&front| front < start) {
+            self.highs.pop_front();
         }
-        if lows.front().is_some_and(|&front| front < start) {
-            lows.pop_front();
+        if self.lows.front().is_some_and(|&front| front < start) {
+            self.lows.pop_front();
         }
-        while highs
+        let latest_high = high(index);
+        let latest_low = low(index);
+        while self
+            .highs
             .back()
-            .is_some_and(|&back| bars[back].high <= bar.high)
+            .is_some_and(|&back| high(back) <= latest_high)
         {
-            highs.pop_back();
+            self.highs.pop_back();
         }
-        while lows.back().is_some_and(|&back| bars[back].low >= bar.low) {
-            lows.pop_back();
+        while self
+            .lows
+            .back()
+            .is_some_and(|&back| low(back) >= latest_low)
+        {
+            self.lows.pop_back();
         }
-        highs.push_back(index);
-        lows.push_back(index);
+        self.highs.push_back(index);
+        self.lows.push_back(index);
 
-        result.push((index + 1 >= window).then(|| measure(index, highs[0], lows[0])));
+        (index + 1 >= window).then(|| (self.highs[0], self.lows[0]))
     }
-    Ok(result)
 }

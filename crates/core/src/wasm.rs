@@ -4562,13 +4562,38 @@ pub extern "C" fn mw_stochastic_oscillator(
     signal: usize,
 ) -> u32 {
     process(|input| {
-        let rows = crate::stochastic_oscillator(lookback, smoothing, signal, &decode_bars(input)?)?;
-        let mut bytes = Vec::with_capacity(rows.len() * 16);
-        for row in rows {
-            bytes.extend_from_slice(&row.percent_k.unwrap_or(i64::MIN).to_le_bytes());
-            bytes.extend_from_slice(&row.percent_d.unwrap_or(i64::MIN).to_le_bytes());
-        }
-        Ok(bytes)
+        crate::stochastic_oscillator(lookback, smoothing, signal, &decode_bars(input)?)
+            .map(encode_stochastic_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_stochastic_rsi(
+    rsi: usize,
+    lookback: usize,
+    smoothing: usize,
+    signal: usize,
+) -> u32 {
+    process(|input| {
+        crate::stochastic_rsi(rsi, lookback, smoothing, signal, &indicator_closes(input)?)
+            .map(encode_stochastic_values)
+    })
+}
+
+fn encode_stochastic_values(rows: Vec<crate::StochasticValue>) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(rows.len() * 16);
+    for row in rows {
+        bytes.extend_from_slice(&row.percent_k.unwrap_or(i64::MIN).to_le_bytes());
+        bytes.extend_from_slice(&row.percent_d.unwrap_or(i64::MIN).to_le_bytes());
+    }
+    bytes
+}
+
+#[no_mangle]
+pub extern "C" fn mw_ultimate_oscillator(short: usize, medium: usize, long: usize) -> u32 {
+    process(|input| {
+        crate::ultimate_oscillator(short, medium, long, &decode_bars(input)?)
+            .map(encode_indicator_values)
     })
 }
 

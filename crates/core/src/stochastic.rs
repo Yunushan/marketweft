@@ -1,6 +1,9 @@
 use crate::{
+    donchian::RollingExtrema,
     range_position::{rolling_close_position, RangeAnchor},
-    Bar, MAX_BARS,
+    relative_strength_index,
+    screen::rounded_div,
+    Bar, MAX_BARS, SCALE,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -51,14 +54,53 @@ pub fn stochastic_oscillator(
         );
     }
     let raw = rolling_close_position(lookback, RangeAnchor::Low, bars)?;
-    let percent_k = smooth(smoothing, &raw);
+    Ok(smooth_rows(smoothing, signal, &raw))
+}
+
+/// Normalize Wilder RSI against its complete observed range, then apply two
+/// smoothing windows. An unchanged RSI range leaves the result undefined.
+pub fn stochastic_rsi(
+    rsi_period: usize,
+    lookback: usize,
+    smoothing: usize,
+    signal: usize,
+    closes: &[i64],
+) -> Result<Vec<StochasticValue>, String> {
+    if [lookback, smoothing, signal]
+        .iter()
+        .any(|period| !(1..=MAX_BARS).contains(period))
+    {
+        return Err("Stochastic RSI lookback and smoothing periods must be 1–100,000.".into());
+    }
+    let rsi = relative_strength_index(rsi_period, closes)?;
+    let start = rsi_period.min(rsi.len());
+    let completed = &rsi[start..];
+    let value = |index: usize| completed[index].expect("Wilder RSI is defined after warm-up");
+    let mut extrema = RollingExtrema::default();
+    let mut raw = vec![None; start];
+    raw.extend((0..completed.len()).map(|index| {
+        let (high, low) = extrema.advance(lookback, index, value, value)?;
+        let minimum = value(low);
+        let range = value(high) - minimum;
+        (range > 0).then(|| {
+            rounded_div(
+                i128::from(value(index) - minimum) * i128::from(100 * SCALE),
+                i128::from(range),
+            ) as i64
+        })
+    }));
+    Ok(smooth_rows(smoothing, signal, &raw))
+}
+
+fn smooth_rows(smoothing: usize, signal: usize, raw: &[Option<i64>]) -> Vec<StochasticValue> {
+    let percent_k = smooth(smoothing, raw);
     let percent_d = smooth(signal, &percent_k);
-    Ok(percent_k
+    percent_k
         .into_iter()
         .zip(percent_d)
         .map(|(percent_k, percent_d)| StochasticValue {
             percent_k,
             percent_d,
         })
-        .collect())
+        .collect()
 }

@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.235.0 · Stochastic RSI and Ultimate Oscillator
+
+- Rust and Wasm verify every observed prefix of a signed fixture, flat ranges, exact weighted values through missing timestamps and genuine zeros. Rust also checks maximum-length windows and fixed-point price bounds.
+- Offline Chromium verifies invalid period order, independent panes, exact percentage columns, version 67 compatibility and version 68 restoration.
+
+[Stochastic RSI and Ultimate Oscillator](chart-workspace.md#stochastic-rsi-and-ultimate-oscillator)
+
 ## 0.234.0 · Point-in-time opening gaps
 
 - Rust and Wasm check exact signed price differences, UTC provenance, stable observed prefixes and a genuine zero across a missing interval. Changing a candle's own close keeps its opening gap and changes the next observation's basis.

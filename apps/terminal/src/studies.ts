@@ -11,6 +11,8 @@ export const STUDIES = {
   donchian: { name: 'Donchian Channels', label: 'Donchian Channels', minPeriod: 1, defaultPeriod: 20 },
   keltner: { name: 'Keltner Channels', label: 'Keltner Channels', minPeriod: 1, defaultPeriod: 20, periodLabel: 'Keltner EMA' },
   stochastic: { name: 'Stochastic Oscillator', label: 'Stochastic Oscillator', minPeriod: 1, defaultPeriod: 14, periodLabel: 'Stochastic lookback', color: '#a6c9f8' },
+  stochastic_rsi: { name: 'Stochastic RSI', label: 'Stochastic RSI', minPeriod: 2, defaultPeriod: 14, periodLabel: 'Stochastic RSI Wilder RSI', color: '#aca8f2' },
+  ultimate: { name: 'Ultimate Oscillator', label: 'Ultimate Oscillator', minPeriod: 1, defaultPeriod: 7, periodLabel: 'Ultimate Oscillator short', color: '#79cdb5' },
   williams_r: { name: 'Williams %R', label: 'Williams %R', minPeriod: 1, defaultPeriod: 14, color: '#ceaeec' },
   macd: { name: 'MACD', label: 'Moving Average Convergence Divergence', minPeriod: 1, defaultPeriod: 12, periodLabel: 'MACD fast', color: '#9abdfd' },
   obv: { name: 'On-Balance Volume', label: 'On-Balance Volume', color: '#79c9b2' },
@@ -52,6 +54,11 @@ export const EXTRA_STUDY_PERIODS = {
   atrPeriod: { label: 'Keltner ATR', defaultPeriod: 10 },
   smoothPeriod: { label: 'Stochastic %K smoothing', defaultPeriod: 3 },
   signalPeriod: { label: 'Stochastic %D', defaultPeriod: 3 },
+  stochRsiLookback: { label: 'Stochastic RSI lookback', defaultPeriod: 14 },
+  stochRsiSmoothing: { label: 'Stochastic RSI %K smoothing', defaultPeriod: 3 },
+  stochRsiSignal: { label: 'Stochastic RSI %D', defaultPeriod: 3 },
+  ultimateMiddlePeriod: { label: 'Ultimate Oscillator medium', defaultPeriod: 14 },
+  ultimateLongPeriod: { label: 'Ultimate Oscillator long', defaultPeriod: 28 },
   slowPeriod: { label: 'MACD slow', defaultPeriod: 26 },
   macdSignalPeriod: { label: 'MACD signal', defaultPeriod: 9 },
   chaikinSlowPeriod: { label: 'Chaikin slow', defaultPeriod: 10 },
@@ -64,6 +71,8 @@ type ExtraStudyPeriod = keyof typeof EXTRA_STUDY_PERIODS
 const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPeriod[]>> = {
   keltner: ['atrPeriod'],
   stochastic: ['smoothPeriod', 'signalPeriod'],
+  stochastic_rsi: ['stochRsiLookback', 'stochRsiSmoothing', 'stochRsiSignal'],
+  ultimate: ['ultimateMiddlePeriod', 'ultimateLongPeriod'],
   macd: ['slowPeriod', 'macdSignalPeriod'],
   chaikin_oscillator: ['chaikinSlowPeriod'],
   chaikin_volatility: ['volatilityLookback'],
@@ -209,13 +218,21 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
         { key: 'negative', label: 'VI−', color: '#eaa1a2', series: rows.map(row => row?.negative ?? null) },
       ] }]
     }
-    if (kind === 'stochastic') {
-      const smooth = study.smoothPeriod ?? EXTRA_STUDY_PERIODS.smoothPeriod.defaultPeriod
-      const signal = study.signalPeriod ?? EXTRA_STUDY_PERIODS.signalPeriod.defaultPeriod
-      const rows = core.stochasticOscillator(period, smooth, signal, bars)
-      return [{ kind, periods: [period, smooth, signal], lines: [
-        { key: 'k', label: '%K', color: STUDIES.stochastic.color, series: rows.map(row => row.percentK) },
+    if (kind === 'stochastic' || kind === 'stochastic_rsi') {
+      const periods = [period, ...extraStudyPeriods(kind).map(key => study[key] ?? EXTRA_STUDY_PERIODS[key].defaultPeriod)]
+      const rows = kind === 'stochastic'
+        ? core.stochasticOscillator(period, periods[1], periods[2], bars)
+        : core.stochasticRsi(period, periods[1], periods[2], periods[3], bars)
+      return [{ kind, periods, lines: [
+        { key: 'k', label: '%K', color: STUDIES[kind].color, series: rows.map(row => row.percentK) },
         { key: 'd', label: '%D', color: '#f1a98a', series: rows.map(row => row.percentD) },
+      ] }]
+    }
+    if (kind === 'ultimate') {
+      const medium = study.ultimateMiddlePeriod ?? EXTRA_STUDY_PERIODS.ultimateMiddlePeriod.defaultPeriod
+      const long = study.ultimateLongPeriod ?? EXTRA_STUDY_PERIODS.ultimateLongPeriod.defaultPeriod
+      return [{ kind, periods: [period, medium, long], lines: [
+        { color: STUDIES[kind].color, series: core.ultimateOscillator(period, medium, long, bars) },
       ] }]
     }
     if (kind === 'macd') {
@@ -336,10 +353,17 @@ export function studyOverlays(studies: StudyValues[]): ExportOverlay[] {
 export function isStudyKind(key: string): key is StudyKind {
   return Object.hasOwn(STUDIES, key)
 }
-export function validStudyPeriodOrder(kind: StudyKind, settings: StudySettings): boolean {
-  if (kind !== 'macd' && kind !== 'chaikin_oscillator') return true
+export function studyPeriodOrderError(kind: StudyKind, settings: StudySettings): string | undefined {
+  if (kind === 'ultimate') {
+    const { period, ultimateMiddlePeriod: medium, ultimateLongPeriod: long } = settings
+    if (period === undefined || medium === undefined || long === undefined || period >= medium || medium >= long)
+      return 'The Ultimate Oscillator short, medium and long periods must increase in that order.'
+    return
+  }
+  if (kind !== 'macd' && kind !== 'chaikin_oscillator') return
   const slow = kind === 'macd' ? settings.slowPeriod : settings.chaikinSlowPeriod
-  return settings.period !== undefined && slow !== undefined && settings.period < slow
+  if (settings.period === undefined || slow === undefined || settings.period >= slow)
+    return `The ${STUDIES[kind].name} fast period must be shorter than the slow period.`
 }
 
 export function validStudyPeriod(kind: StudyKind, period: unknown): period is number {

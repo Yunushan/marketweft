@@ -442,6 +442,14 @@ Each pane uses the bars available to its selected history and timeframe. Both st
 
 Both studies use observed bars and preserve separate pane settings. Research CSV names include the configured periods, such as `elder_force_13` and `chaikin_volatility_10_10`. Their settings use workspace backup version 59.
 
+### Stochastic RSI and Ultimate Oscillator
+
+**Stochastic RSI** places the current Wilder RSI within the highest and lowest RSI values in a complete observed window, on a 0–100% scale. The defaults are 14 bars for Wilder RSI, 14 for its range, 3 for %K smoothing and 3 for %D smoothing. The two smoothing stages use simple averages over complete defined windows. An unchanged RSI range leaves a gap. A current RSI at the bottom of a nonflat range gives a raw value of 0%. The panel guides are at 20% and 80%. [Stochastic RSI formula](https://www.tradingview.com/support/solutions/43000502333-stochastic-rsi-stoch-rsi/)
+
+**Ultimate Oscillator** uses the previous observed close and the current bar to calculate buying pressure and true range. Buying pressure is the close minus the lesser of the current low and prior close. True range is the greater of the current high and prior close minus that same lesser value. The three periods must increase strictly and default to 7, 14 and 28 observed changes. Each window divides total pressure by total true range, with ratios rounded to 16 decimal places before their 4:2:1 weighted average. The 0–100% panel has guides at 30% and 70%. A zero true range for any of the three windows leaves a gap. [Ultimate Oscillator formula](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ultimate-oscillator)
+
+Each pane keeps its own periods. Research CSV preserves six decimal places where needed, including exact zeros and empty cells for unavailable values. Default columns are `stochastic_rsi_k_14_14_3_3`, `stochastic_rsi_d_14_14_3_3` and `ultimate_7_14_28`. Workspace backup version 68 preserves these settings and earlier saved chart types.
+
 ### DeMarker and Relative Vigor Index
 
 **DeMarker** uses the sum of positive changes in highs divided by that sum plus the sum of falls in lows. It starts after a full window of observed pairs. The default period is 14. An unchanged window with a zero denominator leaves the value empty. A window with falling lows and zero rise in highs produces 0%. The panel spans 0–100% with guides at 30% and 70%. [DeMarker formula](https://www.metatrader5.com/en/terminal/help/indicators/oscillators/demarker).

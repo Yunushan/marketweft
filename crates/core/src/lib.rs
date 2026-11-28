@@ -64,6 +64,7 @@ mod sector;
 mod stochastic;
 mod tick_bars;
 mod timeframe;
+mod ultimate;
 mod universe;
 mod vigor_and_demarker;
 mod volume_bars;
@@ -215,7 +216,7 @@ pub use screen::{
     ScreenRow,
 };
 pub use sector::{Classification, Heatmap, HeatmapComparison, HeatmapListing, SectorGroup};
-pub use stochastic::{stochastic_oscillator, StochasticValue};
+pub use stochastic::{stochastic_oscillator, stochastic_rsi, StochasticValue};
 pub use tick_bars::{
     AggressorSide, FlowVolume, FootprintBar, FootprintLevel, PriceProfile, ProfileArea,
     ProfileLevel, TickBar, TradeClassification, TradeClassificationConfig, TradeSideBasis,
@@ -224,6 +225,7 @@ pub use tick_bars::{
 pub use timeframe::{
     aggregate_session_timeframe, aggregate_timeframe, SessionTimeframeBar, TimeframeBar,
 };
+pub use ultimate::ultimate_oscillator;
 pub use universe::{parse_universe, UniverseAction, UniverseBook, UniverseChange};
 pub use vigor_and_demarker::{demarker, relative_vigor, RelativeVigorValue};
 pub use volume_bars::VolumeBar;

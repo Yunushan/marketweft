@@ -5,7 +5,7 @@ import { MAX_CHART_PRICE_TICKS } from './fixed-point'
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
 import type { Asset, SavedImport } from './workspace'
 import { isSha256, sha256Text } from './sha256'
-import { extraStudyPeriods, hasStudyPeriod, isStudyKind, STUDIES, validStudyPeriod, validStudyPeriodOrder } from './studies'
+import { extraStudyPeriods, hasStudyPeriod, isStudyKind, studyPeriodOrderError, validStudyPeriod } from './studies'
 import type { StudySet, StudySettings } from './studies'
 import { validProvider, verifyProviderSignature } from './provider-signature'
 
@@ -342,10 +342,11 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
         }
         for (const key of periods) {
           const period = entry[key]
-          if (!validStudyPeriod(kind, period)) throw Error('Invalid auxiliary study period.')
+          if (!validIndicatorPeriod(period)) throw Error('Invalid auxiliary study period.')
           study[key] = period
         }
-        if (!validStudyPeriodOrder(kind, study)) throw Error(`The ${STUDIES[kind].name} fast period must be shorter than the slow period.`)
+        const orderError = studyPeriodOrderError(kind, study)
+        if (orderError) throw Error(orderError)
         studies[kind] = study
       }
       return [pane, studies]
