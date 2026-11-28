@@ -9,6 +9,16 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK gives the fitted close at each observed index', async () => {
+  const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-rolling-regression.csv', import.meta.url), 'utf8')
+  const engine = await createResearchEngine(wasm)
+  const bars = engine.parseBars(source)
+  const expected = [null, null, 0n, 333333n, 0n, -1666667n, -4000000n, -3500000n]
+  assert.deepEqual(engine.leastSquaresMovingAverage(3, bars), expected)
+  assert.deepEqual(engine.leastSquaresMovingAverage(3, bars.slice(0, 6)), expected.slice(0, 6))
+  assert.equal(engine.leastSquaresMovingAverage(4, bars).at(-1), -3900000n)
+})
+
 test('the public SDK returns exact close dispersion, warm-up and genuine zeros', async () => {
   const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-close-dispersion.csv', import.meta.url), 'utf8')
   const engine = await createResearchEngine(wasm)

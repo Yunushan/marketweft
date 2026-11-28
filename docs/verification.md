@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.294.0 · Least Squares Moving Average
+
+- Rust and Wasm verify the fitted price at the last observed index, all observed prefixes, signed rounding, wide values and unchanged one-bar forecasts.
+- Offline Chromium verifies independent periods, exact research CSV, and restoration of both the older regression settings and current overlay settings.
+
 ## 0.293.0 · Close Standard Deviation
 
 - Rust and Wasm verify exact trailing population dispersion on signed closes, observed prefixes, wide values and the distinction between zero and warm-up. Rust also verifies half-tick rounding and unchanged Bollinger Bands.

@@ -67,6 +67,8 @@ export const STUDIES = {
     minPeriod: 2, defaultPeriod: 14, color: '#efab82' },
   time_series_forecast: { name: 'Time Series Forecast', label: 'Time Series Forecast',
     minPeriod: 2, defaultPeriod: 14, color: '#8bbacf' },
+  lsma: { name: 'Least Squares Moving Average', label: 'Least Squares Moving Average',
+    minPeriod: 2, defaultPeriod: 14, color: '#d4b6e8' },
   coppock: { name: 'Coppock Curve', label: 'Coppock Curve', minPeriod: 1, defaultPeriod: 10,
     periodLabel: 'Coppock smoothing', color: '#e8b185' },
   cmo: { name: 'CMO', label: 'Chande Momentum Oscillator', minPeriod: 2, defaultPeriod: 20, color: '#82c4e8' },
@@ -164,6 +166,7 @@ const PRICE_AVERAGES = {
   tema: 'tripleExponentialMovingAverage',
   hma: 'hullMovingAverage',
   trima: 'triangularMovingAverage',
+  lsma: 'leastSquaresMovingAverage',
   kama: 'kaufmanAdaptiveMovingAverage',
 } as const
 type PriceAverageKind = keyof typeof PRICE_AVERAGES

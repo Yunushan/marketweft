@@ -194,6 +194,17 @@ test('ATR price overlays preserve signed bands, strict trend switches and exact 
   assert.deepEqual(core.supertrend(2, bars.slice(0, 1)), [{ up: null, down: null }]);
 });
 
+test('least squares moving average evaluates the last observed index without lookahead', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-rolling-regression.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(source);
+  const fitted = [null, null, 0n, 333333n, 0n, -1666667n, -4000000n, -3500000n];
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.leastSquaresMovingAverage(3, bars.slice(0, end)), fitted.slice(0, end));
+  assert.equal(core.leastSquaresMovingAverage(4, bars).at(-1), -3900000n);
+  assert.equal(core.rollingCloseRegression(3, bars).at(-1).forecast, -4000000n);
+  assert.throws(() => core.leastSquaresMovingAverage(1, bars), /100,000/);
+});
+
 test('rolling regression keeps exact signed slopes and next-index forecasts across every prefix', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-rolling-regression.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(csv);

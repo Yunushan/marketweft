@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { expect, test } from './fixtures.mjs'
 import { downloadWorkspace, openImport, selectBackup, submitImport } from './catalog-fixtures.mjs'
 
-test('offline regression studies preserve exact signed slopes and one-bar estimates', async ({ page, context }) => {
+test('offline regression studies preserve slopes, fitted closes and one-bar forecasts', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
@@ -82,4 +82,39 @@ test('offline regression studies preserve exact signed slopes and one-bar estima
   }
   await page.reload()
   await verifyStudies()
+
+  const fit = pane => pane.getByRole('group', { name: 'Least Squares Moving Average', exact: true })
+  await page.getByRole('button', { name: /Indicators/ }).click()
+  await applyStudy('Primary', 'Least Squares Moving Average', 3)
+  await applyStudy('Comparison', 'Least Squares Moving Average', 4)
+  await page.keyboard.press('Escape')
+  await expect(fit(primary)).toHaveText('Least Squares Moving Average 3 -3.5')
+  await expect(fit(comparison)).toHaveText('Least Squares Moving Average 4 -3.9')
+  await verifyStudies()
+
+  await primary.getByText('Export CSV', { exact: true }).click()
+  await primary.getByLabel('Contents').selectOption('analysis')
+  const [withFit] = await Promise.all([
+    page.waitForEvent('download'), primary.getByRole('button', { name: 'Download CSV', exact: true }).click(),
+  ])
+  const [fitHeader, ...fitRows] = (await readFile(await withFit.path(), 'utf8')).trimEnd().split(/\r?\n/)
+  const column = fitHeader.split(',').indexOf('lsma_3')
+  expect(column).toBeGreaterThan(0)
+  expect(fitRows.map(row => row.split(',')[column])).toEqual(['', '', '0', '0.333333', '0', '-1.666667', '-4', '-3.5'])
+
+  const withFitBackup = await downloadWorkspace(page)
+  expect(withFitBackup.version).toBe(90)
+  expect(withFitBackup.manifest.preferences.studies.primary.lsma).toEqual({ enabled: true, period: 3 })
+  expect(withFitBackup.manifest.preferences.studies.comparison.lsma).toEqual({ enabled: true, period: 4 })
+  for (const backup of [current, withFitBackup]) {
+    await page.getByRole('button', { name: 'Workspace backup', exact: true }).click()
+    await selectBackup(page, backup)
+    await page.getByRole('button', { name: 'Restore workspace', exact: true }).click()
+    await expect(page.getByText('Workspace restored.')).toBeVisible()
+    await expect(fit(primary)).toHaveCount(backup === withFitBackup ? 1 : 0)
+    await verifyStudies()
+  }
+  await page.reload()
+  await expect(fit(primary)).toHaveText('Least Squares Moving Average 3 -3.5')
+  await expect(fit(comparison)).toHaveText('Least Squares Moving Average 4 -3.9')
 })

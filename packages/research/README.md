@@ -84,3 +84,5 @@ Call `listingDownsideRiskAsOf(membershipCsv, closesCsv, 'A', 'B', query)` with `
 Call `recordedTradePrints('NASDAQ:NVDA', tradesCsv, '2025-06-02T14:00:00Z')` to query prints in capture order. Each row retains separate execution and observation seconds, exact sequence, price and size as `bigint`, and reported side. [Recorded print SDKs](../../docs/recorded-tick-bars.md#recorded-print-sdks)
 
 Call `rollingCloseStandardDeviation(20, bars)` to calculate population standard deviation across trailing closes. Each full window returns price millionths as `bigint`. Warm-up returns `null`. [Close Standard Deviation](../../docs/chart-workspace.md#close-standard-deviation)
+
+Call `leastSquaresMovingAverage(14, bars)` for the least-squares fitted close at the last observed index of each full window. The SDK returns exact price millionths as `bigint` or `null` before the full window. [Least Squares Moving Average](../../docs/chart-workspace.md#least-squares-moving-average)

@@ -1,6 +1,6 @@
 use marketweft_core::{
-    parse_csv, regression_channel, rolling_close_regression, Bar, CloseRegressionValues,
-    RegressionChannel, MAX_BARS, MAX_TICKS, SCALE,
+    least_squares_moving_average, parse_csv, regression_channel, rolling_close_regression, Bar,
+    CloseRegressionValues, RegressionChannel, MAX_BARS, MAX_TICKS, SCALE,
 };
 
 fn bar(time: i64, price: i64) -> Bar {
@@ -12,6 +12,53 @@ fn bar(time: i64, price: i64) -> Bar {
         close: price,
         volume: 0,
     }
+}
+
+#[test]
+fn least_squares_average_fits_the_last_observation_at_each_prefix() {
+    let bars = parse_csv(include_str!("fixtures/synthetic-rolling-regression.csv")).unwrap();
+    let closes: Vec<_> = bars.iter().map(|bar| bar.close).collect();
+    let expected = [
+        None,
+        None,
+        Some(0),
+        Some(333_333),
+        Some(0),
+        Some(-1_666_667),
+        Some(-4_000_000),
+        Some(-3_500_000),
+    ];
+    for end in 0..=closes.len() {
+        assert_eq!(
+            least_squares_moving_average(3, &closes[..end]).unwrap(),
+            expected[..end]
+        );
+    }
+    assert_eq!(
+        least_squares_moving_average(4, &closes).unwrap()[7],
+        Some(-3_900_000)
+    );
+    assert_eq!(
+        least_squares_moving_average(2, &closes).unwrap()[7],
+        Some(closes[7])
+    );
+    assert_eq!(
+        least_squares_moving_average(3, &[-3, 0, 0]).unwrap()[2],
+        Some(1)
+    );
+    assert_eq!(
+        least_squares_moving_average(3, &[3, 0, 0]).unwrap()[2],
+        Some(-1)
+    );
+    assert_eq!(
+        least_squares_moving_average(3, &[-MAX_TICKS, MAX_TICKS, MAX_TICKS]).unwrap()[2],
+        Some(2_666_666_666_666_667)
+    );
+    assert_eq!(
+        least_squares_moving_average(MAX_BARS, &vec![-MAX_TICKS; MAX_BARS]).unwrap()[MAX_BARS - 1],
+        Some(-MAX_TICKS)
+    );
+    assert!(least_squares_moving_average(1, &closes).is_err());
 }
 
 #[test]

@@ -1412,6 +1412,7 @@ export interface MarketCore {
   anchoredTwap(anchorAt: number, bars: readonly Bar[]): (AnchoredTwapPoint | null)[];
   regressionChannel(startAt: number, endAt: number, bars: readonly Bar[]): RegressionChannel | null;
   rollingCloseRegression(period: number, bars: readonly Bar[]): CloseRegressionValues[];
+  leastSquaresMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   observedDrawdown(bars: readonly Bar[]): (DrawdownPoint | null)[];
   observedCloseDistributions(bars: readonly Bar[], size: number): CloseDistribution[];
   monthlyReturns(bars: readonly Bar[], firstYear: number, lastYear: number, knownThrough: number): MonthlyReturn[];
@@ -1627,6 +1628,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_observed_close_distributions(size: number): number;
   mw_regression_channel(startAt: bigint, endAt: bigint): number;
   mw_rolling_close_regression(period: number): number;
+  mw_least_squares_moving_average(period: number): number;
   mw_anchored_vwap(anchorAt: bigint): number;
   mw_anchored_twap(anchorAt: bigint): number;
   mw_confirmed_close_swings(left: number, right: number, intervalSeconds: number): number;
@@ -1779,6 +1781,14 @@ function readListingRiskPoint(out: DataView, start: number): ListingRiskPoint {
     leftVolatility: listingRiskMetric(out, start + 32), rightVolatility: listingRiskMetric(out, start + 40),
     correlation: listingRiskMetric(out, start + 48),
   };
+}
+
+function readIndicatorTicks(out: DataView, length: number): (bigint | null)[] {
+  if (out.byteLength !== length * 8) throw new Error('Invalid indicator response size.');
+  return Array.from({ length }, (_, index) => {
+    const ticks = out.getBigInt64(index * 8, true);
+    return ticks === MISSING ? null : ticks;
+  });
 }
 
 function readWideIndicator(out: DataView, length: number): (bigint | null)[] {
@@ -2843,12 +2853,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     rollingCloseStandardDeviation(period, bars) {
       validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
-      const data = output(api.mw_rolling_close_standard_deviation(period));
-      if (data.byteLength !== bars.length * 8) throw new Error('Invalid standard deviation response size.');
-      return Array.from({ length: bars.length }, (_, index) => {
-        const ticks = data.getBigInt64(index * 8, true);
-        return ticks === MISSING ? null : ticks;
-      });
+      return readIndicatorTicks(output(api.mw_rolling_close_standard_deviation(period)), bars.length);
     },
     donchianChannels(period, bars) {
       validateIndicatorHistory(period, bars.length);
@@ -2950,6 +2955,11 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       putIndicatorCloses(bars);
       return readIndicatorPairs(output(api.mw_rolling_close_regression(period)), bars.length,
         (slope, forecast) => ({ slope, forecast }));
+    },
+    leastSquaresMovingAverage(period, bars) {
+      validateIndicatorHistory(period, bars.length, 2);
+      putIndicatorCloses(bars);
+      return readIndicatorTicks(output(api.mw_least_squares_moving_average(period)), bars.length);
     },
     observedDrawdown(bars) {
       if (bars.length > 100_000) throw new Error('Drawdown charts support up to 100,000 bars.');

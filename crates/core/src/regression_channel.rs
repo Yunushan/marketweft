@@ -25,6 +25,23 @@ pub struct CloseRegressionValues {
     pub forecast_ticks: i64,
 }
 
+struct CloseRegressionWindow {
+    count: i128,
+    sum: i128,
+    sum_z2: i128,
+    sum_zy: i128,
+}
+
+impl CloseRegressionWindow {
+    fn price_at(&self, index: i128) -> i64 {
+        let z = 2 * index - (self.count - 1);
+        rounded_div(
+            self.sum * self.sum_z2 + self.count * z * self.sum_zy,
+            self.count * self.sum_z2,
+        ) as i64
+    }
+}
+
 /// Fit closes to their observation index over a trailing window. Return the
 /// signed slope in price ticks per observation and the next-index estimate
 /// at the final observed bar. Each output rounds once.
@@ -32,6 +49,26 @@ pub fn rolling_close_regression(
     period: usize,
     closes: &[i64],
 ) -> Result<Vec<Option<CloseRegressionValues>>, String> {
+    rolling_close_fits(period, closes, |window| CloseRegressionValues {
+        slope_ticks: rounded_div(2 * window.sum_zy, window.sum_z2) as i64,
+        forecast_ticks: window.price_at(window.count),
+    })
+}
+
+/// Fit a least-squares line over each full trailing window of closes. Return
+/// the fitted price at the last observed index, rounded once to whole ticks.
+pub fn least_squares_moving_average(
+    period: usize,
+    closes: &[i64],
+) -> Result<Vec<Option<i64>>, String> {
+    rolling_close_fits(period, closes, |window| window.price_at(window.count - 1))
+}
+
+fn rolling_close_fits<T>(
+    period: usize,
+    closes: &[i64],
+    calculate: impl Fn(CloseRegressionWindow) -> T,
+) -> Result<Vec<Option<T>>, String> {
     validate_closes(period, closes)?;
     if period < 2 {
         return Err("Regression studies need at least two bars per window.".into());
@@ -53,14 +90,12 @@ pub fn rolling_close_regression(
             weighted += index.min(period - 1) as i128 * price;
             sum += price;
             (index + 1 >= period).then(|| {
-                let sum_zy = 2 * weighted - (count - 1) * sum;
-                CloseRegressionValues {
-                    slope_ticks: rounded_div(2 * sum_zy, sum_z2) as i64,
-                    forecast_ticks: rounded_div(
-                        sum * sum_z2 + count * (count + 1) * sum_zy,
-                        count * sum_z2,
-                    ) as i64,
-                }
+                calculate(CloseRegressionWindow {
+                    count,
+                    sum,
+                    sum_z2,
+                    sum_zy: 2 * weighted - (count - 1) * sum,
+                })
             })
         })
         .collect())

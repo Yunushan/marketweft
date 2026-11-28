@@ -4654,6 +4654,14 @@ pub extern "C" fn mw_rolling_close_regression(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_least_squares_moving_average(period: usize) -> u32 {
+    process(|input| {
+        crate::least_squares_moving_average(period, &indicator_closes(input)?)
+            .map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_regression_channel(start_at: i64, end_at: i64) -> u32 {
     process(|input| {
         let fit = crate::regression_channel(start_at, end_at, &decode_bars(input)?)?;

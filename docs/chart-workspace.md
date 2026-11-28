@@ -536,6 +536,12 @@ Both studies fit a least-squares line to the latest complete window of observed 
 
 Research CSV includes `linear_regression_slope_14` and `time_series_forecast_14` at the default periods. Workspace backup version 80 preserves each pane’s settings.
 
+### Least Squares Moving Average
+
+Enable **Least Squares Moving Average** to overlay the fitted price at the last observed index of each full trailing window. The line uses the same least-squares fit as the regression studies and evaluates it at position `N−1`. The default period is 14 closes, with a minimum of two. Each result rounds once to six decimal places. Each pane saves its own period in workspace backup version 90.
+
+With a period of three, the sample’s last fitted close is −3.5. The Time Series Forecast at the same bar gives −4 for the next index. The research CSV column for the three-bar fit is `lsma_3`. [Synthetic regression fixture](../crates/core/tests/fixtures/synthetic-rolling-regression.csv)
+
 ### Volume Rate of Change and Volume Oscillator
 
 **Volume Rate of Change** measures the percentage change from the reported volume exactly one window earlier. The default is 14 observed bars. A zero baseline volume leaves the result unavailable. A zero current volume against a positive baseline gives −100%, and equal positive volumes give 0%. Results use six decimal places in percentage points. [Volume Rate of Change reference](https://developer.ninjatrader.com/docs/desktop/volume_rate_of_change_vroc)
