@@ -912,6 +912,11 @@ h1 {
   background: var(--mint);
   border-radius: 1px;
 }
+.scatter-key {
+  width: 5px;
+  height: 5px;
+  background: #8abcf0;
+}
 .line-key {
   width: 16px;
   height: 2px;

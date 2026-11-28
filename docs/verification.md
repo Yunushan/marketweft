@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.241.0 · Close and volume scatter
+
+- Offline Chromium measures the signed close and volume coordinates, checks selection among equal-volume points, and verifies linked UTC, keyboard traversal and a zero-volume axis.
+- The fixture covers rolled volume, exact chronological CSV including overlapping points, and restoration of versions 69 and 70 with earlier study preferences retained.
+
+[Close–volume scatter](chart-workspace.md#close-and-volume-scatter)
+
 ## 0.240.0 · Percentage Price Oscillator and normalized ATR
 
 - Rust and Wasm verify each observed prefix, signed denominators, a zero slow EMA and recovery of the PPO signal after that gap. A zero close leaves normalized ATR unavailable, while a nonzero close and zero range return 0%. Wide results remain exact beyond signed 64-bit bounds.

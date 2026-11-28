@@ -62,6 +62,14 @@ Choose **EquiVolume** to plot adjacent high-low boxes. Each box uses its share o
 
 The pointer selects the observation that occupies the horizontal position. Linked panes still share its exact UTC time. The chart uses the active pane's observed bars or aggregated buckets for volume and high-low bounds. Dense views combine boxes in the same display column and preserve their highest and lowest prices. The readout and CSV preserve the source OHLCV. Workspace backup version 64 saves the chart type for each pane.
 
+### Close and volume scatter
+
+Choose **Close–volume scatter** to plot volume on the horizontal axis and closing price on the vertical axis. Each point uses one recorded or rolled bar. Zero-volume observations sit on the zero-volume gridline and retain their signed closes. Use the range controls to change the observed window.
+
+Hover near a point to select by both coordinates and link the bar's exact UTC time to the other pane. When observations share an exact volume and close, hovering selects the latest visible one. Focus the chart and use Up or Down to inspect each observation in chronological order. The readout and CSV retain exact prices and volume, including all observations at a shared plotted location.
+
+Time-axis drawings and indicators become visible again when you return to a time-based chart. Workspace backup version 70 saves the scatter selection separately for each pane and retains its earlier settings.
+
 ### High-low band
 
 Choose **High-low band** to shade the range between observed highs and lows with a close line inside it. Set **High-low band interval (seconds)** to join consecutive observations. The line and band break where observations are missing. An isolated bar shows its range and close as a column and point.

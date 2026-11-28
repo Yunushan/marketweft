@@ -34,7 +34,7 @@ export type Preferences = {
 }
 
 export type ChartPane = 'primary' | 'comparison'
-export type ChartType = 'candles' | 'hollow-candles' | 'volume-candles' | 'equivolume' | 'line' | 'area' | 'step-line' | 'baseline' | 'close-change' | 'opening-gap' | 'close-distribution' | 'high-low-band' | 'rebased-percent' | 'drawdown' | 'confirmed-swings' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
+export type ChartType = 'candles' | 'hollow-candles' | 'volume-candles' | 'equivolume' | 'volume-price-scatter' | 'line' | 'area' | 'step-line' | 'baseline' | 'close-change' | 'opening-gap' | 'close-distribution' | 'high-low-band' | 'rebased-percent' | 'drawdown' | 'confirmed-swings' | 'ohlc' | 'heikin-ashi' | 'renko' | 'three-line-break' | 'kagi' | 'point-and-figure'
 const MAX_CHART_INTERVAL_SECONDS = 0xffff_ffff
 export const DEFAULT_RENKO_TICKS = 1_000_000
 export const DEFAULT_KAGI_TICKS = 1_000_000
@@ -358,7 +358,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
       throw Error('Invalid workspace chart types.')
     const entries = Object.entries(settings)
     if (!entries.length || entries.some(([pane, type]) =>
-      (pane !== 'primary' && pane !== 'comparison') || (type !== 'hollow-candles' && type !== 'volume-candles' && type !== 'equivolume' && type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'baseline' && type !== 'close-change' && type !== 'opening-gap' && type !== 'close-distribution' && type !== 'high-low-band' && type !== 'rebased-percent' && type !== 'drawdown' && type !== 'confirmed-swings' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
+      (pane !== 'primary' && pane !== 'comparison') || (type !== 'hollow-candles' && type !== 'volume-candles' && type !== 'equivolume' && type !== 'volume-price-scatter' && type !== 'line' && type !== 'area' && type !== 'step-line' && type !== 'baseline' && type !== 'close-change' && type !== 'opening-gap' && type !== 'close-distribution' && type !== 'high-low-band' && type !== 'rebased-percent' && type !== 'drawdown' && type !== 'confirmed-swings' && type !== 'ohlc' && type !== 'heikin-ashi' && type !== 'renko' &&
         type !== 'three-line-break' && type !== 'kagi' && type !== 'point-and-figure'))) {
       throw Error('Unknown pane or chart type in the workspace.')
     }

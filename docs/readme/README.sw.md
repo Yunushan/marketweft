@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.240.0 · 0BSD**
+**0.241.0 · 0BSD**
 
 **Lugha za mwongozo**
 
@@ -15,14 +15,14 @@
 
 MarketWeft ni kituo cha utafiti cha ndani kwa wachambuzi, wasanidi na waendeshaji. Hufungua OHLCV iliyoidhinishwa, huchora vinara na kiasi, hukokotoa SMA na EMA kwa nukta isiyohama, na huhifadhi orodha, chombo kilichochaguliwa na viashiria katika IndexedDB. Hufanya kazi bila mtandao baada ya kuhifadhi rasilimali. Bei na kiasi vya mfano ni vya kutungwa na havihitaji akaunti.
 
-MarketWeft 0.240.0 inaongeza PPO na ATR iliyorekebishwa kwa bei, zikiwa na thamani zenye alama na mipangilio tofauti kwa kila paneli. MarketWeft 0.7.0 inaongeza uchujaji na upangaji wa wanachama kwa faida ya bei kwa kutumia taarifa zilizojulikana wakati wa hoja. Rejeo la vipindi vya soko linajumuisha mgawanyo wa hisa, gawio la fedha taslimu, uanachama na kufutwa kwa orodha. Hazina ina kifuatiliaji cha TypeScript cha kusoma tu kwa huduma tofauti ya trading-bot na kifurushi cha majaribio cha Tauri. Milisho ya data, maagizo, visakinishi vilivyosainiwa na upangishaji wa watumiaji wengi vipo kwenye ramani ya kazi.
+MarketWeft 0.241.0 inaongeza chati ya nukta za bei ya kufunga na kiasi cha biashara yenye thamani sahihi na nyakati zilizounganishwa. MarketWeft 0.7.0 inaongeza uchujaji na upangaji wa wanachama kwa faida ya bei kwa kutumia taarifa zilizojulikana wakati wa hoja. Rejeo la vipindi vya soko linajumuisha mgawanyo wa hisa, gawio la fedha taslimu, uanachama na kufutwa kwa orodha. Hazina ina kifuatiliaji cha TypeScript cha kusoma tu kwa huduma tofauti ya trading-bot na kifurushi cha majaribio cha Tauri. Milisho ya data, maagizo, visakinishi vilivyosainiwa na upangishaji wa watumiaji wengi vipo kwenye ramani ya kazi.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [PPO and normalized ATR](../chart-workspace.md#percentage-price-oscillator-and-normalized-atr)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Close–volume scatter](../chart-workspace.md#close-and-volume-scatter)
 
 <!-- section:02 -->
 ## Anzisha kituo kinachobebeka
 
-Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.240.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
+Pakua browser-terminal-attempt-N kutoka ukaguzi wa GitHub uliofaulu. Fungua MarketWeft-browser-0.241.0.zip, weka dist/ karibu na serve-terminal.mjs na endesha amri humo. Fungua http://127.0.0.1:4173/ kwa kivinjari kinachotumia WebAssembly, Canvas, BigInt na IndexedDB. Tumia Node.js 22.12 au mpya zaidi. Usakinishaji wa npm hauhitajiki. Subiri Offline ready kabla ya kukata mtandao.
 
 ```sh
 node serve-terminal.mjs

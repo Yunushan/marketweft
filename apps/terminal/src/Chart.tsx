@@ -14,6 +14,7 @@ import { pointFigureBoxAt, pointFigureLayout } from './point-figure-chart'
 import type { PointFigureLayout } from './point-figure-chart'
 import { fanRays, fibonacciChannelRays, pitchforkRays } from './annotation-rays'
 import { equivolumeLayout, volumeOffsets } from './equivolume'
+import { drawPriceVolumeScatter, priceVolumeScatter } from './price-volume-scatter'
 import { ChartExport } from './ChartExport'
 import type { AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
@@ -60,7 +61,11 @@ function plotValue(value: StudyValue): number | null {
   return typeof value === 'bigint' ? tickPrice(value) : value
 }
 type ChartObservation = KagiSegment | PointFigureBox
-type Plot = { left: number; right: number; top: number; bottom: number; high: number; low: number; barAt?: (x: number) => number }
+type Plot = {
+  left: number; right: number; top: number; bottom: number; high: number; low: number
+  barAt?: (x: number) => number
+  pointAt?: (x: number, y: number) => number | null
+}
 type DrawingTools = {
   core: MarketCore
   saved?: MeasuredDrawing
@@ -80,6 +85,7 @@ const chartNames: Record<ChartType, string> = {
   'hollow-candles': 'hollow candlestick',
   'volume-candles': 'volume-weighted candlestick',
   equivolume: 'EquiVolume',
+  'volume-price-scatter': 'Close–volume scatter',
   line: 'close line',
   area: 'close area',
   'step-line': 'step line',
@@ -210,6 +216,7 @@ function draw(
   studies: PlottedStudy[],
   priceLines: readonly { color: string; series: Series; stepped?: boolean }[],
   activeStudyValues: (number | null)[][],
+  scatter: ReturnType<typeof priceVolumeScatter>,
 ): Plot | undefined {
   const ctx = canvas.getContext('2d')
   if (!ctx || width < 80 || height < 100) return
@@ -217,6 +224,10 @@ function draw(
   canvas.width = Math.round(width * dpr)
   canvas.height = Math.round(height * dpr)
   ctx.scale(dpr, dpr)
+  if (type === 'volume-price-scatter') {
+    drawPriceVolumeScatter(ctx, scatter, active)
+    return scatter
+  }
   const baseline = type === 'baseline' ? baselineTicks / 1e6 : undefined
   const histogram = type === 'close-change'
   const openingGapChart = type === 'opening-gap'
@@ -1229,6 +1240,7 @@ export function Chart({
   pointFigureBoxes?: PointFigureBox[]
   pointFigureSize?: number
 }) {
+  const scatterChart = type === 'volume-price-scatter'
   const kagi = useMemo(() => kagiSegments && kagiLayout(kagiSegments), [kagiSegments])
   const pointFigure = useMemo(() => pointFigureBoxes && pointFigureLayout(pointFigureBoxes, pointFigureSize),
     [pointFigureBoxes, pointFigureSize])
@@ -1245,8 +1257,8 @@ export function Chart({
     sourceIndices.map(index => sma[index]) : sma, [sourceIndices, sma])
   const plottedEma = useMemo(() => sourceIndices && ema.length ?
     sourceIndices.map(index => ema[index]) : ema, [sourceIndices, ema])
-  const panels = useMemo(() => studies.filter(study => !isPriceStudy(study)), [studies])
-  const priceStudies = useMemo(() => studies.filter(isPriceStudy), [studies])
+  const panels = useMemo(() => scatterChart ? [] : studies.filter(study => !isPriceStudy(study)), [studies, scatterChart])
+  const priceStudies = useMemo(() => scatterChart ? [] : studies.filter(isPriceStudy), [studies, scatterChart])
   const plottedPriceLines = useMemo(() => [
     ...priceStudies.flatMap(study => study.lines.map(line => ({
       color: line.color, series: projectStudyLine(line.series, sourceIndices), stepped: line.stepped,
@@ -1322,6 +1334,8 @@ export function Chart({
   const readoutIndex = active ?? view.end - 1
   const plotted = displayBars ?? bars
   const equivolumeOffsets = useMemo(() => type === 'equivolume' ? volumeOffsets(plotted) : undefined, [type, plotted])
+  const scatter = useMemo(() => scatterChart ? priceVolumeScatter(plotted, start, view.end, size.width, size.height) : undefined,
+    [scatterChart, plotted, start, view.end, size.width, size.height])
   const b = plotted[readoutIndex]
   const movement = priceMovements?.[readoutIndex]
   const selectedObservation = (pointerIndex !== null ? pointerObservation : linkedIndex !== null ? linkedObservation : undefined) ??
@@ -1452,8 +1466,9 @@ export function Chart({
           plottedStudies,
           plottedPriceLines,
           activeStudyPlotValues,
+          scatter,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, drawingLevels, type, equivolumeOffsets, baselineTicks, closeChanges, openingGaps, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, drawingLevels, type, equivolumeOffsets, baselineTicks, closeChanges, openingGaps, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues, scatter])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -1491,8 +1506,9 @@ export function Chart({
       return
     }
     const rect = e.currentTarget.getBoundingClientRect()
-    const index = barIndexAt(e.clientX - rect.left, bounds)
+    const x = e.clientX - rect.left
     const y = e.clientY - rect.top
+    const index = bounds.pointAt ? bounds.pointAt(x, y) : barIndexAt(x, bounds)
     const observation = index === null || !observationsByTime || (panels.length && y > bounds.bottom) ?
       undefined : observationAt(index, priceTicksAt(y, bounds))
     hover(index, observation)
@@ -1537,13 +1553,16 @@ export function Chart({
     ? `${asset.symbol} OHLCV. Open ${price(b.open)}, high ${price(b.high)}, low ${price(b.low)}, close ${price(b.close)}, volume ${volume(b.volume)}`
     : undefined
   return (
-    <section className="plot" aria-label={closeBased || histogram || percentAxis || swingChart || distributionChart || openingGapChart || type === 'equivolume' ? chartNames[type] + ' chart' : 'Price and volume chart'}
+    <section className="plot" aria-label={closeBased || scatterChart || histogram || percentAxis || swingChart || distributionChart || openingGapChart || type === 'equivolume' ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : time}>
-      <div className="ohlc" role={displayBars || movement || selectedObservation || priceReadout || distributionChart || openingGapChart ? 'group' : undefined}
-        aria-label={openingGapChart ? 'Opening gap prices' : distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
+      <div className="ohlc" role={scatterChart || displayBars || movement || selectedObservation || priceReadout || distributionChart || openingGapChart ? 'group' : undefined}
+        aria-label={scatterChart ? 'Close and volume point' : openingGapChart ? 'Opening gap prices' : distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
           displayBars ? 'Heikin-Ashi prices' : priceReadout}>
         <time>{timeLabel(time)} UTC</time>
-        {distributionChart ? <>
+        {scatterChart ? <>
+          <span><small>Close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>
+          <span><small>Volume</small> {fixed(BigInt(Math.round(b.volume * 1e6)), 6)}</span>
+        </> : distributionChart ? <>
           {distribution ? <>
             <span><small>First close</small> {timeLabel(distribution.firstAt)} UTC</span>
             <span><small>Last close</small> {timeLabel(distribution.lastAt)} UTC</span>
@@ -1636,7 +1655,7 @@ export function Chart({
           {' · '}Capture sequence {volumeBar.firstSequence.toString()}–{volumeBar.lastSequence.toString()}
         </span>}
       </div>
-      {anchoredVwaps?.map(line => {
+      {!scatterChart && anchoredVwaps?.map(line => {
         const point = line.values[sourceIndex]
         return <div key={line.id} className="ohlc chart-overlay-values" role="group" aria-label="Anchored VWAP values">
           <span><small>Anchored VWAP</small> {point ? fixed(point.price, 6) : 'Missing'}</span>
@@ -1645,7 +1664,7 @@ export function Chart({
           {point && point.observedAt !== time && <span><small>Observed through</small> {timeLabel(point.observedAt)} UTC</span>}
         </div>
       })}
-      {regressionDrawings?.map(({ id, fit }) =>
+      {!scatterChart && regressionDrawings?.map(({ id, fit }) =>
         <div key={id} className="ohlc chart-overlay-values" role="group" aria-label="Regression channel values">
           {fit ? <>
             <span><small>Fitted start</small> {fixed(fit.startTicks, 6)}</span>
@@ -1654,7 +1673,7 @@ export function Chart({
             <span><small>Observations</small> {fit.observations}</span>
           </> : <span>Waiting for both source anchors</span>}
         </div>)}
-      {periods && (
+      {periods && !scatterChart && (
         <div className="ohlc chart-overlay-values" role={indicatorValues ? 'group' : undefined}
           aria-label={indicatorValues ? 'Moving average values' : undefined}>
           {([['sma', sma], ['ema', ema]] as const).map(([kind, series]) => {
@@ -1692,19 +1711,19 @@ export function Chart({
           {sourceAt && <span><small>Prior close UTC</small> {priorCloseAt == null ? '—' : utc(priorCloseAt)}</span>}
         </div>
       })}
-      <div ref={zone} className={picking || annotationPicker ? 'canvas-zone picking-endpoint' : 'canvas-zone'}
+      <div ref={zone} className={!scatterChart && (picking || annotationPicker) ? 'canvas-zone picking-endpoint' : 'canvas-zone'}
         style={panels.length ? { height: `calc(var(--price-chart-height) + ${110 * panels.length}px)` } : undefined}>
         <canvas
           tabIndex={0}
-          aria-label={asset.symbol + ' interactive ' + chartNames[type] + (closeBased || type === 'equivolume' ? ' chart' : ' and volume chart')}
+          aria-label={asset.symbol + ' interactive ' + chartNames[type] + (closeBased || scatterChart || type === 'equivolume' ? ' chart' : ' and volume chart')}
           ref={ref}
           onPointerDown={(e) => {
             if (e.button !== 0) return
-            if (picking) {
+            if (!scatterChart && picking) {
               pickEndpoint(e, picking)
               return
             }
-            if (annotationPicker) {
+            if (!scatterChart && annotationPicker) {
               pickAnnotation(e, annotationPicker)
               return
             }
@@ -1726,7 +1745,9 @@ export function Chart({
           }}
           onPointerMove={move}
           onKeyDown={(e) => {
-            if (e.key === 'ArrowLeft') pan(-1)
+            if (scatterChart && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))
+              hover(clamp(readoutIndex + (e.key === 'ArrowUp' ? -1 : 1), start, view.end - 1))
+            else if (e.key === 'ArrowLeft') pan(-1)
             else if (e.key === 'ArrowRight') pan(1)
             else if (e.key === '+') zoom(0.8)
             else if (e.key === '-') zoom(1.25)
@@ -1737,7 +1758,7 @@ export function Chart({
       </div>
       <div className="chart-foot">
         <div className="range">
-          <span>{pointFigure ? 'Columns' : isRenko ? 'Bricks' : closeBased ? 'Lines' : 'Bars'}</span>
+          <span>{scatterChart ? 'Points' : pointFigure ? 'Columns' : isRenko ? 'Bricks' : closeBased ? 'Lines' : 'Bars'}</span>
           {([30, 60, 120, 'All'] as const).map((r) => (
             <button
               key={r}
@@ -1799,7 +1820,7 @@ export function Chart({
           </button>
         </div>
       </div>
-      {drawingTools && (
+      {drawingTools && !scatterChart && (
         <div className="drawing-tools">
           {measurement && <MeasurementReadout measurement={measurement} />}
           {drawingFields ? (
@@ -1857,7 +1878,8 @@ export function Chart({
       <span className="sr-only">
         Data from {dateLabel(firstObservation?.sourceTime ?? bars[start].time)} through{' '}
         {dateLabel(bars[view.end - 1].time)}. Focus the chart and use arrow keys
-        to pan, plus and minus to zoom.
+        {scatterChart ? ' left and right to pan, up and down to select points, and plus and minus to zoom.' :
+          ' to pan, plus and minus to zoom.'}
       </span>
     </section>
   )

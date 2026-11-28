@@ -80,6 +80,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   'hollow-candles': 'Hollow candles',
   'volume-candles': 'Volume-weighted candles',
   equivolume: 'EquiVolume',
+  'volume-price-scatter': 'Close–volume scatter',
   line: 'Close line',
   area: 'Close area',
   'step-line': 'Step line',
@@ -500,6 +501,7 @@ export function App({
     move = movement(bars)
   const color = move.delta === null ? 'muted' : move.delta < 0 ? 'down' : 'up'
   const primaryPeriods = ws.overlayPeriods?.primary ?? DEFAULT_INDICATOR_PERIODS
+  const primaryScatter = ws.chartTypes?.primary === 'volume-price-scatter'
   const comparisonPeriods = ws.overlayPeriods?.comparison ?? DEFAULT_INDICATOR_PERIODS
   const primaryStudies = useMemo<StudySet>(() => ({
     ...(ws.rsi?.primary && { rsi: ws.rsi.primary }), ...ws.studies?.primary,
@@ -923,20 +925,21 @@ export function App({
             </div>
             <div className="legend" aria-label="Chart legend">
               <span>
-                <i className="candle-key" />
-                {ws.chartTypes?.primary === 'heikin-ashi' ? 'Heikin-Ashi · observed volume' :
+                <i className={primaryScatter ? 'scatter-key' : 'candle-key'} />
+                {primaryScatter ? 'Observed close and volume' :
+                  ws.chartTypes?.primary === 'heikin-ashi' ? 'Heikin-Ashi · observed volume' :
                   ws.chartTypes?.primary === 'renko' ? 'Renko · close-based' :
                   ws.chartTypes?.primary === 'three-line-break' ? 'Three Line Break · close-based' :
                   ws.chartTypes?.primary === 'kagi' ? 'Kagi · close-based' :
                   ws.chartTypes?.primary === 'point-and-figure' ? 'Point and Figure · close-based' : 'OHLCV'}
               </span>
-              {ws.sma && (
+              {ws.sma && !primaryScatter && (
                 <span>
                   <i className="line-key sma" />
                   SMA {primaryPeriods.sma}
                 </span>
               )}
-              {ws.ema && (
+              {ws.ema && !primaryScatter && (
                 <span>
                   <i className="line-key ema" />
                   EMA {primaryPeriods.ema}

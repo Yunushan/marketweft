@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.240.0 · 0BSD**
+**0.241.0 · 0BSD**
 
 **Idiomas de la documentación**
 
@@ -15,14 +15,14 @@
 
 MarketWeft es un terminal de investigación que prioriza el trabajo local para analistas, desarrolladores y operadores. Abre archivos OHLCV autorizados, dibuja velas y volumen, calcula SMA y EMA en punto fijo y guarda en IndexedDB la lista de seguimiento, el instrumento seleccionado y los indicadores. Funciona sin conexión tras almacenar los recursos. Los precios y volúmenes integrados son sintéticos y no requieren una cuenta.
 
-MarketWeft 0.240.0 añade PPO y ATR normalizado con valores con signo y ajustes independientes en cada panel. MarketWeft 0.7.0 incorpora un filtro histórico por rentabilidad de precio con los datos disponibles en cada fecha. La reproducción por sesiones incluye desdoblamientos, dividendos en efectivo, composición del universo y exclusiones de cotización. El repositorio también ofrece un observador TypeScript de solo lectura para el servicio independiente trading-bot y un envoltorio Tauri experimental. Los proveedores de datos, las órdenes, los instaladores firmados y el alojamiento multiusuario siguen en la hoja de ruta.
+MarketWeft 0.241.0 añade un gráfico de dispersión de cierre y volumen con valores exactos y tiempos de observación enlazados. MarketWeft 0.7.0 incorpora un filtro histórico por rentabilidad de precio con los datos disponibles en cada fecha. La reproducción por sesiones incluye desdoblamientos, dividendos en efectivo, composición del universo y exclusiones de cotización. El repositorio también ofrece un observador TypeScript de solo lectura para el servicio independiente trading-bot y un envoltorio Tauri experimental. Los proveedores de datos, las órdenes, los instaladores firmados y el alojamiento multiusuario siguen en la hoja de ruta.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [PPO and normalized ATR](../chart-workspace.md#percentage-price-oscillator-and-normalized-atr)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Close–volume scatter](../chart-workspace.md#close-and-volume-scatter)
 
 <!-- section:02 -->
 ## Iniciar el terminal portátil
 
-Descarga browser-terminal-attempt-N de una ejecución satisfactoria de GitHub. Extrae MarketWeft-browser-0.240.0.zip, deja dist/ junto a serve-terminal.mjs y ejecuta el comando en esa carpeta. Abre http://127.0.0.1:4173/ en un navegador actual con WebAssembly, Canvas, BigInt e IndexedDB. Usa Node.js 22.12 o posterior. No hace falta npm. Espera a Offline ready antes de desconectarte.
+Descarga browser-terminal-attempt-N de una ejecución satisfactoria de GitHub. Extrae MarketWeft-browser-0.241.0.zip, deja dist/ junto a serve-terminal.mjs y ejecuta el comando en esa carpeta. Abre http://127.0.0.1:4173/ en un navegador actual con WebAssembly, Canvas, BigInt e IndexedDB. Usa Node.js 22.12 o posterior. No hace falta npm. Espera a Offline ready antes de desconectarte.
 
 ```sh
 node serve-terminal.mjs
