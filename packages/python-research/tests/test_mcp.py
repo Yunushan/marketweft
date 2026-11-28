@@ -71,7 +71,7 @@ class McpTest(unittest.TestCase):
                           mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME, mcp.MONTHLY_RETURNS_TOOL_NAME,
                           mcp.MACRO_CALENDAR_TOOL_NAME, mcp.PORTFOLIO_SCENARIOS_TOOL_NAME, mcp.PORTFOLIO_FX_TOOL_NAME,
                           mcp.EQUITY_CONCENTRATION_TOOL_NAME, mcp.EQUITY_TARGET_TOOL_NAME,
-                          mcp.PORTFOLIO_ALLOCATION_TOOL_NAME])
+                          mcp.PORTFOLIO_ALLOCATION_TOOL_NAME, mcp.NOTIONAL_BARS_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -510,6 +510,68 @@ class McpTest(unittest.TestCase):
         self.assertTrue(messages["bad-cap"]["result"]["isError"])
         self.assertTrue(messages["duplicate"]["result"]["isError"])
         self.assertEqual(messages["ping"]["result"], {})
+
+    def test_notional_bars_page_exact_evidence_at_independent_cutoffs(self):
+        source = (ROOT / "crates/core/tests/fixtures/synthetic-notional-trades.csv").read_text(encoding="utf-8")
+        arguments = {"instrument": "NASDAQ:NVDA", "trades_csv": source, "target_notional_ticks": 5_000_000}
+        initial, completion = "2025-06-02T14:00:01Z", "2025-06-02T14:00:02Z"
+        wide = source.splitlines()[0] + "\nNASDAQ:NVDA,1748872800,1748872800,18446744073709551615,-2000000000,2000000000\n"
+
+        def query(request_id, **changes):
+            return rpc("tools/call", request_id, {
+                "name": mcp.NOTIONAL_BARS_TOOL_NAME, "arguments": arguments | changes,
+            })
+
+        process = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(
+                rpc("initialize", "init", INITIALIZE), rpc("notifications/initialized"), rpc("tools/list", "tools"),
+                query("before", known_at="2025-06-02T13:59:59Z"),
+                query("first", known_at=initial), query("complete", known_at=completion),
+                query("page-1", limit=2), query("page-2", offset=2, limit=2), query("empty", offset=4, limit=2),
+                query("wide", trades_csv=wide, target_notional_ticks=1),
+                query("null", known_at=None), query("limit", limit=1001), query("offset", offset=100001),
+                query("target", target_notional_ticks=True), query("unknown", trade_path="local.csv"),
+                query("bad-date", known_at="2025-02-29T14:00:01Z"), query("rewind", known_at=initial),
+                rpc("ping", "ping"),
+            ),
+            timeout=15, capture_output=True, check=True,
+        )
+        self.assertEqual(process.stderr, b"")
+        replies = {reply["id"]: reply for reply in map(json.loads, process.stdout.splitlines())}
+        tool = next(tool for tool in replies["tools"]["result"]["tools"] if tool["name"] == mcp.NOTIONAL_BARS_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertEqual(tool["inputSchema"]["required"], ["instrument", "trades_csv", "target_notional_ticks"])
+
+        def data(request_id):
+            result = replies[request_id]["result"]
+            self.assertEqual(json.loads(result["content"][0]["text"]), result["structuredContent"])
+            return result["structuredContent"]
+
+        self.assertEqual(data("before")["bars"], [])
+        before = data("first")
+        self.assertEqual((before["known_at"], before["target_notional_ticks"], before["total_bars"]), (initial, 5_000_000, 1))
+        self.assertEqual(before["bars"][0]["first_sequence"], "9007199254740993")
+        self.assertEqual(before["bars"][0]["gross_notional_trillionths"], "2000003000001")
+        self.assertFalse(before["bars"][0]["complete"])
+        finished = data("complete")["bars"][0]
+        self.assertTrue(finished["complete"])
+        self.assertEqual((finished["gross_notional_trillionths"], finished["last_sequence"]), ("5000003000001", "9007199254740995"))
+        pages = [data(request_id) for request_id in ("page-1", "page-2", "empty")]
+        self.assertEqual([page["next_offset"] for page in pages], [2, None, None])
+        self.assertEqual([page["total_bars"] for page in pages], [4, 4, 4])
+        self.assertTrue(all(page["known_at"] is None for page in pages))
+        self.assertEqual(pages[0]["bars"][0], finished)
+        self.assertEqual(pages[1]["bars"][-1]["gross_notional_trillionths"], "800000800000")
+        self.assertEqual(pages[2]["bars"], [])
+        large = data("wide")["bars"][0]
+        self.assertEqual(large["first_sequence"], str((1 << 64) - 1))
+        self.assertEqual(large["gross_notional_trillionths"], str(2_000_000_000_000_000 ** 2))
+        for request_id in ("null", "limit", "offset", "target", "unknown"):
+            self.assertEqual(replies[request_id]["error"]["code"], -32602)
+        self.assertTrue(replies["bad-date"]["result"]["isError"])
+        self.assertEqual(data("rewind"), before)
+        self.assertEqual(replies["ping"]["result"], {})
 
     def test_tool_and_protocol_errors_preserve_the_session(self):
         server = mcp.ResearchServer(ResearchEngine(EXECUTABLE))

@@ -192,3 +192,5 @@ Call `ResearchEngine.portfolio_allocation_as_of(membership_csv, prices_csv, list
 Set `maximum_weight_basis_points` on the SDK or MCP request for a uniform per-listing ceiling. Each response carries an explicit ceiling with the sample cutoffs and coverage.
 
 Call `ResearchEngine.recorded_notional_bars("NASDAQ:NVDA", trades_csv, 5_000_000, known_at="2025-06-02T14:00:02Z")` to build whole-trade bars. The snapshot carries the target and cutoff, and each row includes exact signed OHLCV, capture sequences and gross notional in trillionths. [Recorded notional bar SDKs](../../docs/recorded-tick-bars.md#recorded-notional-bar-sdks)
+
+The read-only MCP tool `recorded_notional_bars` returns the same records in pages and uses decimal strings for gross notional and capture sequences. [MCP recorded notional bars](../../docs/local-mcp-research.md#recorded-notional-bars)

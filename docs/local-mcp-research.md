@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, portfolio scenarios, minimum-variance allocation, FX conversion, equity concentration, equity target drift, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, recorded notional bars, portfolio scenarios, minimum-variance allocation, FX conversion, equity concentration, equity target drift, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 
 ```json
 {
@@ -59,6 +59,12 @@ Call the read-only `portfolio_allocation_as_of` tool. Supply the contents of the
 The tool returns common and per-listing coverage at every cutoff. With at least two common returns, it includes the sample metrics and weights as integer basis points. A missing sample or weight is `null`, and a computed zero is `0`. [Portfolio allocation service](local-rest-research.md#portfolio-allocation)
 
 Pass the optional integer `maximum_weight_basis_points` to bound each listing's weight. The tool echoes the supplied ceiling, including on a coverage-only result.
+
+## Recorded notional bars
+
+Call the read-only `recorded_notional_bars` tool with the canonical `instrument`, the contents of `trades_csv`, and a positive integer `target_notional_ticks` in quote millionths. Supply an optional exact UTC `known_at` cutoff to evaluate recorded observations through that second. Omit it to use every recorded trade. [Trade CSV and SDKs](recorded-tick-bars.md#recorded-notional-bar-sdks)
+
+Results echo the target and cutoff and report `total_bars`, `offset`, `next_offset`, and the current page of bars. Reuse the same tape, target and cutoff with the returned `next_offset`. Pages default to 200 bars and accept a limit up to 1,000. The capture sequences and gross notional in trillionths are decimal strings. A bar row also includes exact signed OHLCV in millionths, the trade count, a completion flag and both UTC times as whole Unix seconds.
 
 ## Portfolio currency conversion
 

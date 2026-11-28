@@ -14,13 +14,13 @@ from . import (
 )
 from . import (
     _MAX_CONCENTRATION_POSITIONS, _MAX_CSV, _MAX_EQUITY_TARGET_ROWS, _MAX_FINANCIAL_CSV, _MAX_FX_CURRENCIES, _MAX_MACRO_CSV, _MAX_MACRO_REPORTS,
-    _MAX_MONTHLY_YEARS, _MAX_OPTION_CSV, _MAX_OPTION_DIVIDEND_CSV, _MAX_OPTION_ROWS, _OPTION_STATUSES,
+    _MAX_MONTHLY_YEARS, _MAX_OPTION_CSV, _MAX_OPTION_DIVIDEND_CSV, _MAX_OPTION_ROWS, _MAX_PRICE_TICKS, _OPTION_STATUSES,
     _PORTFOLIO_START, _WIDE,
 )
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.17.0"
+SERVER_VERSION = "0.18.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -35,6 +35,7 @@ MONTHLY_RETURNS_TOOL_NAME = "monthly_returns_as_of"
 MACRO_CALENDAR_TOOL_NAME = "macro_calendar_as_of"
 PORTFOLIO_SCENARIOS_TOOL_NAME = "portfolio_scenarios_as_of"
 PORTFOLIO_ALLOCATION_TOOL_NAME = "portfolio_allocation_as_of"
+NOTIONAL_BARS_TOOL_NAME = "recorded_notional_bars"
 PORTFOLIO_FX_TOOL_NAME = "portfolio_fx_as_of"
 EQUITY_CONCENTRATION_TOOL_NAME = "equity_concentration_as_of"
 EQUITY_TARGET_TOOL_NAME = "equity_target_drift_as_of"
@@ -694,6 +695,47 @@ PORTFOLIO_ALLOCATION_TOOL = {
     "outputSchema": PORTFOLIO_ALLOCATION_OUTPUT,
 }
 
+_NOTIONAL_TARGET = {"type": "integer", "minimum": 1, "maximum": _MAX_PRICE_TICKS}
+_CAPTURE_SEQUENCE = {"type": "string", "pattern": "^[1-9][0-9]{0,19}$"}
+_NOTIONAL_BAR_COUNT = {"type": "integer", "minimum": 0, "maximum": 100_000}
+_NOTIONAL_INSTRUMENT = {"type": "string", "pattern": "^[A-Z0-9._/-]{1,32}:[A-Z0-9._/-]{1,32}$"}
+NOTIONAL_BARS_INPUT = _object_schema({
+    "instrument": _NOTIONAL_INSTRUMENT,
+    "trades_csv": INPUT_SCHEMA["properties"]["history_csv"],
+    "target_notional_ticks": _NOTIONAL_TARGET,
+    "known_at": _UTC_SCHEMA,
+    "offset": INPUT_SCHEMA["properties"]["offset"],
+    "limit": INPUT_SCHEMA["properties"]["limit"],
+}, optional=("known_at", "offset", "limit"))
+NOTIONAL_BARS_OUTPUT = _object_schema({
+    "instrument": _NOTIONAL_INSTRUMENT,
+    "target_notional_ticks": _NOTIONAL_TARGET,
+    "known_at": {**_UTC_SCHEMA, "type": ["string", "null"]},
+    "total_bars": _NOTIONAL_BAR_COUNT,
+    "offset": _NOTIONAL_BAR_COUNT,
+    "next_offset": {**_NOTIONAL_BAR_COUNT, "type": ["integer", "null"]},
+    "bars": {"type": "array", "maxItems": MAX_ROWS, "items": _object_schema({
+        "first_observed_at": _TIME_SCHEMA, "available_at": _TIME_SCHEMA,
+        "first_sequence": _CAPTURE_SEQUENCE, "last_sequence": _CAPTURE_SEQUENCE,
+        "observed_trades": {**_NOTIONAL_BAR_COUNT, "minimum": 1}, "complete": {"type": "boolean"},
+        "gross_notional_trillionths": {"type": "string", "pattern": "^(?:0|[1-9][0-9]{0,38})$"},
+        **dict.fromkeys(("open_ticks", "high_ticks", "low_ticks", "close_ticks"), {
+            "type": "integer", "minimum": -_MAX_PRICE_TICKS, "maximum": _MAX_PRICE_TICKS,
+        }),
+        "volume_ticks": _NOTIONAL_TARGET,
+    })},
+})
+NOTIONAL_BARS_TOOL = {
+    "name": NOTIONAL_BARS_TOOL_NAME,
+    "description": (
+        "Group whole recorded trades into quote-notional bars at an inclusive observation cutoff. "
+        "Return one page of exact OHLCV, capture boundaries, and gross notional."
+    ),
+    "annotations": TOOL["annotations"],
+    "inputSchema": NOTIONAL_BARS_INPUT,
+    "outputSchema": NOTIONAL_BARS_OUTPUT,
+}
+
 
 class RequestError(Exception):
     def __init__(self, code: int, message: str):
@@ -821,7 +863,8 @@ class ResearchServer:
                 raise RequestError(-32602, "The tool list fits on a single page.")
             return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL,
                               AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL, MACRO_CALENDAR_TOOL, PORTFOLIO_SCENARIOS_TOOL,
-                              PORTFOLIO_FX_TOOL, EQUITY_CONCENTRATION_TOOL, EQUITY_TARGET_TOOL, PORTFOLIO_ALLOCATION_TOOL]}
+                              PORTFOLIO_FX_TOOL, EQUITY_CONCENTRATION_TOOL, EQUITY_TARGET_TOOL, PORTFOLIO_ALLOCATION_TOOL,
+                              NOTIONAL_BARS_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -843,6 +886,8 @@ class ResearchServer:
                 return self._macro_calendar(arguments)
             if name == PORTFOLIO_ALLOCATION_TOOL_NAME:
                 return self._portfolio_allocation(arguments)
+            if name == NOTIONAL_BARS_TOOL_NAME:
+                return self._notional_bars(arguments)
             if name == PORTFOLIO_SCENARIOS_TOOL_NAME:
                 return self._portfolio_scenarios(arguments)
             if name == PORTFOLIO_FX_TOOL_NAME:
@@ -942,6 +987,37 @@ class ResearchServer:
                 "observed_at": record.observed_at, "scheduled_at": record.scheduled_at,
                 "value_ticks": None if record.value is None else str(record.value), "supersedes": record.supersedes,
             } for release, kind, record in page],
+        })
+
+    def _notional_bars(self, arguments) -> dict:
+        if (not isinstance(arguments, dict)
+                or set(arguments) - NOTIONAL_BARS_INPUT["properties"].keys()
+                or set(NOTIONAL_BARS_INPUT["required"]) - arguments.keys()):
+            raise RequestError(-32602, "Supply the documented recorded notional bar arguments.")
+        instrument, trades = arguments["instrument"], arguments["trades_csv"]
+        known = arguments.get("known_at")
+        if (not isinstance(instrument, str) or not instrument or not isinstance(trades, str) or not trades
+                or "known_at" in arguments and not isinstance(known, str)):
+            raise RequestError(-32602, "Supply an instrument, trade CSV contents and an optional UTC cutoff as text.")
+        target = _integer(arguments, "target_notional_ticks", 0, 1, _MAX_PRICE_TICKS)
+        offset = _integer(arguments, "offset", 0, 0, 100_000)
+        limit = _integer(arguments, "limit", 200, 1, MAX_ROWS)
+        try:
+            report = self._engine.recorded_notional_bars(instrument, trades, target, known_at=known)
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+        page = report.bars[offset:offset + limit]
+        end = offset + len(page)
+        bars = []
+        for bar in page:
+            evidence = asdict(bar)
+            for key in ("first_sequence", "last_sequence", "gross_notional_trillionths"):
+                evidence[key] = str(evidence[key])
+            bars.append(evidence)
+        return _structured({
+            "instrument": report.instrument, "target_notional_ticks": report.target_notional_ticks, "known_at": known,
+            "total_bars": len(report.bars), "offset": offset, "next_offset": end if end < len(report.bars) else None,
+            "bars": bars,
         })
 
     def _portfolio_allocation(self, arguments) -> dict:

@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.283.0 · Recorded notional bars over MCP
+
+- The installed Python wheel and the official MCP client verify read-only discovery, exact pagination, unsigned 64-bit sequences as text, wide gross notional, and the same earlier result on rewind.
+- The stdio tests also verify recovery after invalid limits, malformed cutoffs and unknown arguments.
+
 ## 0.282.0 · Recorded notional bar SDKs
 
 - The native protocol and installed SDKs reproduce the provisional and completed bars at exact cutoffs, retain a full unsigned 64-bit capture sequence and a gross product above signed 64-bit range, and reproduce the earlier result on rewind.
