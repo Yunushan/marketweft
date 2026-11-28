@@ -82,8 +82,7 @@ test('scatter uses both coordinates, retains exact linked UTC and restores acros
   expect(maximum.y).toBeLessThan(upper.y)
   const bounds = await canvas.boundingBox()
   async function hover(point, time, close, volume) {
-    const box = await canvas.boundingBox()
-    await page.mouse.move(box.x + point.x, box.y + point.y)
+    await canvas.hover({ position: { x: point.x, y: point.y } })
     const second = String(Date.parse(time) / 1000)
     await expect(chart).toHaveAttribute('data-crosshair-time', second)
     await expect(linked).toHaveAttribute('data-crosshair-time', second)
