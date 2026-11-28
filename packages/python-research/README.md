@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.11.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.12.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -31,6 +31,8 @@ On Windows, select `marketweft-research.exe`. A source build places the executab
 Pass `observed_through` as an inclusive UTC second to reproduce a prefix. Pass an ordered sequence of `FormulaFunction` definitions to scope custom names to one evaluation. The Rust engine validates recursive, future-looking and out-of-scope expressions and enforces formula and history limits. [Formula language](../../docs/time-series-language.md).
 
 Pass a local Wasm module and a signed integer in millionths to `evaluate_scalar_plugin`. With the browser archive's `scalar-increment.wasm`, `engine.evaluate_scalar_plugin(Path("scalar-increment.wasm").read_bytes(), -123456789)` returns `-123456788`. [Scalar plugin ABI and native command](../../docs/time-series-language.md#python-and-native-scalar-plugins)
+
+Use `evaluate_scalar_plugin_series(module, history, from_second=..., through_second=...)` to evaluate up to 256 observed closes in an inclusive UTC range. The output contains the actual source timestamps, exact close inputs and exact plugin results. The engine applies a fresh instance to each close and meters the combined run. [Plugin series limits and native command](../../docs/time-series-language.md#scalar-plugins-on-observed-closes)
 
 Call `screen_universe` with membership and prices CSV strings and exact baseline, effective and known UTC times. Each result retains membership and close provenance, with `None` for unavailable closes, ranks and returns. [Universe screening](../../docs/research-universe-screen.md).
 

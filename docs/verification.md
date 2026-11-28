@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.212.0 · Native and Python plugin close series
+
+- The installed Python SDK reproduces the browser's earlier cutoff, later observed close, empty range, exact signed outputs and fresh per-row state through the native executable.
+- Native and Python transport fixtures verify the binary module length, protocol version, output row count, UTC order and integer bounds. Aggregate fuel exhaustion returns an error and a later valid run still succeeds. All 29 installed-wheel tests pass on both Python 3.10 and Python 3.12 against the same Linux x64 engine.
+
+[Scalar plugins on observed closes](time-series-language.md#scalar-plugins-on-observed-closes)
+
 ## 0.211.0 · Scalar plugins on observed closes
 
 - Native Rust and the Wasm bridge verify inclusive UTC ranges, gaps, signed millionths and independent state across observations. Each program fits the individual fuel budget in the aggregate-limit test. The series is rejected when the program uses too much fuel across the selected closes.

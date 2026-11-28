@@ -13,7 +13,7 @@ __all__ = [
     "FinancialSnapshot", "FinancialTrailing",
     "FormulaFunction", "FormulaResult", "FormulaRow",
     "OptionChainAnalytics", "OptionChainQuote", "OptionChainSnapshot", "OptionUnderlyingQuote",
-    "ResearchEngine", "ResearchError",
+    "ResearchEngine", "ResearchError", "ScalarPluginPoint",
     "ScreenPrice", "ScreenResult", "ScreenRow",
 ]
 
@@ -28,6 +28,8 @@ _MIN_I64 = -(1 << 63)
 _MAX_I64 = (1 << 63) - 1
 _MAX_SOURCE = 2048
 _MAX_CSV = 8 * 1024 * 1024
+_MAX_SCALAR_PLUGIN = 64 * 1024
+_MAX_SCALAR_SERIES = 256
 _MAX_FINANCIAL_CSV = 1024 * 1024
 _MAX_OPTION_CSV = 2 * 1024 * 1024
 _MAX_OPTION_ROWS = 20_000
@@ -61,6 +63,13 @@ class FormulaRow:
 class FormulaResult:
     version: int
     rows: tuple[FormulaRow, ...]
+
+
+@dataclass(frozen=True)
+class ScalarPluginPoint:
+    time: int
+    close: int
+    value: int
 
 
 @dataclass(frozen=True)
@@ -232,6 +241,13 @@ def _whole(text: str) -> int:
     if not _MIN_I64 <= value <= _MAX_I64:
         raise ResearchError("Research response integer exceeds the signed 64-bit range.")
     return value
+
+
+def _validate_scalar_module(module: bytes) -> None:
+    if not isinstance(module, bytes):
+        raise TypeError("Provide the scalar plugin as bytes.")
+    if len(module) > _MAX_SCALAR_PLUGIN:
+        raise ValueError("Scalar plugin exceeds 64 KiB.")
 
 
 def _response(output: bytes, protocol: str) -> tuple[str, list[str]]:
@@ -590,10 +606,7 @@ class ResearchEngine:
 
     def evaluate_scalar_plugin(self, module: bytes, ticks: int) -> int:
         """Run a binary Wasm module on one signed millionth value."""
-        if not isinstance(module, bytes):
-            raise TypeError("Provide the scalar plugin as bytes.")
-        if len(module) > 64 * 1024:
-            raise ValueError("Scalar plugin exceeds 64 KiB.")
+        _validate_scalar_module(module)
         if type(ticks) is not int or not _MIN_I64 <= ticks <= _MAX_I64:
             raise ValueError("Scalar plugin input must fit a signed 64-bit integer.")
         header = f"marketweft-scalar-plugin\t1\t{ticks}\n".encode("ascii")
@@ -601,6 +614,35 @@ class ResearchEngine:
         if rows:
             raise ResearchError("Unexpected rows in the scalar plugin response.")
         return _whole(value)
+
+    def evaluate_scalar_plugin_series(
+        self, module: bytes, csv: str, *, from_second: int, through_second: int,
+    ) -> tuple[ScalarPluginPoint, ...]:
+        """Evaluate observed closes independently in an inclusive UTC range."""
+        _validate_scalar_module(module)
+        if any(type(value) is not int or not _MIN_I64 <= value <= _MAX_I64
+               for value in (from_second, through_second)) or from_second > through_second:
+            raise ValueError("Use an ordered UTC range in whole seconds for scalar plugin closes.")
+        history = csv.encode("utf-8")
+        if len(history) > _MAX_CSV:
+            raise ValueError("CSV exceeds 8 MiB.")
+        protocol = "marketweft-scalar-series"
+        header = f"{protocol}\t1\t{len(module)}\t{from_second}\t{through_second}\n".encode("ascii")
+        output = self._invoke(header + module + history, "scalar-plugin-series")
+        count, rows = _response(output, protocol)
+        if _whole(count) != len(rows) or len(rows) > _MAX_SCALAR_SERIES:
+            raise ResearchError("Invalid scalar plugin series row count.")
+        points = []
+        for row in rows:
+            fields = row.split("\t")
+            if len(fields) != 3:
+                raise ResearchError("Invalid scalar plugin series row.")
+            point = ScalarPluginPoint(*map(_whole, fields))
+            if (not from_second <= point.time <= through_second
+                    or (points and point.time <= points[-1].time)):
+                raise ResearchError("Scalar plugin series rows must be ordered within the requested UTC range.")
+            points.append(point)
+        return tuple(points)
 
     def screen_universe(
         self,

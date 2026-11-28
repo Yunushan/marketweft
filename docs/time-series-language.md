@@ -74,3 +74,9 @@ Open **Scalar plugin on observed closes** in **Time-series formulas**. Select a 
 One evaluation accepts up to 256 closes and uses at most one million fuel units in total, while each row retains the scalar ABI's per-call lifetime and limits. A trap rejects the series. Evaluation requires the source's automated-use permission. CSV export rechecks redistribution permission and includes the instrument, source, module SHA-256, both UTC bounds and exact values.
 
 Rust callers use `evaluate_scalar_plugin_series(module, bars, from, through)`. The TypeScript SDK exposes `evaluateScalarPluginSeries` with the same UTC seconds and returns signed `bigint` millionths. [TypeScript research SDK](../packages/research/README.md)
+
+#### Native and Python close series
+
+In Python, use `ResearchEngine.evaluate_scalar_plugin_series(module, csv, from_second=..., through_second=...)` with the local engine. Each returned `ScalarPluginPoint` has a UTC second, the original close and the plugin output as integer millionths. [Python research SDK](../packages/python-research/README.md)
+
+The native `scalar-plugin-series` command reads the version 1 header `marketweft-scalar-series<TAB>1<TAB><module_bytes><TAB><from><TAB><through><LF>`, the stated number of raw module bytes, and then UTF-8 OHLCV CSV. It returns a header with the selected row count and tab-separated `time`, `close`, and `value` rows. An empty selection produces a zero count, and a failed evaluation exits with a diagnostic on stderr.
