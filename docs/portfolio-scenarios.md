@@ -80,6 +80,14 @@ The calculation forms sample covariance from common simple price returns. It tra
 
 The table keeps observed zero weights visible. **Download minimum variance** records both source labels, the three cutoffs, common and per-listing coverage, the equal and estimated weights, mean returns, volatilities and the estimated variance gap. Returns and volatilities use fractional units in the CSV. The gap uses squared fractional units. Use closes on a common analysis currency and adjustment basis, as with the [two-listing comparison](relative-returns.md#two-listing-minimum-variance).
 
+### Allocation weight limits
+
+Set **Maximum weight per listing (bp)** to apply the same ceiling to each selected listing. Enter whole basis points. A cap of 6,000 sets a 60% maximum. With three listings, the lowest feasible cap is 3,334 because the portfolio must sum to 10,000 basis points. Leaving the field empty uses the existing unconstrained maximum of 10,000.
+
+Both the estimator and the whole-basis-point allocations respect the ceiling. At each iteration the calculation minimizes the linearized variance over the same feasible weights. The resulting tangent bound is used in the reported variance gap. The solver retains the same point-in-time sample and reports missing coverage before two common returns are available. [Jaggi's treatment of convex duality gaps](https://proceedings.mlr.press/v28/jaggi13.html)
+
+An export with an explicit limit appends `maximum_weight_basis_points` to every row. It includes the limit even when the sample has too few common returns to estimate weights.
+
 ### Portfolio allocation SDKs
 
 Call `portfolioAllocationAsOf(membershipCsv, pricesCsv, listingIds, query)` in TypeScript. Supply `from`, `through`, `known` and `intervalSeconds` in the query. In Python, call `ResearchEngine.portfolio_allocation_as_of(membership_csv, prices_csv, listing_ids, from_at=..., through_at=..., known_at=..., interval_seconds=...)`. Both return the three UTC cutoffs in whole Unix seconds, the interval, common coverage and ascending listing IDs with individual coverage and weights. A coverage-only result leaves the sample and weights unavailable. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md)

@@ -1491,6 +1491,23 @@ pub extern "C" fn mw_relative_series(membership_bytes: usize) -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_portfolio_allocation(membership_bytes: usize, interval_seconds: u32) -> u32 {
+    run_portfolio_allocation(membership_bytes, interval_seconds, None)
+}
+
+#[no_mangle]
+pub extern "C" fn mw_portfolio_allocation_with_limit(
+    membership_bytes: usize,
+    interval_seconds: u32,
+    maximum_weight: u32,
+) -> u32 {
+    run_portfolio_allocation(membership_bytes, interval_seconds, Some(maximum_weight))
+}
+
+fn run_portfolio_allocation(
+    membership_bytes: usize,
+    interval_seconds: u32,
+    maximum_weight: Option<u32>,
+) -> u32 {
     use crate::portfolio_allocation_wire::{
         portfolio_allocation_report, portfolio_allocation_rows,
     };
@@ -1502,7 +1519,11 @@ pub extern "C" fn mw_portfolio_allocation(membership_bytes: usize, interval_seco
             known_at,
             interval_seconds,
         };
-        let report = portfolio_allocation_report(reports, membership_bytes, query)?;
+        let maximum_weight = maximum_weight
+            .map(u16::try_from)
+            .transpose()
+            .map_err(|_| "Use at most 10,000 basis points for the maximum weight.")?;
+        let report = portfolio_allocation_report(reports, membership_bytes, query, maximum_weight)?;
         Ok(portfolio_allocation_rows(&report).into_bytes())
     })
 }

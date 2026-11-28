@@ -412,6 +412,10 @@ export interface PortfolioVarianceQuery {
   intervalSeconds: number;
 }
 
+export interface PortfolioAllocationQuery extends PortfolioVarianceQuery {
+  maximumWeightBasisPoints?: number;
+}
+
 export interface PortfolioVarianceAllocation {
   leftBasisPoints: number;
   meanReturn: number;
@@ -1466,7 +1470,7 @@ export interface MarketCore {
   relativeSeries(membership: string, prices: string, leftId: string, rightId: string,
     baselineAt: string, effectiveAt: string, knownAt: string): RelativePoint[];
   portfolioAllocation(membership: string, prices: string, listings: readonly string[],
-    query: PortfolioVarianceQuery): PortfolioAllocationReport;
+    query: PortfolioAllocationQuery): PortfolioAllocationReport;
   portfolioVariance(membership: string, prices: string, leftId: string, rightId: string,
     query: PortfolioVarianceQuery): PortfolioVarianceReport;
   listingRisk(membership: string, prices: string, leftId: string, rightId: string, query: ListingRiskQuery): ListingRiskPoint[];
@@ -1658,6 +1662,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_compare_universe_ranks(membershipBytes: number): number;
   mw_relative_series(membershipBytes: number): number;
   mw_portfolio_allocation(membershipBytes: number, intervalSeconds: number): number;
+  mw_portfolio_allocation_with_limit(membershipBytes: number, intervalSeconds: number, maximumWeight: number): number;
   mw_portfolio_variance(membershipBytes: number, intervalSeconds: number): number;
   mw_listing_risk(membershipBytes: number, intervalSeconds: number, windowPeriods: number, volatilityPeriods: number): number;
   mw_portfolio_scenarios(membershipBytes: number): number;
@@ -3677,15 +3682,23 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           right: leg(rightState, rightClose, rightReturn), spreadUnits: spread === '' ? null : BigInt(spread) };
       });
     },
-    portfolioAllocation(membership, prices, listingIds, { from, through, known, intervalSeconds }) {
+    portfolioAllocation(membership, prices, listingIds, { from, through, known, intervalSeconds, maximumWeightBasisPoints }) {
       if (listingIds.length < 2 || listingIds.length > 16 || !listingIds.every(validListingId)) {
         throw new Error('Use 2 to 16 valid portfolio listing IDs.');
       }
       if (!Number.isInteger(intervalSeconds) || intervalSeconds < 1 || intervalSeconds > 0xffffffff) {
         throw new Error('Use a positive whole number for the price interval.');
       }
+      if (maximumWeightBasisPoints !== undefined && (!Number.isInteger(maximumWeightBasisPoints) ||
+        maximumWeightBasisPoints < 1 || maximumWeightBasisPoints > 10_000)) {
+        throw new Error('Use a whole maximum weight from 1 to 10,000 basis points.');
+      }
       screenInput([from, through, known], listingIds.join('\t'), '\n', membership, prices);
-      const text = decoder.decode(output(api.mw_portfolio_allocation(encoder.encode(membership).length, intervalSeconds)));
+      const membershipBytes = encoder.encode(membership).length;
+      const response = maximumWeightBasisPoints === undefined
+        ? api.mw_portfolio_allocation(membershipBytes, intervalSeconds)
+        : api.mw_portfolio_allocation_with_limit(membershipBytes, intervalSeconds, maximumWeightBasisPoints);
+      const text = decoder.decode(output(response));
       const [coverage, metrics, ...rows] = text.slice(0, -1).split('\n');
       const [expectedReturns, commonReturns] = coverage.split('\t').map(Number);
       const [equalMean, equalVolatility, optimizedMean, optimizedVolatility, varianceGap, iterations] = metrics.split('\t').map(Number);

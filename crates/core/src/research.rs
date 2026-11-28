@@ -182,7 +182,7 @@ pub fn portfolio_allocation_request(bytes: &[u8]) -> Result<String, String> {
         known_at,
         interval_seconds,
     };
-    let report = portfolio_allocation_report(reports, membership_bytes, query)?;
+    let report = portfolio_allocation_report(reports, membership_bytes, query, None)?;
     Ok(format!(
         "marketweft-portfolio-allocation\t{PROTOCOL_VERSION}\t{}\nT\t{from_at}\t{through_at}\t{known_at}\t{interval_seconds}\n{}",
         report.listings.len(), portfolio_allocation_rows(&report)

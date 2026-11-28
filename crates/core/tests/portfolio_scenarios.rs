@@ -263,6 +263,39 @@ fn allocation_uses_only_returns_common_to_every_listing_and_preserves_coverage_o
     assert!(book
         .portfolio_allocation(&["A", "B", "UNKNOWN"], query(7))
         .is_err());
+    let listings = ["A", "B", "C"];
+    let capped_prices = closes.replace(",90\n", ",120\n");
+    let capped_book = PriceBook::parse(&universe, &capped_prices).unwrap();
+    let capped_early = capped_book
+        .portfolio_allocation_with_limit(&listings, query(6), 6000)
+        .unwrap();
+    assert_eq!(capped_early, early);
+    let capped = capped_book
+        .portfolio_allocation_with_limit(&listings, query(7), 6000)
+        .unwrap();
+    let sample = capped.sample.unwrap();
+    assert_eq!(sample.optimized.weights_basis_points, [4000, 0, 6000]);
+    assert!((sample.optimized.volatility - 0.02 * 2_f64.sqrt()).abs() < 1e-14);
+    assert!(sample.variance_gap < 1e-14);
+    for invalid in [0, 3333, 10_001, u16::MAX] {
+        assert!(capped_book
+            .portfolio_allocation_with_limit(&listings, query(6), invalid)
+            .is_err());
+    }
+    assert_eq!(
+        capped_book
+            .portfolio_allocation_with_limit(&listings, query(7), 10_000)
+            .unwrap(),
+        capped_book
+            .portfolio_allocation(&listings, query(7))
+            .unwrap(),
+    );
+    assert_eq!(
+        capped_book
+            .portfolio_allocation_with_limit(&listings, query(6), 6000)
+            .unwrap(),
+        capped_early,
+    );
 }
 
 #[test]

@@ -1410,8 +1410,8 @@ test('multi-listing portfolio allocation uses common intervals and keeps zero we
     'RISK,C,2025-06-02T14:02:00Z,2025-06-02T14:07:00Z,10',
   ].join('\n');
   const utc = minute => '2025-06-02T14:0' + minute + ':00Z';
-  const at = (known, order = ['C', 'A', 'B']) => core.portfolioAllocation(membership, prices, order, {
-    from: utc(0), through: utc(6), known: utc(known), intervalSeconds: 60,
+  const at = (known, order = ['C', 'A', 'B'], maximumWeightBasisPoints) => core.portfolioAllocation(membership, prices, order, {
+    from: utc(0), through: utc(6), known: utc(known), intervalSeconds: 60, maximumWeightBasisPoints,
   });
   const early = at(6);
   assert.equal(early.expectedReturns, 6);
@@ -1428,6 +1428,17 @@ test('multi-listing portfolio allocation uses common intervals and keeps zero we
   assert.deepEqual(at(7, ['B', 'C', 'A']), later);
   assert.deepEqual(at(6), early);
   assert.throws(() => at(6, ['A', 'A', 'B']), /distinct/);
+  const capped = at(7, undefined, 6000);
+  assert.deepEqual(capped.listings.map(x => x.optimizedBasisPoints), [4000, 0, 6000]);
+  assert.ok(Math.abs(capped.sample.optimizedVolatility - 0.02 * Math.SQRT2) < 1e-14);
+  assert.ok(capped.sample.varianceGap < 1e-14);
+  assert.deepEqual(at(7, ['B', 'C', 'A'], 6000), capped);
+  assert.deepEqual(at(7, undefined, 10000), later);
+  assert.deepEqual(at(6, undefined, 6000), early);
+  assert.throws(() => at(6, undefined, 3333), /fully allocated/);
+  for (const invalid of [0, 10001, 6000.5, NaN]) {
+    assert.throws(() => at(6, undefined, invalid), /whole maximum weight/);
+  }
 });
 
 test('portfolio variance uses common returns, quantizes allocations and keeps cutoff coverage', async () => {

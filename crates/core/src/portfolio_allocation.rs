@@ -43,8 +43,23 @@ impl PriceBook<'_> {
         listing_ids: &[&str],
         query: PortfolioVarianceQuery,
     ) -> Result<PortfolioAllocationReport, String> {
+        self.portfolio_allocation_with_limit(listing_ids, query, BASIS_POINTS)
+    }
+
+    /// Apply one whole basis-point maximum to every selected listing.
+    pub fn portfolio_allocation_with_limit(
+        &self,
+        listing_ids: &[&str],
+        query: PortfolioVarianceQuery,
+        maximum_weight: u16,
+    ) -> Result<PortfolioAllocationReport, String> {
         if !(2..=MAX_PORTFOLIO_LISTINGS).contains(&listing_ids.len()) {
             return Err("Choose 2 to 16 listings for the portfolio.".into());
+        }
+        if maximum_weight > BASIS_POINTS
+            || usize::from(maximum_weight) * listing_ids.len() < usize::from(BASIS_POINTS)
+        {
+            return Err("The maximum weight must be at most 10,000 basis points and allow a fully allocated portfolio.".into());
         }
         let mut listing_ids = listing_ids.to_vec();
         listing_ids.sort_unstable();
@@ -91,7 +106,7 @@ impl PriceBook<'_> {
                         .collect()
                 })
                 .collect();
-            estimate(&returns, listing_ids.len())
+            estimate(&returns, listing_ids.len(), maximum_weight)
         });
         let listings = listing_ids
             .into_iter()
@@ -138,12 +153,17 @@ fn covariance(returns: &[Vec<f64>], mean: &[f64]) -> Vec<Vec<f64>> {
     matrix
 }
 
-fn rounded_weights(weights: &[f64]) -> Vec<u16> {
+fn rounded_weights(weights: &[f64], maximum_weight: u16) -> Vec<u16> {
     let scale = f64::from(BASIS_POINTS) / weights.iter().sum::<f64>();
     let scaled: Vec<_> = weights.iter().map(|weight| weight * scale).collect();
-    let mut basis: Vec<_> = scaled.iter().map(|weight| weight.floor() as u16).collect();
+    let mut basis: Vec<_> = scaled
+        .iter()
+        .map(|weight| (weight.floor() as u16).min(maximum_weight))
+        .collect();
     let shortfall = BASIS_POINTS - basis.iter().sum::<u16>();
-    let mut indices: Vec<_> = (0..weights.len()).collect();
+    let mut indices: Vec<_> = (0..weights.len())
+        .filter(|&index| basis[index] < maximum_weight)
+        .collect();
     indices.sort_by(|&left, &right| {
         scaled[right]
             .fract()
@@ -156,29 +176,55 @@ fn rounded_weights(weights: &[f64]) -> Vec<u16> {
     basis
 }
 
-fn optimize(matrix: &[Vec<f64>], mut weights: Vec<f64>) -> (Vec<f64>, f64, u32) {
+fn linear_minimum(gradient: &[f64], maximum_weight: u16) -> f64 {
+    if maximum_weight == BASIS_POINTS {
+        return gradient.iter().copied().fold(f64::INFINITY, f64::min);
+    }
+    let mut ordered = gradient.to_vec();
+    ordered.sort_unstable_by(f64::total_cmp);
+    let mut remaining = BASIS_POINTS;
+    let mut minimum = 0.0;
+    for value in ordered {
+        let weight = remaining.min(maximum_weight);
+        minimum += value * f64::from(weight) / f64::from(BASIS_POINTS);
+        remaining -= weight;
+        if remaining == 0 {
+            break;
+        }
+    }
+    minimum
+}
+
+fn optimize(
+    matrix: &[Vec<f64>],
+    mut weights: Vec<f64>,
+    maximum_weight: u16,
+) -> (Vec<f64>, f64, u32) {
+    let cap = f64::from(maximum_weight) / f64::from(BASIS_POINTS);
     let mut iterations = 0;
     loop {
         let grad: Vec<_> = matrix.iter().map(|row| dot(row, &weights)).collect();
-        let incoming = (0..weights.len())
-            .min_by(|&left, &right| grad[left].total_cmp(&grad[right]))
-            .expect("at least two listings");
         let variance = dot(&grad, &weights);
-        let gap = (variance - grad[incoming]).max(0.0);
-        // The tangent to a convex variance function is a lower bound on the simplex.
+        let gap = (variance - linear_minimum(&grad, maximum_weight)).max(0.0);
+        // Minimize the tangent over portfolios subject to the same weight limit.
         if gap <= NORMALIZED_GAP || iterations == MAX_ITERATIONS {
             return (weights, (variance - 2.0 * gap).max(0.0), iterations);
         }
+        let incoming = (0..weights.len())
+            .filter(|&index| weights[index] < cap)
+            .min_by(|&left, &right| grad[left].total_cmp(&grad[right]))
+            .expect("a nonoptimal allocation has a listing below its weight limit");
         let outgoing = (0..weights.len())
             .filter(|&index| weights[index] > 0.0)
             .max_by(|&left, &right| grad[left].total_cmp(&grad[right]))
             .expect("some portfolio weight is positive");
         let curvature = matrix[incoming][incoming] + matrix[outgoing][outgoing]
             - 2.0 * matrix[incoming][outgoing];
+        let available = weights[outgoing].min(cap - weights[incoming]);
         let transfer = if curvature > 0.0 {
-            ((grad[outgoing] - grad[incoming]) / curvature).min(weights[outgoing])
+            ((grad[outgoing] - grad[incoming]) / curvature).min(available)
         } else {
-            weights[outgoing]
+            available
         };
         weights[incoming] += transfer;
         weights[outgoing] -= transfer;
@@ -210,7 +256,7 @@ fn history(weights_basis_points: Vec<u16>, returns: &[Vec<f64>]) -> HistoricalAl
     }
 }
 
-fn estimate(returns: &[Vec<f64>], count: usize) -> PortfolioAllocationSample {
+fn estimate(returns: &[Vec<f64>], count: usize, maximum_weight: u16) -> PortfolioAllocationSample {
     let mean: Vec<_> = (0..count)
         .map(|index| {
             let initial = returns[0][index];
@@ -219,7 +265,7 @@ fn estimate(returns: &[Vec<f64>], count: usize) -> PortfolioAllocationSample {
         })
         .collect();
     let equal_weights = vec![1.0 / count as f64; count];
-    let equal = history(rounded_weights(&equal_weights), returns);
+    let equal = history(rounded_weights(&equal_weights, maximum_weight), returns);
     let mut matrix = covariance(returns, &mean);
     let scale = (0..count)
         .map(|index| matrix[index][index])
@@ -235,8 +281,8 @@ fn estimate(returns: &[Vec<f64>], count: usize) -> PortfolioAllocationSample {
     for value in matrix.iter_mut().flatten() {
         *value /= scale;
     }
-    let (weights, lower_bound, iterations) = optimize(&matrix, equal_weights);
-    let mut optimized = history(rounded_weights(&weights), returns);
+    let (weights, lower_bound, iterations) = optimize(&matrix, equal_weights, maximum_weight);
+    let mut optimized = history(rounded_weights(&weights, maximum_weight), returns);
     if optimized.volatility > equal.volatility {
         optimized = equal.clone();
     }
@@ -264,12 +310,23 @@ mod tests {
                 }
             }
         }
-        let sample = estimate(&returns, 3);
+        let sample = estimate(&returns, 3, BASIS_POINTS);
         assert_eq!(sample.optimized.weights_basis_points, [7619, 1905, 476]);
         assert!(sample.optimized.volatility < sample.equal.volatility);
         assert!(sample.optimized.mean_return.abs() < 1e-15);
         assert!(sample.variance_gap < 1e-9);
         assert!(sample.iterations < MAX_ITERATIONS);
+
+        let capped = estimate(&returns, 3, 6000);
+        assert_eq!(capped.optimized.weights_basis_points, [6000, 3200, 800]);
+        assert!(capped.optimized.volatility > sample.optimized.volatility);
+        assert!(capped.optimized.volatility < capped.equal.volatility);
+        assert!(capped.variance_gap < 1e-9);
+        assert!(capped.iterations < MAX_ITERATIONS);
+
+        let tight = estimate(&returns, 3, 3334);
+        assert_eq!(tight.optimized.weights_basis_points, [3334, 3334, 3332]);
+        assert!(tight.variance_gap < 1e-9);
     }
 
     #[test]
@@ -283,7 +340,7 @@ mod tests {
                 returns.push(row);
             }
         }
-        let sample = estimate(&returns, count);
+        let sample = estimate(&returns, count, 625);
         assert_eq!(sample.optimized.weights_basis_points, vec![625; count]);
         assert_eq!(
             sample.optimized.weights_basis_points.iter().sum::<u16>(),
@@ -294,7 +351,7 @@ mod tests {
 
     #[test]
     fn preserves_flat_and_boundary_solutions_without_artificial_volatility() {
-        let flat = estimate(&[vec![0.1, -0.2, 0.3], vec![0.1, -0.2, 0.3]], 3);
+        let flat = estimate(&[vec![0.1, -0.2, 0.3], vec![0.1, -0.2, 0.3]], 3, 3334);
         assert_eq!(flat.optimized.weights_basis_points, [3334, 3333, 3333]);
         assert_eq!(flat.optimized.volatility, 0.0);
         assert_eq!(flat.variance_gap, 0.0);
@@ -306,6 +363,7 @@ mod tests {
                 vec![-0.1, -0.2, 0.0],
             ],
             3,
+            BASIS_POINTS,
         );
         assert_eq!(corner.optimized.weights_basis_points, [0, 0, 10_000]);
         assert_eq!(corner.optimized.volatility, 0.0);

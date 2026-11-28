@@ -1,18 +1,19 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { MarketCore, PortfolioAllocationReport, PortfolioVarianceQuery, UniverseListing } from './market-core'
+import type { MarketCore, PortfolioAllocationQuery, PortfolioAllocationReport, UniverseListing } from './market-core'
 import { quoteText } from './chart-export'
 import { downloadFile } from './download'
 
 const percentage = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 6 })
 type Source = { csv: string; source: string }
-type Selection = { listingIds: string[]; from: string; intervalSeconds: number }
+type Selection = Pick<PortfolioAllocationQuery, 'from' | 'intervalSeconds' | 'maximumWeightBasisPoints'> & { listingIds: string[] }
 
-function allocationCsv(report: PortfolioAllocationReport, query: PortfolioVarianceQuery, membership: Source, prices: Source) {
+function allocationCsv(report: PortfolioAllocationReport, query: PortfolioAllocationQuery, membership: Source, prices: Source) {
   const header = [
     'membership_source,prices_source,from_utc,through_utc,known_utc,interval_seconds',
     'expected_returns,common_returns,listing_id,known_returns,equal_basis_points,optimized_basis_points',
     'equal_mean_return,equal_volatility,optimized_mean_return,optimized_volatility,variance_gap,iterations',
+    ...(query.maximumWeightBasisPoints === undefined ? [] : ['maximum_weight_basis_points']),
   ].join(',')
   const prefix = [quoteText(membership.source), quoteText(prices.source), query.from, query.through,
     query.known, query.intervalSeconds, report.expectedReturns, report.commonReturns]
@@ -20,6 +21,7 @@ function allocationCsv(report: PortfolioAllocationReport, query: PortfolioVarian
   const lines = report.listings.map(row => [
     ...prefix, quoteText(row.listingId), row.knownReturns, row.equalBasisPoints, row.optimizedBasisPoints,
     stats?.equalMean, stats?.equalVolatility, stats?.optimizedMean, stats?.optimizedVolatility, stats?.varianceGap, stats?.iterations,
+    ...(query.maximumWeightBasisPoints === undefined ? [] : [query.maximumWeightBasisPoints]),
   ].join(','))
   return [header, ...lines].join('\r\n') + '\r\n'
 }
@@ -32,6 +34,7 @@ export function PortfolioAllocation({ core, membership, prices, listings, firstC
   const [filter, setFilter] = useState('')
   const [start, setStart] = useState(firstCutoff)
   const [interval, setInterval] = useState('60')
+  const [maximumWeight, setMaximumWeight] = useState('')
   const [accepted, setAccepted] = useState<Selection | null>(null)
   const [error, setError] = useState('')
   const available = new Map(listings.map(row => [row.listingId, row.instrument]))
@@ -46,7 +49,10 @@ export function PortfolioAllocation({ core, membership, prices, listings, firstC
 
   const result = useMemo(() => {
     if (!accepted) return null
-    const query = { from: accepted.from, through: effective, known, intervalSeconds: accepted.intervalSeconds }
+    const query = {
+      from: accepted.from, through: effective, known, intervalSeconds: accepted.intervalSeconds,
+      maximumWeightBasisPoints: accepted.maximumWeightBasisPoints,
+    }
     try {
       return { query, report: core.portfolioAllocation(membershipCsv, pricesCsv, accepted.listingIds, query) }
     } catch (cause) {
@@ -60,10 +66,19 @@ export function PortfolioAllocation({ core, membership, prices, listings, firstC
       setError('Use a positive whole number for the price interval.')
       return
     }
-    const input = { listingIds: selected, from: start.trim(), intervalSeconds: Number(interval) }
+    const limit = maximumWeight.trim()
+    if (limit && !/^\d+$/.test(limit)) {
+      setError('Use a whole maximum weight from 1 to 10,000 basis points.')
+      return
+    }
+    const input = {
+      listingIds: selected, from: start.trim(), intervalSeconds: Number(interval),
+      maximumWeightBasisPoints: limit ? Number(limit) : undefined,
+    }
     try {
       core.portfolioAllocation(membershipCsv, pricesCsv, input.listingIds, {
         from: input.from, through: effective, known, intervalSeconds: input.intervalSeconds,
+        maximumWeightBasisPoints: input.maximumWeightBasisPoints,
       })
       setAccepted(input)
       setError('')
@@ -97,10 +112,15 @@ export function PortfolioAllocation({ core, membership, prices, listings, firstC
         <label>Allocation interval (seconds)
           <input required inputMode="numeric" value={interval} onChange={event => setInterval(event.target.value)} />
         </label>
+        <label>Maximum weight per listing (bp)
+          <input inputMode="numeric" placeholder="10000" value={maximumWeight} onChange={event => setMaximumWeight(event.target.value)} />
+        </label>
         <button className="outline" type="submit">Estimate minimum variance</button>
       </form>
       {(error || result?.error) && <p className="warning" role="alert">{error || result?.error}</p>}
       {result?.report && <>
+        {result.query.maximumWeightBasisPoints !== undefined &&
+          <p>Maximum weight {result.query.maximumWeightBasisPoints} bp per listing.</p>}
         <AllocationResults report={result.report} />
         <button className="outline" type="button" onClick={() => {
           const csv = allocationCsv(result.report, result.query, membership, prices)

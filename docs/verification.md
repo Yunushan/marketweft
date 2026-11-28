@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.278.0 · Allocation weight limits
+
+- Rust verifies the capped analytical solution of 6,000, 3,200 and 800 basis points, and checks the rounding boundary at 3,334 and the fully allocated sixteen-listing case at 625. Rust and Wasm reject infeasible caps before estimation.
+- The late-close fixture yields weights of 4,000, zero and 6,000 at a 6,000 cap. Chromium verifies sparse and complete coverage, the exact cap on each CSV row, and a byte-identical offline rewind.
+
 ## 0.277.0 · Harami and Harami Cross replay
 
 - Rust and Wasm verify signed containment, strict price bounds, half-width rules, missing intervals, independent sessions and exact inclusive cutoffs. Starting from the observed prefix gives the same results.

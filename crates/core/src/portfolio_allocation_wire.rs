@@ -5,6 +5,7 @@ pub(crate) fn portfolio_allocation_report(
     input: &str,
     membership_bytes: usize,
     query: PortfolioVarianceQuery,
+    maximum_weight: Option<u16>,
 ) -> Result<PortfolioAllocationReport, String> {
     let (listings, csvs) = input
         .split_once('\n')
@@ -15,7 +16,10 @@ pub(crate) fn portfolio_allocation_report(
         .ok_or("Supply both membership and price reports.")?;
     let universe = parse_universe(membership)?;
     let prices = PriceBook::parse(&universe, closes)?;
-    prices.portfolio_allocation(&listings, query)
+    match maximum_weight {
+        Some(maximum) => prices.portfolio_allocation_with_limit(&listings, query, maximum),
+        None => prices.portfolio_allocation(&listings, query),
+    }
 }
 
 pub(crate) fn portfolio_allocation_rows(portfolio: &PortfolioAllocationReport) -> String {
