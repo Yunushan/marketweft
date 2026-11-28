@@ -101,6 +101,14 @@ The page reports `instrument`, `known_at`, `total_prints`, `offset`, `next_offse
 
 Connect to `/v1/trades/prints/stream` to stream the same page shape. On reconnect, submit the same input and cutoff with `next_offset` from the last accepted page. The unary gRPC method `marketweft.research.v1.Research/GetRecordedTradePrints` returns one matching typed page. The three transports share authorization, admission and audit rules. [Protobuf schema](../apps/research-service/proto/research.proto) · [Read-only MCP](local-mcp-research.md#recorded-trade-prints)
 
+## Dividend ledger
+
+Send `POST /v1/dividends/ledger` with a screen bearer credential and a canonical `instrument`. Send `dividends_csv` as text and supply exactly one of `shares` or `positions_csv`. Fixed shares can range from zero to 1,000,000. Each CSV accepts up to 1 MiB. An optional `known_at` includes events through that exact UTC second. Omit it to include all recorded events. [Dividend report and dated position formats](cash-dividends.md)
+
+The page includes `total_events`, `offset`, `next_offset`, and the ordered `events`. The default limit is 200 and the maximum is 1,000. Each event gives its stable ID, kind, event and report times in Unix seconds, gross per-share amount and available entitlement. The currency movements contain signed deltas and resulting balances. Money fields are exact decimal strings in millionths. Optional withholding fields are `null` with the eight-column gross format.
+
+Connect to `/v1/dividends/ledger/stream` for the same page shape. Reconnect using the last accepted page's `next_offset` with the same reports and cutoff. The unary gRPC method `marketweft.research.v1.Research/GetDividendLedger` returns one matching page. The transports share screen authorization, admission and audit. [Protobuf schema](../apps/research-service/proto/research.proto) · [Read-only MCP](local-mcp-research.md#dividend-ledger)
+
 ## Listing downside risk
 
 Send `POST /v1/risk/listings/downside` with a screen bearer credential. Supply `membership_csv`, `prices_csv`, `left_listing_id`, `right_listing_id`, `from_at`, `through_at`, `known_at`, `interval_seconds` and `window_periods`. The reports accept up to 1 MiB and 2 MiB respectively. Use distinct listing IDs and whole-second UTC cutoffs, with the end on the chosen grid. `volatility_periods` defaults to one. [How downside deviation is calculated](listing-risk.md#downside-deviation)

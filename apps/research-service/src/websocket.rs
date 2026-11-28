@@ -109,6 +109,21 @@ pub(crate) async fn recorded_trade_prints(
     .await
 }
 
+pub(crate) async fn dividend_ledger(
+    State(state): State<Arc<Server>>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    upgrade(
+        state,
+        &headers,
+        ws,
+        Scope::Screen,
+        analytics::dividend_ledger,
+    )
+    .await
+}
+
 pub(crate) async fn listing_downside_risk(
     State(state): State<Arc<Server>>,
     headers: HeaderMap,

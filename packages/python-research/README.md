@@ -203,4 +203,6 @@ Call `ResearchEngine.recorded_trade_prints("NASDAQ:NVDA", trades_csv, known_at="
 
 Call `ResearchEngine.dividend_ledger(instrument, dividends_csv, shares=100, known_at=cutoff)` for the cash dividend events known by an inclusive UTC cutoff. Use `positions_csv` for dated holdings. Each currency movement carries signed deltas and exact resulting balances, including optional reported withholding. [Native and Python dividend replay](../../docs/cash-dividends.md#native-and-python-dividend-replay)
 
+The MCP server exposes `dividend_ledger` as read-only pages with decimal strings for money. [MCP dividend ledger](../../docs/local-mcp-research.md#dividend-ledger)
+
 The MCP server offers the same records as read-only pages with exact decimal strings for sequence, price and size. [Recorded trade prints over MCP](../../docs/local-mcp-research.md#recorded-trade-prints)

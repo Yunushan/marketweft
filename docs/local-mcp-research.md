@@ -78,6 +78,12 @@ Call the read-only `recorded_trade_prints` tool with the canonical `instrument` 
 
 With the sample tape, the 13:59:57 UTC execution first appears at the 14:00:02 UTC observation cutoff. A query at 14:00:00 UTC returns the original two prints, including the signed first price and the unknown side of the second print. [Trade fixture](recorded-tick-bars.md#recorded-time-and-sales) · [Shared service fields](local-rest-research.md#recorded-trade-prints)
 
+## Dividend ledger
+
+Call the read-only `dividend_ledger` tool with `instrument`, `dividends_csv` and exactly one of `shares` or `positions_csv`. Use an optional exact `known_at` UTC cutoff and request subsequent pages with the same inputs and the returned `next_offset`. Each page defaults to 200 events and accepts a limit up to 1,000.
+
+Balances and signed movements are exact decimal strings in millionths. Unknown entitlements and unavailable withholding fields are `null`. Repeating the input and cutoff reproduces the same earlier page after a later currency revision or holdings correction. [Ledger data and examples](cash-dividends.md#reported-withholding) · [Shared service fields](local-rest-research.md#dividend-ledger)
+
 ## Portfolio currency conversion
 
 Call the read-only `portfolio_fx_as_of` tool with `rates_csv` contents, a three-letter uppercase `reporting_currency`, and exact UTC `effective_at` and `known_at` cutoffs. Supply `amounts` as an array of source currency and `subtotal_ticks` objects. Send each currency once and use signed decimal strings in integer millionths for subtotals. The FX CSV accepts up to 1 MiB of UTF-8 data. [Portfolio FX inputs and rate selection](portfolio-replay.md#portfolio-currency-translation)

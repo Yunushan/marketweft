@@ -72,7 +72,8 @@ class McpTest(unittest.TestCase):
                           mcp.MACRO_CALENDAR_TOOL_NAME, mcp.PORTFOLIO_SCENARIOS_TOOL_NAME, mcp.PORTFOLIO_FX_TOOL_NAME,
                           mcp.EQUITY_CONCENTRATION_TOOL_NAME, mcp.EQUITY_TARGET_TOOL_NAME,
                           mcp.PORTFOLIO_ALLOCATION_TOOL_NAME, mcp.NOTIONAL_BARS_TOOL_NAME,
-                          mcp.LISTING_DOWNSIDE_RISK_TOOL_NAME, mcp.RECORDED_TRADE_PRINTS_TOOL_NAME])
+                          mcp.LISTING_DOWNSIDE_RISK_TOOL_NAME, mcp.RECORDED_TRADE_PRINTS_TOOL_NAME,
+                          mcp.DIVIDEND_LEDGER_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -623,6 +624,58 @@ class McpTest(unittest.TestCase):
         self.assertEqual(replies["invalid"]["error"]["code"], -32602)
         self.assertEqual(replies["over"]["error"]["code"], -32602)
         self.assertEqual(replies["rewind"]["result"]["structuredContent"], early)
+
+    def test_dividend_ledger_pages_preserve_cutoffs_signed_movements_and_dated_entitlement(self):
+        fixture = ROOT / "crates/core/tests/fixtures/synthetic-dividend-withholding.csv"
+        arguments = {
+            "instrument": "DEMO:DIVIDEND", "dividends_csv": fixture.read_text(encoding="utf-8"),
+            "known_at": "2025-06-04T14:00:00Z", "limit": 2,
+        }
+        positions = (
+            "instrument,effective_at,observed_at,shares\n"
+            "DEMO:DIVIDEND,2025-06-03T13:50:00Z,2025-06-03T13:55:00Z,100\n"
+            "DEMO:DIVIDEND,2025-06-03T13:50:00Z,2025-06-04T14:30:00Z,120\n"
+        )
+
+        def query(request_id, **changes):
+            return rpc("tools/call", request_id, {
+                "name": mcp.DIVIDEND_LEDGER_TOOL_NAME, "arguments": arguments | changes,
+            })
+
+        process = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(
+                rpc("initialize", "init", INITIALIZE), rpc("notifications/initialized"),
+                rpc("tools/list", "tools"), query("first", shares=100), query("pay", shares=100, offset=2),
+                query("transfer", shares=100, known_at="2025-06-04T14:40:00Z", offset=4),
+                query("dated", positions_csv=positions, known_at="2025-06-04T14:30:00Z", offset=4),
+                query("ambiguous", shares=100, positions_csv=positions), query("invalid", shares=None),
+                query("rewind", shares=100, offset=2),
+            ), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=15,
+        )
+        replies = {item["id"]: item for item in map(json.loads, process.stdout.splitlines())}
+        tool = next(item for item in replies["tools"]["result"]["tools"] if item["name"] == mcp.DIVIDEND_LEDGER_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertEqual(tool["inputSchema"]["oneOf"], [{"required": ["shares"]}, {"required": ["positions_csv"]}])
+        first = replies["first"]["result"]["structuredContent"]
+        self.assertEqual(first["next_offset"], 2)
+        self.assertEqual(first["events"][1]["movements"][0]["receivable"], "50000000")
+        pay = replies["pay"]["result"]["structuredContent"]
+        self.assertEqual(json.loads(replies["pay"]["result"]["content"][0]["text"]), pay)
+        self.assertEqual(pay["total_events"], 3)
+        self.assertIsNone(pay["next_offset"])
+        self.assertEqual(pay["events"][0]["movements"][0]["cash"], "40000000")
+        self.assertEqual(pay["events"][0]["movements"][0]["withholding"], "10000000")
+        transfer = replies["transfer"]["result"]["structuredContent"]["events"][0]["movements"]
+        self.assertEqual([(row["currency"], row["cash_delta"], row["withholding_delta"]) for row in transfer],
+                         [("USD", "-43000000", "-7000000"), ("CAD", "48000000", "12000000")])
+        dated = replies["dated"]["result"]["structuredContent"]
+        self.assertIsNone(dated["fixed_shares"])
+        self.assertEqual(dated["events"][0]["entitled_shares"], 120)
+        self.assertEqual(dated["events"][0]["movements"][0]["withholding_delta"], "1400000")
+        self.assertEqual(replies["ambiguous"]["error"]["code"], -32602)
+        self.assertEqual(replies["invalid"]["error"]["code"], -32602)
+        self.assertEqual(replies["rewind"]["result"]["structuredContent"], pay)
 
     def test_listing_downside_risk_pages_preserve_losses_and_rewind(self):
         fixtures = ROOT / "crates/core/tests/fixtures"

@@ -20,7 +20,7 @@ from . import (
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.20.0"
+SERVER_VERSION = "0.21.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -38,6 +38,7 @@ PORTFOLIO_ALLOCATION_TOOL_NAME = "portfolio_allocation_as_of"
 NOTIONAL_BARS_TOOL_NAME = "recorded_notional_bars"
 LISTING_DOWNSIDE_RISK_TOOL_NAME = "listing_downside_risk_as_of"
 RECORDED_TRADE_PRINTS_TOOL_NAME = "recorded_trade_prints"
+DIVIDEND_LEDGER_TOOL_NAME = "dividend_ledger"
 PORTFOLIO_FX_TOOL_NAME = "portfolio_fx_as_of"
 EQUITY_CONCENTRATION_TOOL_NAME = "equity_concentration_as_of"
 EQUITY_TARGET_TOOL_NAME = "equity_target_drift_as_of"
@@ -807,6 +808,53 @@ RECORDED_TRADE_PRINTS_TOOL = {
     "outputSchema": RECORDED_TRADE_PRINTS_OUTPUT,
 }
 
+_DIVIDEND_CSV = {"type": "string", "minLength": 1, "maxLength": 1024 * 1024}
+_DIVIDEND_SHARES = {"type": "integer", "minimum": 0, "maximum": 1_000_000}
+_DIVIDEND_EVENT_COUNT = {"type": "integer", "minimum": 0, "maximum": 50_000}
+_DIVIDEND_NULLABLE_SHARES = {**_DIVIDEND_SHARES, "type": ["integer", "null"]}
+DIVIDEND_LEDGER_INPUT = {
+    **_object_schema({
+        "instrument": _NOTIONAL_INSTRUMENT,
+        "dividends_csv": _DIVIDEND_CSV,
+        "positions_csv": _DIVIDEND_CSV,
+        "shares": _DIVIDEND_SHARES,
+        "known_at": _UTC_SCHEMA,
+        "offset": _DIVIDEND_EVENT_COUNT,
+        "limit": INPUT_SCHEMA["properties"]["limit"],
+    }, optional=("positions_csv", "shares", "known_at", "offset", "limit")),
+    "oneOf": [{"required": ["shares"]}, {"required": ["positions_csv"]}],
+}
+DIVIDEND_LEDGER_OUTPUT = _object_schema({
+    "instrument": _NOTIONAL_INSTRUMENT,
+    "known_at": {**_UTC_SCHEMA, "type": ["string", "null"]},
+    "fixed_shares": _DIVIDEND_NULLABLE_SHARES,
+    "total_events": _DIVIDEND_EVENT_COUNT,
+    "offset": _DIVIDEND_EVENT_COUNT,
+    "next_offset": {**_DIVIDEND_EVENT_COUNT, "type": ["integer", "null"]},
+    "events": {"type": "array", "maxItems": MAX_ROWS, "items": _object_schema({
+        **dict.fromkeys(("at", "announced_at", "ex_at", "pay_at", "observed_at"), _TIME_SCHEMA),
+        "kind": {"type": "string", "enum": ["report", "ex", "pay", "entitlement"]},
+        "dividend_id": _IDENTIFIER_SCHEMA,
+        "currency": _CURRENCY_SCHEMA,
+        "amount_per_share": _TICKS_SCHEMA,
+        "entitled_shares": _DIVIDEND_NULLABLE_SHARES,
+        "withholding_per_share": _OPTIONAL_TICKS_SCHEMA,
+        "movements": {"type": "array", "maxItems": 2, "items": _object_schema({
+            "currency": _CURRENCY_SCHEMA,
+            **dict.fromkeys(("receivable_delta", "cash_delta", "receivable", "cash"), _TICKS_SCHEMA),
+            "withholding_delta": _OPTIONAL_TICKS_SCHEMA,
+            "withholding": _OPTIONAL_TICKS_SCHEMA,
+        })},
+    })},
+})
+DIVIDEND_LEDGER_TOOL = {
+    "name": DIVIDEND_LEDGER_TOOL_NAME,
+    "description": "Replay one page of cash dividend events with fixed or dated holdings and reported withholding.",
+    "annotations": TOOL["annotations"],
+    "inputSchema": DIVIDEND_LEDGER_INPUT,
+    "outputSchema": DIVIDEND_LEDGER_OUTPUT,
+}
+
 
 class RequestError(Exception):
     def __init__(self, code: int, message: str):
@@ -935,7 +983,8 @@ class ResearchServer:
             return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL,
                               AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL, MACRO_CALENDAR_TOOL, PORTFOLIO_SCENARIOS_TOOL,
                               PORTFOLIO_FX_TOOL, EQUITY_CONCENTRATION_TOOL, EQUITY_TARGET_TOOL, PORTFOLIO_ALLOCATION_TOOL,
-                              NOTIONAL_BARS_TOOL, LISTING_DOWNSIDE_RISK_TOOL, RECORDED_TRADE_PRINTS_TOOL]}
+                              NOTIONAL_BARS_TOOL, LISTING_DOWNSIDE_RISK_TOOL, RECORDED_TRADE_PRINTS_TOOL,
+                              DIVIDEND_LEDGER_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -963,6 +1012,8 @@ class ResearchServer:
                 return self._listing_downside_risk(arguments)
             if name == RECORDED_TRADE_PRINTS_TOOL_NAME:
                 return self._recorded_trade_prints(arguments)
+            if name == DIVIDEND_LEDGER_TOOL_NAME:
+                return self._dividend_ledger(arguments)
             if name == PORTFOLIO_SCENARIOS_TOOL_NAME:
                 return self._portfolio_scenarios(arguments)
             if name == PORTFOLIO_FX_TOOL_NAME:
@@ -1117,6 +1168,43 @@ class ResearchServer:
             "instrument": report.instrument, "known_at": known, "total_prints": len(report.prints),
             "offset": offset, "next_offset": end if end < len(report.prints) else None,
             "prints": [_fixed_fields(row, "sequence", "price_ticks", "size_ticks") for row in page],
+        })
+
+    def _dividend_ledger(self, arguments) -> dict:
+        if (not isinstance(arguments, dict)
+                or set(arguments) - DIVIDEND_LEDGER_INPUT["properties"].keys()
+                or set(DIVIDEND_LEDGER_INPUT["required"]) - arguments.keys()):
+            raise RequestError(-32602, "Supply the documented dividend ledger arguments.")
+        instrument, dividends = arguments["instrument"], arguments["dividends_csv"]
+        positions, known = arguments.get("positions_csv"), arguments.get("known_at")
+        if (not isinstance(instrument, str) or not instrument or not isinstance(dividends, str) or not dividends
+                or "positions_csv" in arguments and (not isinstance(positions, str) or not positions)
+                or "known_at" in arguments and not isinstance(known, str)
+                or ("shares" in arguments) == ("positions_csv" in arguments)):
+            raise RequestError(-32602, "Supply dividend CSV and exactly one of fixed shares or dated positions.")
+        shares = _integer(arguments, "shares", 0, 0, 1_000_000) if "shares" in arguments else None
+        offset = _integer(arguments, "offset", 0, 0, 50_000)
+        limit = _integer(arguments, "limit", 200, 1, MAX_ROWS)
+        try:
+            report = self._engine.dividend_ledger(
+                instrument, dividends, shares=shares, positions_csv=positions, known_at=known,
+            )
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+        events = []
+        for event in report.events[offset:offset + limit]:
+            evidence = _fixed_fields(event, "amount_per_share", "withholding_per_share")
+            evidence["movements"] = [
+                _fixed_fields(row, "receivable_delta", "cash_delta", "receivable", "cash",
+                              "withholding_delta", "withholding")
+                for row in event.movements
+            ]
+            events.append(evidence)
+        end = offset + len(events)
+        return _structured({
+            "instrument": report.instrument, "known_at": known, "fixed_shares": report.fixed_shares,
+            "total_events": len(report.events), "offset": offset,
+            "next_offset": end if end < len(report.events) else None, "events": events,
         })
 
     def _listing_downside_risk(self, arguments) -> dict:

@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.300.0 · Dividend ledger transports
+
+- REST, resumed WebSocket and typed gRPC verify screen authorization, matching pages, fixed and dated entitlements, exact cash and withholding, and reproducible rewind.
+- The installed Python wheel and the official MCP client verify read-only discovery, matching text and structured pages, dated holdings corrections and recovery after an ambiguous query.
+
 ## 0.299.0 · Native and Python dividend replay
 
 - The native process and installed Python wheel verify inclusive cutoff rewind, fixed and dated entitlements, exact currency reversals, and legacy gross reports. Python also rejects a supplied movement that fails to reconcile with the preceding balance.

@@ -3,14 +3,15 @@ use crate::{
     audit::{Outcome, Transport},
     proto::{
         research_server::{Research, ResearchServer},
-        AmericanOptionQuery, AmericanOptionResponse, EquityConcentrationPage,
-        EquityConcentrationQuery, EquityTargetDriftPage, EquityTargetDriftQuery, FormulaPage,
-        FormulaQuery, ListingDownsideRiskPage, ListingDownsideRiskQuery, MacroCalendarPage,
-        MacroCalendarQuery, MonthlyReturnsPage, MonthlyReturnsQuery, OptionPage, OptionQuery,
-        PortfolioAllocationQuery, PortfolioAllocationResponse, PortfolioFxPage, PortfolioFxQuery,
-        PortfolioScenariosPage, PortfolioScenariosQuery, RankComparisonPage, RankComparisonQuery,
-        RecordedNotionalBarsPage, RecordedNotionalBarsQuery, RecordedTradePrintsPage,
-        RecordedTradePrintsQuery, ScreenPage, ScreenQuery,
+        AmericanOptionQuery, AmericanOptionResponse, DividendLedgerPage, DividendLedgerQuery,
+        EquityConcentrationPage, EquityConcentrationQuery, EquityTargetDriftPage,
+        EquityTargetDriftQuery, FormulaPage, FormulaQuery, ListingDownsideRiskPage,
+        ListingDownsideRiskQuery, MacroCalendarPage, MacroCalendarQuery, MonthlyReturnsPage,
+        MonthlyReturnsQuery, OptionPage, OptionQuery, PortfolioAllocationQuery,
+        PortfolioAllocationResponse, PortfolioFxPage, PortfolioFxQuery, PortfolioScenariosPage,
+        PortfolioScenariosQuery, RankComparisonPage, RankComparisonQuery, RecordedNotionalBarsPage,
+        RecordedNotionalBarsQuery, RecordedTradePrintsPage, RecordedTradePrintsQuery, ScreenPage,
+        ScreenQuery,
     },
     shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
@@ -66,6 +67,10 @@ pub(crate) fn routes(state: Arc<Server>) -> Router {
                 )
                 .route_service(
                     "/marketweft.research.v1.Research/GetRecordedTradePrints",
+                    service.clone(),
+                )
+                .route_service(
+                    "/marketweft.research.v1.Research/GetDividendLedger",
                     service.clone(),
                 )
                 .route_service(
@@ -240,6 +245,13 @@ impl Research for LocalResearch {
         request: GrpcRequest<RecordedTradePrintsQuery>,
     ) -> Result<GrpcResponse<RecordedTradePrintsPage>, Status> {
         unary(request, analytics::evaluate_recorded_trade_prints).await
+    }
+
+    async fn get_dividend_ledger(
+        &self,
+        request: GrpcRequest<DividendLedgerQuery>,
+    ) -> Result<GrpcResponse<DividendLedgerPage>, Status> {
+        unary(request, analytics::evaluate_dividend_ledger).await
     }
 
     async fn get_listing_downside_risk(

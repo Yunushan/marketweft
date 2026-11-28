@@ -1,9 +1,10 @@
 use crate::{
     proto::{
-        AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close,
-        EquityConcentrationPage, EquityConcentrationQuery, EquityConcentrationRow,
-        EquityTargetDriftPage, EquityTargetDriftQuery, EquityTargetDriftRow, EquityTargetEvidence,
-        FormulaPage, FormulaQuery, FormulaRow, ListingDownsideRiskPage, ListingDownsideRiskQuery,
+        AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close, DividendLedgerEvent,
+        DividendLedgerMovement, DividendLedgerPage, DividendLedgerQuery, EquityConcentrationPage,
+        EquityConcentrationQuery, EquityConcentrationRow, EquityTargetDriftPage,
+        EquityTargetDriftQuery, EquityTargetDriftRow, EquityTargetEvidence, FormulaPage,
+        FormulaQuery, FormulaRow, ListingDownsideRiskPage, ListingDownsideRiskQuery,
         ListingDownsideRiskRow, MacroCalendarPage, MacroCalendarQuery, MacroCalendarRow,
         MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery, MonthlyReturnsRow,
         OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying,
@@ -20,8 +21,9 @@ use crate::{
 };
 use axum::http::StatusCode;
 use marketweft_core::{
-    monthly_returns, parse_csv, parse_dividends, parse_exact_utc, parse_universe, AggressorSide,
-    AmericanValuationRequest, CashOptionError, EquityTargetBook, ExerciseStyle, Formula,
+    monthly_returns, parse_csv, parse_dividend_positions, parse_dividends, parse_exact_utc,
+    parse_replay_dividends, parse_universe, AggressorSide, AmericanValuationRequest,
+    CashOptionError, DividendKind, EquityTargetBook, ExerciseStyle, Formula,
     FormulaFunctionDefinition, FormulaLibrary, FxAmount, FxBook, Instrument, ListingRiskQuery,
     MacroCalendar, MonthWindow, MonthlyClose, OptionAnalytics, OptionBook, OptionSide,
     PortfolioBook, PortfolioScenarioConfig, PortfolioVarianceQuery, PriceBook, PriceObservation,
@@ -46,6 +48,7 @@ pub(crate) enum ResearchPage {
     RankComparison(RankComparisonPage),
     RecordedNotionalBars(RecordedNotionalBarsPage),
     RecordedTradePrints(RecordedTradePrintsPage),
+    DividendLedger(DividendLedgerPage),
     ListingDownsideRisk(ListingDownsideRiskPage),
     PortfolioAllocation(PortfolioAllocationResponse),
     PortfolioScenarios(PortfolioScenariosPage),
@@ -680,7 +683,7 @@ pub(crate) fn recorded_notional_bars(
     })
 }
 
-fn recorded_trade_settings(
+fn recorded_history_settings(
     identity: &str,
     known_at: Option<&str>,
 ) -> Result<(Instrument, Option<i64>), ApiError> {
@@ -716,7 +719,7 @@ pub(crate) fn evaluate_recorded_notional_bars(
 ) -> Result<(), ApiError> {
     let (offset, limit) = pagination(query.offset, query.limit, MAX_BARS as u64)?;
     let (instrument, cutoff) =
-        recorded_trade_settings(&query.instrument, query.known_at.as_deref())?;
+        recorded_history_settings(&query.instrument, query.known_at.as_deref())?;
     let target = i64::try_from(query.target_notional_ticks)
         .map_err(|_| analytical_error("Use a positive six-place notional target.".into()))?;
     let bars = TradeTape::parse_execution(&query.trades_csv, &instrument)
@@ -771,7 +774,7 @@ pub(crate) fn evaluate_recorded_trade_prints(
 ) -> Result<(), ApiError> {
     let (offset, limit) = pagination(query.offset, query.limit, MAX_BARS as u64)?;
     let (instrument, cutoff) =
-        recorded_trade_settings(&query.instrument, query.known_at.as_deref())?;
+        recorded_history_settings(&query.instrument, query.known_at.as_deref())?;
     let tape =
         TradeTape::parse_execution(&query.trades_csv, &instrument).map_err(analytical_error)?;
     let prints = tape
@@ -807,6 +810,95 @@ pub(crate) fn evaluate_recorded_trade_prints(
                 .collect(),
         },
     );
+    Ok(())
+}
+
+pub(crate) fn dividend_ledger(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_dividend_ledger(request(bytes)?, &mut |page| {
+        emit(ResearchPage::DividendLedger(page))
+    })
+}
+
+pub(crate) fn evaluate_dividend_ledger(
+    query: DividendLedgerQuery,
+    emit: &mut dyn FnMut(DividendLedgerPage) -> bool,
+) -> Result<(), ApiError> {
+    let (offset, limit) = pagination(query.offset, query.limit, 50_000)?;
+    let (instrument, cutoff) =
+        recorded_history_settings(&query.instrument, query.known_at.as_deref())?;
+    let book =
+        parse_replay_dividends(&query.dividends_csv, &instrument).map_err(analytical_error)?;
+    let events = match (query.shares, &query.positions_csv) {
+        (Some(shares), None) => book.ledger(shares),
+        (None, Some(csv)) => parse_dividend_positions(csv, &instrument)
+            .and_then(|positions| book.position_ledger(&positions)),
+        _ => {
+            return Err(ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "Supply fixed shares or a dated position CSV.",
+            ))
+        }
+    }
+    .map_err(analytical_error)?;
+    let total = cutoff.map_or(events.len(), |known| {
+        events.partition_point(|event| event.at <= known)
+    });
+    pages(offset, limit, total, emit, |offset, range, next_offset| {
+        DividendLedgerPage {
+            instrument: query.instrument.clone(),
+            known_at: query.known_at.clone(),
+            fixed_shares: query.shares,
+            total_events: total as u32,
+            offset,
+            next_offset,
+            events: events[range]
+                .iter()
+                .map(|event| {
+                    let row = &event.revision;
+                    let with_withholding = event.withholding_per_share.is_some();
+                    DividendLedgerEvent {
+                        at: event.at,
+                        kind: match event.kind {
+                            DividendKind::Report => "report",
+                            DividendKind::Ex => "ex",
+                            DividendKind::Pay => "pay",
+                            DividendKind::Entitlement => "entitlement",
+                        }
+                        .into(),
+                        dividend_id: row.id.clone(),
+                        announced_at: row.announced_at,
+                        ex_at: row.ex_at,
+                        pay_at: row.pay_at,
+                        observed_at: row.observed_at,
+                        currency: row.currency.clone(),
+                        amount_per_share: row.amount_per_share.to_string(),
+                        entitled_shares: event.entitled_shares,
+                        withholding_per_share: event
+                            .withholding_per_share
+                            .map(|value| value.to_string()),
+                        movements: event
+                            .movements
+                            .iter()
+                            .map(|movement| DividendLedgerMovement {
+                                currency: movement.currency.clone(),
+                                receivable_delta: movement.receivable_delta.to_string(),
+                                cash_delta: movement.cash_delta.to_string(),
+                                receivable: movement.receivable.to_string(),
+                                cash: movement.cash.to_string(),
+                                withholding_delta: with_withholding
+                                    .then(|| movement.withholding_delta.to_string()),
+                                withholding: with_withholding
+                                    .then(|| movement.withholding.to_string()),
+                            })
+                            .collect(),
+                    }
+                })
+                .collect(),
+        }
+    });
     Ok(())
 }
 

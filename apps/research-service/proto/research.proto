@@ -11,6 +11,7 @@ service Research {
   rpc CompareUniverseRanks(RankComparisonQuery) returns (RankComparisonPage);
   rpc GetRecordedNotionalBars(RecordedNotionalBarsQuery) returns (RecordedNotionalBarsPage);
   rpc GetRecordedTradePrints(RecordedTradePrintsQuery) returns (RecordedTradePrintsPage);
+  rpc GetDividendLedger(DividendLedgerQuery) returns (DividendLedgerPage);
   rpc GetListingDownsideRisk(ListingDownsideRiskQuery) returns (ListingDownsideRiskPage);
   rpc GetPortfolioAllocation(PortfolioAllocationQuery) returns (PortfolioAllocationResponse);
   rpc GetPortfolioScenarios(PortfolioScenariosQuery) returns (PortfolioScenariosPage);
@@ -19,6 +20,51 @@ service Research {
   rpc GetEquityTargetDrift(EquityTargetDriftQuery) returns (EquityTargetDriftPage);
   rpc SnapshotOptions(OptionQuery) returns (OptionPage);
   rpc ValueAmericanOption(AmericanOptionQuery) returns (AmericanOptionResponse);
+}
+
+message DividendLedgerQuery {
+  string instrument = 1;
+  string dividends_csv = 2;
+  optional uint32 shares = 3;
+  optional string positions_csv = 4;
+  optional string known_at = 5;
+  optional uint64 offset = 6;
+  optional uint64 limit = 7;
+}
+
+message DividendLedgerMovement {
+  string currency = 1;
+  string receivable_delta = 2;
+  string cash_delta = 3;
+  string receivable = 4;
+  string cash = 5;
+  optional string withholding_delta = 6;
+  optional string withholding = 7;
+}
+
+message DividendLedgerEvent {
+  int64 at = 1;
+  string kind = 2;
+  string dividend_id = 3;
+  int64 announced_at = 4;
+  int64 ex_at = 5;
+  int64 pay_at = 6;
+  int64 observed_at = 7;
+  string currency = 8;
+  string amount_per_share = 9;
+  optional uint32 entitled_shares = 10;
+  optional string withholding_per_share = 11;
+  repeated DividendLedgerMovement movements = 12;
+}
+
+message DividendLedgerPage {
+  string instrument = 1;
+  optional string known_at = 2;
+  optional uint32 fixed_shares = 3;
+  uint32 total_events = 4;
+  uint32 offset = 5;
+  optional uint32 next_offset = 6;
+  repeated DividendLedgerEvent events = 7;
 }
 
 message FormulaFunction {
