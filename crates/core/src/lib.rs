@@ -108,7 +108,7 @@ pub use backtest::{
     RecordedBacktestCutoffs,
 };
 pub use bollinger::PriceBand as BollingerBand;
-pub use bollinger::{bollinger_bands, PriceBand};
+pub use bollinger::{bollinger_bands, rolling_close_standard_deviation, PriceBand};
 pub use bollinger_measures::{bollinger_measures, BollingerMeasures};
 pub use candle_patterns::{replay_candle_patterns, CandlePattern, CandlePatternHit};
 pub use chaikin::{chaikin_money_flow, chaikin_oscillator};

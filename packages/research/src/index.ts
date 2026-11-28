@@ -73,6 +73,7 @@ export interface MarketResearch {
   recordedDepthSweep: MarketCore['recordedDepthSweep']
   recordedNotionalBars: MarketCore['recordedNotionalBars']
   recordedTradePrints: MarketCore['recordedTradePrints']
+  rollingCloseStandardDeviation: MarketCore['rollingCloseStandardDeviation']
   classifyRecordedTrades: MarketCore['classifyRecordedTrades']
   paperDepthIndex: MarketCore['paperDepthIndex']
   paperDepthReplay: MarketCore['paperDepthReplay']
@@ -129,6 +130,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     recordedDepthSweep: core.recordedDepthSweep,
     recordedNotionalBars: core.recordedNotionalBars,
     recordedTradePrints: core.recordedTradePrints,
+    rollingCloseStandardDeviation: core.rollingCloseStandardDeviation,
     classifyRecordedTrades: core.classifyRecordedTrades,
     paperDepthIndex: core.paperDepthIndex,
     paperDepthReplay: core.paperDepthReplay,

@@ -4295,6 +4295,14 @@ pub extern "C" fn mw_bollinger_bands(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_rolling_close_standard_deviation(period: usize) -> u32 {
+    process(|input| {
+        crate::rolling_close_standard_deviation(period, &indicator_closes(input)?)
+            .map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_donchian_channels(period: usize) -> u32 {
     process(|input| crate::donchian_channels(period, &decode_bars(input)?).map(encode_price_bands))
 }

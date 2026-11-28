@@ -4,7 +4,7 @@ members = ["crates/core"]
 exclude = ["apps/desktop", "apps/desktop/src-tauri", "apps/research-service"]
 
 [workspace.package]
-version = "0.153.0"
+version = "0.154.0"
 edition = "2021"
 license = "0BSD"
 

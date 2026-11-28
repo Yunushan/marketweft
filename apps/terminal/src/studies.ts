@@ -14,6 +14,8 @@ export const STUDIES = {
   detrended_price: { name: 'Detrended Price Oscillator', label: 'Detrended Price Oscillator',
     minPeriod: 2, defaultPeriod: 20, color: '#8ccfa9' },
   bb: { name: 'Bollinger Bands', label: 'Bollinger Bands', minPeriod: 1, defaultPeriod: 20 },
+  close_stddev: { name: 'Close Standard Deviation', label: 'Close Standard Deviation',
+    minPeriod: 1, defaultPeriod: 20, color: '#acbdf0' },
   bb_percent_b: { name: 'Bollinger %B', label: 'Bollinger %B', minPeriod: 1, defaultPeriod: 20, color: '#e797c7' },
   bb_bandwidth: { name: 'BandWidth', label: 'Bollinger BandWidth', minPeriod: 1, defaultPeriod: 20, color: '#6acec6' },
   donchian: { name: 'Donchian Channels', label: 'Donchian Channels', minPeriod: 1, defaultPeriod: 20 },
@@ -261,6 +263,9 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     ] }]
     const { period = STUDIES[kind].defaultPeriod } = study
     if (kind === 'bb') return [priceBands(kind, [period], core.bollingerBands(period, bars))]
+    if (kind === 'close_stddev') return [{ kind, periods: [period], unit: 'price', zeroLine: true, lines: [
+      { color: STUDIES[kind].color, series: core.rollingCloseStandardDeviation(period, bars) },
+    ] }]
     if (kind === 'donchian') return [priceBands(kind, [period], core.donchianChannels(period, bars))]
     if (kind === 'acceleration_bands') return [priceBands(kind, [period], core.accelerationBands(period, bars))]
     if (kind === 'keltner') {

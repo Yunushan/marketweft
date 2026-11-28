@@ -9,6 +9,17 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK returns exact close dispersion, warm-up and genuine zeros', async () => {
+  const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-close-dispersion.csv', import.meta.url), 'utf8')
+  const engine = await createResearchEngine(wasm)
+  const bars = engine.parseBars(source)
+  const whole = engine.rollingCloseStandardDeviation(2, bars)
+  assert.deepEqual(whole, [null, 3000000n, 0n, 1500000n, 0n])
+  assert.deepEqual(engine.rollingCloseStandardDeviation(2, bars.slice(0, 3)), whole.slice(0, 3))
+  assert.deepEqual(engine.rollingCloseStandardDeviation(3, bars), [null, null, 2828427n, 1414214n, 1414214n])
+  assert.throws(() => engine.rollingCloseStandardDeviation(0, bars), /100,000/)
+})
+
 test('the public SDK captures raw prints inclusive of the cutoff and keeps full sequences', async () => {
   const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-recorded-prints.csv', import.meta.url), 'utf8')
   const engine = await createResearchEngine(wasm)

@@ -92,6 +92,19 @@ impl Window {
         }
         candidate as i64
     }
+
+    fn round_standard_deviation(&self) -> i64 {
+        let floor = self.spread_squared.0.isqrt() / 2;
+        let midpoint = 2 * floor + 1;
+        // The squared spread is four times the variance. Its value at the
+        // half-tick boundary is therefore exactly (2 * floor + 1)^2.
+        (floor + i128::from(self.spread_squared >= (midpoint * midpoint, 0))) as i64
+    }
+
+    fn round_mean(&self) -> i128 {
+        let round = i128::from(2 * self.mean_remainder.abs() >= self.length);
+        self.mean + round * self.mean_remainder.signum()
+    }
 }
 
 /// Use a full window of closes and two population standard deviations.
@@ -102,6 +115,37 @@ pub fn bollinger_bands(period: usize, closes: &[i64]) -> Result<Vec<Option<Price
             "Bollinger periods must be 1–100,000 and histories at most 100,000 bars.".into(),
         );
     }
+    close_windows(period, closes, |window| {
+        let middle = window.round_mean();
+        let spread = window.spread_squared.0.isqrt();
+        PriceBand {
+            lower: window.round_band(middle - spread, false),
+            middle: middle as i64,
+            upper: window.round_band(middle + spread, true),
+        }
+    })
+}
+
+/// Compute population standard deviation from full trailing windows of signed
+/// closes. Values use the input price units and round only at the final tick.
+pub fn rolling_close_standard_deviation(
+    period: usize,
+    closes: &[i64],
+) -> Result<Vec<Option<i64>>, String> {
+    if !(1..=MAX_BARS).contains(&period) || closes.len() > MAX_BARS {
+        return Err(
+            "Standard deviation periods must be 1–100,000 and histories at most 100,000 bars."
+                .into(),
+        );
+    }
+    close_windows(period, closes, Window::round_standard_deviation)
+}
+
+fn close_windows<T>(
+    period: usize,
+    closes: &[i64],
+    calculate: impl Fn(&Window) -> T,
+) -> Result<Vec<Option<T>>, String> {
     if closes
         .iter()
         .any(|close| !(-MAX_TICKS..=MAX_TICKS).contains(close))
@@ -110,7 +154,7 @@ pub fn bollinger_bands(period: usize, closes: &[i64]) -> Result<Vec<Option<Price
     }
 
     let length = period as i128;
-    let mut result = vec![None; closes.len()];
+    let mut result = Vec::with_capacity(closes.len());
     let mut sum = 0;
     let mut squares = 0;
     for (index, &close) in closes.iter().enumerate() {
@@ -122,16 +166,7 @@ pub fn bollinger_bands(period: usize, closes: &[i64]) -> Result<Vec<Option<Price
             sum -= expired;
             squares -= expired * expired;
         }
-        if index + 1 >= period {
-            let window = Window::new(sum, squares, length);
-            let middle = sum.signum() * ((sum.abs() + length / 2) / length);
-            let spread = window.spread_squared.0.isqrt();
-            result[index] = Some(PriceBand {
-                lower: window.round_band(middle - spread, false),
-                middle: middle as i64,
-                upper: window.round_band(middle + spread, true),
-            });
-        }
+        result.push((index + 1 >= period).then(|| calculate(&Window::new(sum, squares, length))));
     }
     Ok(result)
 }

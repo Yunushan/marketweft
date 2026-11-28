@@ -1394,6 +1394,7 @@ export interface MarketCore {
   measureRiskReward(side: RiskRewardSide, entry: number, stop: number, target: number): RiskRewardMeasurement;
   indicator(kind: 'sma' | 'ema' | 'rsi' | 'atr', period: number, bars: readonly Bar[]): (number | null)[];
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
+  rollingCloseStandardDeviation(period: number, bars: readonly Bar[]): (bigint | null)[];
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   accelerationBands(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
@@ -1607,6 +1608,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_indicator(kind: number, period: number): number;
   mw_atr(period: number): number;
   mw_bollinger_bands(period: number): number;
+  mw_rolling_close_standard_deviation(period: number): number;
   mw_donchian_channels(period: number): number;
   mw_acceleration_bands(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
@@ -2837,6 +2839,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
       return readPriceBands(output(api.mw_bollinger_bands(period)));
+    },
+    rollingCloseStandardDeviation(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorCloses(bars);
+      const data = output(api.mw_rolling_close_standard_deviation(period));
+      if (data.byteLength !== bars.length * 8) throw new Error('Invalid standard deviation response size.');
+      return Array.from({ length: bars.length }, (_, index) => {
+        const ticks = data.getBigInt64(index * 8, true);
+        return ticks === MISSING ? null : ticks;
+      });
     },
     donchianChannels(period, bars) {
       validateIndicatorHistory(period, bars.length);

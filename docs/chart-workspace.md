@@ -382,6 +382,12 @@ MarketWeft accepts a zero low when the high is positive. A bar with a negative l
 
 Each pane saves its own period. The research CSV includes `acceleration_bands_lower_20`, `acceleration_bands_middle_20` and `acceleration_bands_upper_20` at the default period. A workspace with Acceleration Bands settings uses backup version 87.
 
+### Close Standard Deviation
+
+Enable **Close Standard Deviation** to plot the population standard deviation of the trailing observed closes in price units. The default period is 20 bars. Each full window averages its squared deviations from the exact mean, then square-roots that average. The result rounds to the nearest millionth with half ticks rounded up. Equal closes give zero. Bars before the first full window leave a blank.
+
+The sample with a two-bar period yields a blank, 3, 0, 1.5 and 0 in observation order. The research CSV column is `close_stddev_2`. Each pane stores its own period, and settings use workspace backup version 89. [Synthetic close fixture](../crates/core/tests/fixtures/synthetic-close-dispersion.csv)
+
 ### Stochastic Oscillator
 
 Enable **Stochastic Oscillator** in either pane’s indicator settings. Its panel shows %K and %D on a common 0% to 100% scale. The defaults are 14 bars for the lookback, 3 for %K smoothing and 3 for %D. Each pane saves all three periods, and each can be from 1 through 100,000 bars. [StockCharts’ full Stochastic Oscillator calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/stochastic-oscillator-fast-slow-and-full).

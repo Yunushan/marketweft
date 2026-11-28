@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.293.0 · Close Standard Deviation
+
+- Rust and Wasm verify exact trailing population dispersion on signed closes, observed prefixes, wide values and the distinction between zero and warm-up. Rust also verifies half-tick rounding and unchanged Bollinger Bands.
+- Offline Chromium verifies independent periods, exact research CSV and workspace backup and restore.
+
 ## 0.292.0 · Recorded trade print transports
 
 - REST, resumed WebSocket and typed gRPC verify screen authorization, exact page parity, delayed observation at the inclusive cutoff, signed prices, the maximum unsigned sequence and rewind.

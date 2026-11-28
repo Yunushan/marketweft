@@ -10,6 +10,19 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('rolling close standard deviation preserves warm-up, signed windows and exact ticks', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-close-dispersion.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(source);
+  const at = (size, end = bars.length) => core.rollingCloseStandardDeviation(size, bars.slice(0, end));
+  const expected = [null, 3000000n, 0n, 1500000n, 0n];
+  for (let end = 0; end <= bars.length; end++) assert.deepEqual(at(2, end), expected.slice(0, end));
+  assert.deepEqual(at(3), [null, null, 2828427n, 1414214n, 1414214n]);
+  assert.deepEqual(at(1), [0n, 0n, 0n, 0n, 0n]);
+  const wide = [-2000000000, 2000000000].map((close, index) => ({ ...bars[index], close }));
+  assert.deepEqual(core.rollingCloseStandardDeviation(2, wide), [null, 2000000000000000n]);
+  assert.throws(() => at(0), /100,000/);
+});
+
 test('recorded trade prints preserve inclusive observation order, reported sides and full sequences', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-recorded-prints.csv', import.meta.url), 'utf8');
   const at = cutoff => core.recordedTradePrints('NASDAQ:NVDA', csv, cutoff);
