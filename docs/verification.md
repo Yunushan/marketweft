@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.295.0 · Morning and Evening Stars
+
+- Rust, Wasm and TypeScript verify the four star patterns, signed midpoint rules, missing intervals, session resets, third-close disclosure and reproducible rewind.
+- Offline Chromium verifies the early-close alert and exports exact OHLCV from all three observed candles.
+
 ## 0.294.0 · Least Squares Moving Average
 
 - Rust and Wasm verify the fitted price at the last observed index, all observed prefixes, signed rounding, wide values and unchanged one-bar forecasts.

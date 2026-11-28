@@ -325,6 +325,7 @@ const replayKinds = ['open', 'bar', 'missing', 'close'] as const;
 const candlePatternKinds = [
   'doji', 'bullish-engulfing', 'bearish-engulfing', 'piercing', 'dark-cloud-cover',
   'bullish-harami', 'bearish-harami', 'bullish-harami-cross', 'bearish-harami-cross',
+  'morning-star', 'evening-star', 'morning-doji-star', 'evening-doji-star',
 ] as const;
 export interface CandlePatternHit {
   kind: typeof candlePatternKinds[number];
@@ -3380,11 +3381,14 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       new Uint8Array(dest.buffer, dest.byteOffset + 8, encoded.length).set(encoded);
       for (const [index, bar] of bars.entries()) putBar(dest, start + index * 48, bar, 'Candle pattern replay');
       const out = output(api.mw_replay_candle_patterns(encoded.length, intervalSeconds));
+      if (out.byteLength % 16 !== 0) throw new Error('Invalid candle pattern response size.');
       return Array.from({ length: out.byteLength / 16 }, (_, index) => {
         const offset = index * 16;
+        const kind = candlePatternKinds[out.getUint32(offset + 12, true)];
+        const barIndex = out.getUint32(offset + 8, true);
+        if (!kind || barIndex >= bars.length) throw new Error('Invalid candle pattern response.');
         return {
-          kind: candlePatternKinds[out.getUint32(offset + 12, true)],
-          barIndex: out.getUint32(offset + 8, true),
+          kind, barIndex,
           observedAt: Number(out.getBigInt64(offset, true)),
         };
       });

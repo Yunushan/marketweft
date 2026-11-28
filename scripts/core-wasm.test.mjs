@@ -3020,6 +3020,28 @@ test('piercing and dark cloud cover use observed signed gaps and the exact prior
   }
 });
 
+test('star patterns use exact signed candle bodies and appear only at the third close', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
+  const [calendar, source] = await Promise.all([
+    fixture('synthetic-candle-star-sessions'), fixture('synthetic-candle-stars'),
+  ]);
+  const bars = core.parseCsv(source);
+  const expected = [
+    ['morning-star', 2, '2026-01-12T14:03:00Z'],
+    ['evening-star', 5, '2026-01-12T14:07:00Z'],
+    ['morning-doji-star', 11, '2026-01-12T14:14:00Z'],
+    ['evening-doji-star', 17, '2026-01-13T14:02:30Z'],
+  ].map(([kind, barIndex, time]) => ({ kind, barIndex, observedAt: Date.parse(time) / 1000 }));
+  const at = (known, source = bars) => core.replayCandlePatterns(calendar, 60, source, known)
+    .filter(hit => hit.kind.endsWith('-star'));
+  for (const [index, { barIndex, observedAt }] of expected.entries()) {
+    assert.deepEqual(at(observedAt - 1), expected.slice(0, index));
+    assert.deepEqual(at(observedAt), expected.slice(0, index + 1));
+    assert.deepEqual(at(observedAt, bars.slice(0, barIndex + 1)), expected.slice(0, index + 1));
+  }
+  assert.deepEqual(at(expected[0].observedAt), expected.slice(0, 1));
+});
+
 test('harami and harami cross use both bodies and close-time observation without bridging gaps', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
   const [calendar, source] = await Promise.all([

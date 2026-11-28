@@ -2,7 +2,7 @@ import { instantiateMarketCore } from './core.js'
 import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, FormulaResult, ListingDownsideRiskPoint, ListingRiskQuery, MarketCore, PortfolioAllocationQuery, PortfolioAllocationReport } from './core.js'
 
 export type {
-  AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
+  AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, CandlePatternHit, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
   EquityConcentration, EquityTargetDrift, Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, NotionalBar, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   JointScenarioPath, JointScenarioQuery, JointScenarioReport, PortfolioAllocationQuery, PortfolioAllocationReport, PortfolioVarianceQuery, ScenarioAllocation,
@@ -75,6 +75,7 @@ export interface MarketResearch {
   recordedTradePrints: MarketCore['recordedTradePrints']
   rollingCloseStandardDeviation: MarketCore['rollingCloseStandardDeviation']
   leastSquaresMovingAverage: MarketCore['leastSquaresMovingAverage']
+  replayCandlePatterns: MarketCore['replayCandlePatterns']
   classifyRecordedTrades: MarketCore['classifyRecordedTrades']
   paperDepthIndex: MarketCore['paperDepthIndex']
   paperDepthReplay: MarketCore['paperDepthReplay']
@@ -133,6 +134,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     recordedTradePrints: core.recordedTradePrints,
     rollingCloseStandardDeviation: core.rollingCloseStandardDeviation,
     leastSquaresMovingAverage: core.leastSquaresMovingAverage,
+    replayCandlePatterns: core.replayCandlePatterns,
     classifyRecordedTrades: core.classifyRecordedTrades,
     paperDepthIndex: core.paperDepthIndex,
     paperDepthReplay: core.paperDepthReplay,

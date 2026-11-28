@@ -12,7 +12,15 @@ export const patternNames: Record<CandlePatternHit['kind'], string> = {
   'bearish-harami': 'Bearish Harami',
   'bullish-harami-cross': 'Bullish Harami Cross',
   'bearish-harami-cross': 'Bearish Harami Cross',
+  'morning-star': 'Morning Star',
+  'evening-star': 'Evening Star',
+  'morning-doji-star': 'Morning Doji Star',
+  'evening-doji-star': 'Evening Doji Star',
 }
+
+const starPatterns = new Set<CandlePatternHit['kind']>([
+  'morning-star', 'evening-star', 'morning-doji-star', 'evening-doji-star',
+])
 
 type PatternBarEvidence = {
   measuredAt: number
@@ -32,6 +40,7 @@ export type PatternAlert = {
   }
   current: PatternBarEvidence
   previous?: PatternBarEvidence
+  first?: PatternBarEvidence
   source?: PatternAlertSource
 }
 
@@ -58,13 +67,15 @@ export async function patternAlerts(
   return matches.filter(hit => hit.kind === pattern).map(hit => {
     const bar = source[hit.barIndex]
     const current = candleEvidence(bar, hit.observedAt)
+    const previous = source[hit.barIndex - 1]
     const id = 'CANDLE:' + rule.revision + ':' + contextDigest + ':' + pattern + ':' + bar.time
     return {
       id,
       type: 'candlestick',
       rule,
       current,
-      ...(pattern === 'doji' ? {} : { previous: candleEvidence(source[hit.barIndex - 1], bar.time) }),
+      ...(pattern === 'doji' ? {} : { previous: candleEvidence(previous, bar.time) }),
+      ...(starPatterns.has(pattern) ? { first: candleEvidence(source[hit.barIndex - 2], previous.time) } : {}),
       ...(provenance ? { source: provenance } : {}),
     }
   })

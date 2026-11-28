@@ -12,6 +12,10 @@ pub enum CandlePattern {
     BearishHarami = 6,
     BullishHaramiCross = 7,
     BearishHaramiCross = 8,
+    MorningStar = 9,
+    EveningStar = 10,
+    MorningDojiStar = 11,
+    EveningDojiStar = 12,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -87,8 +91,49 @@ fn pair_pattern(previous: &Bar, current: &Bar, doji: bool) -> Option<CandlePatte
     harami(previous, current, doji)
 }
 
+fn is_doji(bar: &Bar) -> bool {
+    let range = bar.high - bar.low;
+    range > 0 && (bar.close - bar.open).abs() * 10 <= range
+}
+
+fn star_pattern(first: &Bar, middle: &Bar, current: &Bar) -> Option<CandlePattern> {
+    let first_body = first.close - first.open;
+    let middle_body = (middle.close - middle.open).abs();
+    let current_body = current.close - current.open;
+    if first_body.abs() * 2 < first.high - first.low
+        || middle_body * 2 > first_body.abs()
+        || current_body.abs() <= middle_body
+    {
+        return None;
+    }
+    let midpoint_twice = first.open + first.close;
+    if first_body < 0
+        && middle.open.max(middle.close) < first.close
+        && current_body > 0
+        && 2 * current.close > midpoint_twice
+    {
+        return Some(if is_doji(middle) {
+            CandlePattern::MorningDojiStar
+        } else {
+            CandlePattern::MorningStar
+        });
+    }
+    if first_body > 0
+        && middle.open.min(middle.close) > first.close
+        && current_body < 0
+        && 2 * current.close < midpoint_twice
+    {
+        return Some(if is_doji(middle) {
+            CandlePattern::EveningDojiStar
+        } else {
+            CandlePattern::EveningStar
+        });
+    }
+    None
+}
+
 /// Classify completed raw candles through the inclusive observation cutoff.
-/// Pair patterns require consecutive observed intervals in the same session.
+/// Patterns using multiple candles require consecutive intervals in one session.
 pub fn replay_candle_patterns(
     sessions: &[Session],
     interval_seconds: u32,
@@ -98,19 +143,20 @@ pub fn replay_candle_patterns(
     let times: Vec<_> = bars.iter().map(|bar| bar.time).collect();
     let events = replay(sessions, &times, interval_seconds)?;
     let mut hits = Vec::new();
+    let mut earlier = None;
     let mut previous = None;
     for event in events
         .iter()
         .take_while(|event| event.observed_at <= known_at)
     {
         let Some(bar_index) = event.bar_index.filter(|_| event.kind == EventKind::Bar) else {
+            earlier = None;
             previous = None;
             continue;
         };
         let bar = &bars[bar_index];
         validate_ohlcv(bar, bar_index)?;
-        let range = bar.high - bar.low;
-        let doji = range > 0 && (bar.close - bar.open).abs() * 10 <= range;
+        let doji = is_doji(bar);
         if doji {
             hits.push(CandlePatternHit {
                 kind: CandlePattern::Doji,
@@ -125,6 +171,17 @@ pub fn replay_candle_patterns(
                 observed_at: event.observed_at,
             });
         }
+        if let Some(kind) = earlier
+            .zip(previous)
+            .and_then(|(first, middle)| star_pattern(first, middle, bar))
+        {
+            hits.push(CandlePatternHit {
+                kind,
+                bar_index,
+                observed_at: event.observed_at,
+            });
+        }
+        earlier = previous;
         previous = Some(bar);
     }
     Ok(hits)

@@ -78,6 +78,8 @@ candle-pattern-sessions.csv and 60 seconds in Historical replay. Scan observed
 candles after 14:02 UTC on January 12 and the January 13 early close.
 With the same calendar and interval, import harami.csv for bullish and bearish
 Harami and Harami Cross matches, including the exact 14:02:30 UTC early close.
+Import candle-stars.csv with candle-star-sessions.csv to scan Morning and
+Evening Stars and Doji Stars at the close of the third candle.
 To replay your own import, choose a matching UTC session calendar and bar
 interval. The replay-*.csv files let you try the import workflow with the demo.
 
@@ -322,6 +324,8 @@ def main():
     files["macro-calendar.csv"] = (fixture / "synthetic-macro-calendar.csv").read_bytes()
     files["piercing-dark-cloud.csv"] = (fixture / "synthetic-piercing-dark-cloud.csv").read_bytes()
     files["harami.csv"] = (fixture / "synthetic-harami.csv").read_bytes()
+    files["candle-stars.csv"] = (fixture / "synthetic-candle-stars.csv").read_bytes()
+    files["candle-star-sessions.csv"] = (fixture / "synthetic-candle-star-sessions.csv").read_bytes()
     files["triangular-t3.csv"] = (fixture / "synthetic-triangular-t3.csv").read_bytes()
     files["acceleration-bands.csv"] = (fixture / "synthetic-acceleration-bands.csv").read_bytes()
     files["close-dispersion.csv"] = (fixture / "synthetic-close-dispersion.csv").read_bytes()

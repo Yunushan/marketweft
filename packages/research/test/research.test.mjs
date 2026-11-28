@@ -9,6 +9,22 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK scans completed star patterns at an inclusive observation cutoff', async () => {
+  const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8')
+  const [calendar, source] = await Promise.all([fixture('synthetic-candle-star-sessions'), fixture('synthetic-candle-stars')])
+  const engine = await createResearchEngine(wasm)
+  const bars = engine.parseBars(source)
+  const at = known => engine.replayCandlePatterns(calendar, 60, bars, Date.parse(known) / 1000)
+    .filter(hit => hit.kind.endsWith('-star'))
+  const early = at('2026-01-12T14:03:00Z')
+  assert.deepEqual(early.map(hit => [hit.kind, hit.barIndex]), [['morning-star', 2]])
+  assert.equal(at('2026-01-13T14:02:29Z').length, 3)
+  const full = at('2026-01-13T14:02:30Z')
+  assert.deepEqual(full.map(hit => [hit.kind, hit.barIndex]),
+    [['morning-star', 2], ['evening-star', 5], ['morning-doji-star', 11], ['evening-doji-star', 17]])
+  assert.deepEqual(at('2026-01-12T14:03:00Z'), early)
+})
+
 test('the public SDK gives the fitted close at each observed index', async () => {
   const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-rolling-regression.csv', import.meta.url), 'utf8')
   const engine = await createResearchEngine(wasm)

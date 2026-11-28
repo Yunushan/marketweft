@@ -1,7 +1,73 @@
 use marketweft_core::{
     parse_csv, parse_exact_utc, parse_sessions, replay_candle_patterns, Bar, CandlePattern,
-    CandlePatternHit, MAX_TICKS,
+    CandlePatternHit, Session, MAX_TICKS,
 };
+
+fn is_star(hit: &CandlePatternHit) -> bool {
+    matches!(
+        hit.kind,
+        CandlePattern::MorningStar
+            | CandlePattern::EveningStar
+            | CandlePattern::MorningDojiStar
+            | CandlePattern::EveningDojiStar
+    )
+}
+
+#[test]
+fn stars_use_three_consecutive_closed_candles_and_preserve_exact_cutoffs() {
+    let bars = parse_csv(include_str!("fixtures/synthetic-candle-stars.csv")).unwrap();
+    let sessions =
+        parse_sessions(include_str!("fixtures/synthetic-candle-star-sessions.csv")).unwrap();
+    let expected = [
+        (CandlePattern::MorningStar, 2, "2026-01-12T14:03:00Z"),
+        (CandlePattern::EveningStar, 5, "2026-01-12T14:07:00Z"),
+        (CandlePattern::MorningDojiStar, 11, "2026-01-12T14:14:00Z"),
+        (CandlePattern::EveningDojiStar, 17, "2026-01-13T14:02:30Z"),
+    ]
+    .map(|(kind, bar_index, time)| CandlePatternHit {
+        kind,
+        bar_index,
+        observed_at: parse_exact_utc(time).unwrap(),
+    });
+    let scan = |bars: &[Bar], known| {
+        replay_candle_patterns(&sessions, 60, bars, known)
+            .unwrap()
+            .into_iter()
+            .filter(is_star)
+            .collect::<Vec<_>>()
+    };
+    for (index, hit) in expected.iter().enumerate() {
+        assert_eq!(scan(&bars, hit.observed_at - 1), expected[..index]);
+        assert_eq!(scan(&bars, hit.observed_at), expected[..=index]);
+        assert_eq!(
+            scan(&bars[..=hit.bar_index], hit.observed_at),
+            expected[..=index]
+        );
+    }
+    assert_eq!(scan(&bars, i64::MAX), expected);
+    assert_eq!(scan(&bars, expected[0].observed_at), expected[..1]);
+
+    let [first, middle, last] = [bars[15], bars[16], bars[17]];
+    // Even back-to-back sessions must not join a candle from each side.
+    let divided = [
+        Session {
+            open: first.time,
+            close: middle.time,
+            utc_offset_minutes: 0,
+            early_close: false,
+        },
+        Session {
+            open: middle.time,
+            ..sessions[1]
+        },
+    ];
+    assert!(
+        !replay_candle_patterns(&divided, 60, &[first, middle, last], i64::MAX)
+            .unwrap()
+            .iter()
+            .any(is_star)
+    );
+}
 
 #[test]
 fn candle_patterns_use_observation_closes_and_reset_at_gaps_and_new_sessions() {

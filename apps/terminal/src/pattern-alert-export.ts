@@ -47,6 +47,7 @@ export async function patternAlertEvent(
       rule: alert.rule,
       current: alert.current,
       ...(alert.previous ? { previous: alert.previous } : {}),
+      ...(alert.first ? { first: alert.first } : {}),
     },
   }, null, 2) + '\n'
 }

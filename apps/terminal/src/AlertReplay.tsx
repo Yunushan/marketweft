@@ -43,9 +43,9 @@ function PatternAlertRow({ row, download, exporting }: {
             <div><dt>Rule revision</dt><dd>{row.rule.revision}</dd></div>
             <div><dt>Replay context digest</dt><dd>{row.rule.contextDigest}</dd></div>
             <div><dt>Bar interval</dt><dd>{row.rule.interval} seconds</dd></div>
-            {[row.previous, row.current].map((bar, index) => bar && (
+            {([['First', row.first], ['Previous', row.previous], ['Current', row.current]] as const).map(([label, bar]) => bar && (
               <div key={bar.measuredAt}>
-                <dt>{index === 0 ? 'Previous' : 'Current'} OHLCV</dt>
+                <dt>{label} OHLCV</dt>
                 <dd>{utc(bar.measuredAt)} · known {utc(bar.observedAt)}</dd>
                 <dd>{Object.values(bar.ticks).map(ticks => fixed(BigInt(ticks), 6)).join(' / ')}</dd>
               </div>

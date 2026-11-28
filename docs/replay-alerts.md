@@ -45,6 +45,8 @@ Operators can use the standalone service's [signed webhook delivery command](loc
 
 In **Replay alerts → Alert inbox**, open a saved candlestick alert's **Show evidence** section and choose **Download webhook event**. The JSON contains the stable alert ID, the first UTC observation time, the rule revision, and the exact raw candle evidence. The file can be passed directly to the [signed webhook delivery command](local-webhook-delivery.md).
 
+A star alert includes `first`, `previous` and `current` in the event data. Each candle keeps its own measured and observed UTC seconds and the exact OHLCV millionths. The event timestamp is the third candle's observation time. [Morning and Evening Stars](candlestick-patterns.md#morning-and-evening-stars)
+
 Imported data must have explicit redistribution permission in both the grant recorded with the alert and the current matching catalog history. A later restriction or expiry blocks download. A replacement history with the same instrument ID cannot authorize the earlier alert. Older records without recorded provenance remain readable. The built-in synthetic demo records can be exported.
 
 ## Export crossing alerts

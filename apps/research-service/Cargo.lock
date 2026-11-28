@@ -745,7 +745,7 @@ dependencies = [
 
 [[package]]
 name = "marketweft-core"
-version = "0.155.0"
+version = "0.156.0"
 dependencies = [
  "wasmi",
 ]
