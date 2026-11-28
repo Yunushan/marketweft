@@ -92,11 +92,13 @@ const PRICE_BODY_STUDIES_BACKUP_VERSION = 83
 const SCHIFF_PITCHFORKS_BACKUP_VERSION = 84
 const TRIANGULAR_TILLSON_BACKUP_VERSION = 85
 const NOTIONAL_BARS_BACKUP_VERSION = 86
+const ACCELERATION_BANDS_BACKUP_VERSION = 87
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
-  if (preferences.notionalTicks) return NOTIONAL_BARS_BACKUP_VERSION
   const studies = Object.values(preferences.studies ?? {})
+  if (studies.some(pane => pane?.acceleration_bands)) return ACCELERATION_BANDS_BACKUP_VERSION
+  if (preferences.notionalTicks) return NOTIONAL_BARS_BACKUP_VERSION
   if (studies.some(pane => pane?.trima || pane?.t3)) return TRIANGULAR_TILLSON_BACKUP_VERSION
   if (Object.values(preferences.annotations ?? {}).some(entries =>
     entries.some(entry => entry.kind === 'schiff-pitchfork' || entry.kind === 'modified-schiff-pitchfork')))
@@ -320,6 +322,7 @@ export async function verifyWorkspaceBackup(
     SCHIFF_PITCHFORKS_BACKUP_VERSION,
     TRIANGULAR_TILLSON_BACKUP_VERSION,
     NOTIONAL_BARS_BACKUP_VERSION,
+    ACCELERATION_BANDS_BACKUP_VERSION,
     PRICE_VOLUME_SCATTER_BACKUP_VERSION,
     NORMALIZED_PRICE_AND_RANGE_BACKUP_VERSION,
     STOCHASTIC_RSI_AND_ULTIMATE_BACKUP_VERSION,

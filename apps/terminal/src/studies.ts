@@ -17,6 +17,7 @@ export const STUDIES = {
   bb_percent_b: { name: 'Bollinger %B', label: 'Bollinger %B', minPeriod: 1, defaultPeriod: 20, color: '#e797c7' },
   bb_bandwidth: { name: 'BandWidth', label: 'Bollinger BandWidth', minPeriod: 1, defaultPeriod: 20, color: '#6acec6' },
   donchian: { name: 'Donchian Channels', label: 'Donchian Channels', minPeriod: 1, defaultPeriod: 20 },
+  acceleration_bands: { name: 'Acceleration Bands', label: 'Acceleration Bands', minPeriod: 2, defaultPeriod: 20 },
   keltner: { name: 'Keltner Channels', label: 'Keltner Channels', minPeriod: 1, defaultPeriod: 20, periodLabel: 'Keltner EMA' },
   stochastic: { name: 'Stochastic Oscillator', label: 'Stochastic Oscillator', minPeriod: 1, defaultPeriod: 14, periodLabel: 'Stochastic lookback', color: '#a6c9f8' },
   stochastic_rsi: { name: 'Stochastic RSI', label: 'Stochastic RSI', minPeriod: 2, defaultPeriod: 14, periodLabel: 'Stochastic RSI Wilder RSI', color: '#aca8f2' },
@@ -153,7 +154,7 @@ export function defaultStudySettings(kind: StudyKind): StudySettings {
 }
 export type StudySet = Partial<Record<StudyKind, StudySettings>>
 export type StudyValue = number | bigint | null
-type BandKind = 'bb' | 'donchian' | 'keltner'
+type BandKind = 'bb' | 'donchian' | 'keltner' | 'acceleration_bands'
 const PRICE_AVERAGES = {
   vwma: 'volumeWeightedAverage',
   wma: 'linearlyWeightedAverage',
@@ -201,6 +202,7 @@ const BAND_LINES = [
 const BAND_STYLE = {
   bb: { name: 'BB', lower: '#8393e1', middle: '#bcb9f2', upper: '#8393e1' },
   donchian: { name: 'Donchian', lower: '#6fc290', middle: '#c0d481', upper: '#6fc290' },
+  acceleration_bands: { name: 'Acceleration Bands', lower: '#65b4b8', middle: '#a0d9da', upper: '#65b4b8' },
   keltner: { name: 'Keltner', lower: '#d99970', middle: '#f4cba4', upper: '#d99970' },
 } as const
 
@@ -260,6 +262,7 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     const { period = STUDIES[kind].defaultPeriod } = study
     if (kind === 'bb') return [priceBands(kind, [period], core.bollingerBands(period, bars))]
     if (kind === 'donchian') return [priceBands(kind, [period], core.donchianChannels(period, bars))]
+    if (kind === 'acceleration_bands') return [priceBands(kind, [period], core.accelerationBands(period, bars))]
     if (kind === 'keltner') {
       const atrPeriod = study.atrPeriod ?? EXTRA_STUDY_PERIODS.atrPeriod.defaultPeriod
       return [priceBands(kind, [period, atrPeriod], core.keltnerChannels(period, atrPeriod, bars))]

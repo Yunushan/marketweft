@@ -10,6 +10,24 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('Acceleration Bands preserve observed prefixes, zero and signed prices, and wide ticks', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-acceleration-bands.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(source);
+  const band = (lower, middle, upper) => ({ lower, middle, upper });
+  const expected = [
+    null, band(800000n, 11000000n, 25800000n), band(-1000000n, 7500000n, 24000000n),
+    null, null, band(-666667n, 3250000n, 11833333n), band(1333333n, 5000000n, 11333333n),
+  ];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.accelerationBands(2, bars.slice(0, end)), expected.slice(0, end));
+  }
+  assert.deepEqual(core.accelerationBands(3, bars).at(-1), band(888889n, 3500000n, 9222222n));
+  const wide = bars.slice(0, 2).map(bar => ({ ...bar, open: 0, high: 2000000000, low: 0, close: 0 }));
+  assert.deepEqual(core.accelerationBands(2, wide), [null, band(0n, 0n, 10000000000000000n)]);
+  assert.throws(() => core.accelerationBands(1, bars), /100,000/);
+  assert.throws(() => core.accelerationBands(2, [bars[0], bars[0]]), /later/);
+});
+
 test('Qstick, Williams accumulation and Center of Gravity preserve exact signed outputs', () => {
   const bars = [[-2,1,-3,-1],[2,6,2,5],[6,8,4,5],[-3,-2,-5,-4],[1,2,0,1],[-1,1,-3,1],[2,4,0,0]].map(([open, high, low, close], index) =>
     ({ time: 1748872800 + index * 60, open, high, low, close, volume: 10 }));

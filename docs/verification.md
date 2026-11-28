@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.285.0 · Acceleration Bands
+
+- Rust and Wasm verify signed lower bands, exact zero and wide price projections, missing windows, fixed-point rounding and identical outputs for observed prefixes.
+- Offline Chromium checks periods two and three in separate panes, exact CSV with gaps and signed prices, and version 87 restoration after an earlier backup.
+
 ## 0.284.0 · Recorded notional bars over the research service
 
 - The service verifies screen scope, exact observation cutoffs, bounded paging, an unchanged completed bar and the original earlier result on rewind. Decimal fields preserve a full unsigned 64-bit sequence, gross notional above signed 64-bit range and a summed volume one tick below the supported limit. A volume above that limit is rejected.

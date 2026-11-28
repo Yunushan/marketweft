@@ -4227,6 +4227,11 @@ pub extern "C" fn mw_donchian_channels(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_acceleration_bands(period: usize) -> u32 {
+    process(|input| crate::acceleration_bands(period, &decode_bars(input)?).map(encode_price_bands))
+}
+
+#[no_mangle]
 pub extern "C" fn mw_keltner_channels(ema_period: usize, atr_period: usize) -> u32 {
     process(|input| {
         crate::keltner_channels(ema_period, atr_period, &decode_bars(input)?)

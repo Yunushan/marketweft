@@ -1377,6 +1377,7 @@ export interface MarketCore {
   indicator(kind: 'sma' | 'ema' | 'rsi' | 'atr', period: number, bars: readonly Bar[]): (number | null)[];
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
+  accelerationBands(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
   cumulativeVolume(bars: readonly Bar[]): CumulativeVolume[];
   priceVolumeTrend(bars: readonly Bar[]): (bigint | null)[];
@@ -1586,6 +1587,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_atr(period: number): number;
   mw_bollinger_bands(period: number): number;
   mw_donchian_channels(period: number): number;
+  mw_acceleration_bands(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
   mw_cumulative_volume(): number;
   mw_price_volume_trend(): number;
@@ -1734,8 +1736,8 @@ const SCALE = 1_000_000;
 const MISSING = -(1n << 63n);
 const WIDE_MISSING = -(1n << 127n);
 
-function validateIndicatorHistory(period: number, length: number): void {
-  if (!validIndicatorPeriod(period) || length > MAX_INDICATOR_PERIOD)
+function validateIndicatorHistory(period: number, length: number, minimum = 1): void {
+  if (!validIndicatorPeriod(period) || period < minimum || length > MAX_INDICATOR_PERIOD)
     throw new Error('Series and indicator period must fit within 100,000 bars.');
 }
 
@@ -2768,6 +2770,11 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       validateIndicatorHistory(period, bars.length);
       putIndicatorBars(bars, 'Donchian Channels');
       return readPriceBands(output(api.mw_donchian_channels(period)));
+    },
+    accelerationBands(period, bars) {
+      validateIndicatorHistory(period, bars.length, 2);
+      putIndicatorBars(bars, 'Acceleration Bands');
+      return readPriceBands(output(api.mw_acceleration_bands(period)));
     },
     keltnerChannels(emaPeriod, atrPeriod, bars) {
       if (!validIndicatorPeriod(emaPeriod) || !validIndicatorPeriod(atrPeriod) || bars.length > MAX_INDICATOR_PERIOD)

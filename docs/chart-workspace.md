@@ -366,6 +366,14 @@ The EMA starts at the first full-window average of closes. Wilder ATR incorporat
 
 For the default periods, the research CSV exports `keltner_lower_20_10`, `keltner_middle_20_10` and `keltner_upper_20_10`. Both periods are part of the column names. The export leaves warm-up cells empty.
 
+### Acceleration Bands
+
+Enable **Acceleration Bands** to plot the average close and two range-scaled boundaries on the price axis. Each observed bar expands its high and low by the factor `4 × (high − low) / (high + low)`. The upper input is the high multiplied by one plus the factor. The lower input is the low multiplied by one minus it. Each line averages its inputs over the same period, which defaults to 20 observed bars. [Acceleration Bands formula](https://ta-lib.org/functions/accbands.html)
+
+MarketWeft accepts a zero low when the high is positive. A bar with a negative low or a zero high leaves the band unavailable until a full supported window is observed again. Missing timestamps contribute no values. The core keeps six additional decimal places in the scaled inputs and rounds the averages to price millionths. A lower band can fall below zero.
+
+Each pane saves its own period. The research CSV includes `acceleration_bands_lower_20`, `acceleration_bands_middle_20` and `acceleration_bands_upper_20` at the default period. A workspace with Acceleration Bands settings uses backup version 87.
+
 ### Stochastic Oscillator
 
 Enable **Stochastic Oscillator** in either pane’s indicator settings. Its panel shows %K and %D on a common 0% to 100% scale. The defaults are 14 bars for the lookback, 3 for %K smoothing and 3 for %D. Each pane saves all three periods, and each can be from 1 through 100,000 bars. [StockCharts’ full Stochastic Oscillator calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/stochastic-oscillator-fast-slow-and-full).

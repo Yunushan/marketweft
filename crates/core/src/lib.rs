@@ -1,5 +1,6 @@
 //! Fixed-point, bar-close calculations shared by native consumers and WebAssembly.
 
+mod acceleration_bands;
 mod actions;
 mod alerts;
 mod anchored_twap;
@@ -87,6 +88,7 @@ mod wasm;
 mod weighted_volume;
 mod wilder;
 
+pub use acceleration_bands::acceleration_bands;
 pub use actions::{
     parse_split_revisions, parse_splits, ShareRatio, Split, SplitBook, SplitRevision,
     SplitRevisionBook, MAX_SPLIT_ROWS,
