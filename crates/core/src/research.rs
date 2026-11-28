@@ -4,6 +4,7 @@ use crate::dividend::MAX_CASH_DIVIDEND_CSV_BYTES;
 use crate::financial_wire::financial_rows;
 use crate::formula::{decode_formula_library, MAX_FORMULA_LIBRARY_BYTES, MAX_SOURCE_BYTES};
 use crate::fundamentals::MAX_FINANCIAL_CSV_BYTES;
+use crate::fx_wire::{fx_report, fx_rows};
 use crate::history::exact_utc;
 use crate::macro_calendar::MAX_MACRO_CSV_BYTES;
 use crate::macro_wire::macro_snapshot_rows;
@@ -36,6 +37,27 @@ pub const MAX_MONTHLY_RETURNS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
 pub const MAX_MACRO_CALENDAR_REQUEST_BYTES: usize = MAX_MACRO_CSV_BYTES + 128;
 pub const MAX_PORTFOLIO_SCENARIOS_REQUEST_BYTES: usize =
     MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 1024;
+pub const MAX_PORTFOLIO_FX_REQUEST_BYTES: usize = 2 * 1024 * 1024;
+
+/// Translate supplied known currency subtotals at independent UTC cutoffs.
+pub fn portfolio_fx_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_PORTFOLIO_FX_REQUEST_BYTES {
+        return Err("Portfolio FX request exceeds 2 MiB.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 portfolio FX request.")?;
+    let (header, payload) = request
+        .split_once('\n')
+        .ok_or("Missing portfolio FX request header.")?;
+    if header != "marketweft-portfolio-fx\t1" {
+        return Err("Invalid portfolio FX request or protocol version.".into());
+    }
+    let report = fx_report(payload)?;
+    Ok(format!(
+        "marketweft-portfolio-fx\t{PROTOCOL_VERSION}\t{}\n{}",
+        report.rows.len(),
+        fx_rows(report)
+    ))
+}
 
 /// Sample point-in-time joint return paths from supplied membership and close reports.
 pub fn portfolio_scenarios_request(bytes: &[u8]) -> Result<String, String> {

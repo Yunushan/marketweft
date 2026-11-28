@@ -2,12 +2,12 @@ use marketweft_core::research::{
     american_option_request, compare_universe_ranks_request, evaluate_formula_request,
     evaluate_scalar_plugin_request, evaluate_scalar_plugin_series_request,
     financial_snapshot_request, macro_calendar_request, monthly_returns_request,
-    option_snapshot_request, portfolio_scenarios_request, screen_universe_request,
-    MAX_AMERICAN_OPTION_REQUEST_BYTES, MAX_FINANCIAL_REQUEST_BYTES,
+    option_snapshot_request, portfolio_fx_request, portfolio_scenarios_request,
+    screen_universe_request, MAX_AMERICAN_OPTION_REQUEST_BYTES, MAX_FINANCIAL_REQUEST_BYTES,
     MAX_MACRO_CALENDAR_REQUEST_BYTES, MAX_MONTHLY_RETURNS_REQUEST_BYTES, MAX_OPTION_REQUEST_BYTES,
-    MAX_PORTFOLIO_SCENARIOS_REQUEST_BYTES, MAX_RANK_COMPARISON_REQUEST_BYTES, MAX_REQUEST_BYTES,
-    MAX_SCALAR_PLUGIN_REQUEST_BYTES, MAX_SCALAR_PLUGIN_SERIES_REQUEST_BYTES,
-    MAX_SCREEN_REQUEST_BYTES, PROTOCOL_VERSION,
+    MAX_PORTFOLIO_FX_REQUEST_BYTES, MAX_PORTFOLIO_SCENARIOS_REQUEST_BYTES,
+    MAX_RANK_COMPARISON_REQUEST_BYTES, MAX_REQUEST_BYTES, MAX_SCALAR_PLUGIN_REQUEST_BYTES,
+    MAX_SCALAR_PLUGIN_SERIES_REQUEST_BYTES, MAX_SCREEN_REQUEST_BYTES, PROTOCOL_VERSION,
 };
 use std::io::{self, Read, Write};
 
@@ -28,11 +28,12 @@ fn run() -> Result<(), String> {
         (Some(command), None) if command == "monthly-returns" => (monthly_returns_request, MAX_MONTHLY_RETURNS_REQUEST_BYTES),
         (Some(command), None) if command == "macro-calendar" => (macro_calendar_request, MAX_MACRO_CALENDAR_REQUEST_BYTES),
         (Some(command), None) if command == "portfolio-scenarios" => (portfolio_scenarios_request, MAX_PORTFOLIO_SCENARIOS_REQUEST_BYTES),
+        (Some(command), None) if command == "portfolio-fx" => (portfolio_fx_request, MAX_PORTFOLIO_FX_REQUEST_BYTES),
         (Some(command), None) if command == "--version" => {
             println!("marketweft-research {PROTOCOL_VERSION}");
             return Ok(());
         }
-        _ => return Err("Use stdin for formula evaluation, screen for universe screening, rank-compare for rank comparisons, financial for financial snapshots, options for option snapshots, american-option to price or solve an American contract, scalar-plugin for one Wasm input, scalar-plugin-series for observed closes, monthly-returns for the UTC returns calendar, macro-calendar for economic release snapshots, portfolio-scenarios for joint return paths, or --version.".into()),
+        _ => return Err("Use stdin for formula evaluation, screen for universe screening, rank-compare for rank comparisons, financial for financial snapshots, options for option snapshots, american-option to price or solve an American contract, scalar-plugin for one Wasm input, scalar-plugin-series for observed closes, monthly-returns for the UTC returns calendar, macro-calendar for economic release snapshots, portfolio-scenarios for joint return paths, portfolio-fx for currency translation, or --version.".into()),
     };
     let mut bytes = Vec::new();
     io::stdin()

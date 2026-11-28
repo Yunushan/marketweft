@@ -6,6 +6,7 @@ export type {
   Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   JointScenarioPath, JointScenarioQuery, JointScenarioReport, ScenarioAllocation,
+  FxAmount, FxCurrencyValue, FxTranslation,
   OptionUnavailable, OptionUnderlying, PaperConfig, PaperDepthSnapshot, PaperSnapshot, QuarterlyValuation,
   ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
   ScalarPluginPoint, ScreenPrice, ScreenRow, TradeClassification, TradeClassificationQuery, TradeSideBasis, TrailingFourQuarters,
@@ -26,6 +27,7 @@ export interface MarketResearch {
   universeScreen: MarketCore['universeScreen']
   compareUniverseRanks: MarketCore['compareUniverseRanks']
   portfolioScenarios: MarketCore['portfolioScenarios']
+  portfolioFxAsOf: MarketCore['portfolioFxAsOf']
   recordedDepthSweep: MarketCore['recordedDepthSweep']
   classifyRecordedTrades: MarketCore['classifyRecordedTrades']
   paperDepthIndex: MarketCore['paperDepthIndex']
@@ -55,6 +57,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     universeScreen: core.universeScreen,
     compareUniverseRanks: core.compareUniverseRanks,
     portfolioScenarios: core.portfolioScenarios,
+    portfolioFxAsOf: core.portfolioFxAsOf,
     recordedDepthSweep: core.recordedDepthSweep,
     classifyRecordedTrades: core.classifyRecordedTrades,
     paperDepthIndex: core.paperDepthIndex,

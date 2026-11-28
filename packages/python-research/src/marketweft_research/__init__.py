@@ -13,6 +13,7 @@ __all__ = [
     "FinancialFiling", "FinancialMarketCap", "FinancialMultiple", "FinancialMultiples",
     "FinancialSnapshot", "FinancialTrailing",
     "FormulaFunction", "FormulaResult", "FormulaRow",
+    "FxAmount", "FxCurrencyValue", "FxRateEvidence", "FxTranslation",
     "MacroRecord", "MacroRelease",
     "MonthlyClose", "MonthlyReturn",
     "OptionChainAnalytics", "OptionChainQuote", "OptionChainSnapshot", "OptionUnderlyingQuote",
@@ -37,6 +38,9 @@ _MAX_SCALAR_SERIES = 256
 _MONTHLY_PROTOCOL = "marketweft-monthly-returns"
 _MACRO_PROTOCOL = "marketweft-macro-calendar"
 _PORTFOLIO_PROTOCOL = "marketweft-portfolio-scenarios"
+_FX_PROTOCOL = "marketweft-portfolio-fx"
+_I128_LIMIT = 1 << 127
+_MAX_FX_CURRENCIES = 26 ** 3
 _PORTFOLIO_START = r"[0-9]{1,20}(?:\.[0-9]{1,6})?"
 _MAX_MACRO_CSV = 1024 * 1024
 _MAX_MACRO_REPORTS = 10_000
@@ -182,6 +186,37 @@ class PortfolioScenarioResult:
     drawdown_millionths: tuple[int, int, int]
     fees: tuple[int, int, int]
     paths: tuple[PortfolioScenarioPath, ...]
+
+
+@dataclass(frozen=True)
+class FxAmount:
+    currency: str
+    subtotal: int
+
+
+@dataclass(frozen=True)
+class FxRateEvidence:
+    base_currency: str
+    quote_currency: str
+    rate_at: int
+    observed_at: int
+    rate_ticks: int
+    inverted: bool
+
+
+@dataclass(frozen=True)
+class FxCurrencyValue:
+    currency: str
+    subtotal: int
+    converted: int | None
+    rate: FxRateEvidence | None
+
+
+@dataclass(frozen=True)
+class FxTranslation:
+    reporting_currency: str
+    known_subtotal: int | None
+    rows: tuple[FxCurrencyValue, ...]
 
 
 @dataclass(frozen=True)
@@ -359,6 +394,54 @@ def _scenario_values(row: str, tag: str) -> tuple[int, int, int]:
     if any(value < 0 for value in values):
         raise ResearchError("Portfolio scenario values must be nonnegative.")
     return values
+
+
+def _i128(text: str) -> int:
+    if not _WIDE.fullmatch(text):
+        raise ResearchError("Invalid fixed-point value in portfolio FX response.")
+    value = int(text)
+    if not -_I128_LIMIT <= value < _I128_LIMIT:
+        raise ResearchError("Portfolio FX value exceeds the signed 128-bit range.")
+    return value
+
+
+def _fx_translation(
+    output: bytes, reporting: str, effective: int, known: int, amounts: dict[str, int],
+) -> FxTranslation:
+    count, rows = _response(output, _FX_PROTOCOL)
+    if _whole(count) != len(amounts) or len(rows) != len(amounts) + 1:
+        raise ResearchError("Invalid portfolio FX currency count.")
+    header = rows[0].split("\t")
+    if len(header) != 3 or header[:2] != ["H", reporting]:
+        raise ResearchError("Invalid portfolio FX reporting currency.")
+    subtotal = _i128(header[2]) if header[2] else None
+    values = []
+    converted_amounts = []
+    for (currency, source), row in zip(sorted(amounts.items()), rows[1:]):
+        fields = row.split("\t")
+        if len(fields) not in (4, 10) or fields[:2] != ["R", currency] or _i128(fields[2]) != source:
+            raise ResearchError("Portfolio FX source evidence does not match the request.")
+        converted = _i128(fields[3]) if fields[3] else None
+        rate = None
+        if len(fields) == 10:
+            base, quote, at, observed, ticks, orientation = fields[4:]
+            invert = orientation == "1"
+            if (orientation not in ("0", "1") or (base, quote) != ((reporting, currency) if invert else (currency, reporting))
+                    or currency == reporting or converted is None):
+                raise ResearchError("Invalid portfolio FX quote orientation.")
+            rate_at, observed_at, rate_ticks = map(_whole, (at, observed, ticks))
+            if (not _MIN_UTC_SECOND <= rate_at <= effective or not rate_at <= observed_at <= known
+                    or not 1 <= rate_ticks <= _MAX_PRICE_TICKS):
+                raise ResearchError("Portfolio FX rate evidence falls outside the applied cutoffs or price range.")
+            rate = FxRateEvidence(base, quote, rate_at, observed_at, rate_ticks, invert)
+        elif converted != (source if currency == reporting else None):
+            raise ResearchError("Invalid identity or missing FX currency amount.")
+        if converted is not None:
+            converted_amounts.append(converted)
+        values.append(FxCurrencyValue(currency, source, converted, rate))
+    if subtotal != (sum(converted_amounts) if converted_amounts else None):
+        raise ResearchError("Portfolio FX subtotal does not match the converted currency amounts.")
+    return FxTranslation(reporting, subtotal, tuple(values))
 
 
 def _portfolio_scenarios(
@@ -1000,6 +1083,37 @@ class ResearchEngine:
                              str(fee_basis_points), str(seed), str(paths), sampling, weight_field, ""))
         output = self._invoke(request.encode("ascii") + membership + prices, "portfolio-scenarios")
         return _portfolio_scenarios(output, weights, paths, block_size)
+
+    def portfolio_fx_as_of(
+        self, rates_csv: str, amounts: Sequence[FxAmount], *, reporting_currency: str,
+        effective_at: str, known_at: str,
+    ) -> FxTranslation:
+        """Translate source currency subtotals at separate effective and observed UTC times."""
+        if not isinstance(reporting_currency, str) or not _CURRENCY.fullmatch(reporting_currency):
+            raise ValueError("Use a three-letter uppercase reporting currency.")
+        times = (effective_at, known_at)
+        if any(not isinstance(instant, str) or not _UTC.fullmatch(instant) for instant in times):
+            raise ValueError("Use YYYY-MM-DDTHH:MM:SSZ UTC portfolio cutoffs.")
+        try:
+            effective, known = (_epoch_second(datetime.fromisoformat(instant[:-1])) for instant in times)
+        except ValueError as error:
+            raise ValueError("Use valid UTC portfolio FX cutoffs.") from error
+        if len(amounts) > _MAX_FX_CURRENCIES:
+            raise ValueError("Supply each source currency subtotal once.")
+        subtotals = {}
+        for amount in amounts:
+            if (not isinstance(amount, FxAmount) or not isinstance(amount.currency, str)
+                    or not _CURRENCY.fullmatch(amount.currency) or amount.currency in subtotals
+                    or type(amount.subtotal) is not int or not -_I128_LIMIT <= amount.subtotal < _I128_LIMIT):
+                raise ValueError("Supply distinct source currencies and exact signed 128-bit subtotals.")
+            subtotals[amount.currency] = amount.subtotal
+        rates = rates_csv.encode("utf-8")
+        if len(rates) > 1024 * 1024:
+            raise ValueError("FX rates CSV exceeds 1 MiB.")
+        currency_line = "\t".join(f"{currency}={subtotal}" for currency, subtotal in subtotals.items())
+        header = "\n".join((f"{_FX_PROTOCOL}\t1", *times, reporting_currency, currency_line, ""))
+        output = self._invoke(header.encode("ascii") + rates, "portfolio-fx")
+        return _fx_translation(output, reporting_currency, effective, known, subtotals)
 
     def financial_snapshot(
         self,

@@ -32,6 +32,7 @@ mod formula;
 mod formula_walk;
 mod fundamentals;
 mod fx;
+mod fx_wire;
 mod heikin_ashi;
 mod history;
 mod indicator;

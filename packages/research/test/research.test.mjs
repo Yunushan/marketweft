@@ -9,6 +9,24 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('portfolio FX uses exact subtotal ticks and both evidence cutoffs in the public TypeScript SDK', async () => {
+  const rates = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-portfolio-fx.csv', import.meta.url), 'utf8')
+  const research = await createResearchEngine(wasm)
+  const utc = minute => '2025-06-02T14:' + minute + ':00Z'
+  const amounts = [{ currency: 'USD', subtotal: 70000000n }, { currency: 'EUR', subtotal: 225000000n }]
+  const run = (known, reporting = 'USD') => research.portfolioFxAsOf(rates, reporting, utc(45), utc(known), amounts)
+  const before = run(45)
+  assert.deepEqual(before.rows.map(row => [row.currency, row.converted]), [['EUR', null], ['USD', 70000000n]])
+  assert.deepEqual([run(46).knownSubtotal, run(49).knownSubtotal, run(50).knownSubtotal], [340000000n, 362500000n, 362500000n])
+  assert.deepEqual(run(45), before)
+  const inverse = run(49, 'EUR')
+  assert.equal(inverse.knownSubtotal, 278846154n)
+  assert.equal(inverse.rows[1].rate.inverted, true)
+  assert.equal(inverse.rows[1].rate.observedAt, Date.parse(utc(49)) / 1000)
+  const wide = (1n << 127n) - 1n
+  assert.equal(research.portfolioFxAsOf(rates, 'USD', utc(45), utc(45), [{ currency: 'USD', subtotal: wide }]).knownSubtotal, wide)
+})
+
 test('the public TypeScript SDK runs exact contiguous portfolio paths at independent cutoffs', async () => {
   const reports = kind => readFile(new URL(
     '../../../crates/core/tests/fixtures/synthetic-listing-risk-' + kind + '.csv', import.meta.url,

@@ -126,6 +126,12 @@ jobs:
             })
           assert.equal(joint.eligibleBlocks, 1)
           assert.deepEqual(joint.paths, [{ endingValue: 99950000n, drawdownMillionths: 500n, fees: 50000n }])
+          const fxRates = await fixture('synthetic-portfolio-fx.csv')
+          const translate = known => research.portfolioFxAsOf(fxRates, 'USD', '2025-06-02T14:45:00Z', known,
+            [{ currency: 'EUR', subtotal: 225000000n }, { currency: 'USD', subtotal: 70000000n }])
+          assert.equal(translate('2025-06-02T14:45:00Z').rows[0].converted, null)
+          assert.equal(translate('2025-06-02T14:46:00Z').knownSubtotal, 340000000n)
+          assert.equal(translate('2025-06-02T14:49:00Z').knownSubtotal, 362500000n)
 
           const [underlying, quotes, cash] = await Promise.all([
             fixture('synthetic-option-underlying.csv'), fixture('synthetic-option-exercise-quotes.csv'),

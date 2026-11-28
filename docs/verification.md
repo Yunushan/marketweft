@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.249.0 · Portfolio FX research SDKs
+
+- The native CLI and installed Python and TypeScript SDKs reproduce known subtotals of 70, 340 and 362.5 USD as FX observations become visible. Rewinding restores 70 USD and the EUR subtotal with its missing rate.
+- The SDKs preserve signed 128-bit subtotal precision and quote orientation. The Python package also rejects malformed protocol frames and mismatched result evidence.
+- The offline portfolio suite checks 16 current and historical workflows with the same rebuilt Rust calculation.
+
+[Portfolio FX research SDKs](portfolio-replay.md#portfolio-fx-research-sdks)
+
 ## 0.248.0 · Point-in-time portfolio FX translation
 
 - Rust and Wasm verify effective and observation cutoffs, late rates and revisions, reciprocal evidence, signed half-tick rounding and the full signed integer range. Missing rates leave their currency subtotal visible without a converted value.

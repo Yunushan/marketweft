@@ -2,10 +2,10 @@
 
 The TypeScript SDK evaluates versioned time-series formulas against user-supplied OHLCV. It uses the same checked-in Rust WebAssembly module as the terminal.
 
-Download `marketweft-research-0.14.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+Download `marketweft-research-0.15.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-npm install --offline ./marketweft-research-0.14.0.tgz
+npm install --offline ./marketweft-research-0.15.0.tgz
 ```
 
 ```js
@@ -31,6 +31,8 @@ Call `monthlyReturns(bars, firstYear, lastYear, observedThrough)` with whole UTC
 Call `macroAsOf(csv, publishedThrough, knownAt)` with an authorized economic calendar CSV and two exact UTC timestamp strings. The result includes each visible release's schedule, forecast and actual revision chain, with signed `bigint` values and both source timestamps. Use `macroIndex(csv)` to find the first observation in the CSV. [Economic calendar input and SDKs](../../docs/macro-calendar.md#research-sdks)
 
 Call `portfolioScenarios(membershipCsv, pricesCsv, allocations, settings)` to resample joint returns or contiguous return blocks at independent UTC cutoffs. The result includes eligible block counts, listing coverage, percentiles and exact `bigint` path values. [Portfolio scenario SDKs](../../docs/portfolio-scenarios.md#research-sdks).
+
+Call `portfolioFxAsOf(ratesCsv, reporting, effectiveAt, knownAt, amounts)` for exact foreign exchange conversions and source quote evidence. Supply known subtotals as `bigint` integer millionths. [Portfolio FX research SDKs](../../docs/portfolio-replay.md#portfolio-fx-research-sdks).
 
 For point-in-time universe screening, call `universeScreen` with the membership CSV, prices CSV and exact baseline, effective and known UTC times. The ordered rows contain their selected close observations and exact `bigint` return units. [Universe screening](../../docs/research-universe-screen.md).
 

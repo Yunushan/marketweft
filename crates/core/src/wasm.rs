@@ -471,65 +471,9 @@ pub extern "C" fn mw_delisting_as_of(membership_bytes: usize, shares: u32) -> u3
 
 #[no_mangle]
 pub extern "C" fn mw_portfolio_fx_as_of() -> u32 {
-    use std::fmt::Write;
     process(|input| {
-        let (effective, known, rest) = portfolio_input(input)?;
-        let mut fields = rest.splitn(3, '\n');
-        let (Some(reporting), Some(subtotals), Some(csv)) =
-            (fields.next(), fields.next(), fields.next())
-        else {
-            return Err("Supply a reporting currency, source subtotals and FX reports.".into());
-        };
-        let amounts = subtotals
-            .split('\t')
-            .filter(|row| !row.is_empty())
-            .map(|row| {
-                let (currency, amount) = row
-                    .split_once('=')
-                    .ok_or("Supply source subtotal rows by currency.")?;
-                let subtotal = amount
-                    .parse()
-                    .map_err(|_| "Use exact integer source subtotals.")?;
-                Ok(crate::FxAmount { currency, subtotal })
-            })
-            .collect::<Result<Vec<_>, &str>>()?;
-        let report =
-            crate::FxBook::parse(csv)?.translate_as_of(reporting, effective, known, &amounts)?;
-        let mut text = format!(
-            "H\t{}\t{}\n",
-            report.reporting_currency,
-            report
-                .known_subtotal
-                .map(|amount| amount.to_string())
-                .unwrap_or_default()
-        );
-        for row in report.rows {
-            write!(
-                &mut text,
-                "R\t{}\t{}\t{}",
-                row.currency,
-                row.subtotal,
-                row.converted
-                    .map(|amount| amount.to_string())
-                    .unwrap_or_default()
-            )
-            .unwrap();
-            if let Some(rate) = row.rate {
-                write!(
-                    &mut text,
-                    "\t{}\t{}\t{}\t{}\t{}\t{}",
-                    rate.base_currency,
-                    rate.quote_currency,
-                    rate.rate_at,
-                    rate.observed_at,
-                    rate.rate_ticks,
-                    u8::from(rate.inverted)
-                )
-                .unwrap();
-            }
-            text.push('\n');
-        }
-        Ok(text.into_bytes())
+        let report = crate::fx_wire::fx_report(utf8(input)?)?;
+        Ok(crate::fx_wire::fx_rows(report).into_bytes())
     })
 }
 

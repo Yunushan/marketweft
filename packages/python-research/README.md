@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.18.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.19.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -39,6 +39,8 @@ Call `monthly_returns(history, first_year=2024, last_year=2024, observed_through
 Call `macro_as_of(reports, published_through=..., known_at=...)` with an authorized economic calendar CSV and two exact UTC timestamp strings. Each release retains its schedule, frozen pre-release forecast when available, and the actual revision chain visible at both cutoffs. Values are signed integer millionths in the declared units. [Economic calendar SDK and native protocol](../../docs/macro-calendar.md#research-sdks)
 
 Call `portfolio_scenarios(membership_csv, prices_csv, allocations, ...)` with a `ScenarioAllocation` for each listing and a `block_size` when sampling contiguous moves. The result keeps the scenario coverage and exact integer values for each path. [Portfolio scenario settings and CLI](../../docs/portfolio-scenarios.md#research-sdks).
+
+Call `portfolio_fx_as_of(rates_csv, amounts, reporting_currency=..., effective_at=..., known_at=...)` with `FxAmount` records in integer millionths. It returns exact source and converted subtotals with direct or reciprocal evidence. [Portfolio FX research SDKs](../../docs/portfolio-replay.md#portfolio-fx-research-sdks).
 
 The local MCP server provides paged portfolio paths with exact decimal-string values. [Portfolio scenarios over MCP](../../docs/local-mcp-research.md#portfolio-scenarios).
 

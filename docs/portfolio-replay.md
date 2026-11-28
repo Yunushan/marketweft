@@ -38,6 +38,25 @@ The replay uses the latest rate effective by the portfolio cutoff and observed b
 
 Set **Effective time** to 14:45 UTC in the demo. The original 225 EUR and 70 USD stay visible at each knowledge cutoff. At 14:45, only 70 USD can be expressed in the default reporting currency. At 14:46, the 1.2 rate gives 340 USD, and at 14:49 the revised 1.3 rate gives 362.5 USD. A later report for an older rate time leaves the subtotal at 362.5 USD. Choosing EUR gives 278.846154 EUR using the same rate as a reciprocal. Rewind knowledge to 14:45 to reproduce the missing FX evidence. [Synthetic FX fixture](../crates/core/tests/fixtures/synthetic-portfolio-fx.csv).
 
+### Portfolio FX research SDKs
+
+The TypeScript SDK accepts the FX report contents, reporting currency, both UTC cutoffs and the known source subtotals as integer millionths.
+
+```ts
+const report = research.portfolioFxAsOf(
+  rates, 'USD', '2025-06-02T14:45:00Z', '2025-06-02T14:49:00Z',
+  [{ currency: 'EUR', subtotal: 225000000n }, { currency: 'USD', subtotal: 70000000n }],
+)
+```
+
+The Python SDK exposes the same calculation through `ResearchEngine.portfolio_fx_as_of`. Use `FxAmount` records for source subtotals and the keywords `reporting_currency`, `effective_at` and `known_at`. Python returns integer values and TypeScript uses `bigint`. Both preserve the full signed 128-bit range. Each row keeps its original subtotal and the exact supporting quote when available. An identity conversion has a converted value without quote evidence. An unavailable conversion has neither. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md).
+
+#### Native FX protocol
+
+Run `marketweft-research portfolio-fx` with a UTF-8 request on standard input. Start with `marketweft-portfolio-fx` and version `1` separated by a tab. The next lines contain the effective timestamp, observed cutoff, reporting currency and tab-separated source entries in `currency=integer_millionths` form. Use an empty source line for an empty portfolio. Append the FX CSV after those lines.
+
+The response begins with the protocol, version and source row count. An `H` line contains the reporting currency and converted known subtotal. Each `R` line has a currency, original subtotal and converted subtotal. When a quote was used, the row also contains its base, quote, rate time, observed time, rate in millionths and orientation flag. Timestamps in responses are whole UTC seconds. The orientation flag is `0` for direct and `1` for reciprocal. Empty numeric fields mark an unavailable converted amount or subtotal.
+
 ## Holdings CSV
 
 ```csv
