@@ -1,7 +1,7 @@
 import { fixed } from './fixed-point'
 import { useState } from 'react'
 import {
-  ANNOTATION_NAMES, fibonacciExtensions, fibonacciFanLevels, fibonacciTimeZones, formatAnnotationAnchor, hasPointList, hasRange, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
+  ANNOTATION_NAMES, cyclicTimeLines, fibonacciExtensions, fibonacciFanLevels, fibonacciTimeZones, formatAnnotationAnchor, hasPointList, hasRange, hasTwoPoints, parseAnnotationAnchor, rangeBounds, rangeCoordinate, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints,
 } from './chart-annotations'
 import type { AnnotationCoordinate, AnnotationKind, ChartAnnotation } from './chart-annotations'
 import type { DrawingEndpoint, MarketCore, RiskRewardMeasurement, RiskRewardSide } from './market-core'
@@ -44,7 +44,8 @@ function draftAnnotation(draft: Draft, id: string, core: MarketCore): ChartAnnot
   if (hasRange(kind)) {
     const coordinate = rangeCoordinate(kind)
     const [first, last] = points.map(point => parseAnnotationAnchor(coordinate, point[coordinate]))
-    const [lower, upper] = kind === 'fibonacci-time-zones' ? [first, last] : [Math.min(first, last), Math.max(first, last)]
+    const directed = kind === 'fibonacci-time-zones' || kind === 'cyclic-lines'
+    const [lower, upper] = directed ? [first, last] : [Math.min(first, last), Math.max(first, last)]
     return { id, kind, ...rangeBounds(kind, lower, upper) }
   }
   const start = pointValue(points[0])
@@ -88,6 +89,7 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'price-range':
     case 'time-range':
     case 'regression-channel':
+    case 'cyclic-lines':
     case 'fibonacci-time-zones': {
       const coordinate = rangeCoordinate(entry.kind)
       return name + formatAnnotationAnchor(coordinate, entry.lower) + ' to ' + formatAnnotationAnchor(coordinate, entry.upper)
@@ -161,7 +163,7 @@ export function ChartAnnotations({
     }
     if (kind === 'anchored-vwap' || kind === 'anchored-twap')
       points[0].time = formatAnnotationAnchor('time', kind === 'anchored-twap' ? sourceDefaults.start : sourceDefaults.end)
-    if (kind === 'regression-channel' || kind === 'fibonacci-time-zones') {
+    if (kind === 'regression-channel' || kind === 'fibonacci-time-zones' || kind === 'cyclic-lines') {
       points[0].time = formatAnnotationAnchor('time', sourceDefaults.start)
       points[1].time = formatAnnotationAnchor('time', sourceDefaults.end)
     }
@@ -201,7 +203,7 @@ export function ChartAnnotations({
   function pick(point: number) {
     if (!draft || picking === point) { setPicker(null); return }
     setPicker({ point, sourceTime: draft.kind === 'anchored-vwap' || draft.kind === 'anchored-twap' || draft.kind === 'regression-channel' ||
-      draft.kind === 'fibonacci-extension' || draft.kind === 'fibonacci-time-zones', accept(anchor) {
+      draft.kind === 'fibonacci-extension' || draft.kind === 'fibonacci-time-zones' || draft.kind === 'cyclic-lines', accept(anchor) {
       setError('')
       setDraft(current => current && {
         ...current, points: current.points.map((value, index) => index === point ? pointFields(anchor) : value),
@@ -317,6 +319,16 @@ export function ChartAnnotations({
                 <div className="ohlc chart-overlay-values" role="group" aria-label="Fibonacci projected UTC times">
                   {fibonacciTimeZones(entry.lower, entry.upper).map(({ multiplier, time }) =>
                     <span key={multiplier}><small>{multiplier}×</small> {formatAnnotationAnchor('time', time)}</span>)}
+                </div>
+              </details>}
+              {entry.kind === 'cyclic-lines' && <details className="research-details">
+                <summary>Cycle times</summary>
+                <p>Interval {entry.upper - entry.lower} seconds</p>
+                <div className="ohlc chart-overlay-values" role="group" aria-label="First cyclic UTC times">
+                  {cyclicTimeLines(entry.lower, entry.upper, entry.lower, entry.lower + 7 * (entry.upper - entry.lower))
+                    .map(({ cycle, time }) => <span key={cycle}>
+                      <small>{cycle}×</small> {formatAnnotationAnchor('time', time)}
+                    </span>)}
                 </div>
               </details>}
               {entry.kind === 'fibonacci-extension' && <details className="research-details">

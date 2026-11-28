@@ -219,6 +219,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           'gann-box': ['start', 'end', 'divisions'],
           'risk-reward': ['side', 'start', 'end', 'stopTicks'],
           'price-range': ['lower', 'upper'], 'time-range': ['lower', 'upper'], 'regression-channel': ['lower', 'upper'], 'fibonacci-time-zones': ['lower', 'upper'],
+          'cyclic-lines': ['lower', 'upper'],
         }
         if (typeof kind !== 'string' || !Object.hasOwn(coordinateFields, kind))
           throw Error('Invalid chart annotation type.')

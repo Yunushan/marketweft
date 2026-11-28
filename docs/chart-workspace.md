@@ -196,6 +196,12 @@ Each horizontal ray starts at the projection anchor. Its price is the anchor pri
 
 Workspace backup version 50 retains the exact UTC seconds and signed prices of the three anchors. [Backup format](workspace-backup.md).
 
+## Cyclic lines
+
+Choose **New cyclic lines** and enter or pick two increasing UTC times. The drawing places the first vertical line at the first anchor and repeats at equal intervals of elapsed seconds. A line between recorded observations is positioned using both neighboring timestamps. The same UTC schedule applies after zooming, panning and reopening. [Cyclic lines reference](https://www.tradingview.com/support/solutions/43000518161-cyclic-lines-drawing-tool/)
+
+Open **Cycle times** to inspect the interval and the first eight cycle times within the supported UTC range. A dense view samples at most 96 whole cycle numbers. Zoom in to see shorter intervals, or edit either anchor to change the schedule. Workspace backup version 78 preserves both anchors for the selected instrument.
+
 ## Fibonacci time zones
 
 Choose **New Fibonacci time zones** and enter or pick two increasing UTC times. The difference between the anchors sets the base interval in seconds. From the first anchor, the drawing projects vertical lines at 0, 1, 2, 3, 5, 8, 13, 21, 34, 55 and 89 times that interval. [Fibonacci time-zone reference](https://www.tradingview.com/support/solutions/43000518155-fib-time-zone/).

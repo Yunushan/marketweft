@@ -4,7 +4,7 @@ import { Icon } from './Icons'
 import { fixed, MAX_CHART_PRICE_TICKS, tickPrice } from './fixed-point'
 import { ChartAnnotations } from './ChartAnnotations'
 import type { AnnotationPicker } from './ChartAnnotations'
-import { EMPTY_ANNOTATIONS, fibonacciExtensions, fibonacciFanLevels, fibonacciRetracements, fibonacciTimeZones, formatAnnotationAnchor, markerColumn } from './chart-annotations'
+import { EMPTY_ANNOTATIONS, cyclicTimeLines, fibonacciExtensions, fibonacciFanLevels, fibonacciRetracements, fibonacciTimeZones, formatAnnotationAnchor, markerColumn, markerTimeWindow } from './chart-annotations'
 import type { ChartAnnotation, TimeColumn } from './chart-annotations'
 import { isPriceStudy, studyOverlays, STUDIES } from './studies'
 import type { PanelLine, PanelStudy, StudyValue, StudyValues } from './studies'
@@ -849,6 +849,15 @@ function draw(
           const axis = x(column)
           line(axis, top, axis, priceBottom, '#829bd6')
           ctx.fillText(String(multiplier), Math.min(axis + 3, right - 15), top + 10)
+        }
+      } else if (annotation.kind === 'cyclic-lines') {
+        const window = markerTimeWindow(markerTimeline, start - 0.5, view.end - 0.5)
+        if (!window) continue
+        for (const { time } of cyclicTimeLines(annotation.lower, annotation.upper, window.from, window.through)) {
+          const column = markerColumn(markerTimeline, time)
+          if (column === null || column < start - 0.5 || column > view.end - 0.5) continue
+          const axis = x(column)
+          line(axis, top, axis, priceBottom, '#70c0ab')
         }
       } else if (annotation.kind === 'price-range') {
         const upper = y(annotation.upper / 1e6)

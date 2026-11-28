@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.262.0 · Cyclic lines
+
+- Chromium verifies an exact 90-second schedule through irregular bar intervals. It checks vertical canvas paths, UTC interpolation, a one-second interval in a dense viewport and the upper supported UTC boundary.
+- Zooming one pane preserves the other pane’s viewport. An offline reload and version 78 restore recover both anchors and the same projected times.
+
+[Cyclic lines](chart-workspace.md#cyclic-lines)
+
 ## 0.261.0 · Volume Rate of Change and Volume Oscillator
 
 - Rust and Wasm verify each observed prefix with zero baselines, a genuine zero change, fractional volumes, one rounding of the difference of averages and a rate wider than signed 64-bit ticks.

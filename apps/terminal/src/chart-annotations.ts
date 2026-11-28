@@ -29,7 +29,8 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'price-range'; lower: number; upper: number } |
   { kind: 'time-range'; lower: number; upper: number } |
   { kind: 'regression-channel'; lower: number; upper: number } |
-  { kind: 'fibonacci-time-zones'; lower: number; upper: number }
+  { kind: 'fibonacci-time-zones'; lower: number; upper: number } |
+  { kind: 'cyclic-lines'; lower: number; upper: number }
 )
 type TwoPointAnnotation = Extract<ChartAnnotation, { end: DrawingEndpoint }>
 type ThreePointKind = Extract<ChartAnnotation, { points: TrianglePoints }>['kind']
@@ -56,6 +57,7 @@ export const ANNOTATION_NAMES = {
   'fibonacci-extension': 'Fibonacci price extension',
   'fibonacci-channel': 'Fibonacci channel',
   'fibonacci-time-zones': 'Fibonacci time zones',
+  'cyclic-lines': 'Cyclic lines',
   ellipse: 'Ellipse',
   triangle: 'Triangle',
   pitchfork: 'Pitchfork',
@@ -83,6 +85,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'time-range':
     case 'regression-channel':
     case 'fibonacci-time-zones':
+    case 'cyclic-lines':
       return second.kind === first.kind && first.lower === second.lower && first.upper === second.upper
     case 'trend':
     case 'rectangle':
@@ -156,7 +159,8 @@ export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void
 type RangeKind = Extract<ChartAnnotation, { lower: number }>['kind']
 
 export function hasRange(kind: AnnotationKind): kind is RangeKind {
-  return kind === 'price-range' || kind === 'time-range' || kind === 'regression-channel' || kind === 'fibonacci-time-zones'
+  return kind === 'price-range' || kind === 'time-range' || kind === 'regression-channel' ||
+    kind === 'fibonacci-time-zones' || kind === 'cyclic-lines'
 }
 
 export function rangeCoordinate(kind: RangeKind): AnnotationCoordinate {
@@ -167,6 +171,7 @@ export function rangeBounds(kind: RangeKind, lower: unknown, upper: unknown) {
   const coordinate = rangeCoordinate(kind)
   if (!validAnnotationAnchor(coordinate, lower) || !validAnnotationAnchor(coordinate, upper) || lower >= upper) {
     if (kind === 'fibonacci-time-zones') throw Error('The second Fibonacci time must follow the first.')
+    if (kind === 'cyclic-lines') throw Error('The second cycle time must follow the first.')
     throw Error('A ' + ANNOTATION_NAMES[kind].toLowerCase() + ' needs two different ' + (coordinate === 'price' ? 'prices.' : 'UTC times.'))
   }
   return { lower, upper }
@@ -251,6 +256,42 @@ export function fibonacciTimeZones(start: number, end: number) {
   const interval = end - start
   return TIME_ZONE_MULTIPLIERS.map(multiplier => ({ multiplier, time: start + multiplier * interval }))
     .filter(({ time }) => validAnnotationAnchor('time', time))
+}
+
+export function cyclicTimeLines(first: number, second: number, from: number, through: number) {
+  const interval = second - first
+  if (interval <= 0) return []
+  const earliest = Math.max(0, Math.ceil((from - first) / interval))
+  const latest = Math.floor((through - first) / interval)
+  if (latest < earliest) return []
+  // Preserve whole cycle numbers when the viewport contains many more lines
+  // than it can display individually.
+  const stride = Math.ceil((latest - earliest + 1) / 96)
+  const lines = []
+  for (let cycle = Math.ceil(earliest / stride) * stride; cycle <= latest; cycle += stride) {
+    const time = first + cycle * interval
+    if (validAnnotationAnchor('time', time)) lines.push({ cycle, time })
+  }
+  return lines
+}
+
+export function markerTimeWindow(timeline: readonly TimeColumn[], left: number, right: number) {
+  if (!timeline.length) return null
+  function firstAtOrAfter(column: number) {
+    let lower = 0
+    let upper = timeline.length
+    while (lower < upper) {
+      const mid = (lower + upper) >>> 1
+      if (timeline[mid].column < column) lower = mid + 1
+      else upper = mid
+    }
+    return lower
+  }
+  // Include the neighboring observations so an interpolated line can land on
+  // either edge of the visible columns.
+  const from = Math.max(0, firstAtOrAfter(left) - 1)
+  const through = Math.min(timeline.length - 1, firstAtOrAfter(right))
+  return { from: timeline[from].time, through: timeline[through].time }
 }
 
 export function formatAnnotationAnchor(kind: AnnotationCoordinate, anchor: number): string {
