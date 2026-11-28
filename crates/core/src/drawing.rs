@@ -83,6 +83,37 @@ pub fn gann_fan_levels(
     }))
 }
 
+/// Interpolate equal time and price partitions between two opposite box corners.
+pub fn gann_box_levels(
+    start: DrawingEndpoint,
+    end: DrawingEndpoint,
+    divisions: u32,
+) -> Result<Vec<DrawingEndpoint>, String> {
+    let span = measure_drawing(start, end)?;
+    if !matches!(divisions, 2 | 4 | 8) {
+        return Err("Choose 2, 4, or 8 Gann box divisions.".into());
+    }
+    if span.elapsed_seconds < i64::from(divisions) || span.price_ticks.abs() < i64::from(divisions)
+    {
+        return Err("A Gann box needs a later end time and at least one second and one price tick per division.".into());
+    }
+    let divisor = i128::from(divisions);
+    Ok((0..=divisions)
+        .map(|step| {
+            let step = i128::from(step);
+            let elapsed = rounded_div(i128::from(span.elapsed_seconds) * step, divisor) as i64;
+            let price = rounded_div(
+                i128::from(start.ticks) * divisor + i128::from(span.price_ticks) * step,
+                divisor,
+            ) as i64;
+            DrawingEndpoint {
+                time: start.time + elapsed,
+                ticks: price,
+            }
+        })
+        .collect())
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RiskRewardSide {
     Long,

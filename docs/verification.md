@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.226.0 · Gann box
+
+- Rust and Wasm verify both signed price directions, half-tick rounding, UTC offsets across the epoch, full price bounds and rejection of an invalid division count or insufficient span.
+- Offline Chromium measures both price and time grid lines across a source gap, verifies projection in both panes, edits the price direction and division count, and restores versions 60 and 61.
+
+[Gann box](chart-workspace.md#gann-box)
+
 ## 0.225.0 · Daily floor pivots
 
 - Rust and Wasm verify each signed level, midnight and pre-epoch boundaries, dates without observations, a missing prior date, exact rounding and prices beyond the source bound.

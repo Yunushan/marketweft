@@ -13,6 +13,7 @@ type Draft = {
   offset: string
   text: string
   side: RiskRewardSide
+  divisions: number
   original?: ChartAnnotation
 }
 
@@ -53,6 +54,11 @@ function draftAnnotation(draft: Draft, id: string, core: MarketCore): ChartAnnot
     return { id, kind, start, text: draft.text }
   }
   const end = pointValue(points[1])
+  if (kind === 'gann-box') {
+    const box = { id, kind, start, end, divisions: draft.divisions } as const
+    core.gannBoxLevels(box)
+    return box
+  }
   if (kind === 'risk-reward') {
     const stopTicks = parseAnnotationAnchor('price', points[2].price)
     const plan = { id, kind, start, end, stopTicks, side: draft.side } as const
@@ -105,6 +111,8 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'risk-reward':
       return name + entry.side + ' from ' + describePoint(entry.start) + ' to ' + describePoint(entry.end) +
         ', stop ' + formatAnnotationAnchor('price', entry.stopTicks)
+    case 'gann-box':
+      return name + describePoint(entry.start) + ' to ' + describePoint(entry.end) + ', ' + entry.divisions + ' divisions'
     case 'channel':
       return name + describePoint(entry.start) + ' to ' + describePoint(entry.end) +
         ', offset ' + formatAnnotationAnchor('price', entry.offsetTicks)
@@ -161,7 +169,8 @@ export function ChartAnnotations({
     if (original && 'end' in original) points[1] = pointFields(original.end)
     const offset = formatAnnotationAnchor('price', original?.kind === 'channel' ? original.offsetTicks : 1_000_000)
     const text = original?.kind === 'note' ? original.text : ''
-    setDraft({ kind, original, points, offset, text, side: original?.kind === 'risk-reward' ? original.side : 'long' })
+    setDraft({ kind, original, points, offset, text, side: original?.kind === 'risk-reward' ? original.side : 'long',
+      divisions: original?.kind === 'gann-box' ? original.divisions : 4 })
   }
 
   function cancel() {
@@ -246,6 +255,14 @@ export function ChartAnnotations({
             <option value="short">Short</option>
           </select>
         </label>}
+        {draft.kind === 'gann-box' && <label>Divisions on each axis
+          <select value={draft.divisions} disabled={busy} onChange={event => {
+            setDraft({ ...draft, divisions: Number(event.target.value) })
+            setError('')
+          }}>
+            {[2, 4, 8].map(value => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>}
         {draft.points.map((_, index) => pointEditor(index, draft))}
         {draft.kind === 'polyline' && <button type="button" disabled={busy}
           onClick={() => changePoints([...draft.points, pointFields(defaults.end)])}>Add point</button>}
@@ -312,6 +329,19 @@ export function ChartAnnotations({
                     <span key={`${level.priceUnits}:${level.timeUnits}`}>
                       <small>{level.priceUnits}×{level.timeUnits}</small> {fixed(level.ticks, 6)}
                     </span>)}
+                </div>
+              </details>}
+              {entry.kind === 'gann-box' && <details className="research-details">
+                <summary>Gann box levels</summary>
+                <div className="replay-results replay-table-scroll">
+                  <table aria-label="Gann box price and UTC divisions">
+                    <thead><tr><th scope="col">Division</th><th scope="col">Time (UTC)</th><th scope="col">Price</th></tr></thead>
+                    <tbody>{core.gannBoxLevels(entry).map(({ time, ticks }, index) =>
+                      <tr key={time}>
+                        <th scope="row">{index}/{entry.divisions}</th>
+                        <td>{formatAnnotationAnchor('time', time)}</td><td>{formatAnnotationAnchor('price', ticks)}</td>
+                      </tr>)}</tbody>
+                  </table>
                 </div>
               </details>}
               <div className="drawing-buttons">

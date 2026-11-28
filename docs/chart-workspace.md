@@ -196,6 +196,12 @@ Choose **New Gann fan** and enter or pick a start and a later reference point at
 
 Edit the anchors in the drawing list. Each pane projects the selected instrument's drawing through its own timeframe and viewport. A saved Gann fan uses workspace backup version 57. [Backup format](workspace-backup.md).
 
+## Gann box
+
+Choose **New Gann box** and enter or pick two opposite corners. The end time follows the start, and prices may rise or fall. Choose 2, 4, or 8 equal divisions on each axis. The grid spans the selected UTC and signed price ranges. Each range needs at least one second or one price millionth per division. [Gann box convention](https://www.tradingview.com/support/solutions/43000518152-gann-box/).
+
+**Gann box levels** lists both anchors and each interior division. Time offsets round to the nearest second with ties toward the later second. Signed prices round to the nearest millionth with ties away from zero. The chart interpolates each UTC division between observed columns and clips the grid to the visible price plot. Both panes use the saved anchors when they show the same instrument and project them through their own timeframes. Workspace backup version 61 preserves the two corners and the division count. [Backup format](workspace-backup.md).
+
 ## Ellipses and triangles
 
 Choose **New ellipse** and enter or pick two opposite corners of its bounding box. The ellipse accepts either corner first and requires different UTC times and prices.

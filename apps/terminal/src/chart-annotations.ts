@@ -15,6 +15,7 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'fibonacci'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'fibonacci-fan'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'gann-fan'; start: DrawingEndpoint; end: DrawingEndpoint } |
+  { kind: 'gann-box'; start: DrawingEndpoint; end: DrawingEndpoint; divisions: number } |
   { kind: 'fibonacci-extension'; points: TrianglePoints } |
   { kind: 'ellipse'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'triangle'; points: TrianglePoints } |
@@ -45,6 +46,7 @@ export const ANNOTATION_NAMES = {
   fibonacci: 'Fibonacci retracement',
   'fibonacci-fan': 'Fibonacci fan',
   'gann-fan': 'Gann fan',
+  'gann-box': 'Gann box',
   'fibonacci-extension': 'Fibonacci price extension',
   'fibonacci-time-zones': 'Fibonacci time zones',
   ellipse: 'Ellipse',
@@ -93,6 +95,9 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'risk-reward':
       return second.kind === first.kind && first.side === second.side && first.stopTicks === second.stopTicks &&
         sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
+    case 'gann-box':
+      return second.kind === first.kind && first.divisions === second.divisions &&
+        sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
     case 'channel':
       return second.kind === 'channel' && first.offsetTicks === second.offsetTicks &&
         sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
@@ -105,7 +110,7 @@ export function hasPointList(kind: AnnotationKind): kind is 'polyline' | 'triang
 
 export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
   return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci' ||
-    kind === 'fibonacci-fan' || kind === 'gann-fan' || kind === 'ellipse' || kind === 'arrow' || kind === 'risk-reward'
+    kind === 'fibonacci-fan' || kind === 'gann-fan' || kind === 'gann-box' || kind === 'ellipse' || kind === 'arrow' || kind === 'risk-reward'
 }
 
 export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void {

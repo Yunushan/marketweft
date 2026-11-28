@@ -1226,6 +1226,7 @@ export interface MarketCore {
     targetSeconds: number): SessionTimeframeBar[];
   measureDrawing(drawing: MeasuredDrawing): DrawingMeasurement;
   gannFanLevels(drawing: MeasuredDrawing): GannFanLevel[];
+  gannBoxLevels(drawing: MeasuredDrawing & { divisions: number }): DrawingEndpoint[];
   measureRiskReward(side: RiskRewardSide, entry: number, stop: number, target: number): RiskRewardMeasurement;
   indicator(kind: 'sma' | 'ema' | 'rsi' | 'atr', period: number, bars: readonly Bar[]): (number | null)[];
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
@@ -1378,6 +1379,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_aggregate_session_timeframe(calendarBytes: number, sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
   mw_gann_fan_levels(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
+  mw_gann_box_levels(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint, divisions: number): number;
   mw_vortex_indicator(period: number): number;
   mw_balance_of_power(): number;
   mw_elder_force_index(period: number): number;
@@ -2135,6 +2137,18 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return Array.from({ length: 9 }, (_, index) => {
         const offset = index * 10;
         return { priceUnits: data.getUint8(offset), timeUnits: data.getUint8(offset + 1), ticks: data.getBigInt64(offset + 2, true) };
+      });
+    },
+    gannBoxLevels({ start, end, divisions }) {
+      if (![start.time, start.ticks, end.time, end.ticks].every(Number.isSafeInteger)) {
+        throw new Error('Drawing endpoints require whole UTC seconds and whole price ticks.');
+      }
+      if (![2, 4, 8].includes(divisions)) throw new Error('Choose 2, 4, or 8 Gann box divisions.');
+      const data = output(api.mw_gann_box_levels(BigInt(start.time), BigInt(start.ticks), BigInt(end.time), BigInt(end.ticks), divisions));
+      if (data.byteLength !== (divisions + 1) * 16) throw new Error('Invalid Gann box response size.');
+      return Array.from({ length: divisions + 1 }, (_, index) => {
+        const offset = index * 16;
+        return { time: Number(data.getBigInt64(offset, true)), ticks: Number(data.getBigInt64(offset + 8, true)) };
       });
     },
     instrument(venue, symbol) {

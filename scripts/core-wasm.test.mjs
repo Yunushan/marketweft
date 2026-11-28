@@ -83,6 +83,19 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('Gann box levels preserve signed prices, time partitions and validation in Wasm', () => {
+  const start = { time: -9, ticks: -13 };
+  const end = { time: 0, ticks: 13 };
+  assert.deepEqual(core.gannBoxLevels({ start, end, divisions: 4 }), [
+    start, { time: -7, ticks: -7 }, { time: -4, ticks: 0 }, { time: -2, ticks: 7 }, end,
+  ]);
+  assert.deepEqual(core.gannBoxLevels({ start: { ...start, ticks: 13 }, end: { ...end, ticks: -13 }, divisions: 2 }),
+    [{ time: -9, ticks: 13 }, { time: -4, ticks: 0 }, { time: 0, ticks: -13 }]);
+  assert.throws(() => core.gannBoxLevels({ start, end, divisions: 3 }), /2, 4, or 8/);
+  assert.throws(() => core.gannBoxLevels({ start, end: { ...end, time: -2 }, divisions: 8 }), /at least one second/);
+  assert.throws(() => core.gannBoxLevels({ start, end: { ...end, ticks: 2e15 + 1 }, divisions: 8 }), /within/);
+});
+
 test('daily floor pivots use only the preceding observed UTC day and exact signed levels', () => {
   const bars = [[-30, 0, -6, -4], [-1, 3, -4, 0], [0, 10, 2, 8], [43200, 12, 1, 11], [259200, 110, 90, 95]]
     .map(([time, high, low, close]) => ({ time, high, low, close, open: close, volume: 1 }));

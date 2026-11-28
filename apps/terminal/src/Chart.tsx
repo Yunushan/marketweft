@@ -19,7 +19,7 @@ import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, utc, volume } from './workspace'
 import type { Asset } from './workspace'
-import type { Bar, GannFanLevel, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, RegressionChannel, TickBar, VolumeBar } from './market-core'
+import type { Bar, DrawingEndpoint, GannFanLevel, KagiSegment, MarketCore, MeasuredDrawing, PointFigureBox, PriceMovement, RangeBar, RegressionChannel, TickBar, VolumeBar } from './market-core'
 import type { ChartType, OverlayPeriods, SeriesMetadata } from './catalog-schema'
 
 export type RegressionDrawingView = {
@@ -177,7 +177,10 @@ function draw(
   drawing: MeasuredDrawing | undefined,
   annotations: readonly ChartAnnotation[],
   markerTimeline: readonly TimeColumn[],
-  gannCrossings: ReadonlyMap<string, readonly GannFanLevel[]>,
+  gannGeometry: {
+    fans: ReadonlyMap<string, readonly GannFanLevel[]>
+    boxes: ReadonlyMap<string, readonly DrawingEndpoint[]>
+  },
   type: ChartType,
   baselineTicks: number,
   closeChanges: CloseChangeSeries | undefined,
@@ -824,7 +827,7 @@ function draw(
           ctx.fillText(label + ' ' + fixed(ticks, 6), from + 4, level - 7)
         }
       } else if (annotation.kind === 'fibonacci-fan' || annotation.kind === 'gann-fan') {
-        const crossings = annotation.kind === 'fibonacci-fan' ? fibonacciFanLevels(annotation.start.ticks, annotation.end.ticks) : gannCrossings.get(annotation.id)
+        const crossings = annotation.kind === 'fibonacci-fan' ? fibonacciFanLevels(annotation.start.ticks, annotation.end.ticks) : gannGeometry.fans.get(annotation.id)
         if (!crossings) continue
         const rays = fanRays(annotation.start, annotation.end, crossings, markerTimeline, x, y, { left, right, top, bottom: priceBottom })
         rays.forEach((ray, index) => {
@@ -833,6 +836,28 @@ function draw(
           const color = annotation.kind === 'fibonacci-fan' ? '#64c7b6' : index === 4 ? '#ecc877' : '#bbaee6'
           line(startX, startY, endX, endY, color)
         })
+      } else if (annotation.kind === 'gann-box') {
+        const levels = gannGeometry.boxes.get(annotation.id)
+        const first = markerTimeline[0]
+        const last = markerTimeline.at(-1)
+        if (!levels || !first || !last || annotation.end.time < first.time || annotation.start.time > last.time) continue
+        const from = markerColumn(markerTimeline, annotation.start.time)
+        const to = markerColumn(markerTimeline, annotation.end.time)
+        const begin = from === null ? left : Math.max(left, x(from))
+        const end = to === null ? right : Math.min(right, x(to))
+        const corners = [y(annotation.start.ticks / 1e6), y(annotation.end.ticks / 1e6)]
+        const upper = Math.max(top, Math.min(...corners))
+        const lower = Math.min(priceBottom, Math.max(...corners))
+        if (begin >= end || upper >= lower) continue
+        for (const [index, { time, ticks }] of levels.entries()) {
+          const color = index === 0 || index === annotation.divisions ? '#7cbaad' : '#5c8d84'
+          const column = markerColumn(markerTimeline, time)
+          const level = y(ticks / 1e6)
+          if (level >= upper && level <= lower) line(begin, level, end, level, color)
+          if (column === null) continue
+          const axis = x(column)
+          if (axis >= begin && axis <= end) line(axis, upper, axis, lower, color)
+        }
       } else if (annotation.kind === 'pitchfork') {
         const rays = pitchforkRays(annotation.points, markerTimeline, x, y, { left, right, top, bottom: priceBottom })
         rays.forEach((ray, index) => {
@@ -1177,12 +1202,14 @@ export function Chart({
   const start = view.end - view.count
   const observationsByTime = kagi?.byTime ?? pointFigure?.byTime
   const annotations = drawingTools?.annotations ?? EMPTY_ANNOTATIONS
-  const gannCrossings = useMemo(() => {
-    const result = new Map<string, GannFanLevel[]>()
+  const gannGeometry = useMemo(() => {
+    const fans = new Map<string, GannFanLevel[]>()
+    const boxes = new Map<string, DrawingEndpoint[]>()
     if (drawingCore) for (const entry of annotations) {
-      if (entry.kind === 'gann-fan') result.set(entry.id, drawingCore.gannFanLevels(entry))
+      if (entry.kind === 'gann-fan') fans.set(entry.id, drawingCore.gannFanLevels(entry))
+      if (entry.kind === 'gann-box') boxes.set(entry.id, drawingCore.gannBoxLevels(entry))
     }
-    return result
+    return { fans, boxes }
   }, [annotations, drawingCore])
   const needsTimeline = annotations.some(annotation => annotation.kind !== 'price' && annotation.kind !== 'price-range' && annotation.kind !== 'anchored-vwap' && annotation.kind !== 'regression-channel')
   const markerTimeline = useMemo(() => {
@@ -1313,7 +1340,7 @@ export function Chart({
           drawing,
           annotations,
           markerTimeline,
-          gannCrossings,
+          gannGeometry,
           type,
           baselineTicks,
           closeChanges,
@@ -1329,7 +1356,7 @@ export function Chart({
           plottedPriceLines,
           activeStudyPlotValues,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, gannCrossings, type, baselineTicks, closeChanges, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, gannGeometry, type, baselineTicks, closeChanges, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
