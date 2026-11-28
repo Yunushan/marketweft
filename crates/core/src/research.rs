@@ -5,6 +5,8 @@ use crate::financial_wire::financial_rows;
 use crate::formula::{decode_formula_library, MAX_FORMULA_LIBRARY_BYTES, MAX_SOURCE_BYTES};
 use crate::fundamentals::MAX_FINANCIAL_CSV_BYTES;
 use crate::history::exact_utc;
+use crate::macro_calendar::MAX_MACRO_CSV_BYTES;
+use crate::macro_wire::macro_snapshot_rows;
 use crate::option_chain::MAX_OPTION_CSV_BYTES;
 use crate::option_price::MAX_VOLATILITY;
 use crate::option_wire::{option_cash_status, option_dividend_rows, option_snapshot_rows};
@@ -30,6 +32,26 @@ pub const MAX_SCALAR_PLUGIN_REQUEST_BYTES: usize = crate::MAX_SCALAR_PLUGIN_BYTE
 pub const MAX_SCALAR_PLUGIN_SERIES_REQUEST_BYTES: usize =
     MAX_SCALAR_PLUGIN_REQUEST_BYTES + MAX_INPUT_BYTES;
 pub const MAX_MONTHLY_RETURNS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
+pub const MAX_MACRO_CALENDAR_REQUEST_BYTES: usize = MAX_MACRO_CSV_BYTES + 128;
+
+/// Replay visible economic reports through independent publication and knowledge times.
+pub fn macro_calendar_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_MACRO_CALENDAR_REQUEST_BYTES {
+        return Err("Macro calendar request exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 macro calendar request.")?;
+    let (header, csv) = request
+        .split_once('\n')
+        .ok_or("Missing macro calendar request header.")?;
+    let fields: Vec<_> = header.splitn(5, '\t').collect();
+    let ["marketweft-macro-calendar", "1", published, known] = fields.as_slice() else {
+        return Err("Invalid macro calendar request or protocol version.".into());
+    };
+    let (count, rows) = macro_snapshot_rows(csv, published, known)?;
+    Ok(format!(
+        "marketweft-macro-calendar\t{PROTOCOL_VERSION}\t{count}\n{rows}"
+    ))
+}
 
 /// Return every requested UTC month and its supporting closes from the supplied history.
 pub fn monthly_returns_request(bytes: &[u8]) -> Result<String, String> {

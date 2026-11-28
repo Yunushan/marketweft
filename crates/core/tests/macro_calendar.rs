@@ -1,3 +1,4 @@
+use marketweft_core::research::{macro_calendar_request, MAX_MACRO_CALENDAR_REQUEST_BYTES};
 use marketweft_core::MacroCalendar;
 
 const CSV: &str = include_str!("fixtures/synthetic-macro-calendar.csv");
@@ -92,4 +93,45 @@ fn validates_reference_identity_publication_numbers_and_revision_chain() {
     ] {
         assert!(MacroCalendar::parse(&broken).is_err());
     }
+}
+
+#[test]
+fn native_wire_preserves_report_evidence_cutoffs_and_wide_signed_ticks() {
+    let evaluate = |csv, published, known| {
+        macro_calendar_request(
+            format!(
+                "marketweft-macro-calendar\t1\t2025-04-03T{published}Z\t2025-04-03T{known}Z\n{csv}"
+            )
+            .as_bytes(),
+        )
+        .unwrap()
+    };
+    let hidden = evaluate(CSV, "14:30:00", "14:31:59");
+    assert!(hidden.starts_with(
+        "marketweft-macro-calendar\t1\t2\nH\tINFLATION-MAR\tDEMO.CPI\t1740787200\tpercent\n"
+    ));
+    assert!(!hidden.contains("CPI-A0"));
+    let observed = evaluate(CSV, "14:30:00", "14:32:00");
+    assert!(observed.contains("A\tCPI-A0\t1743690600\t1743690720\t\t2700000\t\n"));
+    let revised = evaluate(CSV, "14:50:00", "14:52:00");
+    assert!(revised.contains("R\tCPI-A2\t1743691800\t1743691920\t\t2800000\tCPI-A1\n"));
+    assert!(!revised.contains("CPI-F-LATE"));
+    assert_eq!(evaluate(CSV, "14:30:00", "14:32:00"), observed);
+
+    let wide = CSV.replace("2.8,CPI-A1", "-9007199254.740993,CPI-A1");
+    assert!(
+        evaluate(wide.as_str(), "14:50:00", "14:52:00").contains("\t-9007199254740993\tCPI-A1\n")
+    );
+    assert_eq!(
+        evaluate(CSV, "12:00:00", "12:00:00"),
+        "marketweft-macro-calendar\t1\t0\n"
+    );
+    for invalid in [
+        b"marketweft-macro-calendar\t2\t2025-04-03T14:50:00Z\t2025-04-03T14:52:00Z\n".as_slice(),
+        b"marketweft-macro-calendar\t1\t2025-04-03T14:50:00Z\t2025-02-29T14:52:00Z\n",
+        b"\xff",
+    ] {
+        assert!(macro_calendar_request(invalid).is_err());
+    }
+    assert!(macro_calendar_request(&vec![b'x'; MAX_MACRO_CALENDAR_REQUEST_BYTES + 1]).is_err());
 }

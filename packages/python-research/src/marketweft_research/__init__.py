@@ -13,6 +13,7 @@ __all__ = [
     "FinancialFiling", "FinancialMarketCap", "FinancialMultiple", "FinancialMultiples",
     "FinancialSnapshot", "FinancialTrailing",
     "FormulaFunction", "FormulaResult", "FormulaRow",
+    "MacroRecord", "MacroRelease",
     "MonthlyClose", "MonthlyReturn",
     "OptionChainAnalytics", "OptionChainQuote", "OptionChainSnapshot", "OptionUnderlyingQuote",
     "ResearchEngine", "ResearchError", "ScalarPluginPoint",
@@ -33,9 +34,15 @@ _MAX_CSV = 8 * 1024 * 1024
 _MAX_SCALAR_PLUGIN = 64 * 1024
 _MAX_SCALAR_SERIES = 256
 _MONTHLY_PROTOCOL = "marketweft-monthly-returns"
+_MACRO_PROTOCOL = "marketweft-macro-calendar"
+_MAX_MACRO_CSV = 1024 * 1024
+_MAX_MACRO_REPORTS = 10_000
+_MAX_MACRO_TICKS = 10 ** 27
 _MAX_MONTHLY_YEARS = 30
 _MAX_PRICE_TICKS = 2_000_000_000_000_000
 _EPOCH_ORDINAL = date(1970, 1, 1).toordinal()
+_MIN_UTC_SECOND = (date.min.toordinal() - _EPOCH_ORDINAL) * 86400
+_MAX_UTC_SECOND = (date.max.toordinal() - _EPOCH_ORDINAL + 1) * 86400 - 1
 _MAX_FINANCIAL_CSV = 1024 * 1024
 _MAX_OPTION_CSV = 2 * 1024 * 1024
 _MAX_OPTION_ROWS = 20_000
@@ -92,6 +99,27 @@ class MonthlyReturn:
     prior: MonthlyClose | None
     current: MonthlyClose | None
     percent_micros: int | None
+
+
+@dataclass(frozen=True)
+class MacroRecord:
+    record_id: str
+    published_at: int
+    observed_at: int
+    scheduled_at: int | None
+    value: int | None
+    supersedes: str | None
+
+
+@dataclass(frozen=True)
+class MacroRelease:
+    release_id: str
+    series_id: str
+    reference_date: int
+    unit: str
+    schedule: MacroRecord | None
+    forecast: MacroRecord | None
+    actual_history: tuple[MacroRecord, ...]
 
 
 @dataclass(frozen=True)
@@ -309,6 +337,11 @@ def _month_second(index: int) -> int:
     return (ordinal - _EPOCH_ORDINAL) * 86400
 
 
+def _epoch_second(instant: datetime) -> int:
+    return ((instant.toordinal() - _EPOCH_ORDINAL) * 86400
+            + instant.hour * 3600 + instant.minute * 60 + instant.second)
+
+
 def _monthly_close(at: str, ticks: str, start: int, end: int, through: int) -> MonthlyClose | None:
     if not at and not ticks:
         return None
@@ -345,6 +378,72 @@ def _monthly_returns(output: bytes, first_year: int, last_year: int, through: in
             raise ResearchError("Invalid percentage in monthly returns response.")
         results.append(MonthlyReturn(year, month, window, prior, current, value))
     return tuple(results)
+
+
+def _macro_release(group: list[list[str]], published_limit: int, known_limit: int) -> MacroRelease:
+    _, release_id, series_id, reference, unit = group[0]
+    reference_date = _whole(reference)
+    if (not all(_IDENTITY.fullmatch(key) for key in (release_id, series_id, unit))
+            or reference_date % 86400 or not _MIN_UTC_SECOND <= reference_date <= _MAX_UTC_SECOND):
+        raise ResearchError("Invalid macro release identity or reference date.")
+
+    schedule = forecast = None
+    history: list[MacroRecord] = []
+    ids: set[str] = set()
+    for row in group[1:]:
+        if len(row) != 7:
+            raise ResearchError("Invalid macro calendar evidence row.")
+        kind, record_id, published, observed, scheduled, amount, supersedes = row
+        published_at, observed_at = _whole(published), _whole(observed)
+        if (not _IDENTITY.fullmatch(record_id) or record_id in ids
+                or not _MIN_UTC_SECOND <= published_at <= min(observed_at, published_limit)
+                or observed_at > known_limit):
+            raise ResearchError("Invalid macro report identity or cutoff evidence.")
+        ids.add(record_id)
+        if kind == "S":
+            scheduled_at = _whole(scheduled)
+            if (schedule or forecast or history or not published_at <= scheduled_at <= _MAX_UTC_SECOND
+                    or amount or supersedes):
+                raise ResearchError("Invalid visible macro schedule.")
+            schedule = MacroRecord(record_id, published_at, observed_at, scheduled_at, None, None)
+            continue
+        if scheduled or not _WIDE.fullmatch(amount) or abs(int(amount)) > _MAX_MACRO_TICKS:
+            raise ResearchError("Invalid macro report value.")
+        report = MacroRecord(record_id, published_at, observed_at, None, int(amount), supersedes or None)
+        if kind == "F" and not forecast and not history and not supersedes:
+            forecast = report
+        elif kind == "A" and not history and not supersedes and (not forecast or forecast.observed_at < published_at):
+            history.append(report)
+        elif (kind == "R" and history and supersedes == history[-1].record_id
+              and published_at > history[-1].published_at):
+            history.append(report)
+        else:
+            raise ResearchError("Invalid macro report order or revision chain.")
+    return MacroRelease(release_id, series_id, reference_date, unit, schedule, forecast, tuple(history))
+
+
+def _macro_as_of(output: bytes, published: int, known: int) -> tuple[MacroRelease, ...]:
+    count, lines = _response(output, _MACRO_PROTOCOL)
+    groups: list[list[list[str]]] = []
+    records = 0
+    for line in lines:
+        row = line.split("\t")
+        if row[0] == "H":
+            if len(row) != 5 or (groups and len(groups[-1]) == 1):
+                raise ResearchError("Invalid macro release header.")
+            groups.append([row])
+        elif not groups:
+            raise ResearchError("Missing macro release header.")
+        else:
+            groups[-1].append(row)
+            records += 1
+    if (_whole(count) != len(groups) or records > _MAX_MACRO_REPORTS
+            or (groups and len(groups[-1]) == 1)):
+        raise ResearchError("Invalid macro calendar row count.")
+    releases = tuple(_macro_release(group, published, known) for group in groups)
+    if len(releases) != len({row.release_id for row in releases}):
+        raise ResearchError("Repeated macro release identity.")
+    return releases
 
 
 def _price(ticks: str, observed: str) -> ScreenPrice | None:
@@ -723,14 +822,31 @@ class ResearchEngine:
             cutoff = datetime.fromisoformat(observed_through[:-1])
         except ValueError as exc:
             raise ValueError("Use a valid UTC observation cutoff.") from exc
-        through = ((cutoff.toordinal() - _EPOCH_ORDINAL) * 86400
-                   + cutoff.hour * 3600 + cutoff.minute * 60 + cutoff.second)
+        through = _epoch_second(cutoff)
         history = csv.encode("utf-8")
         if len(history) > _MAX_CSV:
             raise ValueError("CSV exceeds 8 MiB.")
         header = f"{_MONTHLY_PROTOCOL}\t1\t{first_year}\t{last_year}\t{observed_through}\n".encode("ascii")
         output = self._invoke(header + history, "monthly-returns")
         return _monthly_returns(output, first_year, last_year, through)
+
+    def macro_as_of(
+        self, csv: str, *, published_through: str, known_at: str,
+    ) -> tuple[MacroRelease, ...]:
+        """Replay authorized release records visible at both inclusive UTC cutoffs."""
+        times = (published_through, known_at)
+        if any(not isinstance(value, str) or not _UTC.fullmatch(value) for value in times):
+            raise ValueError("Calendar times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
+        try:
+            published, known = (_epoch_second(datetime.fromisoformat(value[:-1])) for value in times)
+        except ValueError as exc:
+            raise ValueError("Use valid UTC macro calendar cutoffs.") from exc
+        history = csv.encode("utf-8")
+        if len(history) > _MAX_MACRO_CSV:
+            raise ValueError("Macro calendar CSV exceeds 1 MiB.")
+        header = f"{_MACRO_PROTOCOL}\t1\t{published_through}\t{known_at}\n".encode("ascii")
+        output = self._invoke(header + history, "macro-calendar")
+        return _macro_as_of(output, published, known)
 
     def screen_universe(
         self,

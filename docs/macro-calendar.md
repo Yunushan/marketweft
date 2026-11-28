@@ -30,3 +30,31 @@ INFLATION-MAR,DEMO.CPI,2025-03-01,percent,CPI-A1,revision,2025-04-03T14:40:00Z,2
 - Each record must satisfy both cutoffs to be visible. The displayed actual is the latest visible member of the continuous official chain. Revisions that arrive out of order wait for their predecessors. Once the original actual is visible, eligible forecasts must also have been observed strictly before its publication.
 
 Official release calendars document schedules, while vintage sources distinguish original from revised period values. An upstream date alone cannot supply exact publication and local observation times. MarketWeft consumes those explicit times from authorized local reports. [BLS release calendar](https://www.bls.gov/schedule/news_release/) · [FRED vintage dates](https://fred.stlouisfed.org/docs/api/fred/series_vintagedates.html).
+
+## Research SDKs
+
+The TypeScript SDK supplies `macroAsOf(csv, publishedThrough, knownAt)`. The Python SDK supplies `macro_as_of(csv, published_through=..., known_at=...)`. Both read the same CSV as the browser and apply the two inclusive UTC cutoffs. TypeScript also exposes `macroIndex(csv)` for the first observed report time.
+
+```python
+from pathlib import Path
+from marketweft_research import ResearchEngine
+
+engine = ResearchEngine("./marketweft-research")
+reports = Path("macro-calendar.csv").read_text(encoding="utf-8")
+snapshots = engine.macro_as_of(
+    reports,
+    published_through="2025-04-03T14:50:00Z",
+    known_at="2025-04-03T14:52:00Z",
+)
+for release in snapshots:
+    for report in release.actual_history:
+        print(release.release_id, report.record_id, report.value, report.supersedes)
+```
+
+Each result carries the release and series IDs, reference date at midnight UTC, unit, visible schedule and forecast, and the full visible actual revision chain. Record fields preserve the publication and observation times and the superseded record ID. Times are Unix seconds. Values are signed integer millionths in the declared unit, represented by `bigint` in TypeScript and `int` in Python. Unavailable evidence uses `null` or `None`. The synthetic inflation result keeps forecast `CPI-F2` and yields actual values `2700000`, `2600000` and `2800000` as the observation cutoff advances. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md)
+
+### Native calendar protocol
+
+Run `marketweft-research macro-calendar` with a UTF-8 request on standard input. The first line contains `marketweft-macro-calendar`, protocol `1`, the publication cutoff and the knowledge cutoff, separated by tabs and followed by LF. Append up to 1 MiB of calendar CSV. Use `YYYY-MM-DDTHH:MM:SSZ` for both cutoffs.
+
+The response header contains `marketweft-macro-calendar`, protocol `1` and the number of matched releases. Each tab-separated `H` row contains a release ID, series ID, reference date in Unix seconds and unit. The following evidence rows use `S` for schedule, `F` for forecast, `A` for actual and `R` for revision. They contain the record ID, publication time, observation time, optional scheduled time, optional value in signed millionths and optional predecessor ID. Missing fields are empty. With no visible releases the response contains the header and a count of zero.

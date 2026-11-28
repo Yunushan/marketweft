@@ -6,9 +6,7 @@ use crate::{
     aggregate_session_timeframe, aggregate_timeframe, measure_drawing, AlertBook, AlertDirection,
     Comparator, DrawingEndpoint, TimeframeBar,
 };
-use crate::{
-    history::exact_utc, parse_universe, FinancialBook, MacroCalendar, PriceBook, ReportKind,
-};
+use crate::{history::exact_utc, parse_universe, FinancialBook, MacroCalendar, PriceBook};
 use crate::{
     indicator, parse_csv, parse_dividends, parse_sessions, parse_splits, replay, Average, Bar,
     Instrument, Split, SplitBook, MAX_BARS, MAX_INPUT_BYTES, MAX_SPLIT_ROWS,
@@ -3299,51 +3297,14 @@ pub extern "C" fn mw_macro_index() -> u32 {
 
 #[no_mangle]
 pub extern "C" fn mw_macro_as_of() -> u32 {
-    use std::fmt::Write;
     process(|input| {
         let mut parts = utf8(input)?.splitn(3, '\n');
-        let mut cutoff = || {
-            parts
-                .next()
-                .and_then(exact_utc)
-                .ok_or("Calendar times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")
-        };
-        let published = cutoff()?;
-        let known = cutoff()?;
-        let calendar = MacroCalendar::parse(parts.next().ok_or("Supply macro calendar reports.")?)?;
-        let mut text = String::new();
-        for snapshot in calendar.as_of(published, known) {
-            writeln!(
-                &mut text,
-                "H\t{}\t{}\t{}\t{}",
-                snapshot.release_id, snapshot.series_id, snapshot.reference_date, snapshot.unit
-            )
-            .unwrap();
-            for record in snapshot
-                .schedule
-                .into_iter()
-                .chain(snapshot.forecast)
-                .chain(snapshot.actual_history)
-            {
-                let kind = match record.kind {
-                    ReportKind::Schedule => "S",
-                    ReportKind::Forecast => "F",
-                    ReportKind::Actual => "A",
-                    ReportKind::Revision => "R",
-                };
-                writeln!(
-                    &mut text,
-                    "{kind}\t{}\t{}\t{}\t{}\t{}\t{}",
-                    record.record_id,
-                    record.published_at,
-                    record.observed_at,
-                    optional_number(record.scheduled_at),
-                    optional_number(record.value),
-                    record.supersedes.as_deref().unwrap_or_default()
-                )
-                .unwrap();
-            }
-        }
+        let published = parts.next().unwrap_or_default();
+        let known = parts
+            .next()
+            .ok_or("Calendar times require YYYY-MM-DDTHH:MM:SSZ UTC timestamps.")?;
+        let csv = parts.next().ok_or("Supply macro calendar reports.")?;
+        let (_, text) = crate::macro_wire::macro_snapshot_rows(csv, published, known)?;
         Ok(text.into_bytes())
     })
 }

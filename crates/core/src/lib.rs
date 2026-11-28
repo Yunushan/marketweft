@@ -37,6 +37,7 @@ mod keltner;
 mod line_break;
 mod macd;
 mod macro_calendar;
+mod macro_wire;
 mod monthly_returns;
 mod moving_averages;
 mod option_cash;

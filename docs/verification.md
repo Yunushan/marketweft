@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.236.0 · Economic release calendar SDKs
+
+- Rust and the packaged SDKs use the synthetic browser fixture to verify independent cutoff equality, rescheduled events, a frozen pre-release forecast and recovery after an out-of-order observation.
+- The native process, TypeScript and the installed Python wheel preserve a signed amount of `-9007199254740993` millionths and the exact superseded record ID. Tests also verify an empty earlier cutoff and malformed native responses.
+
+[Economic calendar SDKs](macro-calendar.md#research-sdks)
+
 ## 0.235.0 · Stochastic RSI and Ultimate Oscillator
 
 - Rust and Wasm verify every observed prefix of a signed fixture, flat ranges, exact weighted values through missing timestamps and genuine zeros. Rust also checks maximum-length windows and fixed-point price bounds.

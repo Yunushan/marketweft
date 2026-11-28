@@ -5,7 +5,7 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_ROWS: usize = 10_000;
-const MAX_BYTES: usize = 1024 * 1024;
+pub(crate) const MAX_MACRO_CSV_BYTES: usize = 1024 * 1024;
 const MAX_VALUE_TICKS: i128 = 10_i128.pow(27);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -52,7 +52,7 @@ pub struct ReleaseSnapshot<'a> {
 
 impl MacroCalendar {
     pub fn parse(csv: &str) -> Result<Self, String> {
-        if csv.len() > MAX_BYTES {
+        if csv.len() > MAX_MACRO_CSV_BYTES {
             return Err("Macro calendar CSV exceeds 1 MiB.".into());
         }
         let mut lines = csv

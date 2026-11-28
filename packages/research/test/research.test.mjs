@@ -62,6 +62,34 @@ test('the packaged SDK supplies exact monthly price evidence at a historical cut
   assert.deepEqual(research.monthlyReturns(bars, 2024, 2024, bars[1].time), first)
 })
 
+test('the packaged SDK replays economic reports and their evidence at independent UTC cutoffs', async () => {
+  const fixture = new URL('../../../crates/core/tests/fixtures/synthetic-macro-calendar.csv', import.meta.url)
+  const [reports, research] = await Promise.all([readFile(fixture, 'utf8'), createResearchEngine(wasm)])
+  const utc = time => '2025-04-03T' + time + 'Z'
+  const query = (published, known, data = reports) => research.macroAsOf(data, utc(published), utc(known))
+  assert.equal(research.macroIndex(reports), Date.parse(utc('13:02:00')) / 1000)
+  assert.deepEqual(query('12:00:00', '14:52:00'), [])
+  assert.deepEqual(query('14:29:59', '14:32:00')[0].actualHistory, [])
+  assert.deepEqual(query('14:30:00', '14:31:59')[0].actualHistory, [])
+  const original = query('14:30:00', '14:32:00')
+  assert.deepEqual(original[0].actualHistory, [{
+    recordId: 'CPI-A0', publishedAt: 1743690600, observedAt: 1743690720,
+    scheduledAt: null, value: 2700000n, supersedes: null,
+  }])
+  assert.equal(original[0].forecast.recordId, 'CPI-F2')
+  assert.equal(original[1].forecast, null)
+  const revised = query('14:50:00', '14:52:00')
+  assert.deepEqual(revised[0].actualHistory.map(row => [row.recordId, row.value, row.supersedes]), [
+    ['CPI-A0', 2700000n, null], ['CPI-A1', 2600000n, 'CPI-A0'], ['CPI-A2', 2800000n, 'CPI-A1'],
+  ])
+  const wide = reports.replace('2.8,CPI-A1', '-9007199254.740993,CPI-A1')
+  assert.equal(query('14:50:00', '14:52:00', wide)[0].actualHistory[2].value, -9007199254740993n)
+  const late = reports.replace('14:32:00Z,,2.7', '14:49:00Z,,2.7')
+  assert.deepEqual(query('14:45:00', '14:48:00', late)[0].actualHistory, [])
+  assert.deepEqual(query('14:30:00', '14:32:00'), original)
+  assert.throws(() => research.macroAsOf(reports, '2025-02-29T14:30:00Z', utc('14:32:00')), /UTC timestamps/)
+})
+
 test('the packaged SDK reports depth sweep cutoffs and exact fixed-point execution', async () => {
   const depth = new URL('../../../crates/core/tests/fixtures/synthetic-depth.csv', import.meta.url)
   const [reports, research] = await Promise.all([readFile(depth, 'utf8'), createResearchEngine(wasm)])

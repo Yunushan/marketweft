@@ -4,7 +4,7 @@ import type { Bar, FormulaFunction, FormulaResult, MarketCore } from './core.js'
 export type {
   AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
   Filing, FinancialIssuer, FinancialSnapshot,
-  FormulaFunction, FormulaResult, MonthlyClose, MonthlyReturn, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
+  FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   OptionUnavailable, OptionUnderlying, PaperConfig, PaperDepthSnapshot, PaperSnapshot, QuarterlyValuation,
   ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
   ScalarPluginPoint, ScreenPrice, ScreenRow, TradeClassification, TradeClassificationQuery, TradeSideBasis, TrailingFourQuarters,
@@ -20,6 +20,8 @@ export interface MarketResearch {
   evaluateScalarPlugin: MarketCore['evaluateScalarPlugin']
   evaluateScalarPluginSeries: MarketCore['evaluateScalarPluginSeries']
   monthlyReturns: MarketCore['monthlyReturns']
+  macroIndex: MarketCore['macroIndex']
+  macroAsOf: MarketCore['macroAsOf']
   universeScreen: MarketCore['universeScreen']
   compareUniverseRanks: MarketCore['compareUniverseRanks']
   recordedDepthSweep: MarketCore['recordedDepthSweep']
@@ -46,6 +48,8 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     evaluateScalarPlugin: core.evaluateScalarPlugin,
     evaluateScalarPluginSeries: core.evaluateScalarPluginSeries,
     monthlyReturns: core.monthlyReturns,
+    macroIndex: core.macroIndex,
+    macroAsOf: core.macroAsOf,
     universeScreen: core.universeScreen,
     compareUniverseRanks: core.compareUniverseRanks,
     recordedDepthSweep: core.recordedDepthSweep,

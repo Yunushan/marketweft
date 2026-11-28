@@ -101,6 +101,12 @@ jobs:
           assert.equal(research.version, RESEARCH_SDK_VERSION)
           assert.deepEqual(research.evaluateFormula('close + 0.000001', bars).values, [10000001n])
           const fixture = name => readFile(join(process.env.GITHUB_WORKSPACE, 'crates/core/tests/fixtures', name), 'utf8')
+          const releases = await fixture('synthetic-macro-calendar.csv')
+          const macro = known => research.macroAsOf(releases, '2025-04-03T14:50:00Z', known)[0]
+          assert.deepEqual(macro('2025-04-03T14:31:59Z').actualHistory, [])
+          assert.deepEqual(macro('2025-04-03T14:52:00Z').actualHistory.map(row => [row.value, row.supersedes]), [
+            [2700000n, null], [2600000n, 'CPI-A0'], [2800000n, 'CPI-A1'],
+          ])
           const [membership, prices] = await Promise.all([
             fixture('synthetic-universe.csv'), fixture('synthetic-universe-prices.csv'),
           ])
