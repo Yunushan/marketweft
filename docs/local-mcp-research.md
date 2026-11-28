@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, portfolio scenarios, FX conversion, equity concentration, equity target drift, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, portfolio scenarios, minimum-variance allocation, FX conversion, equity concentration, equity target drift, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 
 ```json
 {
@@ -51,6 +51,12 @@ Call the read-only `portfolio_scenarios_as_of` tool with `membership_csv` and `p
 Each page echoes the dates, seed, horizon and block size. It reports complete return vectors, eligible blocks, listing coverage, loss paths and the 5th, 50th and 95th percentiles across all paths. Ending value and fees use decimal strings in millionths of portfolio currency. Drawdown uses decimal strings in millionths of the portfolio's peak value.
 
 Path numbers start at 1. Use `limit` from 1 to 250, with a default of 100. Pass `next_offset` as `offset` with identical inputs to fetch the next page. A `null` offset marks the last page. The synthetic pair's three-move blocks give one eligible block at 14:06 UTC, four when the late close becomes known at 14:07, and two after the membership removal becomes known at 14:08. [Portfolio scenario fixture and cutoff example](portfolio-scenarios.md#research-sdks).
+
+## Portfolio allocation
+
+Call the read-only `portfolio_allocation_as_of` tool. Supply the contents of the membership and prices CSVs, a list of 2–16 stable IDs in `listing_ids`, exact UTC `from_at`, `through_at` and `known_at` cutoffs, and a whole positive `interval_seconds`. The result uses the same fields as the research service.
+
+The tool returns common and per-listing coverage at every cutoff. With at least two common returns, it includes the sample metrics and weights as integer basis points. A missing sample or weight is `null`, and a computed zero is `0`. [Portfolio allocation service](local-rest-research.md#portfolio-allocation)
 
 ## Portfolio currency conversion
 

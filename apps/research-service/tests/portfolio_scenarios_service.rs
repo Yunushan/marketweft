@@ -7,7 +7,7 @@ use axum::{
 };
 use futures_util::{SinkExt, StreamExt};
 use marketweft_research_service::{
-    proto::{research_client::ResearchClient, PortfolioScenariosQuery},
+    proto::{research_client::ResearchClient, PortfolioAllocationQuery, PortfolioScenariosQuery},
     research_router, Tokens,
 };
 use serde_json::{json, Value};
@@ -23,6 +23,7 @@ use tonic::Code;
 use tower::ServiceExt;
 
 const ROUTE: &str = "/v1/universe/portfolio-scenarios";
+const ALLOCATION_ROUTE: &str = "/v1/portfolio/allocation";
 const MEMBERSHIP: &str =
     include_str!("../../../crates/core/tests/fixtures/synthetic-listing-risk-membership.csv");
 const PRICES: &str =
@@ -48,8 +49,13 @@ fn router() -> Router {
     .unwrap()
 }
 
-async fn rest(router: &Router, token: Option<&str>, query: &Value) -> (StatusCode, Value) {
-    let mut request = Request::post(ROUTE)
+async fn rest(
+    router: &Router,
+    route: &str,
+    token: Option<&str>,
+    query: &Value,
+) -> (StatusCode, Value) {
+    let mut request = Request::post(route)
         .header("host", "127.0.0.1:4174")
         .header("content-type", "application/json");
     if let Some(token) = token {
@@ -69,15 +75,17 @@ async fn rest(router: &Router, token: Option<&str>, query: &Value) -> (StatusCod
 async fn rest_paths_keep_exact_evidence_and_rewind_at_the_screen_scope() {
     let router = router();
     assert_eq!(
-        rest(&router, None, &json!({})).await.0,
+        rest(&router, ROUTE, None, &json!({})).await.0,
         StatusCode::UNAUTHORIZED
     );
     assert_eq!(
-        rest(&router, Some(FORMULA_TOKEN), &json!({})).await.0,
+        rest(&router, ROUTE, Some(FORMULA_TOKEN), &json!({}))
+            .await
+            .0,
         StatusCode::FORBIDDEN
     );
     let mut query = query();
-    let (status, early) = rest(&router, Some(SCREEN_TOKEN), &query).await;
+    let (status, early) = rest(&router, ROUTE, Some(SCREEN_TOKEN), &query).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(early["eligible_blocks"], 1);
     assert_eq!(early["block_size"], 3);
@@ -99,7 +107,7 @@ async fn rest_paths_keep_exact_evidence_and_rewind_at_the_screen_scope() {
     );
     for (time, blocks) in [("14:07:00", 4), ("14:08:00", 2), ("14:06:00", 1)] {
         query["known_at"] = json!(format!("2025-06-02T{time}Z"));
-        let (status, observed) = rest(&router, Some(SCREEN_TOKEN), &query).await;
+        let (status, observed) = rest(&router, ROUTE, Some(SCREEN_TOKEN), &query).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(observed["eligible_blocks"], blocks);
         if blocks == 1 {
@@ -125,12 +133,12 @@ async fn rest_paths_keep_exact_evidence_and_rewind_at_the_screen_scope() {
         let mut invalid = query.clone();
         invalid[field] = value;
         assert_eq!(
-            rest(&router, Some(SCREEN_TOKEN), &invalid).await.0,
+            rest(&router, ROUTE, Some(SCREEN_TOKEN), &invalid).await.0,
             expected
         );
     }
     query.as_object_mut().unwrap().remove("block_size");
-    let (status, independent) = rest(&router, Some(SCREEN_TOKEN), &query).await;
+    let (status, independent) = rest(&router, ROUTE, Some(SCREEN_TOKEN), &query).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(independent["block_size"], 1);
     assert_eq!(independent["eligible_blocks"], 4);
@@ -138,9 +146,13 @@ async fn rest_paths_keep_exact_evidence_and_rewind_at_the_screen_scope() {
 
 type Stream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
-async fn websocket(server: &ResearchProcess, token: Option<&str>) -> Result<Stream, Error> {
+async fn websocket(
+    server: &ResearchProcess,
+    route: &str,
+    token: Option<&str>,
+) -> Result<Stream, Error> {
     let mut request = format!(
-        "ws://{}{ROUTE}/stream",
+        "ws://{}{route}/stream",
         server.origin.strip_prefix("http://").unwrap()
     )
     .into_client_request()
@@ -183,22 +195,22 @@ async fn websocket_resumes_seeded_pages_and_matches_rest() {
         (Some(FORMULA_TOKEN), StatusCode::FORBIDDEN),
     ] {
         assert!(
-            matches!(websocket(&server, token).await, Err(Error::Http(reply)) if reply.status() == expected)
+            matches!(websocket(&server, ROUTE, token).await, Err(Error::Http(reply)) if reply.status() == expected)
         );
     }
     let mut query = query();
-    let mut initial = websocket(&server, Some(SCREEN_TOKEN)).await.unwrap();
+    let mut initial = websocket(&server, ROUTE, Some(SCREEN_TOKEN)).await.unwrap();
     send(&mut initial, &query).await;
     let message: Value =
         serde_json::from_str(receive(&mut initial).await.to_text().unwrap()).unwrap();
     assert_eq!(message["type"], "page");
     assert_eq!(
         message["page"],
-        rest(&router, Some(SCREEN_TOKEN), &query).await.1
+        rest(&router, ROUTE, Some(SCREEN_TOKEN), &query).await.1
     );
     drop(initial);
     query["offset"] = message["page"]["next_offset"].clone();
-    let mut resumed = websocket(&server, Some(SCREEN_TOKEN)).await.unwrap();
+    let mut resumed = websocket(&server, ROUTE, Some(SCREEN_TOKEN)).await.unwrap();
     send(&mut resumed, &query).await;
     for offset in [2, 4] {
         let message: Value =
@@ -207,7 +219,7 @@ async fn websocket_resumes_seeded_pages_and_matches_rest() {
         query["offset"] = json!(offset);
         assert_eq!(
             message["page"],
-            rest(&router, Some(SCREEN_TOKEN), &query).await.1
+            rest(&router, ROUTE, Some(SCREEN_TOKEN), &query).await.1
         );
     }
     assert!(matches!(receive(&mut resumed).await, Message::Close(_)));
@@ -255,10 +267,147 @@ async fn grpc_uses_the_same_scope_schema_and_last_page_values() {
         .await
         .unwrap()
         .into_inner();
-    let (status, as_json) = rest(&router(), Some(SCREEN_TOKEN), &query).await;
+    let (status, as_json) = rest(&router(), ROUTE, Some(SCREEN_TOKEN), &query).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(serde_json::to_value(&page).unwrap(), as_json);
     assert_eq!(page.next_offset, None);
     assert_eq!(page.paths[0].path_number, 5);
     assert_eq!(page.paths[0].ending_value, "99950000");
+}
+
+#[tokio::test]
+async fn allocation_preserves_common_samples_and_zero_weights_across_scoped_transports() {
+    let router = router();
+    let membership = format!(
+        "{MEMBERSHIP}RISK,C-ADD,C,DEMO:GAMMA,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,add\n"
+    );
+    let prices = format!(
+        "{}{}{}{}",
+        PRICES.replace(",90\n", ",120\n"),
+        "RISK,C,2025-06-02T14:00:00Z,2025-06-02T14:00:00Z,10\n",
+        "RISK,C,2025-06-02T14:01:00Z,2025-06-02T14:01:00Z,10\n",
+        "RISK,C,2025-06-02T14:02:00Z,2025-06-02T14:07:00Z,10\n",
+    );
+    let request = json!({
+        "membership_csv": membership, "prices_csv": prices, "listing_ids": ["B", "C", "A"],
+        "from_at": "2025-06-02T14:00:00Z", "through_at": "2025-06-02T14:06:00Z",
+        "known_at": "2025-06-02T14:06:00Z", "interval_seconds": 60,
+    });
+    assert_eq!(
+        rest(&router, ALLOCATION_ROUTE, None, &request).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        rest(&router, ALLOCATION_ROUTE, Some(FORMULA_TOKEN), &request)
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    let (status, early) = rest(&router, ALLOCATION_ROUTE, Some(SCREEN_TOKEN), &request).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(early["expected_returns"], 6);
+    assert_eq!(early["common_returns"], 1);
+    assert!(early["sample"].is_null());
+    assert_eq!(
+        early["listings"][2],
+        json!({
+            "listing_id": "C", "known_returns": 1, "equal_basis_points":null, "optimized_basis_points":null,
+        })
+    );
+    let mut later = request.clone();
+    later["known_at"] = json!("2025-06-02T14:07:00Z");
+    let (status, advanced) = rest(&router, ALLOCATION_ROUTE, Some(SCREEN_TOKEN), &later).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(advanced["known_at"], later["known_at"]);
+    assert_eq!(advanced["common_returns"], 2);
+    assert_eq!(advanced["listings"][0]["optimized_basis_points"], 0);
+    assert_eq!(advanced["listings"][2]["optimized_basis_points"], 10_000);
+    assert_eq!(advanced["sample"]["optimized_volatility"], 0.0);
+    assert_eq!(
+        rest(&router, ALLOCATION_ROUTE, Some(SCREEN_TOKEN), &request)
+            .await
+            .1,
+        early
+    );
+    for (field, value, status) in [
+        ("interval_seconds", json!(0), StatusCode::BAD_REQUEST),
+        (
+            "known_at",
+            json!("2025-02-29T14:06:00Z"),
+            StatusCode::BAD_REQUEST,
+        ),
+        (
+            "listing_ids",
+            json!(["A", "A", "B"]),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ),
+        (
+            "prices_csv",
+            json!("malformed"),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ),
+        ("offset", json!(0), StatusCode::BAD_REQUEST),
+    ] {
+        let mut invalid = later.clone();
+        invalid[field] = value;
+        assert_eq!(
+            rest(&router, ALLOCATION_ROUTE, Some(SCREEN_TOKEN), &invalid)
+                .await
+                .0,
+            status
+        );
+    }
+
+    let server = ResearchProcess::start(Settings::default());
+    assert!(matches!(
+        websocket(&server, ALLOCATION_ROUTE, Some(FORMULA_TOKEN)).await,
+        Err(Error::Http(reply)) if reply.status() == StatusCode::FORBIDDEN
+    ));
+    let mut streaming = websocket(&server, ALLOCATION_ROUTE, Some(SCREEN_TOKEN))
+        .await
+        .unwrap();
+    send(&mut streaming, &later).await;
+    let frame: Value =
+        serde_json::from_str(receive(&mut streaming).await.to_text().unwrap()).unwrap();
+    assert_eq!(frame, json!({"type":"page", "page":advanced}));
+    assert!(matches!(receive(&mut streaming).await, Message::Close(_)));
+
+    let channel = Endpoint::from_shared(server.origin.clone())
+        .unwrap()
+        .connect_timeout(IO_DEADLINE)
+        .timeout(IO_DEADLINE)
+        .connect()
+        .await
+        .unwrap();
+    let mut client = ResearchClient::new(channel);
+    let settings: PortfolioAllocationQuery = serde_json::from_value(later).unwrap();
+    let authorize = |token: &str| {
+        let mut request = tonic::Request::new(settings.clone());
+        request
+            .metadata_mut()
+            .insert("authorization", format!("Bearer {token}").parse().unwrap());
+        request
+    };
+    assert_eq!(
+        client
+            .get_portfolio_allocation(settings.clone())
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unauthenticated
+    );
+    assert_eq!(
+        client
+            .get_portfolio_allocation(authorize(FORMULA_TOKEN))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+    let response = client
+        .get_portfolio_allocation(authorize(SCREEN_TOKEN))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(serde_json::to_value(response).unwrap(), advanced);
 }

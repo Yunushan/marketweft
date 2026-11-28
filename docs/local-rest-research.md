@@ -22,6 +22,7 @@ The service prints the bound loopback address. The port defaults to 4174. Set `M
 | `POST /v1/universe/screen` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `prices_csv`, `baseline_at`, `effective_at` and `known_at` |
 | `POST /v1/universe/rank-comparison` | `MARKETWEFT_SCREEN_TOKEN` | Both CSVs, a shared baseline and two effective and known cutoff pairs |
 | `POST /v1/universe/portfolio-scenarios` | `MARKETWEFT_SCREEN_TOKEN` | Point-in-time membership and price reports, allocations and deterministic sampling settings |
+| `POST /v1/portfolio/allocation` | `MARKETWEFT_SCREEN_TOKEN` | membership and prices CSV, listing IDs, UTC window and knowledge times, whole interval |
 | `POST /v1/portfolio/fx` | `MARKETWEFT_SCREEN_TOKEN` | `rates_csv`, source subtotals, reporting currency and independent effective and known cutoffs |
 | `POST /v1/portfolio/equity-concentration` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `holdings_csv`, `prices_csv` and independent effective and known cutoffs |
 | `POST /v1/portfolio/equity-target-drift` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `holdings_csv`, `prices_csv`, `targets_csv`, optional `terms_csv`, and independent effective and known cutoffs |
@@ -73,6 +74,14 @@ Supply `allocations` with 2 to 16 stable listing IDs and weights totaling 10,000
 Each page reports the cutoffs, seed, horizon, block size, eligible vectors and blocks, listing coverage and whole-simulation percentiles. Ending values and fees are decimal strings in millionths of portfolio currency, and drawdown uses millionths of peak value. Path numbers start at 1. Use `limit` from 1 to 250, with a default of 100. Set `offset` to the previous page’s `next_offset` with the same inputs to continue.
 
 Connect to `/v1/universe/portfolio-scenarios/stream` using the same screen credential and send the REST JSON query in one text frame. On reconnect, resume with the last accepted `next_offset`. Use `wss` on the configured TLS listener. The gRPC method `marketweft.research.v1.Research/GetPortfolioScenarios` returns an equivalent typed unary page and uses the bearer token in `authorization` metadata. Both use the same screen admission controls, quotas and audit receipts as REST. [Research Protobuf schema](../apps/research-service/proto/research.proto).
+
+## Portfolio allocation
+
+Send `POST /v1/portfolio/allocation` with a screen bearer credential. Provide CSV contents in `membership_csv` and `prices_csv`, 2–16 stable `listing_ids`, UTC cutoffs in `from_at`, `through_at` and `known_at`, and a positive whole `interval_seconds`. The membership and prices limits are 1 and 2 MiB. [Portfolio minimum variance](portfolio-scenarios.md#portfolio-minimum-variance)
+
+The response fits in one report. It echoes the inputs that define the sample window and gives expected and common returns, sorted listing coverage and any estimated weights. The `sample` carries the equal and estimated mean returns and volatilities, the estimated variance gap and iteration count. A coverage-only report has a `null` sample and `null` basis-point fields. A computed zero uses the number `0`.
+
+Connect to `/v1/portfolio/allocation/stream` and send the same query for one WebSocket report. The HTTP/2 method is `marketweft.research.v1.Research/GetPortfolioAllocation`. Both use the same screen scope, admission and audit rules as REST. [Research Protobuf schema](../apps/research-service/proto/research.proto)
 
 ## Portfolio currency conversion
 

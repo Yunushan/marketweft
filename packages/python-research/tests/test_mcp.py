@@ -70,7 +70,8 @@ class McpTest(unittest.TestCase):
                          [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.RANK_COMPARISON_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME,
                           mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME, mcp.MONTHLY_RETURNS_TOOL_NAME,
                           mcp.MACRO_CALENDAR_TOOL_NAME, mcp.PORTFOLIO_SCENARIOS_TOOL_NAME, mcp.PORTFOLIO_FX_TOOL_NAME,
-                          mcp.EQUITY_CONCENTRATION_TOOL_NAME, mcp.EQUITY_TARGET_TOOL_NAME])
+                          mcp.EQUITY_CONCENTRATION_TOOL_NAME, mcp.EQUITY_TARGET_TOOL_NAME,
+                          mcp.PORTFOLIO_ALLOCATION_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -440,6 +441,62 @@ class McpTest(unittest.TestCase):
         for key in ("unknown", "terms", "bad-offset"):
             self.assertEqual(messages[key]["error"]["code"], -32602)
         self.assertTrue(messages["bad-csv"]["result"]["isError"])
+        self.assertEqual(messages["ping"]["result"], {})
+
+    def test_portfolio_allocation_preserves_common_returns_and_basis_points(self):
+        fixtures = ROOT / "crates/core/tests/fixtures"
+
+        def utc(minute):
+            return f"2025-06-02T14:{minute:02}:00Z"
+
+        membership = (fixtures / "synthetic-listing-risk-membership.csv").read_text(encoding="utf-8")
+        membership += f"RISK,C-ADD,C,DEMO:GAMMA,{utc(0)},{utc(0)},add\n"
+        prices = (fixtures / "synthetic-listing-risk-prices.csv").read_text(encoding="utf-8")
+        prices = prices.replace(",90\n", ",120\n") + "".join(
+            f"RISK,C,{utc(at)},{utc(observed)},10\n" for at, observed in ((0, 0), (1, 1), (2, 7))
+        )
+        arguments = {
+            "membership_csv": membership, "prices_csv": prices, "listing_ids": ["C", "A", "B"],
+            "from_at": utc(0), "through_at": utc(6), "known_at": utc(6), "interval_seconds": 60,
+        }
+
+        def query(request_id, **changes):
+            return rpc("tools/call", request_id,
+                       {"name": mcp.PORTFOLIO_ALLOCATION_TOOL_NAME, "arguments": arguments | changes})
+
+        process = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(
+                rpc("initialize", "init", INITIALIZE), rpc("notifications/initialized"), rpc("tools/list", "tools"),
+                query("early"), query("late", known_at=utc(7)), query("rewind"),
+                query("bad-list", listing_ids="ABC"), query("duplicate", listing_ids=["A", "A"]),
+                query("bad-interval", interval_seconds=0), query("unknown", price_path="closes.csv"), rpc("ping", "ping"),
+            ),
+            timeout=15, capture_output=True, check=True,
+        )
+        self.assertEqual(process.stderr, b"")
+        messages = {reply["id"]: reply for reply in map(json.loads, process.stdout.splitlines())}
+        tool = next(tool for tool in messages["tools"]["result"]["tools"] if tool["name"] == mcp.PORTFOLIO_ALLOCATION_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertTrue(tool["inputSchema"]["properties"]["listing_ids"]["uniqueItems"])
+
+        def data(request_id):
+            result = messages[request_id]["result"]
+            self.assertEqual(json.loads(result["content"][0]["text"]), result["structuredContent"])
+            return result["structuredContent"]
+
+        earlier = data("early")
+        self.assertEqual((earlier["expected_returns"], earlier["common_returns"], earlier["sample"]), (6, 1, None))
+        self.assertIsNone(earlier["listings"][2]["optimized_basis_points"])
+        later = data("late")
+        self.assertEqual((later["from_at"], later["through_at"], later["known_at"]), (utc(0), utc(6), utc(7)))
+        self.assertEqual(later["common_returns"], 2)
+        self.assertEqual([row["optimized_basis_points"] for row in later["listings"]], [0, 0, 10_000])
+        self.assertEqual(later["sample"]["optimized_volatility"], 0)
+        self.assertEqual(data("rewind"), earlier)
+        for key in ("bad-list", "bad-interval", "unknown"):
+            self.assertEqual(messages[key]["error"]["code"], -32602)
+        self.assertTrue(messages["duplicate"]["result"]["isError"])
         self.assertEqual(messages["ping"]["result"], {})
 
     def test_tool_and_protocol_errors_preserve_the_session(self):

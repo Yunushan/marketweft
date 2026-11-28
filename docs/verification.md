@@ -1,5 +1,11 @@
 # MarketWeft verification
 
+## 0.273.0 · Portfolio allocation research transports
+
+- The release Linux service verifies screen credentials and matching REST, WebSocket and gRPC results, rejects unknown fields and malformed data, and sends one report across the socket before closing.
+- The installed Python wheel verifies MCP read-only discovery, input validation and session recovery after an invalid request.
+- Both fixtures start with one common interval and no estimated weights. A late close restores a second interval and yields exact weights of 0, 0 and 10,000 basis points. Rewind restores the coverage-only report.
+
 ## 0.272.0 · Portfolio allocation research SDKs
 
 - A native request test checks the version, byte boundaries, exact UTC echoes, interval grid and stable unique listing IDs.

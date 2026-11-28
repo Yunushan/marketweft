@@ -6,10 +6,12 @@ use crate::{
         FormulaPage, FormulaQuery, FormulaRow, MacroCalendarPage, MacroCalendarQuery,
         MacroCalendarRow, MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery,
         MonthlyReturnsRow, OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying,
-        PortfolioFxPage, PortfolioFxQuery, PortfolioFxRate, PortfolioFxRow,
-        PortfolioScenarioCoverage, PortfolioScenarioPath, PortfolioScenarioPercentiles,
-        PortfolioScenariosPage, PortfolioScenariosQuery, RankComparisonLeg, RankComparisonPage,
-        RankComparisonQuery, RankComparisonRow, ScreenPage, ScreenQuery, ScreenRow,
+        PortfolioAllocationListing, PortfolioAllocationQuery, PortfolioAllocationResponse,
+        PortfolioAllocationSample, PortfolioFxPage, PortfolioFxQuery, PortfolioFxRate,
+        PortfolioFxRow, PortfolioScenarioCoverage, PortfolioScenarioPath,
+        PortfolioScenarioPercentiles, PortfolioScenariosPage, PortfolioScenariosQuery,
+        RankComparisonLeg, RankComparisonPage, RankComparisonQuery, RankComparisonRow, ScreenPage,
+        ScreenQuery, ScreenRow,
     },
     ApiError,
 };
@@ -19,9 +21,9 @@ use marketweft_core::{
     AmericanValuationRequest, CashOptionError, EquityTargetBook, ExerciseStyle, Formula,
     FormulaFunctionDefinition, FormulaLibrary, FxAmount, FxBook, MacroCalendar, MonthWindow,
     MonthlyClose, OptionAnalytics, OptionBook, OptionSide, PortfolioBook, PortfolioScenarioConfig,
-    PriceBook, PriceObservation, ReportKind, ScenarioAllocation, ScenarioConfig,
-    ScreenComparisonLeg, ScreenCutoff, ThreeQuantiles, UniverseAction, FORMULA_VERSION,
-    MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
+    PortfolioVarianceQuery, PriceBook, PriceObservation, ReportKind, ScenarioAllocation,
+    ScenarioConfig, ScreenComparisonLeg, ScreenCutoff, ThreeQuantiles, UniverseAction,
+    FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -38,6 +40,7 @@ pub(crate) enum ResearchPage {
     MacroCalendar(MacroCalendarPage),
     Screen(ScreenPage),
     RankComparison(RankComparisonPage),
+    PortfolioAllocation(PortfolioAllocationResponse),
     PortfolioScenarios(PortfolioScenariosPage),
     PortfolioFx(PortfolioFxPage),
     EquityConcentration(EquityConcentrationPage),
@@ -658,6 +661,85 @@ pub(crate) fn evaluate_portfolio_fx(
                 .collect(),
         },
     );
+    Ok(())
+}
+
+pub(crate) fn portfolio_allocation(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_portfolio_allocation(request(bytes)?, &mut |report| {
+        emit(ResearchPage::PortfolioAllocation(report))
+    })
+}
+
+pub(crate) fn evaluate_portfolio_allocation(
+    query: PortfolioAllocationQuery,
+    emit: &mut dyn FnMut(PortfolioAllocationResponse) -> bool,
+) -> Result<(), ApiError> {
+    let times =
+        [&query.from_at, &query.through_at, &query.known_at].map(|time| parse_exact_utc(time));
+    let [Some(from_at), Some(through_at), Some(known_at)] = times else {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use YYYY-MM-DDTHH:MM:SSZ portfolio allocation cutoffs.",
+        ));
+    };
+    if !(2..=16).contains(&query.listing_ids.len()) || query.interval_seconds == 0 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Supply 2 to 16 listings and a positive price interval.",
+        ));
+    }
+    let listings: Vec<_> = query.listing_ids.iter().map(String::as_str).collect();
+    let universe = parse_universe(&query.membership_csv).map_err(analytical_error)?;
+    let prices = PriceBook::parse(&universe, &query.prices_csv).map_err(analytical_error)?;
+    let report = prices
+        .portfolio_allocation(
+            &listings,
+            PortfolioVarianceQuery {
+                from_at,
+                through_at,
+                known_at,
+                interval_seconds: query.interval_seconds,
+            },
+        )
+        .map_err(analytical_error)?;
+    let listings = report
+        .listings
+        .into_iter()
+        .enumerate()
+        .map(|(index, row)| PortfolioAllocationListing {
+            listing_id: row.listing_id,
+            known_returns: row.known_returns as u32,
+            equal_basis_points: report
+                .sample
+                .as_ref()
+                .map(|sample| u32::from(sample.equal.weights_basis_points[index])),
+            optimized_basis_points: report
+                .sample
+                .as_ref()
+                .map(|sample| u32::from(sample.optimized.weights_basis_points[index])),
+        })
+        .collect();
+    let sample = report.sample.map(|sample| PortfolioAllocationSample {
+        equal_mean: sample.equal.mean_return,
+        equal_volatility: sample.equal.volatility,
+        optimized_mean: sample.optimized.mean_return,
+        optimized_volatility: sample.optimized.volatility,
+        variance_gap: sample.variance_gap,
+        iterations: sample.iterations,
+    });
+    emit(PortfolioAllocationResponse {
+        from_at: query.from_at,
+        through_at: query.through_at,
+        known_at: query.known_at,
+        interval_seconds: query.interval_seconds,
+        expected_returns: report.expected_returns as u32,
+        common_returns: report.common_returns as u32,
+        listings,
+        sample,
+    });
     Ok(())
 }
 

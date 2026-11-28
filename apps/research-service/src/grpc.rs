@@ -6,9 +6,9 @@ use crate::{
         AmericanOptionQuery, AmericanOptionResponse, EquityConcentrationPage,
         EquityConcentrationQuery, EquityTargetDriftPage, EquityTargetDriftQuery, FormulaPage,
         FormulaQuery, MacroCalendarPage, MacroCalendarQuery, MonthlyReturnsPage,
-        MonthlyReturnsQuery, OptionPage, OptionQuery, PortfolioFxPage, PortfolioFxQuery,
-        PortfolioScenariosPage, PortfolioScenariosQuery, RankComparisonPage, RankComparisonQuery,
-        ScreenPage, ScreenQuery,
+        MonthlyReturnsQuery, OptionPage, OptionQuery, PortfolioAllocationQuery,
+        PortfolioAllocationResponse, PortfolioFxPage, PortfolioFxQuery, PortfolioScenariosPage,
+        PortfolioScenariosQuery, RankComparisonPage, RankComparisonQuery, ScreenPage, ScreenQuery,
     },
     shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
@@ -56,6 +56,10 @@ pub(crate) fn routes(state: Arc<Server>) -> Router {
                 )
                 .route_service(
                     "/marketweft.research.v1.Research/CompareUniverseRanks",
+                    service.clone(),
+                )
+                .route_service(
+                    "/marketweft.research.v1.Research/GetPortfolioAllocation",
                     service.clone(),
                 )
                 .route_service(
@@ -208,6 +212,13 @@ impl Research for LocalResearch {
         request: GrpcRequest<RankComparisonQuery>,
     ) -> Result<GrpcResponse<RankComparisonPage>, Status> {
         unary(request, analytics::evaluate_rank_comparison).await
+    }
+
+    async fn get_portfolio_allocation(
+        &self,
+        request: GrpcRequest<PortfolioAllocationQuery>,
+    ) -> Result<GrpcResponse<PortfolioAllocationResponse>, Status> {
+        unary(request, analytics::evaluate_portfolio_allocation).await
     }
 
     async fn get_portfolio_scenarios(

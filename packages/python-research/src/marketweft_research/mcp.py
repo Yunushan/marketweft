@@ -20,7 +20,7 @@ from . import (
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.16.0"
+SERVER_VERSION = "0.17.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -34,6 +34,7 @@ AMERICAN_OPTION_TOOL_NAME = "american_option_valuation_as_of"
 MONTHLY_RETURNS_TOOL_NAME = "monthly_returns_as_of"
 MACRO_CALENDAR_TOOL_NAME = "macro_calendar_as_of"
 PORTFOLIO_SCENARIOS_TOOL_NAME = "portfolio_scenarios_as_of"
+PORTFOLIO_ALLOCATION_TOOL_NAME = "portfolio_allocation_as_of"
 PORTFOLIO_FX_TOOL_NAME = "portfolio_fx_as_of"
 EQUITY_CONCENTRATION_TOOL_NAME = "equity_concentration_as_of"
 EQUITY_TARGET_TOOL_NAME = "equity_target_drift_as_of"
@@ -652,6 +653,45 @@ EQUITY_TARGET_TOOL = {
 }
 
 
+_ALLOCATION_QUERY_TEXT = {
+    **{name: _PORTFOLIO_TEXT[name] for name in ("membership_csv", "prices_csv")},
+    **_PORTFOLIO_TIMES,
+}
+_ALLOCATION_COUNT = {"type": "integer", "minimum": 0, "maximum": 100_000}
+_ALLOCATION_WEIGHT = {"type": ["integer", "null"], "minimum": 0, "maximum": 10_000}
+PORTFOLIO_ALLOCATION_INPUT = _object_schema({
+    **_ALLOCATION_QUERY_TEXT,
+    "listing_ids": {"type": "array", "minItems": 2, "maxItems": 16, "uniqueItems": True, "items": _IDENTIFIER_SCHEMA},
+    "interval_seconds": PORTFOLIO_SCENARIOS_INPUT["properties"]["interval_seconds"],
+})
+PORTFOLIO_ALLOCATION_OUTPUT = _object_schema({
+    **_PORTFOLIO_TIMES,
+    "interval_seconds": PORTFOLIO_ALLOCATION_INPUT["properties"]["interval_seconds"],
+    "expected_returns": _ALLOCATION_COUNT,
+    "common_returns": _ALLOCATION_COUNT,
+    "listings": {"type": "array", "minItems": 2, "maxItems": 16, "items": _object_schema({
+        "listing_id": _IDENTIFIER_SCHEMA, "known_returns": _ALLOCATION_COUNT,
+        "equal_basis_points": _ALLOCATION_WEIGHT, "optimized_basis_points": _ALLOCATION_WEIGHT,
+    })},
+    "sample": _object_schema({
+        "equal_mean": {"type": "number"}, "equal_volatility": {"type": "number", "minimum": 0},
+        "optimized_mean": {"type": "number"}, "optimized_volatility": {"type": "number", "minimum": 0},
+        "variance_gap": {"type": "number", "minimum": 0},
+        "iterations": {"type": "integer", "minimum": 0, "maximum": 20_000},
+    }, nullable=True),
+})
+PORTFOLIO_ALLOCATION_TOOL = {
+    "name": PORTFOLIO_ALLOCATION_TOOL_NAME,
+    "description": (
+        "Estimate long-only minimum-variance weights on a common sample of historical returns for 2 to 16 listings. "
+        "Return observed coverage and exact basis-point weights where the sample is available."
+    ),
+    "annotations": TOOL["annotations"],
+    "inputSchema": PORTFOLIO_ALLOCATION_INPUT,
+    "outputSchema": PORTFOLIO_ALLOCATION_OUTPUT,
+}
+
+
 class RequestError(Exception):
     def __init__(self, code: int, message: str):
         super().__init__(message)
@@ -778,7 +818,7 @@ class ResearchServer:
                 raise RequestError(-32602, "The tool list fits on a single page.")
             return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL,
                               AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL, MACRO_CALENDAR_TOOL, PORTFOLIO_SCENARIOS_TOOL,
-                              PORTFOLIO_FX_TOOL, EQUITY_CONCENTRATION_TOOL, EQUITY_TARGET_TOOL]}
+                              PORTFOLIO_FX_TOOL, EQUITY_CONCENTRATION_TOOL, EQUITY_TARGET_TOOL, PORTFOLIO_ALLOCATION_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -798,6 +838,8 @@ class ResearchServer:
                 return self._monthly_returns(arguments)
             if name == MACRO_CALENDAR_TOOL_NAME:
                 return self._macro_calendar(arguments)
+            if name == PORTFOLIO_ALLOCATION_TOOL_NAME:
+                return self._portfolio_allocation(arguments)
             if name == PORTFOLIO_SCENARIOS_TOOL_NAME:
                 return self._portfolio_scenarios(arguments)
             if name == PORTFOLIO_FX_TOOL_NAME:
@@ -898,6 +940,23 @@ class ResearchServer:
                 "value_ticks": None if record.value is None else str(record.value), "supersedes": record.supersedes,
             } for release, kind, record in page],
         })
+
+    def _portfolio_allocation(self, arguments) -> dict:
+        if not isinstance(arguments, dict) or set(arguments) != PORTFOLIO_ALLOCATION_INPUT["properties"].keys():
+            raise RequestError(-32602, "Supply the documented portfolio allocation arguments.")
+        fields = {name: arguments[name] for name in _ALLOCATION_QUERY_TEXT}
+        listings = arguments["listing_ids"]
+        if not all(isinstance(value, str) and value for value in fields.values()) or not isinstance(listings, list):
+            raise RequestError(-32602, "Supply membership and prices CSV, three UTC cutoffs and a listing array.")
+        interval = _integer(arguments, "interval_seconds", 0, 1, _U32_MAX)
+        try:
+            report = self._engine.portfolio_allocation_as_of(**fields, listing_ids=listings, interval_seconds=interval)
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+        result = asdict(report)
+        result["listings"] = list(result["listings"])
+        result.update({name: fields[name] for name in _PORTFOLIO_TIMES})
+        return _structured(result)
 
     def _portfolio_scenarios(self, arguments) -> dict:
         if not isinstance(arguments, dict) or set(arguments) - PORTFOLIO_SCENARIOS_INPUT["properties"].keys():

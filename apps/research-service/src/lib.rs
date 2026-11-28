@@ -534,6 +534,11 @@ fn route_authority(
             "/v1/universe/portfolio-scenarios/stream",
             get(websocket::portfolio_scenarios),
         )
+        .route("/v1/portfolio/allocation", post(portfolio_allocation))
+        .route(
+            "/v1/portfolio/allocation/stream",
+            get(websocket::portfolio_allocation),
+        )
         .route("/v1/portfolio/fx", post(portfolio_fx))
         .route("/v1/portfolio/fx/stream", get(websocket::portfolio_fx))
         .route(
@@ -753,6 +758,19 @@ async fn macro_calendar(
     request: Request,
 ) -> Result<Json<ResearchPage>, ApiError> {
     execute(state, request, Scope::Formula, analytics::macro_calendar).await
+}
+
+async fn portfolio_allocation(
+    State(state): State<Arc<Server>>,
+    request: Request,
+) -> Result<Json<ResearchPage>, ApiError> {
+    execute(
+        state,
+        request,
+        Scope::Screen,
+        analytics::portfolio_allocation,
+    )
+    .await
 }
 
 async fn portfolio_scenarios(

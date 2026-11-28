@@ -9,6 +9,7 @@ service Research {
   rpc GetMacroCalendar(MacroCalendarQuery) returns (MacroCalendarPage);
   rpc ScreenUniverse(ScreenQuery) returns (ScreenPage);
   rpc CompareUniverseRanks(RankComparisonQuery) returns (RankComparisonPage);
+  rpc GetPortfolioAllocation(PortfolioAllocationQuery) returns (PortfolioAllocationResponse);
   rpc GetPortfolioScenarios(PortfolioScenariosQuery) returns (PortfolioScenariosPage);
   rpc GetPortfolioFx(PortfolioFxQuery) returns (PortfolioFxPage);
   rpc GetEquityConcentration(EquityConcentrationQuery) returns (EquityConcentrationPage);
@@ -173,6 +174,45 @@ message PortfolioScenariosPage {
   repeated PortfolioScenarioCoverage coverage = 14;
   PortfolioScenarioPercentiles percentiles = 15;
   repeated PortfolioScenarioPath paths = 16;
+}
+
+message PortfolioAllocationQuery {
+  string membership_csv = 1;
+  string prices_csv = 2;
+  repeated string listing_ids = 3;
+  string from_at = 4;
+  string through_at = 5;
+  string known_at = 6;
+  uint32 interval_seconds = 7;
+}
+
+message PortfolioAllocationListing {
+  string listing_id = 1;
+  uint32 known_returns = 2;
+  optional uint32 equal_basis_points = 3;
+  optional uint32 optimized_basis_points = 4;
+}
+
+message PortfolioAllocationSample {
+  // Return and volatility are fractional per-interval sample estimates.
+  double equal_mean = 1;
+  double equal_volatility = 2;
+  double optimized_mean = 3;
+  double optimized_volatility = 4;
+  // The estimated gap is in squared fractional return units.
+  double variance_gap = 5;
+  uint32 iterations = 6;
+}
+
+message PortfolioAllocationResponse {
+  string from_at = 1;
+  string through_at = 2;
+  string known_at = 3;
+  uint32 interval_seconds = 4;
+  uint32 expected_returns = 5;
+  uint32 common_returns = 6;
+  repeated PortfolioAllocationListing listings = 7;
+  PortfolioAllocationSample sample = 8;
 }
 
 message PortfolioFxAmount {
