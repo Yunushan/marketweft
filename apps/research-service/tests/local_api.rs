@@ -9,6 +9,8 @@ const FORMULA_TOKEN: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 const SCREEN_TOKEN: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const HISTORY: &str =
     include_str!("../../../crates/core/tests/fixtures/synthetic-formula-bars.csv");
+const MONTHLY_HISTORY: &str =
+    include_str!("../../../crates/core/tests/fixtures/synthetic-monthly-returns.csv");
 const MEMBERSHIP: &str = include_str!("../../../crates/core/tests/fixtures/synthetic-universe.csv");
 const PRICES: &str =
     include_str!("../../../crates/core/tests/fixtures/synthetic-universe-prices.csv");
@@ -96,6 +98,92 @@ async fn formulas_keep_exact_ticks_and_independent_cutoffs_over_http() {
     ))
     .await;
     assert_eq!(null_limit.0, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn monthly_returns_enforce_formula_scope_and_page_exact_historical_evidence() {
+    let path = "/v1/monthly-returns";
+    let mut query = json!({ "history_csv": MONTHLY_HISTORY, "first_year": 2024, "last_year": 2024,
+        "observed_through": "2024-01-15T16:00:00Z", "limit": 2 });
+    assert_eq!(
+        send(request(path, None, query.clone())).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        send(request(path, Some(SCREEN_TOKEN), query.clone()))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    let mut wrong_origin = request(path, Some(FORMULA_TOKEN), query.clone());
+    wrong_origin
+        .headers_mut()
+        .insert(header::ORIGIN, "https://example.invalid".parse().unwrap());
+    assert_eq!(send(wrong_origin).await.0, StatusCode::FORBIDDEN);
+
+    let (status, early) = send(request(path, Some(FORMULA_TOKEN), query.clone())).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(early["total_rows"], 12);
+    assert_eq!(early["next_offset"], 2);
+    assert_eq!(
+        early["rows"][0],
+        json!({ "year": 2024, "month": 1, "window": "month-to-date",
+        "prior": {"at": 1703865600, "ticks": "80000000"},
+        "current": {"at": 1705334400, "ticks": "90000000"}, "percent_micros": "12500000" })
+    );
+    assert_eq!(
+        early["rows"][1],
+        json!({ "year": 2024, "month": 2, "window": "future",
+        "prior": null, "current": null, "percent_micros": null })
+    );
+    query["observed_through"] = json!("2024-12-31T23:59:59Z");
+    let (status, late) = send(request(path, Some(FORMULA_TOKEN), query.clone())).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(late["rows"][0]["percent_micros"], "25000000");
+    assert_eq!(late["rows"][1]["percent_micros"], "-25000000");
+    query["offset"] = late["next_offset"].clone();
+    query["limit"] = json!(5);
+    let (status, resumed) = send(request(path, Some(FORMULA_TOKEN), query.clone())).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(resumed["next_offset"], 7);
+    assert_eq!(resumed["rows"][0]["current"], Value::Null);
+    assert_eq!(resumed["rows"][1]["prior"], Value::Null);
+    assert_eq!(resumed["rows"][3]["prior"]["ticks"], "0");
+    assert_eq!(resumed["rows"][4]["percent_micros"], "0");
+    query["offset"] = json!(12);
+    let (status, exhausted) = send(request(path, Some(FORMULA_TOKEN), query.clone())).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(exhausted["rows"], json!([]));
+    assert_eq!(exhausted["next_offset"], Value::Null);
+
+    query["offset"] = json!(0);
+    query["limit"] = json!(2);
+    query["observed_through"] = json!("2024-01-15T16:00:00Z");
+    assert_eq!(
+        send(request(path, Some(FORMULA_TOKEN), query.clone())).await,
+        (StatusCode::OK, early)
+    );
+    for (field, invalid) in [
+        ("limit", json!(null)),
+        ("limit", json!(121)),
+        ("offset", json!(361)),
+        ("history_path", json!("client.csv")),
+        ("observed_through", json!("2024-02-30T00:00:00Z")),
+    ] {
+        let mut malformed = query.clone();
+        malformed[field] = invalid;
+        assert_eq!(
+            send(request(path, Some(FORMULA_TOKEN), malformed)).await.0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+    query["history_csv"] = json!("time,open,high,low,close,volume\n2023-12-01,0.000001,0.000001,0.000001,0.000001,0\n2024-01-01,2000000000,2000000000,2000000000,2000000000,0\n");
+    let (status, wide) = send(request(path, Some(FORMULA_TOKEN), query)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        wide["rows"][0]["percent_micros"],
+        "199999999999999900000000"
+    );
 }
 
 #[tokio::test]

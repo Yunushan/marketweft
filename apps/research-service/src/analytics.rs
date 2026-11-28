@@ -9,10 +9,11 @@ use crate::{
 };
 use axum::http::StatusCode;
 use marketweft_core::{
-    parse_csv, parse_dividends, parse_exact_utc, parse_universe, AmericanValuationRequest,
-    CashOptionError, ExerciseStyle, Formula, FormulaFunctionDefinition, FormulaLibrary,
-    OptionAnalytics, OptionBook, OptionSide, PriceBook, PriceObservation, ScreenComparisonLeg,
-    ScreenCutoff, UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS,
+    monthly_returns, parse_csv, parse_dividends, parse_exact_utc, parse_universe,
+    AmericanValuationRequest, CashOptionError, ExerciseStyle, Formula, FormulaFunctionDefinition,
+    FormulaLibrary, MonthWindow, MonthlyClose, OptionAnalytics, OptionBook, OptionSide, PriceBook,
+    PriceObservation, ScreenComparisonLeg, ScreenCutoff, UniverseAction, FORMULA_VERSION,
+    MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -24,10 +25,60 @@ const MAX_RESULTS: u64 = 1000;
 #[serde(untagged)]
 pub(crate) enum ResearchPage {
     Formula(FormulaPage),
+    MonthlyReturns(MonthlyReturnsPage),
     Screen(ScreenPage),
     RankComparison(RankComparisonPage),
     Options(OptionPage),
     AmericanOption(AmericanOptionResponse),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MonthlyReturnsQuery {
+    history_csv: String,
+    first_year: u16,
+    last_year: u16,
+    observed_through: String,
+    #[serde(default, deserialize_with = "present")]
+    offset: Option<u64>,
+    #[serde(default, deserialize_with = "present")]
+    limit: Option<u64>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct MonthlyReturnsPage {
+    first_year: u16,
+    last_year: u16,
+    observed_through: String,
+    total_rows: u32,
+    offset: u32,
+    next_offset: Option<u32>,
+    rows: Vec<MonthlyReturnsRow>,
+}
+
+#[derive(Serialize)]
+struct MonthlyReturnsRow {
+    year: u16,
+    month: u8,
+    window: &'static str,
+    prior: Option<MonthlyReturnsClose>,
+    current: Option<MonthlyReturnsClose>,
+    percent_micros: Option<String>,
+}
+
+#[derive(Serialize)]
+struct MonthlyReturnsClose {
+    at: i64,
+    ticks: String,
+}
+
+impl From<MonthlyClose> for MonthlyReturnsClose {
+    fn from(close: MonthlyClose) -> Self {
+        Self {
+            at: close.at,
+            ticks: close.ticks.to_string(),
+        }
+    }
 }
 
 pub(crate) fn present<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
@@ -112,6 +163,66 @@ pub(crate) fn formula(
     evaluate_formula(request(bytes)?, &mut |page| {
         emit(ResearchPage::Formula(page))
     })
+}
+
+pub(crate) fn monthly_return_page(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    let query: MonthlyReturnsQuery = request(bytes)?;
+    let limit = query.limit.unwrap_or(60);
+    if limit > 120 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Monthly returns page size must be 1–120.",
+        ));
+    }
+    let (offset, limit) = pagination(
+        query.offset,
+        Some(limit),
+        12 * u64::from(MAX_MONTHLY_RETURN_YEARS),
+    )?;
+    let through = parse_exact_utc(&query.observed_through).ok_or_else(|| {
+        ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.",
+        )
+    })?;
+    let bars = parse_csv(&query.history_csv).map_err(analytical_error)?;
+    let rows = monthly_returns(query.first_year, query.last_year, through, &bars)
+        .map_err(analytical_error)?;
+    pages(
+        offset,
+        limit,
+        rows.len(),
+        emit,
+        |offset, range, next_offset| {
+            ResearchPage::MonthlyReturns(MonthlyReturnsPage {
+                first_year: query.first_year,
+                last_year: query.last_year,
+                observed_through: query.observed_through.clone(),
+                total_rows: rows.len() as u32,
+                offset,
+                next_offset,
+                rows: rows[range]
+                    .iter()
+                    .map(|row| MonthlyReturnsRow {
+                        year: row.year,
+                        month: row.month,
+                        window: match row.window {
+                            MonthWindow::Complete => "complete",
+                            MonthWindow::MonthToDate => "month-to-date",
+                            MonthWindow::Future => "future",
+                        },
+                        prior: row.prior.map(Into::into),
+                        current: row.current.map(Into::into),
+                        percent_micros: row.percent.map(|value| value.to_string()),
+                    })
+                    .collect(),
+            })
+        },
+    );
+    Ok(())
 }
 
 pub(crate) fn evaluate_formula(

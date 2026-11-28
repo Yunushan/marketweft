@@ -17,6 +17,7 @@ The service prints the bound loopback address. The port defaults to 4174. Set `M
 | Method and path | Required scope | Request |
 | --- | --- | --- |
 | `POST /v1/formula` | `MARKETWEFT_FORMULA_TOKEN` | `formula`, `history_csv`, optional `observed_through` UTC seconds and ordered `functions` |
+| `POST /v1/monthly-returns` | `MARKETWEFT_FORMULA_TOKEN` | `history_csv`, `first_year`, `last_year` and an exact `observed_through` UTC timestamp |
 | `POST /v1/universe/screen` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `prices_csv`, `baseline_at`, `effective_at` and `known_at` |
 | `POST /v1/universe/rank-comparison` | `MARKETWEFT_SCREEN_TOKEN` | Both CSVs, a shared baseline and two effective and known cutoff pairs |
 | `POST /v1/options/snapshot` | `MARKETWEFT_OPTIONS_TOKEN` | `underlying_csv`, `quotes_csv`, `effective_at`, `known_at` and optional `max_age` |
@@ -27,6 +28,12 @@ The formula, universe and option snapshot endpoints accept `offset` and `limit`.
 The response carries exact integer values as decimal strings. Alongside each screen row the service returns the selected membership change and selected close observation timestamps. Missing prices and unavailable returns are `null`. [Research universe screening](research-universe-screen.md) · [Time-series formulas](time-series-language.md).
 
 The service accepts at most 16 MiB per JSON body and reads each body within five seconds. The server returns 401 for missing or invalid tokens, 403 for a different scope or origin, and 422 for inputs rejected by the research engine.
+
+## Monthly returns
+
+Send `POST /v1/monthly-returns` with a formula credential on the loopback or configured private TLS listener. Supply the OHLCV CSV contents as `history_csv` and up to 30 consecutive UTC years in `first_year` and `last_year`. `observed_through` is an inclusive `YYYY-MM-DDTHH:MM:SSZ` timestamp. The route shares the formula scope's admission limits, managed quotas and audit receipts. [Monthly returns calendar](chart-workspace.md#monthly-returns-calendar).
+
+Each row contains the year, month, UTC window state, preceding and current close evidence, and the return. Close timestamps are whole UTC seconds. Price ticks and the return in millionths of a percentage point are exact decimal strings. Unavailable evidence and results are `null`. Supply `limit` from 1 to 120, with 60 as the default. To continue, pass `next_offset` as `offset` with the same CSV, years and cutoff. A `null` offset completes the result.
 
 ## Compare universe ranks
 

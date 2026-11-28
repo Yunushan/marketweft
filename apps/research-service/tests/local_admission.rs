@@ -43,12 +43,12 @@ async fn websocket(server: &ResearchProcess) -> Result<Socket, Error> {
         .map(|(socket, _)| socket)
 }
 
-async fn rest_overload(server: &ResearchProcess) -> String {
+async fn rest_overload(server: &ResearchProcess, path: &str) -> String {
     let authority = server.origin.strip_prefix("http://").unwrap();
     timeout(IO_DEADLINE, async {
         let mut socket = TcpStream::connect(authority).await.unwrap();
         let request = format!(
-            "POST /v1/formula HTTP/1.1\r\nHost: {authority}\r\nAuthorization: Bearer {FORMULA_TOKEN}\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{{}}"
+            "POST {path} HTTP/1.1\r\nHost: {authority}\r\nAuthorization: Bearer {FORMULA_TOKEN}\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{{}}"
         );
         socket.write_all(request.as_bytes()).await.unwrap();
         let mut response = Vec::new();
@@ -103,9 +103,11 @@ async fn shared_limits_reject_a_burst_and_release_capacity_on_disconnect() {
     let error = websocket(&server).await.unwrap_err();
     assert!(matches!(error, Error::Http(response)
         if response.status() == 429 && response.headers()["retry-after"] == "1"));
-    let response = rest_overload(&server).await.to_ascii_lowercase();
-    assert!(response.starts_with("http/1.1 429 "));
-    assert!(response.contains("\r\nretry-after: 1\r\n"));
+    for path in ["/v1/formula", "/v1/monthly-returns"] {
+        let response = rest_overload(&server, path).await.to_ascii_lowercase();
+        assert!(response.starts_with("http/1.1 429 "));
+        assert!(response.contains("\r\nretry-after: 1\r\n"));
+    }
 
     let channel = Endpoint::from_shared(server.origin.clone())
         .unwrap()

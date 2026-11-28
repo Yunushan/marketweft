@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.221.0 · Monthly returns over scoped REST
+
+- Local HTTP fixtures and a standalone loopback smoke test verify formula-scope authentication, exact close and return evidence and historical cutoffs. The route also checks origin, bounded pages, malformed fields and invalid dates.
+- The local admission fixture verifies that the new endpoint shares capacity with the existing research routes and returns the same retry header while all slots are occupied.
+
+[REST monthly returns](local-rest-research.md#monthly-returns)
+
 ## 0.220.0 · Monthly returns over local MCP
 
 - The installed Python wheel advertises a read-only monthly returns tool with input and output schemas. A subprocess fixture negotiates MCP, advances and rewinds the cutoff and verifies exact signed string values, missing close evidence and repeatable page boundaries.

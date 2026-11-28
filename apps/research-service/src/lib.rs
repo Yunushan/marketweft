@@ -517,6 +517,7 @@ fn route_authority(
     let grpc_routes = grpc::routes(Arc::clone(&state));
     Router::new()
         .route("/v1/formula", post(formula))
+        .route("/v1/monthly-returns", post(monthly_returns))
         .route("/v1/universe/screen", post(screen))
         .route("/v1/universe/rank-comparison", post(rank_comparison))
         .route("/v1/options/snapshot", post(option_snapshot))
@@ -700,6 +701,19 @@ async fn formula(
     request: Request,
 ) -> Result<Json<ResearchPage>, ApiError> {
     execute(state, request, Scope::Formula, analytics::formula).await
+}
+
+async fn monthly_returns(
+    State(state): State<Arc<Server>>,
+    request: Request,
+) -> Result<Json<ResearchPage>, ApiError> {
+    execute(
+        state,
+        request,
+        Scope::Formula,
+        analytics::monthly_return_page,
+    )
+    .await
 }
 
 async fn screen(
