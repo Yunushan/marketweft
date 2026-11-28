@@ -54,8 +54,10 @@ pub(crate) use successor::{
     parse_successor_terms, successor_delivery_postings_from_observed_positions,
     value_successor_shares, SuccessorReports,
 };
+#[cfg(target_arch = "wasm32")]
+pub(crate) use targets::compare_equity_target_reports;
 pub(crate) use targets::{equity_target_report, MAX_EQUITY_TARGET_CSV_BYTES};
-pub use targets::{EquityTargetBook, EquityTargetDrift, EquityTargetReport};
+pub use targets::{EquityTargetBook, EquityTargetChange, EquityTargetDrift, EquityTargetReport};
 
 pub use successor::{
     portfolio_successor_delivery_ledger, portfolio_successor_shares_as_of,

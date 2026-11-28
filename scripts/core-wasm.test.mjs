@@ -2112,6 +2112,36 @@ test('Wasm reconciles versioned equity targets and actual weights independently 
     targets.replace(',60', ',61'), time('10'), time('12')), /Known USD equity targets exceed 100%/);
 });
 
+test('Wasm compares exact equity target drift and preserves both report vintages', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
+  const reports = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices', 'delisting-terms', 'equity-targets'].map(fixture));
+  const time = minute => '2025-06-02T14:' + minute + ':00Z';
+  const cutoff = (effective, known = effective) => ({ effectiveAt: time(effective), knownAt: time(known) });
+  const pending = cutoff('10', '11');
+  const original = cutoff('10', '12');
+  const revised = cutoff('10', '16');
+  const change = (before, after) => core.compareEquityTargets(...reports, before, after);
+  assert.deepEqual(change(pending, revised)[1], {
+    currency: 'USD', listing: 'BETA-001',
+    before: { inEquity: true, actualWeightMicros: null, target: { effectiveAt: 1748872800, observedAt: 1748873460, weightMicros: 60000000n }, driftMicros: null },
+    after: { inEquity: true, actualWeightMicros: 71227080n, target: { effectiveAt: 1748872800, observedAt: 1748873760, weightMicros: 70000000n }, driftMicros: 1227080n },
+    driftChangeMicros: null,
+  });
+  assert.equal(change(original, revised)[1].driftChangeMicros, -12071349n);
+  assert.equal(change(revised, original)[1].driftChangeMicros, 12071349n);
+  assert.equal(change(original, original)[1].driftChangeMicros, 0n);
+  const [successor, zero, withdrawn] = change(original, cutoff('45'));
+  assert.equal(successor.before, null);
+  assert.equal(successor.after.driftMicros, 0n);
+  assert.equal(zero.after.target.weightMicros, 0n);
+  assert.deepEqual(withdrawn.after, {
+    inEquity: false, actualWeightMicros: null,
+    target: { effectiveAt: 1748874900, observedAt: 1748874900, weightMicros: null }, driftMicros: null,
+  });
+  assert.equal(withdrawn.driftChangeMicros, null);
+  assert.throws(() => change({ ...original, knownAt: '2025-02-29T14:12:00Z' }, revised), /portfolio cutoffs/);
+});
+
 test('Wasm compares exact equity concentration fields across independent cutoffs', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
   const reports = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices', 'delisting-terms'].map(fixture));

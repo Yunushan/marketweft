@@ -69,6 +69,14 @@ The table subtracts the target from the actual share of known gross equity in th
 
 In the demo with effective time 14:10 UTC on 2025-06-02, BETA-001’s 60% target arrives at 14:11 and its first close at 14:12. That close produces a drift of 13.298429 percentage points. At known 14:16 the 70% target and revised close reduce drift to 1.22708 points. Rewind the knowledge time to restore the original figures. At effective and known 14:45 the withdrawn USD target stays visible alongside the distinct EUR BETA-002 target and its zero drift. [Synthetic equity targets](../crates/core/tests/fixtures/synthetic-equity-targets.csv)
 
+### Compare equity targets
+
+Choose **Pin target baseline** in **Equity allocation targets**, then run another query with different effective or known times. The terminal compares the stable listing and quote currency across both cutoffs. Each side shows the actual weight, target and drift. The change is the current drift minus the baseline drift when both are available. Choose **Replace target baseline** to pin the current query or **Clear target baseline** to remove the comparison. Loading new target or portfolio reports clears the baseline.
+
+With effective 14:10 UTC on June 2, 2025, pin the result known at 14:12 and advance knowledge to 14:16. BETA-001’s drift falls by exactly 12.071349 percentage points. At 14:45 the old USD row keeps its withdrawal and the EUR successor appears on the current side with zero drift.
+
+Choose **Download target comparison** to save every row, including rows on later pages, with both query cutoffs and each target's effective and observed UTC times. The CSV uses signed integer millionths of a percentage point. Each side records its equity and target states. Blank numeric fields represent unavailable values. A known zero is `0`. Rewind to repeat the same export bytes offline.
+
 ### Equity target research SDKs
 
 TypeScript exposes `equityTargetDriftAsOf(membershipCsv, holdingsCsv, pricesCsv, termsCsv, targetsCsv, effectiveAt, knownAt)`. Python exposes `ResearchEngine.equity_target_drift_as_of` with the same five reports and keyword arguments `effective_at` and `known_at`. The delisting terms may be empty. Both methods return the applied cutoffs in Unix seconds and the same rows as the browser. Weights and drift are integer millionths of a percentage point. The nested target report retains both source times and a withdrawn target has an empty weight. [Research service](local-rest-research.md#equity-target-drift) · [Local MCP tool](local-mcp-research.md#equity-target-drift) · [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md)

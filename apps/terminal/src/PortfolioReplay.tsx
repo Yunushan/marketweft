@@ -7,6 +7,7 @@ import { PortfolioRightsExercises } from './PortfolioRightsExercises'
 import { PortfolioRightsSettlementJournal } from './PortfolioRightsSettlementJournal'
 import { PortfolioCapitalReturns } from './PortfolioCapitalReturns'
 import { PortfolioCapitalReturnComparison } from './PortfolioCapitalReturnComparison'
+import { PortfolioEquityTargetComparison } from './PortfolioEquityTargetComparison'
 import { quoteText } from './chart-export'
 import { downloadFile } from './download'
 import { fixed } from './fixed-point'
@@ -268,6 +269,8 @@ function EquityTargets({ core, source, membership, demo, effective, known }: {
             <button type="button" className="outline" disabled={current === last} onClick={() => setPage(current + 1)}>Next targets</button>
           </div>}
         </div>)}
+      {active && <PortfolioEquityTargetComparison core={core} membership={membership} source={source}
+        active={active} effective={effective} known={known} canCompare={!!result?.rows} />}
     </section>
   </details>
 }

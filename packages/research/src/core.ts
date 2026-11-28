@@ -1023,13 +1023,24 @@ export interface EquityConcentrationChange {
   rankImprovement: number | null;
 }
 
-export interface EquityTargetDrift {
-  currency: string | null;
-  listing: string;
+export interface EquityTargetEvidence {
   inEquity: boolean;
   actualWeightMicros: bigint | null;
   target: { effectiveAt: number; observedAt: number; weightMicros: bigint | null } | null;
   driftMicros: bigint | null;
+}
+
+export interface EquityTargetDrift extends EquityTargetEvidence {
+  currency: string | null;
+  listing: string;
+}
+
+export interface EquityTargetChange {
+  currency: string | null;
+  listing: string;
+  before: EquityTargetEvidence | null;
+  after: EquityTargetEvidence | null;
+  driftChangeMicros: bigint | null;
 }
 
 export interface PortfolioSnapshot {
@@ -1379,6 +1390,8 @@ export interface MarketCore {
   portfolioCapitalReturnsAsOf(membership: string, holdings: string, returns: string, basis: string, effectiveAt: string, knownAt: string): PortfolioCapitalReturn[];
   compareEquityConcentration(membership: string, holdings: string, prices: string, terms: string,
     before: PortfolioCutoff, after: PortfolioCutoff): EquityConcentrationChange[];
+  compareEquityTargets(membership: string, holdings: string, prices: string, terms: string, targets: string,
+    before: PortfolioCutoff, after: PortfolioCutoff): EquityTargetChange[];
   equityTargetDriftAsOf(membership: string, holdings: string, prices: string, terms: string, targets: string,
     effectiveAt: string, knownAt: string): EquityTargetDrift[];
   comparePortfolioCapitalReturns(membership: string, holdings: string, returns: string, basis: string, baseline: CapitalReturnCutoff, comparison: CapitalReturnCutoff): CapitalReturnComparison[];
@@ -1569,6 +1582,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_rights_settlement_journal(membershipBytes: number, rightsBytes: number): number;
   mw_portfolio_capital_returns_as_of(membershipBytes: number, holdingBytes: number, returnsBytes: number): number;
   mw_compare_equity_concentration(membershipBytes: number, holdingBytes: number, priceBytes: number): number;
+  mw_compare_equity_targets(membershipBytes: number, holdingBytes: number, priceBytes: number, termsBytes: number): number;
   mw_equity_target_drift(membershipBytes: number, holdingBytes: number, priceBytes: number, termsBytes: number): number;
   mw_compare_portfolio_capital_returns(membershipBytes: number, holdingBytes: number, returnsBytes: number): number;
   mw_portfolio_successor_delivery_ledger(membershipBytes: number, holdingsBytes: number): number;
@@ -1942,6 +1956,14 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
 
   function portfolioInput(effectiveAt: string, knownAt: string, ...files: string[]) {
     portfolioTimesInput([effectiveAt, knownAt], ...files);
+  }
+
+  function equityTargetEvidence([inEquity, actual, targetEffective, observed, target, drift]: string[]): EquityTargetEvidence {
+    return { inEquity: inEquity === '1', actualWeightMicros: actual ? BigInt(actual) : null,
+      target: targetEffective ? {
+        effectiveAt: Number(targetEffective), observedAt: Number(observed), weightMicros: target ? BigInt(target) : null,
+      } : null,
+      driftMicros: drift ? BigInt(drift) : null };
   }
 
   function portfolioTimesInput(times: string[], ...files: string[]) {
@@ -3318,13 +3340,22 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         encoder.encode(holdings).length, encoder.encode(prices).length, encoder.encode(terms).length)));
       if (!text) return [];
       return text.slice(0, -1).split('\n').map(line => {
-        const [currency, listing, inEquity, actual, targetEffective, observed, target, drift] = line.split('\t');
-        return { currency: currency || null, listing, inEquity: inEquity === '1',
-          actualWeightMicros: actual ? BigInt(actual) : null,
-          target: targetEffective ? {
-            effectiveAt: Number(targetEffective), observedAt: Number(observed), weightMicros: target ? BigInt(target) : null,
-          } : null,
-          driftMicros: drift ? BigInt(drift) : null };
+        const [currency, listing, ...evidence] = line.split('\t');
+        return { currency: currency || null, listing, ...equityTargetEvidence(evidence) };
+      });
+    },
+    compareEquityTargets(membership, holdings, prices, terms, targets, before, after) {
+      portfolioTimesInput([before.effectiveAt, before.knownAt, after.effectiveAt, after.knownAt],
+        membership, holdings, prices, terms, targets);
+      const text = decoder.decode(output(api.mw_compare_equity_targets(encoder.encode(membership).length,
+        encoder.encode(holdings).length, encoder.encode(prices).length, encoder.encode(terms).length)));
+      if (!text) return [];
+      return text.slice(0, -1).split('\n').map(line => {
+        const [currency, listing, ...fields] = line.split('\t');
+        return { currency: currency || null, listing,
+          before: fields[0] ? equityTargetEvidence(fields.slice(0, 6)) : null,
+          after: fields[6] ? equityTargetEvidence(fields.slice(6, 12)) : null,
+          driftChangeMicros: fields[12] ? BigInt(fields[12]) : null };
       });
     },
     compareEquityConcentration(membership, holdings, prices, terms, before, after) {

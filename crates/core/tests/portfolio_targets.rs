@@ -130,3 +130,57 @@ fn targets_reject_duplicate_keys_and_report_overallocation_at_the_known_cutoff()
         .drift_as_of(&portfolio.as_of(time(10), time(16)))
         .is_ok());
 }
+
+#[test]
+fn target_comparison_keeps_currency_keys_and_independent_evidence() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let book = PortfolioBook::parse(&universe, HOLDINGS, PRICES, TERMS).unwrap();
+    let targets = EquityTargetBook::parse(&universe, TARGETS).unwrap();
+    let at = |effective, known| book.as_of(time(effective), time(known));
+    let pending = at(10, 11);
+    let original = at(10, 12);
+    let revised = at(10, 16);
+    let missing = targets.compare(&pending, &original).unwrap();
+    assert_eq!(
+        missing[1].before.unwrap().target.unwrap().weight_micros,
+        Some(60_000_000)
+    );
+    assert_eq!(missing[1].before.unwrap().drift_micros, None);
+    assert_eq!(missing[1].drift_change_micros, None);
+
+    let correction = targets.compare(&original, &revised).unwrap();
+    assert_eq!(correction[1].drift_change_micros, Some(-12_071_349));
+    assert_eq!(
+        correction[1].before.unwrap().target.unwrap().observed_at,
+        time(11)
+    );
+    assert_eq!(
+        correction[1].after.unwrap().target.unwrap().observed_at,
+        time(16)
+    );
+    assert_eq!(
+        targets.compare(&revised, &original).unwrap()[1].drift_change_micros,
+        Some(12_071_349)
+    );
+    assert_eq!(
+        targets.compare(&original, &original).unwrap()[1].drift_change_micros,
+        Some(0)
+    );
+
+    let successor = at(45, 45);
+    let rows = targets.compare(&original, &successor).unwrap();
+    assert_eq!(
+        (rows[0].listing_id, rows[0].currency),
+        ("BETA-002", Some("EUR"))
+    );
+    assert_eq!(rows[0].before, None);
+    assert_eq!(rows[0].after.unwrap().drift_micros, Some(0));
+    assert_eq!(
+        rows[1].after.unwrap().target.unwrap().weight_micros,
+        Some(0)
+    );
+    assert_eq!(rows[2].listing_id, "BETA-001");
+    assert!(rows[2].after.unwrap().actual.is_none());
+    assert_eq!(rows[2].after.unwrap().target.unwrap().weight_micros, None);
+    assert_eq!(rows[2].drift_change_micros, None);
+}

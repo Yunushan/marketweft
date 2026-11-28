@@ -222,10 +222,45 @@ test('offline equity targets follow their revisions separately from prices and d
   await expect(cells('BETA-001')).toHaveText(['USD', 'Outside equity', 'Withdrawn', '—', utc('14:35:00'), utc('14:35:00')])
   await query('14:10:00', '14:12:00')
   await expect(cells('BETA-001')).toHaveText(['USD', '73.298429%', '60%', '13.298429', originalTime, knownOriginal])
+  await targets.getByRole('button', { name: 'Pin target baseline', exact: true }).click()
+  const comparison = targets.getByRole('table', { name: 'Equity target comparison', exact: true })
+  const comparisonCells = id => comparison.getByRole('row', { name: new RegExp('^' + id + ' ') }).getByRole('cell')
+  const downloadButton = targets.getByRole('button', { name: 'Download target comparison', exact: true })
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await downloadButton.click()
+    const file = await pending
+    expect(file.suggestedFilename()).toBe('portfolio-equity-target-comparison.csv')
+    return readFile(await file.path(), 'utf8')
+  }
+  const initial = await download()
+  await expect(comparisonCells('BETA-001')).toHaveText(['USD', '73.298429% · 60% · 13.298429', '73.298429% · 60% · 13.298429', '0'])
+  await query('14:10:00', '14:16:00')
+  await expect(comparisonCells('BETA-001')).toHaveText(['USD', '73.298429% · 60% · 13.298429', '71.22708% · 70% · 1.22708', '-12.071349'])
+  const revised = await download()
+  expect(revised.split('\r\n')[2]).toBe([
+    utc('14:10:00'), utc('14:12:00'), utc('14:10:00'), utc('14:16:00'), '"BETA-001"', 'USD',
+    'weight-known', '73298429', 'reported', '60000000', originalTime, knownOriginal, '13298429',
+    'weight-known', '71227080', 'reported', '70000000', originalTime, utc('14:16:00'), '1227080', '-12071349',
+  ].join(','))
+  await query('14:45:00')
+  await expect(comparisonCells('BETA-002')).toHaveText(['EUR', 'Absent', '100% · 100% · 0', '—'])
+  await expect(comparisonCells('BETA-001')).toHaveText(['USD', '73.298429% · 60% · 13.298429', 'Outside equity · Withdrawn · —', '—'])
+  const delisted = await download()
+  expect(delisted).toContain('"BETA-002",EUR,absent,,,,,,,weight-known,100000000,reported,100000000,' + utc('14:45:00'))
+  expect(delisted).toContain('outside-equity,,withdrawn,,' + utc('14:35:00') + ',' + utc('14:35:00') + ',,\r\n')
+  await query('14:10:00', '14:12:00')
+  expect(await download()).toBe(initial)
   await targets.getByLabel('Equity targets CSV').setInputFiles({ name: 'invalid.csv', mimeType: 'text/csv', buffer: Buffer.from('invalid') })
   await targets.getByRole('button', { name: 'Load equity targets', exact: true }).click()
   await expect(targets.getByRole('alert')).toContainText('Expected equity target header')
   await expect(cells('BETA-001')).toHaveText(['USD', '73.298429%', '60%', '13.298429', originalTime, knownOriginal])
+  await expect(comparison).toBeVisible()
+  await targets.getByRole('button', { name: 'Clear target baseline', exact: true }).click()
+  await expect(comparison).toHaveCount(0)
+  await targets.getByRole('button', { name: 'Pin target baseline', exact: true }).click()
+  await targets.getByRole('button', { name: 'Load equity targets demo', exact: true }).click()
+  await expect(comparison).toHaveCount(0)
   expect(await catalogContents(page)).toEqual(saved)
 })
 

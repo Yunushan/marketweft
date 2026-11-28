@@ -34,6 +34,15 @@ pub struct EquityTargetDrift<'a> {
     pub drift_micros: Option<i64>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EquityTargetChange<'a> {
+    pub currency: Option<&'a str>,
+    pub listing_id: &'a str,
+    pub before: Option<EquityTargetDrift<'a>>,
+    pub after: Option<EquityTargetDrift<'a>>,
+    pub drift_change_micros: Option<i64>,
+}
+
 #[derive(Default)]
 struct AllocationEvidence<'a> {
     actual: Option<EquityConcentrationPosition<'a>>,
@@ -153,6 +162,46 @@ impl<'csv> EquityTargetBook<'csv> {
             )
             .collect())
     }
+
+    /// Compare independently observed targets and positions by quote currency and listing.
+    pub fn compare<'a>(
+        &'a self,
+        before: &PortfolioSnapshot<'a>,
+        after: &PortfolioSnapshot<'a>,
+    ) -> Result<Vec<EquityTargetChange<'a>>, String> {
+        let mut changes = BTreeMap::<_, EquityTargetChange<'a>>::new();
+        for row in self.drift_as_of(before)? {
+            changes.insert(
+                (row.currency, row.listing_id),
+                EquityTargetChange {
+                    currency: row.currency,
+                    listing_id: row.listing_id,
+                    before: Some(row),
+                    after: None,
+                    drift_change_micros: None,
+                },
+            );
+        }
+        for row in self.drift_as_of(after)? {
+            let change =
+                changes
+                    .entry((row.currency, row.listing_id))
+                    .or_insert(EquityTargetChange {
+                        currency: row.currency,
+                        listing_id: row.listing_id,
+                        before: None,
+                        after: None,
+                        drift_change_micros: None,
+                    });
+            change.after = Some(row);
+            change.drift_change_micros = change
+                .before
+                .and_then(|before| before.drift_micros)
+                .zip(row.drift_micros)
+                .map(|(before, after)| after - before);
+        }
+        Ok(changes.into_values().collect())
+    }
 }
 
 pub(crate) struct EquityTargetWire {
@@ -167,6 +216,87 @@ pub(crate) fn equity_target_report(
     lengths: [usize; 4],
 ) -> Result<EquityTargetWire, String> {
     let (effective_at, known_at, reports) = portfolio_source_input(input)?;
+    let [membership, holdings, prices, terms, targets] = equity_target_sources(reports, lengths)?;
+    let universe = crate::parse_universe(membership)?;
+    let book = PortfolioBook::parse(&universe, holdings, prices, terms)?;
+    let targets = EquityTargetBook::parse(&universe, targets)?;
+    let snapshot = book.as_of(effective_at, known_at);
+    let rows = targets.drift_as_of(&snapshot)?;
+    let count = rows.len();
+    let mut text = String::new();
+    for row in rows {
+        write!(
+            text,
+            "{}\t{}\t",
+            row.currency.unwrap_or_default(),
+            row.listing_id
+        )
+        .unwrap();
+        write_target_evidence(&mut text, row);
+        text.push('\n');
+    }
+    Ok(EquityTargetWire {
+        effective_at,
+        known_at,
+        count,
+        rows: text,
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn compare_equity_target_reports(
+    input: &str,
+    lengths: [usize; 4],
+) -> Result<String, String> {
+    let (before_effective, before_known, input) = portfolio_source_input(input)?;
+    let (after_effective, after_known, reports) = portfolio_source_input(input)?;
+    let [membership, holdings, prices, terms, targets] = equity_target_sources(reports, lengths)?;
+    let universe = crate::parse_universe(membership)?;
+    let book = PortfolioBook::parse(&universe, holdings, prices, terms)?;
+    let targets = EquityTargetBook::parse(&universe, targets)?;
+    let before = book.as_of(before_effective, before_known);
+    let after = book.as_of(after_effective, after_known);
+    let mut text = String::new();
+    for row in targets.compare(&before, &after)? {
+        write!(
+            text,
+            "{}\t{}\t",
+            row.currency.unwrap_or_default(),
+            row.listing_id
+        )
+        .unwrap();
+        for side in [row.before, row.after] {
+            if let Some(side) = side {
+                write_target_evidence(&mut text, side);
+            } else {
+                text.push_str("\t\t\t\t\t");
+            }
+            text.push('\t');
+        }
+        writeln!(text, "{}", wire_number(row.drift_change_micros)).unwrap();
+    }
+    Ok(text)
+}
+
+fn write_target_evidence(text: &mut String, row: EquityTargetDrift<'_>) {
+    write!(
+        text,
+        "{}\t{}\t{}\t{}\t{}\t{}",
+        u8::from(row.actual.is_some()),
+        wire_number(row.actual.and_then(|actual| actual.weight_micros)),
+        wire_number(row.target.map(|target| target.effective_at)),
+        wire_number(row.target.map(|target| target.observed_at)),
+        wire_number(row.target.and_then(|target| target.weight_micros)),
+        wire_number(row.drift_micros),
+    )
+    .unwrap();
+}
+
+fn wire_number(value: Option<i64>) -> String {
+    value.map(|number| number.to_string()).unwrap_or_default()
+}
+
+fn equity_target_sources(reports: &str, lengths: [usize; 4]) -> Result<[&str; 5], String> {
     let [membership_bytes, holding_bytes, price_bytes, terms_bytes] = lengths;
     let (membership, reports) = reports
         .split_at_checked(membership_bytes)
@@ -180,35 +310,7 @@ pub(crate) fn equity_target_report(
     let (terms, targets) = reports
         .split_at_checked(terms_bytes)
         .ok_or("Supply delisting terms and equity targets.")?;
-    let universe = crate::parse_universe(membership)?;
-    let book = PortfolioBook::parse(&universe, holdings, prices, terms)?;
-    let targets = EquityTargetBook::parse(&universe, targets)?;
-    let snapshot = book.as_of(effective_at, known_at);
-    let rows = targets.drift_as_of(&snapshot)?;
-    let count = rows.len();
-    let field = |value: Option<i64>| value.map(|number| number.to_string()).unwrap_or_default();
-    let mut text = String::new();
-    for row in rows {
-        writeln!(
-            text,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            row.currency.unwrap_or_default(),
-            row.listing_id,
-            u8::from(row.actual.is_some()),
-            field(row.actual.and_then(|actual| actual.weight_micros)),
-            field(row.target.map(|target| target.effective_at)),
-            field(row.target.map(|target| target.observed_at)),
-            field(row.target.and_then(|target| target.weight_micros)),
-            field(row.drift_micros),
-        )
-        .unwrap();
-    }
-    Ok(EquityTargetWire {
-        effective_at,
-        known_at,
-        count,
-        rows: text,
-    })
+    Ok([membership, holdings, prices, terms, targets])
 }
 
 fn visible_report(

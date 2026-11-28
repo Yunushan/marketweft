@@ -1,5 +1,11 @@
 # MarketWeft verification
 
+## 0.269.0 · Equity target drift comparison
+
+- The Rust and Wasm tests join both cutoff results by currency and stable listing, preserve exact target observations and leave a change unavailable when a drift is missing.
+- The offline Chromium test pins the 14:12 UTC evidence and checks BETA-001's exact revised drift change of −12.071349 percentage points at 14:16. It checks withdrawn USD and present EUR successor evidence at 14:45 and regenerates identical CSV bytes after rewind.
+- The CSV preserves exact query and target times and distinguishes absence, unknown weight, withdrawal and zero. A rejected target import retains the baseline, and loading a valid replacement clears it.
+
 ## 0.268.0 · Equity target research transports
 
 - The Linux research service test checks scope enforcement across REST, WebSocket and gRPC, equal paged results, malformed source rejection, UTF-8 byte limits and preservation of explicit zero targets and withdrawn reports.

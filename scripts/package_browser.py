@@ -143,6 +143,7 @@ Portfolio replay combines portfolio-holdings.csv and universe-prices.csv.
 Add delisting-terms.csv for delisting proceeds and portfolio-dividends.csv
 for gross dividend income at the universe replay cutoffs.
 Expand Equity allocation targets and load equity-targets.csv or its demo.
+Pin the target baseline and run another query to download the drift comparison.
 Keep effective time at 14:10 UTC and advance knowledge from 14:11 to 14:12
 to compare an observed target with its first priced weight. At 14:16 the
 revised target and close reduce BETA-001's drift to 1.22708 percentage points.

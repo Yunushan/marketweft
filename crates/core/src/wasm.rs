@@ -580,6 +580,19 @@ pub extern "C" fn mw_equity_target_drift(
 }
 
 #[no_mangle]
+pub extern "C" fn mw_compare_equity_targets(
+    membership_bytes: usize,
+    holding_bytes: usize,
+    price_bytes: usize,
+    terms_bytes: usize,
+) -> u32 {
+    process(|input| {
+        let lengths = [membership_bytes, holding_bytes, price_bytes, terms_bytes];
+        Ok(crate::portfolio::compare_equity_target_reports(utf8(input)?, lengths)?.into_bytes())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_compare_equity_concentration(
     membership_bytes: usize,
     holding_bytes: usize,
