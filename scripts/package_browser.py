@@ -142,6 +142,10 @@ for the USD receivable, and 14:50 for the first cash posting.
 Portfolio replay combines portfolio-holdings.csv and universe-prices.csv.
 Add delisting-terms.csv for delisting proceeds and portfolio-dividends.csv
 for gross dividend income at the universe replay cutoffs.
+Expand Equity allocation targets and load equity-targets.csv or its demo.
+Keep effective time at 14:10 UTC and advance knowledge from 14:11 to 14:12
+to compare an observed target with its first priced weight. At 14:16 the
+revised target and close reduce BETA-001's drift to 1.22708 percentage points.
 Load the successor shares demo or upload successor-shares.csv with the
 portfolio reports. Expand Successor delivery ledger. With effective time
 at 15:00 UTC, step knowledge from 14:49 to 15:02 to inspect the signed stock
@@ -266,6 +270,7 @@ def main():
     files["universe-membership.csv"] = (fixture / "synthetic-universe.csv").read_bytes()
     files["delisting-terms.csv"] = (fixture / "synthetic-delisting-terms.csv").read_bytes()
     files["portfolio-holdings.csv"] = (fixture / "synthetic-portfolio-holdings.csv").read_bytes()
+    files["equity-targets.csv"] = (fixture / "synthetic-equity-targets.csv").read_bytes()
     files["successor-shares.csv"] = (fixture / "synthetic-successor-shares.csv").read_bytes()
     files["subscription-rights.csv"] = (fixture / "synthetic-subscription-rights.csv").read_bytes()
     files["rights-holdings.csv"] = (fixture / "synthetic-rights-holdings.csv").read_bytes()

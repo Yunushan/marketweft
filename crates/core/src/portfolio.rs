@@ -21,6 +21,8 @@ mod rights_journal;
 mod spinoff;
 #[path = "portfolio_successor.rs"]
 mod successor;
+#[path = "portfolio_targets.rs"]
+mod targets;
 pub(crate) use capital_return::parse_capital_return_reports;
 pub use capital_return::{
     compare_portfolio_capital_returns, portfolio_capital_returns_as_of, CapitalReturnAmounts,
@@ -52,6 +54,7 @@ pub(crate) use successor::{
     parse_successor_terms, successor_delivery_postings_from_observed_positions,
     value_successor_shares, SuccessorReports,
 };
+pub use targets::{EquityTargetBook, EquityTargetDrift, EquityTargetReport};
 
 pub use successor::{
     portfolio_successor_delivery_ledger, portfolio_successor_shares_as_of,
@@ -190,14 +193,23 @@ struct PositionSeries {
 
 impl PositionSeries {
     fn position(&self, end: Bound<i64>, known_at: i64) -> Option<(i64, i64, u32)> {
-        self.quantities
-            .range((Unbounded, end))
-            .rev()
-            .find_map(|(&effective, vintages)| {
-                let (&observed, &shares) = vintages.range(..=known_at).next_back()?;
-                Some((effective, observed, shares))
-            })
+        let (effective, observed, shares) = last_observed_report(&self.quantities, end, known_at)?;
+        Some((effective, observed, *shares))
     }
+}
+
+fn last_observed_report<T>(
+    reports: &BTreeMap<i64, BTreeMap<i64, T>>,
+    end: Bound<i64>,
+    known_at: i64,
+) -> Option<(i64, i64, &T)> {
+    reports
+        .range((Unbounded, end))
+        .rev()
+        .find_map(|(&effective, vintages)| {
+            let (&observed, report) = vintages.range(..=known_at).next_back()?;
+            Some((effective, observed, report))
+        })
 }
 
 pub struct PortfolioBook<'a> {

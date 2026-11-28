@@ -566,6 +566,52 @@ fn portfolio_action_input(
 }
 
 #[no_mangle]
+pub extern "C" fn mw_equity_target_drift(
+    membership_bytes: usize,
+    holding_bytes: usize,
+    price_bytes: usize,
+    terms_bytes: usize,
+) -> u32 {
+    use std::fmt::Write;
+    process(|input| {
+        let PortfolioActionInput {
+            effective,
+            known,
+            universe,
+            holdings,
+            terms: reports,
+        } = portfolio_action_input(input, membership_bytes, holding_bytes)?;
+        let (prices, reports) = reports
+            .split_at_checked(price_bytes)
+            .ok_or("Supply price and delisting reports.")?;
+        let (terms, targets) = reports
+            .split_at_checked(terms_bytes)
+            .ok_or("Supply delisting reports and equity targets.")?;
+        let book = crate::PortfolioBook::parse(&universe, holdings, prices, terms)?;
+        let targets = crate::EquityTargetBook::parse(&universe, targets)?;
+        let snapshot = book.as_of(effective, known);
+        let field = |value: Option<i64>| value.map(|number| number.to_string()).unwrap_or_default();
+        let mut text = String::new();
+        for row in targets.drift_as_of(&snapshot)? {
+            writeln!(
+                text,
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                row.currency.unwrap_or_default(),
+                row.listing_id,
+                u8::from(row.actual.is_some()),
+                field(row.actual.and_then(|actual| actual.weight_micros)),
+                field(row.target.map(|target| target.effective_at)),
+                field(row.target.map(|target| target.observed_at)),
+                field(row.target.and_then(|target| target.weight_micros)),
+                field(row.drift_micros),
+            )
+            .unwrap();
+        }
+        Ok(text.into_bytes())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_compare_equity_concentration(
     membership_bytes: usize,
     holding_bytes: usize,

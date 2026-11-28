@@ -2086,6 +2086,32 @@ test('portfolio Wasm keeps late closes and delisting cash separate by listing an
   assert.equal(value('15:05').holdings[1].value, 0n);
 });
 
+test('Wasm reconciles versioned equity targets and actual weights independently at both cutoffs', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
+  const reports = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices', 'delisting-terms', 'equity-targets'].map(fixture));
+  const time = minute => '2025-06-02T14:' + minute + ':00Z';
+  const query = (effective, known = effective) => core.equityTargetDriftAsOf(...reports, time(effective), time(known));
+  const early = query('10');
+  assert.deepEqual(early.map(row => [row.listing, row.actualWeightMicros, row.target?.weightMicros, row.driftMicros]), [
+    ['ALFA-001', 100000000n, 40000000n, 60000000n], ['BETA-001', null, undefined, null],
+  ]);
+  assert.equal(query('10', '11')[1].target.weightMicros, 60000000n);
+  assert.equal(query('10', '11')[1].driftMicros, null);
+  const original = query('10', '12');
+  assert.deepEqual(original.map(row => row.driftMicros), [-13298429n, 13298429n]);
+  assert.deepEqual(query('10', '16').map(row => row.driftMicros), [-1227080n, 1227080n]);
+  assert.deepEqual(query('10', '12'), original);
+  assert.deepEqual(query('10'), early);
+  const reused = query('45');
+  assert.deepEqual(reused.map(row => [row.listing, row.currency, row.inEquity, row.target?.weightMicros, row.driftMicros]), [
+    ['BETA-002', 'EUR', true, 100000000n, 0n], ['ALFA-001', 'USD', true, 0n, null], ['BETA-001', 'USD', false, null, null],
+  ]);
+  assert.equal(reused[1].target.observedAt, 1748875440);
+  const [membership, holdings, prices, terms, targets] = reports;
+  assert.throws(() => core.equityTargetDriftAsOf(membership, holdings, prices, terms,
+    targets.replace(',60', ',61'), time('10'), time('12')), /Known USD equity targets exceed 100%/);
+});
+
 test('Wasm compares exact equity concentration fields across independent cutoffs', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8');
   const reports = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices', 'delisting-terms'].map(fixture));

@@ -27,6 +27,7 @@ import demoRightsJournal from '../../../crates/core/tests/fixtures/synthetic-rig
 import demoCapitalReturns from '../../../crates/core/tests/fixtures/synthetic-capital-returns.csv?raw'
 import demoCapitalBasis from '../../../crates/core/tests/fixtures/synthetic-capital-return-basis.csv?raw'
 import demoFxRates from '../../../crates/core/tests/fixtures/synthetic-portfolio-fx.csv?raw'
+import demoEquityTargets from '../../../crates/core/tests/fixtures/synthetic-equity-targets.csv?raw'
 
 type Source = {
   holdings: string; prices: string; terms: string; dividends: string; spinOffs: string
@@ -176,6 +177,99 @@ function EquityConcentrationValues({ groups, core, source, membership, effective
 async function readReport(file: File, max: number) {
   if (file.size > max * 1024 * 1024) throw new Error(file.name + ' exceeds ' + max + ' MiB.')
   return new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer())
+}
+
+function EquityTargets({ core, source, membership, demo, effective, known }: {
+  core: MarketCore; source: ConcentrationSources; membership: string; demo: boolean; effective: string; known: string
+}) {
+  const [reports, setReports] = useState<{ csv: string; name: string; source: ConcentrationSources; membership: string } | null>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [page, setPage] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const active = reports?.source === source && reports.membership === membership ? reports : null
+  const evaluate = useCallback((csv: string) => core.equityTargetDriftAsOf(
+    membership, source.holdings, source.prices, source.terms, csv, effective, known,
+  ), [core, source, membership, effective, known])
+  const result = useMemo(() => {
+    if (!active) return null
+    try {
+      return { rows: evaluate(active.csv) }
+    } catch (cause) {
+      return { error: cause instanceof Error ? cause.message : 'Could not evaluate equity targets.' }
+    }
+  }, [evaluate, active])
+  const pageSize = 100
+  const last = Math.max(0, Math.ceil((result?.rows?.length ?? 0) / pageSize) - 1)
+  const current = Math.min(page, last)
+
+  function apply(csv: string, name: string) {
+    evaluate(csv)
+    setReports({ csv, name, source, membership })
+    setPage(0)
+    setError('')
+  }
+  async function upload(event: FormEvent) {
+    event.preventDefault()
+    setBusy(true)
+    try {
+      if (file) apply(await readReport(file, 2), file.name)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not read equity targets.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  function openDemo() {
+    try {
+      apply(demoEquityTargets, 'synthetic-equity-targets.csv')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not open the equity targets demo.')
+    }
+  }
+  function clear() {
+    setReports(null)
+    setError('')
+  }
+  return <details className="research-details">
+    <summary>Equity allocation targets</summary>
+    <section aria-label="Equity allocation targets">
+      <form onSubmit={upload} className="replay-controls">
+        <label>Equity targets CSV
+          <input type="file" accept=".csv,text/csv" disabled={busy}
+            onChange={event => setFile(event.target.files?.[0] ?? null)} />
+        </label>
+        <button className="outline" disabled={!file || busy}>Load equity targets</button>
+        {demo && <button type="button" className="outline" disabled={busy} onClick={openDemo}>Load equity targets demo</button>}
+        {active && <button type="button" className="outline" disabled={busy} onClick={clear}>Clear equity targets</button>}
+      </form>
+      {active && <p role="status">Loaded {active.name}</p>}
+      {error && <p className="warning replay-error" role="alert">{error}</p>}
+      {result?.error && <p className="warning replay-error" role="alert">{result.error}</p>}
+      {result?.rows && (result.rows.length === 0 ? <p>No equity or target reports at this cutoff.</p> :
+        <div className="replay-table-scroll">
+          <table className="universe-table" aria-label="Equity target drift">
+            <thead><tr><th scope="col">Listing</th><th scope="col">Currency</th><th scope="col">Weight of known gross</th>
+              <th scope="col">Target</th><th scope="col">Drift (pp)</th><th scope="col">Target effective UTC</th>
+              <th scope="col">Target observed UTC</th></tr></thead>
+            <tbody>{result.rows.slice(current * pageSize, (current + 1) * pageSize).map(row =>
+              <tr key={JSON.stringify([row.currency, row.listing])}>
+                <th scope="row">{row.listing}</th><td>{row.currency ?? 'Unavailable'}</td>
+                <td>{row.actualWeightMicros === null ? (row.inEquity ? 'Weight unavailable' : 'Outside equity') : money(row.actualWeightMicros) + '%'}</td>
+                <td>{row.target === null ? 'No target' : row.target.weightMicros === null ? 'Withdrawn' : money(row.target.weightMicros) + '%'}</td>
+                <td>{row.driftMicros === null ? '—' : money(row.driftMicros)}</td>
+                <td>{row.target ? utc(row.target.effectiveAt) : '—'}</td>
+                <td>{row.target ? utc(row.target.observedAt) : '—'}</td>
+              </tr>)}</tbody>
+          </table>
+          {last > 0 && <div className="replay-controls">
+            <button type="button" className="outline" disabled={current === 0} onClick={() => setPage(current - 1)}>Previous targets</button>
+            <span>Page {current + 1} of {last + 1}</span>
+            <button type="button" className="outline" disabled={current === last} onClick={() => setPage(current + 1)}>Next targets</button>
+          </div>}
+        </div>)}
+    </section>
+  </details>
 }
 
 export function PortfolioReplay({ core, membership, demo, effective, known }: {
@@ -397,7 +491,7 @@ export function PortfolioReplay({ core, membership, demo, effective, known }: {
       </form>
       {error && <p role="alert" className="warning replay-error">{error}</p>}
       {snapshot && source && <PortfolioResult snapshot={snapshot} core={core} source={source}
-        membership={membership} effective={effective} known={known} />}
+        membership={membership} demo={demo} effective={effective} known={known} />}
       {rightOfferings && source?.rights && <PortfolioRights rows={rightOfferings} effective={effective} known={known}
         reportsSource={source.rights.reportsName} holdingsSource={source.rights.holdingsName} />}
       {exerciseReports && source?.rights?.exercises && <PortfolioRightsExercises rows={exerciseReports}
@@ -544,8 +638,8 @@ function PortfolioFxValues({ core, reports, effective, known, amounts }: {
   </details>
 }
 
-function PortfolioResult({ snapshot, core, source, membership, effective, known }: {
-  snapshot: PortfolioSnapshot; core: MarketCore; source: Source; membership: string; effective: string; known: string
+function PortfolioResult({ snapshot, core, source, membership, demo, effective, known }: {
+  snapshot: PortfolioSnapshot; core: MarketCore; source: Source; membership: string; demo: boolean; effective: string; known: string
 }) {
   const count = snapshot.holdings.length
   const currencies = useMemo(() => {
@@ -585,6 +679,7 @@ function PortfolioResult({ snapshot, core, source, membership, effective, known 
       {source.fx && <PortfolioFxValues core={core} reports={source.fx} effective={effective} known={known} amounts={currencies} />}
       <EquityConcentrationValues groups={snapshot.equityConcentration} core={core} source={source}
         membership={membership} effective={effective} known={known} />
+      <EquityTargets core={core} source={source} membership={membership} demo={demo} effective={effective} known={known} />
       {snapshot.income && snapshot.income.dividends.length > 0 && <div className="replay-table-scroll">
         <table className="universe-table" aria-label="Portfolio dividend entitlement">
           <thead><tr><th scope="col">Listing</th><th scope="col">Dividend</th><th scope="col">Ex date (UTC)</th>

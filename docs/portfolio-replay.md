@@ -53,6 +53,22 @@ Run `marketweft-research equity-concentration` with a version 1 UTF-8 request on
 
 The same concentration results are available in the read-only MCP server and through screen-scoped REST, WebSocket and gRPC. Each returns paged rows with ranks, missing marks and known gross values. [MCP tool](local-mcp-research.md#equity-concentration) · [Research service](local-rest-research.md#equity-concentration)
 
+## Equity allocation targets
+
+Open **Equity allocation targets** after loading portfolio holdings and closes. Load the demo or supply a UTF-8 CSV with the following header.
+
+```csv
+universe,listing_id,quote_currency,effective_at,observed_at,target_weight_pct
+```
+
+Each report applies to a stable listing ID from the supplied universe and a three-letter uppercase quote currency. Supply whole UTC seconds for both times. A report may be observed before it takes effect. At each replay cutoff, the latest effective state that has an observed report is used. A newer observation for that same effective time revises it.
+
+A target weight is 0–100 with up to six decimal places. A blank target weight withdraws the target for that listing and currency. An explicit zero remains a reported target. The current targets in each currency must sum to at most 100%. The view accepts up to 10,000 reports in a file of at most 2 MiB.
+
+The table subtracts the target from the actual share of known gross equity in the same currency. This difference uses percentage points. An unavailable actual weight or target leaves the difference blank. **Outside equity**, **Weight unavailable**, **No target**, and **Withdrawn** identify different evidence. A holding with an unknown close can affect the denominator once the close is observed.
+
+In the demo with effective time 14:10 UTC on 2025-06-02, BETA-001’s 60% target arrives at 14:11 and its first close at 14:12. That close produces a drift of 13.298429 percentage points. At known 14:16 the 70% target and revised close reduce drift to 1.22708 points. Rewind the knowledge time to restore the original figures. At effective and known 14:45 the withdrawn USD target stays visible alongside the distinct EUR BETA-002 target and its zero drift. [Synthetic equity targets](../crates/core/tests/fixtures/synthetic-equity-targets.csv)
+
 ## Portfolio currency translation
 
 Choose **Load portfolio FX demo**, or add **Portfolio FX rates CSV** when opening your holdings and close reports. Open **Portfolio currency translation** and apply a three-letter reporting currency. The table converts the known currency subtotals shown directly above it. Those subtotals include valued shares, delisting cash and receivables, and dividend subtotals when dividend reports are present. The converted subtotal includes currencies with available conversions. The source table carries the original amounts and the positions table identifies missing valuations.

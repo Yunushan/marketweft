@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.266.0 · Equity allocation targets
+
+- Rust and Wasm preserve both UTC cutoffs, target-only evidence, exact zero and the withdrawal report. The original USD BETA-001 drift is 13.298429 percentage points. A later price and target revision reduce it to 1.22708 points, and rewind restores the earlier row exactly.
+- Offline Chromium preserves the distinct EUR BETA-002 listing with zero drift and rejects an invalid replacement while retaining the loaded report. A target total over 100% is rejected only when those reports are visible at the cutoff.
+
+[Equity allocation targets](portfolio-replay.md#equity-allocation-targets)
+
 ## 0.265.0 · Supertrend and Chandelier Exit
 
 - Native and Wasm match every observed prefix. The signed fixture crosses above and below the active bands, preserves the direction on equality, and retains a genuine zero on the active band. Both Chandelier Exit levels follow the exact rolling extrema and shared Wilder ATR.
