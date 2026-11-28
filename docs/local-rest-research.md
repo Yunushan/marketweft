@@ -24,6 +24,7 @@ The service prints the bound loopback address. The port defaults to 4174. Set `M
 | `POST /v1/universe/portfolio-scenarios` | `MARKETWEFT_SCREEN_TOKEN` | Point-in-time membership and price reports, allocations and deterministic sampling settings |
 | `POST /v1/portfolio/fx` | `MARKETWEFT_SCREEN_TOKEN` | `rates_csv`, source subtotals, reporting currency and independent effective and known cutoffs |
 | `POST /v1/portfolio/equity-concentration` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `holdings_csv`, `prices_csv` and independent effective and known cutoffs |
+| `POST /v1/portfolio/equity-target-drift` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `holdings_csv`, `prices_csv`, `targets_csv`, optional `terms_csv`, and independent effective and known cutoffs |
 | `POST /v1/options/snapshot` | `MARKETWEFT_OPTIONS_TOKEN` | `underlying_csv`, `quotes_csv`, `effective_at`, `known_at` and optional `max_age` |
 | `POST /v1/options/american/valuation` | `MARKETWEFT_OPTIONS_TOKEN` | Option CSVs, `contract_id`, both UTC cutoffs, and optional volatility and cash dividends |
 
@@ -88,6 +89,14 @@ Send `POST /v1/portfolio/equity-concentration` with a screen bearer credential a
 Each page contains `total_rows`, `offset`, `next_offset`, both cutoffs and its `rows`. A row carries the `listing_id`, quote currency, known gross for that currency, signed share value, rank and weight. The `gross_mark_ticks` and `mark_ticks` values are decimal strings in currency millionths. The `weight_micros` decimal string uses millionths of a percentage point. Unavailable values are `null`. Set `limit` between 1 and 1,000. The default is 200. Continue with the same input and `next_offset` until it is `null`.
 
 Connect to `/v1/portfolio/equity-concentration/stream` with the same screen credential and send one copy of the REST request in a JSON text frame. The socket streams REST-shaped pages and closes after the last. The gRPC method `marketweft.research.v1.Research/GetEquityConcentration` returns one typed page over HTTP/2 and uses the screen bearer token in `authorization` metadata. Shared screen admission, quota and audit rules apply. [Research Protobuf schema](../apps/research-service/proto/research.proto)
+
+## Equity target drift
+
+Send `POST /v1/portfolio/equity-target-drift` with a screen bearer credential. Provide CSV text in `membership_csv`, `holdings_csv`, `prices_csv` and `targets_csv`. Include `terms_csv` if you have delisting terms. Membership and terms each accept up to 1 MiB. Holdings, closes and targets each accept up to 2 MiB. Supply independent `effective_at` and `known_at` timestamps in UTC at whole-second precision. [Equity target inputs and fixture](portfolio-replay.md#equity-allocation-targets)
+
+Each page echoes both cutoffs and carries `total_rows`, `offset`, `next_offset` and `rows` in quote currency and listing order. Each row shows whether the listing is present in the equity report, the available actual weight, the latest visible target and the signed drift. Weights and drift are decimal strings in millionths of a percentage point. A missing mark leaves the actual weight and drift empty. The target evidence carries effective and observation times as Unix seconds. A withdrawal retains both times and has a `null` weight. A zero weight or drift is `"0"`. Set `limit` between 1 and 1,000 (default 200) and pass `next_offset` with the same inputs to continue.
+
+Connect to `/v1/portfolio/equity-target-drift/stream` with the same credential and send one REST-shaped query. The socket streams the pages in offset order. The gRPC method `marketweft.research.v1.Research/GetEquityTargetDrift` returns one typed page. The screen scope, admission and audit rules apply to all three transports. [Research Protobuf schema](../apps/research-service/proto/research.proto)
 
 ## WebSocket streaming
 

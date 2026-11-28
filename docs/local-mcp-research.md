@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, portfolio scenarios, FX conversion, equity concentration, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, portfolio scenarios, FX conversion, equity concentration, equity target drift, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 
 ```json
 {
@@ -65,6 +65,12 @@ Set `limit` from 1 to 1,000 rows. The default is 200. Pass `next_offset` as `off
 Call the read-only `equity_concentration_as_of` tool with the contents of `membership_csv`, `holdings_csv` and `prices_csv`. Supply the two exact UTC cutoffs as `effective_at` and `known_at`. Use the returned `next_offset` with the same CSVs and cutoffs. `limit` ranges from 1 to 1,000 and defaults to 200. A `null` offset marks the final page.
 
 Rows give the original quote currency, its known gross mark, the listing ID, signed share value, rank and weight. Amounts and weights use decimal strings in integer millionths. The tool preserves `null` for unavailable values and uses the same page fields as the research service. [Equity concentration service](local-rest-research.md#equity-concentration)
+
+## Equity target drift
+
+Call the read-only `equity_target_drift_as_of` tool with the membership, holdings, prices and targets CSV contents, optional `terms_csv`, and independent `effective_at` and `known_at` UTC cutoffs. Set `limit` from 1 to 1,000 (default 200) and reuse the same inputs with `next_offset` as `offset` until `next_offset` is `null`.
+
+Each page uses the research service response fields. A row carries the stable listing ID and quote currency, equity presence, known actual weight, target evidence and signed drift. Weights and drift use exact decimal strings in millionths of a percentage point. The target report retains its two Unix-second timestamps when a withdrawal leaves its weight `null`. [Equity target service](local-rest-research.md#equity-target-drift)
 
 ## Financial snapshots
 

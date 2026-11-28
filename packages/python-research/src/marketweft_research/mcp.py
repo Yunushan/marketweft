@@ -13,14 +13,14 @@ from . import (
     ScreenComparisonLeg, ScreenPrice,
 )
 from . import (
-    _MAX_CONCENTRATION_POSITIONS, _MAX_CSV, _MAX_FINANCIAL_CSV, _MAX_FX_CURRENCIES, _MAX_MACRO_CSV, _MAX_MACRO_REPORTS,
+    _MAX_CONCENTRATION_POSITIONS, _MAX_CSV, _MAX_EQUITY_TARGET_ROWS, _MAX_FINANCIAL_CSV, _MAX_FX_CURRENCIES, _MAX_MACRO_CSV, _MAX_MACRO_REPORTS,
     _MAX_MONTHLY_YEARS, _MAX_OPTION_CSV, _MAX_OPTION_DIVIDEND_CSV, _MAX_OPTION_ROWS, _OPTION_STATUSES,
     _PORTFOLIO_START, _WIDE,
 )
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.15.0"
+SERVER_VERSION = "0.16.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -36,6 +36,7 @@ MACRO_CALENDAR_TOOL_NAME = "macro_calendar_as_of"
 PORTFOLIO_SCENARIOS_TOOL_NAME = "portfolio_scenarios_as_of"
 PORTFOLIO_FX_TOOL_NAME = "portfolio_fx_as_of"
 EQUITY_CONCENTRATION_TOOL_NAME = "equity_concentration_as_of"
+EQUITY_TARGET_TOOL_NAME = "equity_target_drift_as_of"
 _UTC_SCHEMA = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
 INPUT_SCHEMA = {
     "type": "object",
@@ -607,6 +608,50 @@ EQUITY_CONCENTRATION_TOOL = {
 }
 
 
+_TARGET_REQUIRED = {
+    **_CONCENTRATION_TEXT,
+    "targets_csv": {"type": "string", "minLength": 1, "maxLength": 2 * 1024 * 1024},
+}
+_TARGET_OFFSET = {"type": "integer", "minimum": 0, "maximum": _MAX_EQUITY_TARGET_ROWS}
+EQUITY_TARGET_INPUT = {
+    **_object_schema({
+        **_TARGET_REQUIRED,
+        "terms_csv": {"type": "string", "maxLength": 1024 * 1024, "default": ""},
+        "offset": {**_TARGET_OFFSET, "default": 0},
+        "limit": {"type": "integer", "minimum": 1, "maximum": MAX_ROWS, "default": 200},
+    }),
+    "required": list(_TARGET_REQUIRED),
+}
+EQUITY_TARGET_OUTPUT = _object_schema({
+    **_FX_TIMES,
+    "total_rows": _TARGET_OFFSET,
+    "offset": _TARGET_OFFSET,
+    "next_offset": {**_TARGET_OFFSET, "type": ["integer", "null"]},
+    "rows": {"type": "array", "maxItems": MAX_ROWS, "items": _object_schema({
+        "currency": {**_FX_CURRENCY, "type": ["string", "null"]},
+        "listing_id": _IDENTIFIER_SCHEMA,
+        "in_equity": {"type": "boolean"},
+        "actual_weight_micros": _OPTIONAL_TICKS_SCHEMA,
+        "target": _object_schema({
+            "effective_at": {"type": "integer"},
+            "observed_at": {"type": "integer"},
+            "weight_micros": _OPTIONAL_TICKS_SCHEMA,
+        }, nullable=True),
+        "drift_micros": _OPTIONAL_TICKS_SCHEMA,
+    })},
+})
+EQUITY_TARGET_TOOL = {
+    "name": EQUITY_TARGET_TOOL_NAME,
+    "description": (
+        "Compare known gross equity weights against allocation targets by stable listing and quote currency. "
+        "Use separate effective and knowledge cutoffs. Return exact signed drift and withdrawal evidence."
+    ),
+    "annotations": TOOL["annotations"],
+    "inputSchema": EQUITY_TARGET_INPUT,
+    "outputSchema": EQUITY_TARGET_OUTPUT,
+}
+
+
 class RequestError(Exception):
     def __init__(self, code: int, message: str):
         super().__init__(message)
@@ -733,7 +778,7 @@ class ResearchServer:
                 raise RequestError(-32602, "The tool list fits on a single page.")
             return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL,
                               AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL, MACRO_CALENDAR_TOOL, PORTFOLIO_SCENARIOS_TOOL,
-                              PORTFOLIO_FX_TOOL, EQUITY_CONCENTRATION_TOOL]}
+                              PORTFOLIO_FX_TOOL, EQUITY_CONCENTRATION_TOOL, EQUITY_TARGET_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -759,6 +804,8 @@ class ResearchServer:
                 return self._portfolio_fx(arguments)
             if name == EQUITY_CONCENTRATION_TOOL_NAME:
                 return self._equity_concentration(arguments)
+            if name == EQUITY_TARGET_TOOL_NAME:
+                return self._equity_target(arguments)
             raise RequestError(-32602, "Unknown research tool.")
         raise RequestError(-32601, "Method not found.")
 
@@ -956,6 +1003,33 @@ class ResearchServer:
                 "mark_ticks": None if row.mark is None else str(row.mark),
                 "weight_micros": None if row.weight_micros is None else str(row.weight_micros),
             } for group, row in page],
+        })
+
+    def _equity_target(self, arguments) -> dict:
+        if not isinstance(arguments, dict) or set(arguments) - EQUITY_TARGET_INPUT["properties"].keys():
+            raise RequestError(-32602, "Supply only the documented equity target arguments.")
+        text = {field: arguments.get(field) for field in _TARGET_REQUIRED}
+        terms = arguments.get("terms_csv", "")
+        if not all(isinstance(value, str) and value for value in text.values()) or not isinstance(terms, str):
+            raise RequestError(-32602, "Supply the required CSV contents and both UTC cutoffs.")
+        offset = _integer(arguments, "offset", 0, 0, _MAX_EQUITY_TARGET_ROWS)
+        limit = _integer(arguments, "limit", 200, 1, MAX_ROWS)
+        try:
+            report = self._engine.equity_target_drift_as_of(**text, terms_csv=terms)
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+
+        page = report.rows[offset:offset + limit]
+        end = offset + len(page)
+        return _structured({
+            **{field: text[field] for field in _FX_TIMES},
+            "total_rows": len(report.rows), "offset": offset, "next_offset": end if end < len(report.rows) else None,
+            "rows": [{
+                "currency": row.currency, "listing_id": row.listing_id, "in_equity": row.in_equity,
+                "actual_weight_micros": None if row.actual_weight_micros is None else str(row.actual_weight_micros),
+                "target": _fixed_fields(row.target, "weight_micros"),
+                "drift_micros": None if row.drift_micros is None else str(row.drift_micros),
+            } for row in page],
         })
 
     def _screen(self, arguments) -> dict:

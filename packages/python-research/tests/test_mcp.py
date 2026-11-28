@@ -70,7 +70,7 @@ class McpTest(unittest.TestCase):
                          [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.RANK_COMPARISON_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME,
                           mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME, mcp.MONTHLY_RETURNS_TOOL_NAME,
                           mcp.MACRO_CALENDAR_TOOL_NAME, mcp.PORTFOLIO_SCENARIOS_TOOL_NAME, mcp.PORTFOLIO_FX_TOOL_NAME,
-                          mcp.EQUITY_CONCENTRATION_TOOL_NAME])
+                          mcp.EQUITY_CONCENTRATION_TOOL_NAME, mcp.EQUITY_TARGET_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -376,6 +376,70 @@ class McpTest(unittest.TestCase):
         })
         for key in ("bad-field", "empty-holdings", "bad-offset"):
             self.assertEqual(messages[key]["error"]["code"], -32602)
+        self.assertEqual(messages["ping"]["result"], {})
+
+    def test_equity_target_pages_preserve_missing_marks_revisions_and_withdrawals(self):
+        fixtures = ROOT / "crates/core/tests/fixtures"
+        arguments = {
+            field: (fixtures / f"synthetic-{fixture}.csv").read_text(encoding="utf-8")
+            for field, fixture in (
+                ("membership_csv", "universe"), ("holdings_csv", "portfolio-holdings"),
+                ("prices_csv", "universe-prices"), ("targets_csv", "equity-targets"),
+            )
+        }
+        arguments.update(effective_at="2025-06-02T14:10:00Z", known_at="2025-06-02T14:11:00Z", offset=1, limit=1)
+
+        def query(request_id, **changes):
+            return rpc("tools/call", request_id, {
+                "name": mcp.EQUITY_TARGET_TOOL_NAME, "arguments": arguments | changes,
+            })
+
+        successor = {
+            "terms_csv": (fixtures / "synthetic-delisting-terms.csv").read_text(encoding="utf-8"),
+            "effective_at": "2025-06-02T14:45:00Z", "known_at": "2025-06-02T14:45:00Z", "offset": 0, "limit": 3,
+        }
+        process = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(
+                rpc("initialize", "init", INITIALIZE), rpc("notifications/initialized"), rpc("tools/list", "tools"),
+                query("start", offset=0), query("missing"), query("original", known_at="2025-06-02T14:12:00Z"),
+                query("revised", known_at="2025-06-02T14:16:00Z"), query("rewind"), query("successor", **successor),
+                query("unknown", target_path="targets.csv"), query("terms", terms_csv=None),
+                query("bad-offset", offset=11_001), query("bad-csv", targets_csv="malformed"), rpc("ping", "ping"),
+            ),
+            timeout=15, capture_output=True, check=True,
+        )
+        self.assertEqual(process.stderr, b"")
+        messages = {reply["id"]: reply for reply in map(json.loads, process.stdout.splitlines())}
+        tool = next(tool for tool in messages["tools"]["result"]["tools"] if tool["name"] == mcp.EQUITY_TARGET_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertNotIn("terms_csv", tool["inputSchema"]["required"])
+
+        def data(request_id):
+            result = messages[request_id]["result"]
+            self.assertEqual(json.loads(result["content"][0]["text"]), result["structuredContent"])
+            return result["structuredContent"]
+
+        earlier = data("missing")
+        self.assertEqual((data("start")["next_offset"], earlier["next_offset"]), (1, None))
+        self.assertEqual(earlier["rows"][0], {
+            "currency": "USD", "listing_id": "BETA-001", "in_equity": True, "actual_weight_micros": None,
+            "target": {"effective_at": 1748872800, "observed_at": 1748873460, "weight_micros": "60000000"},
+            "drift_micros": None,
+        })
+        self.assertEqual(data("original")["rows"][0]["drift_micros"], "13298429")
+        self.assertEqual(data("revised")["rows"][0]["drift_micros"], "1227080")
+        self.assertEqual(data("rewind"), earlier)
+        first, second, withdrawn = data("successor")["rows"]
+        self.assertEqual((first["listing_id"], first["drift_micros"], second["target"]["weight_micros"]),
+                         ("BETA-002", "0", "0"))
+        self.assertFalse(withdrawn["in_equity"])
+        self.assertEqual(withdrawn["target"], {
+            "effective_at": 1748874900, "observed_at": 1748874900, "weight_micros": None,
+        })
+        for key in ("unknown", "terms", "bad-offset"):
+            self.assertEqual(messages[key]["error"]["code"], -32602)
+        self.assertTrue(messages["bad-csv"]["result"]["isError"])
         self.assertEqual(messages["ping"]["result"], {})
 
     def test_tool_and_protocol_errors_preserve_the_session(self):

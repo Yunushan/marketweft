@@ -1,5 +1,11 @@
 # MarketWeft verification
 
+## 0.268.0 · Equity target research transports
+
+- The Linux research service test checks scope enforcement across REST, WebSocket and gRPC, equal paged results, malformed source rejection, UTF-8 byte limits and preservation of explicit zero targets and withdrawn reports.
+- A subprocess test of the installed Python wheel checks local MCP argument limits, paging, known targets with missing marks, the exact signed revision and rewind, and continued service after an invalid query.
+- At an effective cutoff of 14:10 UTC on June 2, 2025, BETA-001 has no visible mark at 14:11, then drifts by 13.298429 and 1.227080 percentage points at the 14:12 and 14:16 knowledge cutoffs. At 14:45 the EUR successor has zero drift and the old USD listing retains its withdrawn target report.
+
 ## 0.267.0 · Equity target research SDKs
 
 - The native CLI echoes both cutoffs and returns identical equity evidence to Wasm. Invalid protocol versions and byte lengths are rejected.

@@ -94,6 +94,21 @@ pub(crate) async fn portfolio_scenarios(
     .await
 }
 
+pub(crate) async fn equity_target_drift(
+    State(state): State<Arc<Server>>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    upgrade(
+        state,
+        &headers,
+        ws,
+        Scope::Screen,
+        analytics::equity_target_drift,
+    )
+    .await
+}
+
 pub(crate) async fn equity_concentration(
     State(state): State<Arc<Server>>,
     headers: HeaderMap,

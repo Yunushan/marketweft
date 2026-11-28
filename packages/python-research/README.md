@@ -44,7 +44,7 @@ Call `portfolio_fx_as_of(rates_csv, amounts, reporting_currency=..., effective_a
 
 Call `equity_concentration_as_of(membership_csv, holdings_csv, prices_csv, effective_at=..., known_at=...)` to rank marked shares within their quote currencies. Signed marks and percentage-point weights use integer millionths and missing values are `None`. The read-only MCP tool of the same name returns paged JSON rows. [Equity concentration SDKs](../../docs/portfolio-replay.md#equity-concentration-sdks) · [MCP tool](../../docs/local-mcp-research.md#equity-concentration).
 
-Call `equity_target_drift_as_of(membership_csv, holdings_csv, prices_csv, terms_csv, targets_csv, effective_at=..., known_at=...)` to compare exact marked equity weights with their observed targets. The result includes both cutoffs, target report times, withdrawals and signed drift in integer millionths of a percentage point. [Equity target research SDKs](../../docs/portfolio-replay.md#equity-target-research-sdks)
+Call `equity_target_drift_as_of(membership_csv, holdings_csv, prices_csv, terms_csv, targets_csv, effective_at=..., known_at=...)` to compare exact marked equity weights with their observed targets. The result includes both cutoffs, target report times, withdrawals and signed drift in integer millionths of a percentage point. The read-only MCP tool of the same name returns paged results. [Equity target research SDKs](../../docs/portfolio-replay.md#equity-target-research-sdks) · [MCP tool](../../docs/local-mcp-research.md#equity-target-drift)
 
 The local MCP server provides paged portfolio paths with exact decimal-string values. [Portfolio scenarios over MCP](../../docs/local-mcp-research.md#portfolio-scenarios).
 

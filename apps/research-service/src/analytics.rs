@@ -1,25 +1,27 @@
 use crate::{
     proto::{
         AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close,
-        EquityConcentrationPage, EquityConcentrationQuery, EquityConcentrationRow, FormulaPage,
-        FormulaQuery, FormulaRow, MacroCalendarPage, MacroCalendarQuery, MacroCalendarRow,
-        MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery, MonthlyReturnsRow,
-        OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying, PortfolioFxPage,
-        PortfolioFxQuery, PortfolioFxRate, PortfolioFxRow, PortfolioScenarioCoverage,
-        PortfolioScenarioPath, PortfolioScenarioPercentiles, PortfolioScenariosPage,
-        PortfolioScenariosQuery, RankComparisonLeg, RankComparisonPage, RankComparisonQuery,
-        RankComparisonRow, ScreenPage, ScreenQuery, ScreenRow,
+        EquityConcentrationPage, EquityConcentrationQuery, EquityConcentrationRow,
+        EquityTargetDriftPage, EquityTargetDriftQuery, EquityTargetDriftRow, EquityTargetEvidence,
+        FormulaPage, FormulaQuery, FormulaRow, MacroCalendarPage, MacroCalendarQuery,
+        MacroCalendarRow, MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery,
+        MonthlyReturnsRow, OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying,
+        PortfolioFxPage, PortfolioFxQuery, PortfolioFxRate, PortfolioFxRow,
+        PortfolioScenarioCoverage, PortfolioScenarioPath, PortfolioScenarioPercentiles,
+        PortfolioScenariosPage, PortfolioScenariosQuery, RankComparisonLeg, RankComparisonPage,
+        RankComparisonQuery, RankComparisonRow, ScreenPage, ScreenQuery, ScreenRow,
     },
     ApiError,
 };
 use axum::http::StatusCode;
 use marketweft_core::{
     monthly_returns, parse_csv, parse_dividends, parse_exact_utc, parse_universe,
-    AmericanValuationRequest, CashOptionError, ExerciseStyle, Formula, FormulaFunctionDefinition,
-    FormulaLibrary, FxAmount, FxBook, MacroCalendar, MonthWindow, MonthlyClose, OptionAnalytics,
-    OptionBook, OptionSide, PortfolioBook, PortfolioScenarioConfig, PriceBook, PriceObservation,
-    ReportKind, ScenarioAllocation, ScenarioConfig, ScreenComparisonLeg, ScreenCutoff,
-    ThreeQuantiles, UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
+    AmericanValuationRequest, CashOptionError, EquityTargetBook, ExerciseStyle, Formula,
+    FormulaFunctionDefinition, FormulaLibrary, FxAmount, FxBook, MacroCalendar, MonthWindow,
+    MonthlyClose, OptionAnalytics, OptionBook, OptionSide, PortfolioBook, PortfolioScenarioConfig,
+    PriceBook, PriceObservation, ReportKind, ScenarioAllocation, ScenarioConfig,
+    ScreenComparisonLeg, ScreenCutoff, ThreeQuantiles, UniverseAction, FORMULA_VERSION,
+    MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -39,6 +41,7 @@ pub(crate) enum ResearchPage {
     PortfolioScenarios(PortfolioScenariosPage),
     PortfolioFx(PortfolioFxPage),
     EquityConcentration(EquityConcentrationPage),
+    EquityTargetDrift(EquityTargetDriftPage),
     Options(OptionPage),
     AmericanOption(AmericanOptionResponse),
 }
@@ -500,6 +503,76 @@ pub(crate) fn evaluate_equity_concentration(
             offset,
             next_offset,
             rows: rows[range].to_vec(),
+        },
+    );
+    Ok(())
+}
+
+pub(crate) fn equity_target_drift(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_equity_target_drift(request(bytes)?, &mut |page| {
+        emit(ResearchPage::EquityTargetDrift(page))
+    })
+}
+
+pub(crate) fn evaluate_equity_target_drift(
+    query: EquityTargetDriftQuery,
+    emit: &mut dyn FnMut(EquityTargetDriftPage) -> bool,
+) -> Result<(), ApiError> {
+    let (offset, limit) = pagination(query.offset, query.limit, 11_000)?;
+    let Some((effective, known)) =
+        parse_exact_utc(&query.effective_at).zip(parse_exact_utc(&query.known_at))
+    else {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use YYYY-MM-DDTHH:MM:SSZ equity target cutoffs.",
+        ));
+    };
+    let terms = query.terms_csv.as_deref().unwrap_or_default();
+    if terms.len() > 1024 * 1024 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Equity target delisting terms exceed 1 MiB.",
+        ));
+    }
+    let universe = parse_universe(&query.membership_csv).map_err(analytical_error)?;
+    let book = PortfolioBook::parse(&universe, &query.holdings_csv, &query.prices_csv, terms)
+        .map_err(analytical_error)?;
+    let targets =
+        EquityTargetBook::parse(&universe, &query.targets_csv).map_err(analytical_error)?;
+    let snapshot = book.as_of(effective, known);
+    let rows = targets.drift_as_of(&snapshot).map_err(analytical_error)?;
+    pages(
+        offset,
+        limit,
+        rows.len(),
+        emit,
+        |offset, range, next_offset| EquityTargetDriftPage {
+            effective_at: query.effective_at.clone(),
+            known_at: query.known_at.clone(),
+            total_rows: rows.len() as u32,
+            offset,
+            next_offset,
+            rows: rows[range]
+                .iter()
+                .map(|row| EquityTargetDriftRow {
+                    currency: row.currency.map(str::to_owned),
+                    listing_id: row.listing_id.to_owned(),
+                    in_equity: row.actual.is_some(),
+                    actual_weight_micros: row
+                        .actual
+                        .and_then(|actual| actual.weight_micros)
+                        .map(|weight| weight.to_string()),
+                    target: row.target.map(|target| EquityTargetEvidence {
+                        effective_at: target.effective_at,
+                        observed_at: target.observed_at,
+                        weight_micros: target.weight_micros.map(|weight| weight.to_string()),
+                    }),
+                    drift_micros: row.drift_micros.map(|drift| drift.to_string()),
+                })
+                .collect(),
         },
     );
     Ok(())

@@ -12,6 +12,7 @@ service Research {
   rpc GetPortfolioScenarios(PortfolioScenariosQuery) returns (PortfolioScenariosPage);
   rpc GetPortfolioFx(PortfolioFxQuery) returns (PortfolioFxPage);
   rpc GetEquityConcentration(EquityConcentrationQuery) returns (EquityConcentrationPage);
+  rpc GetEquityTargetDrift(EquityTargetDriftQuery) returns (EquityTargetDriftPage);
   rpc SnapshotOptions(OptionQuery) returns (OptionPage);
   rpc ValueAmericanOption(AmericanOptionQuery) returns (AmericanOptionResponse);
 }
@@ -246,6 +247,44 @@ message EquityConcentrationPage {
   uint32 offset = 4;
   optional uint32 next_offset = 5;
   repeated EquityConcentrationRow rows = 6;
+}
+
+message EquityTargetDriftQuery {
+  string membership_csv = 1;
+  string holdings_csv = 2;
+  string prices_csv = 3;
+  optional string terms_csv = 4;
+  string targets_csv = 5;
+  string effective_at = 6;
+  string known_at = 7;
+  optional uint64 offset = 8;
+  optional uint64 limit = 9;
+}
+
+message EquityTargetEvidence {
+  // Unix seconds at which the target takes effect and was observed.
+  sint64 effective_at = 1;
+  sint64 observed_at = 2;
+  // Absent for a withdrawal. All weights are millionths of a percentage point.
+  optional string weight_micros = 3;
+}
+
+message EquityTargetDriftRow {
+  optional string currency = 1;
+  string listing_id = 2;
+  bool in_equity = 3;
+  optional string actual_weight_micros = 4;
+  EquityTargetEvidence target = 5;
+  optional string drift_micros = 6;
+}
+
+message EquityTargetDriftPage {
+  string effective_at = 1;
+  string known_at = 2;
+  uint32 total_rows = 3;
+  uint32 offset = 4;
+  optional uint32 next_offset = 5;
+  repeated EquityTargetDriftRow rows = 6;
 }
 
 message ScreenQuery {
