@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.222.0 · Monthly returns over WebSocket and gRPC
+
+- Actual loopback WebSocket sessions verify formula credentials, an earlier cutoff, disconnect and resume, late observations, empty evidence and final closure. The signed and zero results match REST.
+- Typed gRPC requests verify expected authentication and input errors, exact optional close fields, deliberate zero returns and agreement with the corresponding REST page, including pagination metadata.
+
+[Monthly returns transports](local-rest-research.md#monthly-returns-over-websocket-and-grpc)
+
 ## 0.221.0 · Monthly returns over scoped REST
 
 - Local HTTP fixtures and a standalone loopback smoke test verify formula-scope authentication, exact close and return evidence and historical cutoffs. The route also checks origin, bounded pages, malformed fields and invalid dates.

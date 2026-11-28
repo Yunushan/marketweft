@@ -4,6 +4,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = tonic_prost_build::configure();
     for message in [
         "FormulaQuery",
+        "MonthlyReturnsQuery",
         "FormulaFunction",
         "ScreenQuery",
         "RankComparisonQuery",
@@ -17,6 +18,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for message in [
         "FormulaRow",
         "FormulaPage",
+        "MonthlyReturnsClose",
+        "MonthlyReturnsRow",
+        "MonthlyReturnsPage",
         "Close",
         "ScreenRow",
         "ScreenPage",
@@ -35,6 +39,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for field in [
         "FormulaQuery.offset",
         "FormulaQuery.limit",
+        "MonthlyReturnsQuery.offset",
+        "MonthlyReturnsQuery.limit",
         "ScreenQuery.offset",
         "ScreenQuery.limit",
         "RankComparisonQuery.offset",

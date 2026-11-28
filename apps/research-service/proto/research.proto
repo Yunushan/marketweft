@@ -5,6 +5,7 @@ package marketweft.research.v1;
 // Read-only historical research over local HTTP/2.
 service Research {
   rpc EvaluateFormula(FormulaQuery) returns (FormulaPage);
+  rpc GetMonthlyReturns(MonthlyReturnsQuery) returns (MonthlyReturnsPage);
   rpc ScreenUniverse(ScreenQuery) returns (ScreenPage);
   rpc CompareUniverseRanks(RankComparisonQuery) returns (RankComparisonPage);
   rpc SnapshotOptions(OptionQuery) returns (OptionPage);
@@ -38,6 +39,39 @@ message FormulaPage {
   uint32 offset = 3;
   optional uint32 next_offset = 4;
   repeated FormulaRow rows = 5;
+}
+
+message MonthlyReturnsQuery {
+  string history_csv = 1;
+  uint32 first_year = 2;
+  uint32 last_year = 3;
+  string observed_through = 4;
+  optional uint64 offset = 5;
+  optional uint64 limit = 6;
+}
+
+message MonthlyReturnsClose {
+  sint64 at = 1;
+  string ticks = 2;
+}
+
+message MonthlyReturnsRow {
+  uint32 year = 1;
+  uint32 month = 2;
+  string window = 3;
+  optional MonthlyReturnsClose prior = 4;
+  optional MonthlyReturnsClose current = 5;
+  optional string percent_micros = 6;
+}
+
+message MonthlyReturnsPage {
+  uint32 first_year = 1;
+  uint32 last_year = 2;
+  string observed_through = 3;
+  uint32 total_rows = 4;
+  uint32 offset = 5;
+  optional uint32 next_offset = 6;
+  repeated MonthlyReturnsRow rows = 7;
 }
 
 message ScreenQuery {

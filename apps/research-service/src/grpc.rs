@@ -3,8 +3,9 @@ use crate::{
     audit::{Outcome, Transport},
     proto::{
         research_server::{Research, ResearchServer},
-        AmericanOptionQuery, AmericanOptionResponse, FormulaPage, FormulaQuery, OptionPage,
-        OptionQuery, RankComparisonPage, RankComparisonQuery, ScreenPage, ScreenQuery,
+        AmericanOptionQuery, AmericanOptionResponse, FormulaPage, FormulaQuery, MonthlyReturnsPage,
+        MonthlyReturnsQuery, OptionPage, OptionQuery, RankComparisonPage, RankComparisonQuery,
+        ScreenPage, ScreenQuery,
     },
     shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
@@ -30,6 +31,10 @@ pub(crate) fn routes(state: Arc<Server>) -> Router {
     Router::new()
         .route_service(
             "/marketweft.research.v1.Research/EvaluateFormula",
+            service.clone(),
+        )
+        .route_service(
+            "/marketweft.research.v1.Research/GetMonthlyReturns",
             service.clone(),
         )
         .route_layer(from_fn_with_state(
@@ -152,6 +157,13 @@ impl Research for LocalResearch {
         request: GrpcRequest<FormulaQuery>,
     ) -> Result<GrpcResponse<FormulaPage>, Status> {
         unary(request, analytics::evaluate_formula).await
+    }
+
+    async fn get_monthly_returns(
+        &self,
+        request: GrpcRequest<MonthlyReturnsQuery>,
+    ) -> Result<GrpcResponse<MonthlyReturnsPage>, Status> {
+        unary(request, analytics::evaluate_monthly_returns).await
     }
 
     async fn screen_universe(

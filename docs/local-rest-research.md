@@ -35,6 +35,12 @@ Send `POST /v1/monthly-returns` with a formula credential on the loopback or con
 
 Each row contains the year, month, UTC window state, preceding and current close evidence, and the return. Close timestamps are whole UTC seconds. Price ticks and the return in millionths of a percentage point are exact decimal strings. Unavailable evidence and results are `null`. Supply `limit` from 1 to 120, with 60 as the default. To continue, pass `next_offset` as `offset` with the same CSV, years and cutoff. A `null` offset completes the result.
 
+### Monthly returns over WebSocket and gRPC
+
+Connect to `/v1/monthly-returns/stream` with a formula credential and send one text frame containing the REST query. Each `page` frame contains the same response as the REST endpoint. Reconnect with the last accepted `next_offset` and the same history, years and cutoff to resume. The socket closes after the last page. Use `wss` on the configured private TLS listener.
+
+Use `marketweft.research.v1.Research/GetMonthlyReturns` over HTTP/2 for a typed unary page. Send the formula bearer credential as gRPC metadata. Set the next request's `offset` from the optional `next_offset` field. Close timestamps use signed UTC seconds, and prices and return values use strings to preserve their full integer precision. Missing close messages or return strings remain absent. The same formula admission controls, managed quotas and audit receipts apply across REST, WebSocket and gRPC. [Research Protobuf schema](../apps/research-service/proto/research.proto).
+
 ## Compare universe ranks
 
 Send a JSON object to `POST /v1/universe/rank-comparison` using a screen credential. The same route works on the loopback listener or an enabled private TLS listener. Supply `membership_csv` and `prices_csv` as UTF-8 CSV contents and provide `baseline_at`, `before_effective_at`, `before_known_at`, `after_effective_at` and `after_known_at` as exact UTC timestamps. Optional `offset` runs from 0 to 5,000 and `limit` from 1 to 1,000. The default page size is 200.

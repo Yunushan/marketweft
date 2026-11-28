@@ -518,6 +518,10 @@ fn route_authority(
     Router::new()
         .route("/v1/formula", post(formula))
         .route("/v1/monthly-returns", post(monthly_returns))
+        .route(
+            "/v1/monthly-returns/stream",
+            get(websocket::monthly_returns),
+        )
         .route("/v1/universe/screen", post(screen))
         .route("/v1/universe/rank-comparison", post(rank_comparison))
         .route("/v1/options/snapshot", post(option_snapshot))

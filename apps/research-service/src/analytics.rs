@@ -1,9 +1,10 @@
 use crate::{
     proto::{
         AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close, FormulaPage,
-        FormulaQuery, FormulaRow, OptionModel, OptionPage, OptionQuery, OptionRow,
-        OptionUnderlying, RankComparisonLeg, RankComparisonPage, RankComparisonQuery,
-        RankComparisonRow, ScreenPage, ScreenQuery, ScreenRow,
+        FormulaQuery, FormulaRow, MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery,
+        MonthlyReturnsRow, OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying,
+        RankComparisonLeg, RankComparisonPage, RankComparisonQuery, RankComparisonRow, ScreenPage,
+        ScreenQuery, ScreenRow,
     },
     ApiError,
 };
@@ -30,46 +31,6 @@ pub(crate) enum ResearchPage {
     RankComparison(RankComparisonPage),
     Options(OptionPage),
     AmericanOption(AmericanOptionResponse),
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct MonthlyReturnsQuery {
-    history_csv: String,
-    first_year: u16,
-    last_year: u16,
-    observed_through: String,
-    #[serde(default, deserialize_with = "present")]
-    offset: Option<u64>,
-    #[serde(default, deserialize_with = "present")]
-    limit: Option<u64>,
-}
-
-#[derive(Serialize)]
-pub(crate) struct MonthlyReturnsPage {
-    first_year: u16,
-    last_year: u16,
-    observed_through: String,
-    total_rows: u32,
-    offset: u32,
-    next_offset: Option<u32>,
-    rows: Vec<MonthlyReturnsRow>,
-}
-
-#[derive(Serialize)]
-struct MonthlyReturnsRow {
-    year: u16,
-    month: u8,
-    window: &'static str,
-    prior: Option<MonthlyReturnsClose>,
-    current: Option<MonthlyReturnsClose>,
-    percent_micros: Option<String>,
-}
-
-#[derive(Serialize)]
-struct MonthlyReturnsClose {
-    at: i64,
-    ticks: String,
 }
 
 impl From<MonthlyClose> for MonthlyReturnsClose {
@@ -169,7 +130,15 @@ pub(crate) fn monthly_return_page(
     bytes: &[u8],
     emit: &mut dyn FnMut(ResearchPage) -> bool,
 ) -> Result<(), ApiError> {
-    let query: MonthlyReturnsQuery = request(bytes)?;
+    evaluate_monthly_returns(request(bytes)?, &mut |page| {
+        emit(ResearchPage::MonthlyReturns(page))
+    })
+}
+
+pub(crate) fn evaluate_monthly_returns(
+    query: MonthlyReturnsQuery,
+    emit: &mut dyn FnMut(MonthlyReturnsPage) -> bool,
+) -> Result<(), ApiError> {
     let limit = query.limit.unwrap_or(60);
     if limit > 120 {
         return Err(ApiError::new(
@@ -188,38 +157,45 @@ pub(crate) fn monthly_return_page(
             "Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.",
         )
     })?;
+    let (first, last) = u16::try_from(query.first_year)
+        .ok()
+        .zip(u16::try_from(query.last_year).ok())
+        .ok_or_else(|| {
+            ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "Choose up to 30 consecutive UTC calendar years between 0001 and 9999.",
+            )
+        })?;
     let bars = parse_csv(&query.history_csv).map_err(analytical_error)?;
-    let rows = monthly_returns(query.first_year, query.last_year, through, &bars)
-        .map_err(analytical_error)?;
+    let rows = monthly_returns(first, last, through, &bars).map_err(analytical_error)?;
     pages(
         offset,
         limit,
         rows.len(),
         emit,
-        |offset, range, next_offset| {
-            ResearchPage::MonthlyReturns(MonthlyReturnsPage {
-                first_year: query.first_year,
-                last_year: query.last_year,
-                observed_through: query.observed_through.clone(),
-                total_rows: rows.len() as u32,
-                offset,
-                next_offset,
-                rows: rows[range]
-                    .iter()
-                    .map(|row| MonthlyReturnsRow {
-                        year: row.year,
-                        month: row.month,
-                        window: match row.window {
-                            MonthWindow::Complete => "complete",
-                            MonthWindow::MonthToDate => "month-to-date",
-                            MonthWindow::Future => "future",
-                        },
-                        prior: row.prior.map(Into::into),
-                        current: row.current.map(Into::into),
-                        percent_micros: row.percent.map(|value| value.to_string()),
-                    })
-                    .collect(),
-            })
+        |offset, range, next_offset| MonthlyReturnsPage {
+            first_year: query.first_year,
+            last_year: query.last_year,
+            observed_through: query.observed_through.clone(),
+            total_rows: rows.len() as u32,
+            offset,
+            next_offset,
+            rows: rows[range]
+                .iter()
+                .map(|row| MonthlyReturnsRow {
+                    year: u32::from(row.year),
+                    month: u32::from(row.month),
+                    window: match row.window {
+                        MonthWindow::Complete => "complete",
+                        MonthWindow::MonthToDate => "month-to-date",
+                        MonthWindow::Future => "future",
+                    }
+                    .into(),
+                    prior: row.prior.map(Into::into),
+                    current: row.current.map(Into::into),
+                    percent_micros: row.percent.map(|value| value.to_string()),
+                })
+                .collect(),
         },
     );
     Ok(())

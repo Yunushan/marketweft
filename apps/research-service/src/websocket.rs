@@ -26,6 +26,21 @@ pub(crate) async fn formula(
     upgrade(state, &headers, ws, Scope::Formula, analytics::formula).await
 }
 
+pub(crate) async fn monthly_returns(
+    State(state): State<Arc<Server>>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    upgrade(
+        state,
+        &headers,
+        ws,
+        Scope::Formula,
+        analytics::monthly_return_page,
+    )
+    .await
+}
+
 pub(crate) async fn screen(
     State(state): State<Arc<Server>>,
     headers: HeaderMap,

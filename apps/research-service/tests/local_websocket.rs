@@ -149,6 +149,68 @@ async fn reconnects_at_the_next_formula_offset_with_exact_nulls_and_ticks() {
 }
 
 #[tokio::test]
+async fn streams_monthly_price_evidence_and_resumes_from_the_next_utc_month() {
+    const CALENDAR: &str =
+        include_str!("../../../crates/core/tests/fixtures/synthetic-monthly-returns.csv");
+    let server = ResearchProcess::start(Settings::default());
+    let route = "/v1/monthly-returns/stream";
+    assert_http_error(
+        server.connect(route, None, None).await,
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_http_error(
+        server.connect(route, Some(SCREEN_TOKEN), None).await,
+        StatusCode::FORBIDDEN,
+    );
+    let mut query = json!({ "history_csv": CALENDAR, "first_year": 2024, "last_year": 2024,
+        "observed_through": "2024-01-15T16:00:00Z", "limit": 2 });
+    let mut early = server
+        .connect(route, Some(FORMULA_TOKEN), None)
+        .await
+        .unwrap();
+    send(&mut early, query.clone()).await;
+    let first = frame(&mut early).await;
+    assert_eq!(first["type"], "page");
+    assert_eq!(first["page"]["rows"][0]["percent_micros"], "12500000");
+    assert_eq!(first["page"]["rows"][1]["window"], "future");
+    assert_eq!(first["page"]["rows"][1]["current"], Value::Null);
+    drop(early);
+
+    query["offset"] = first["page"]["next_offset"].clone();
+    query["limit"] = json!(6);
+    let mut resumed = server
+        .connect(route, Some(FORMULA_TOKEN), None)
+        .await
+        .unwrap();
+    send(&mut resumed, query.clone()).await;
+    let next_page = frame(&mut resumed).await;
+    assert_eq!(next_page["page"]["rows"][0]["month"], 3);
+    assert_eq!(next_page["page"]["rows"][0]["percent_micros"], Value::Null);
+    assert_eq!(next_page["page"]["next_offset"], 8);
+    let last = frame(&mut resumed).await;
+    assert_eq!(last["page"]["rows"][0]["month"], 9);
+    assert_eq!(last["page"]["next_offset"], Value::Null);
+    assert!(matches!(next(&mut resumed).await, Message::Close(_)));
+
+    query["offset"] = json!(0);
+    query["observed_through"] = json!("2024-12-31T23:59:59Z");
+    let mut later = server
+        .connect(route, Some(FORMULA_TOKEN), None)
+        .await
+        .unwrap();
+    send(&mut later, query).await;
+    let page = frame(&mut later).await;
+    assert_eq!(page["page"]["rows"][0]["percent_micros"], "25000000");
+    assert_eq!(page["page"]["rows"][1]["percent_micros"], "-25000000");
+    assert_eq!(page["page"]["rows"][3]["prior"], Value::Null);
+    assert_eq!(page["page"]["rows"][5]["prior"]["ticks"], "0");
+    assert_eq!(page["page"]["rows"][5]["percent_micros"], Value::Null);
+    let later_last = frame(&mut later).await;
+    assert_eq!(later_last["page"]["rows"][0]["percent_micros"], "0");
+    assert!(matches!(next(&mut later).await, Message::Close(_)));
+}
+
+#[tokio::test]
 async fn streams_ranked_universe_pages_at_independent_knowledge_cutoffs() {
     let server = ResearchProcess::start(Settings::default());
     let route = "/v1/universe/screen/stream";

@@ -7,8 +7,8 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use marketweft_research_service::{
     proto::{
-        research_client::ResearchClient, AmericanOptionQuery, FormulaQuery, OptionQuery,
-        RankComparisonQuery, ScreenQuery,
+        research_client::ResearchClient, AmericanOptionQuery, FormulaQuery, MonthlyReturnsQuery,
+        OptionQuery, RankComparisonQuery, ScreenQuery,
     },
     research_router, Tokens,
 };
@@ -128,6 +128,106 @@ async fn preserves_formula_pagination_and_protobuf_presence() {
     assert_eq!(last.next_offset, None);
     assert_eq!(last.rows[0].value_ticks, None);
     assert_eq!(last.rows[1].value_ticks.as_deref(), Some("14500000"));
+}
+
+#[tokio::test]
+async fn monthly_grpc_pages_match_rest_with_exact_optional_evidence() {
+    const CALENDAR: &str =
+        include_str!("../../../crates/core/tests/fixtures/synthetic-monthly-returns.csv");
+    let server = ResearchProcess::start(Settings::default());
+    let mut client = connect(&server).await;
+    let mut query = MonthlyReturnsQuery {
+        history_csv: CALENDAR.into(),
+        first_year: 2024,
+        last_year: 2024,
+        observed_through: "2024-01-15T16:00:00Z".into(),
+        offset: None,
+        limit: Some(2),
+    };
+    assert_eq!(
+        client
+            .get_monthly_returns(query.clone())
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unauthenticated
+    );
+    assert_eq!(
+        client
+            .get_monthly_returns(authorized(query.clone(), SCREEN_TOKEN))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+    let mut malformed = query.clone();
+    malformed.limit = Some(121);
+    assert_eq!(
+        client
+            .get_monthly_returns(authorized(malformed, FORMULA_TOKEN))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::InvalidArgument
+    );
+
+    let first = client
+        .get_monthly_returns(authorized(query.clone(), FORMULA_TOKEN))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(first.next_offset, Some(2));
+    assert_eq!(first.rows[0].prior.as_ref().unwrap().ticks, "80000000");
+    assert_eq!(first.rows[0].current.as_ref().unwrap().at, 1_705_334_400);
+    assert_eq!(first.rows[0].percent_micros.as_deref(), Some("12500000"));
+    assert!(first.rows[1].current.is_none() && first.rows[1].percent_micros.is_none());
+    query.observed_through = "2024-12-31T23:59:59Z".into();
+    let late = client
+        .get_monthly_returns(authorized(query.clone(), FORMULA_TOKEN))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(late.rows[1].percent_micros.as_deref(), Some("-25000000"));
+    query.offset = late.next_offset.map(u64::from);
+    query.limit = Some(10);
+    let resumed = client
+        .get_monthly_returns(authorized(query.clone(), FORMULA_TOKEN))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(resumed.next_offset, None);
+    assert!(resumed.rows[0].current.is_none() && resumed.rows[1].prior.is_none());
+    assert_eq!(resumed.rows[3].prior.as_ref().unwrap().ticks, "0");
+    assert!(resumed.rows[3].percent_micros.is_none());
+    assert_eq!(resumed.rows[4].percent_micros.as_deref(), Some("0"));
+
+    let rest = research_router(
+        "127.0.0.1:4174".parse().unwrap(),
+        Tokens::new(Some(FORMULA_TOKEN), None).unwrap(),
+    )
+    .unwrap();
+    let response = rest
+        .oneshot(
+            HttpRequest::post("/v1/monthly-returns")
+                .header("host", "127.0.0.1:4174")
+                .header("authorization", format!("Bearer {FORMULA_TOKEN}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({ "history_csv": query.history_csv, "first_year": query.first_year,
+           "last_year": query.last_year, "observed_through": query.observed_through,
+           "offset": query.offset, "limit": query.limit })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&bytes).unwrap(),
+        serde_json::to_value(&resumed).unwrap()
+    );
 }
 
 #[tokio::test]
