@@ -57,6 +57,7 @@ mod point_figure;
 mod portfolio;
 mod portfolio_allocation_wire;
 mod portfolio_scenario_wire;
+mod price_body_studies;
 mod price_momentum;
 mod provider_history;
 mod range_bars;
@@ -212,6 +213,9 @@ pub use portfolio::{
     SpinOffBasisAllocation, SpinOffBasisRow, SpinOffBasisState, SpinOffBasisTerms, SpinOffCashRow,
     SpinOffCashState, SpinOffCashTerms, SuccessorDeliveryPosting, SuccessorShareDelta,
     SuccessorShareRow, SuccessorShareState, SuccessorShareTerms,
+};
+pub use price_body_studies::{
+    center_of_gravity, qstick, williams_accumulation_distribution, CenterOfGravityValue,
 };
 pub use price_momentum::{
     chande_momentum_oscillator, commodity_channel_index, coppock_curve, observed_drawdown,

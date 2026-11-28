@@ -25,6 +25,10 @@ export const STUDIES = {
   ultimate: { name: 'Ultimate Oscillator', label: 'Ultimate Oscillator', minPeriod: 1, defaultPeriod: 7, periodLabel: 'Ultimate Oscillator short', color: '#79cdb5' },
   williams_r: { name: 'Williams %R', label: 'Williams %R', minPeriod: 1, defaultPeriod: 14, color: '#ceaeec' },
   macd: { name: 'MACD', label: 'Moving Average Convergence Divergence', minPeriod: 1, defaultPeriod: 12, periodLabel: 'MACD fast', color: '#9abdfd' },
+  qstick: { name: 'Qstick', label: 'Qstick', minPeriod: 1, defaultPeriod: 10, color: '#d6a68f' },
+  williams_ad: { name: 'Williams Accumulation/Distribution', label: 'Williams Accumulation/Distribution', color: '#a2c79e' },
+  center_of_gravity: { name: 'Center of Gravity', label: 'Center of Gravity Oscillator',
+    minPeriod: 2, defaultPeriod: 10, color: '#a9ade9' },
   tsi: { name: 'True Strength Index', label: 'True Strength Index',
     minPeriod: 1, defaultPeriod: 13, periodLabel: 'TSI fast', color: '#a4bdf5' },
   klinger: { name: 'Klinger Oscillator', label: 'Klinger Oscillator',
@@ -241,6 +245,9 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
           series: levels.map(level => level?.[field] ?? null) })),
       }]
     }
+    if (kind === 'williams_ad') return [{ kind, periods: [], unit: 'price', zeroLine: true, lines: [
+      { color: STUDIES[kind].color, series: core.williamsAccumulationDistribution(bars) },
+    ] }]
     const { period = STUDIES[kind].defaultPeriod } = study
     if (kind === 'bb') return [priceBands(kind, [period], core.bollingerBands(period, bars))]
     if (kind === 'donchian') return [priceBands(kind, [period], core.donchianChannels(period, bars))]
@@ -298,6 +305,16 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       return [{ kind, periods: [period, first, second, signal], guides: [-100, 0, 100], lines: [
         { key: 'line', label: 'Line', color: STUDIES[kind].color, series: values.map(row => row.line) },
         { key: 'signal', label: 'Signal', color: '#f4ba85', series: values.map(row => row.signal) },
+      ] }]
+    }
+    if (kind === 'qstick') return [{ kind, periods: [period], unit: 'price', zeroLine: true, lines: [
+      { color: STUDIES[kind].color, series: core.qstick(period, bars) },
+    ] }]
+    if (kind === 'center_of_gravity') {
+      const rows = core.centerOfGravity(period, bars)
+      return [{ kind, periods: [period], unit: 'index', zeroLine: true, lines: [
+        { key: 'line', label: 'Line', color: STUDIES[kind].color, series: rows.map(row => row.line) },
+        { key: 'signal', label: 'Signal', color: '#edbf92', series: rows.map(row => row.signal) },
       ] }]
     }
     if (kind === 'tsi' || kind === 'klinger') {

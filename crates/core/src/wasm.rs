@@ -4747,6 +4747,33 @@ fn encode_oscillator_signals(values: Vec<crate::OscillatorSignal>) -> Vec<u8> {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_qstick(period: usize) -> u32 {
+    process(|input| crate::qstick(period, &decode_bars(input)?).map(encode_indicator_values))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_williams_accumulation_distribution() -> u32 {
+    process(|input| {
+        crate::williams_accumulation_distribution(&decode_bars(input)?)
+            .map(encode_wide_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_center_of_gravity(period: usize) -> u32 {
+    process(|input| {
+        let values = crate::center_of_gravity(period, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(values.len() * 32);
+        for value in values {
+            for ticks in [value.line, value.signal] {
+                bytes.extend_from_slice(&ticks.unwrap_or(i128::MIN).to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_williams_percent_r(period: usize) -> u32 {
     process(|input| {
         crate::williams_percent_r(period, &decode_bars(input)?).map(encode_indicator_values)

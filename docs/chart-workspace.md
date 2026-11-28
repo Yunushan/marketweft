@@ -646,3 +646,15 @@ True Strength Index applies the slow and then fast EMA to both the one-bar close
 Klinger Oscillator subtracts the slow volume-force EMA from the fast EMA, using defaults of 34 and 55 and a 13-bar signal. Direction follows changes in high plus low plus close and stays unchanged on a tie. After the first direction is established, each reversal restarts the cumulative range with the previous and current bar ranges. Volume force is signed volume times 100 times `abs(2 × current range / cumulative range − 1)`. A zero cumulative range gives zero force. MarketWeft seeds each EMA with its first full-window average and starts the signal from available oscillator values. [TA-Lib, Klinger Volume Oscillator formula](https://ta-lib.org/functions/kvo.html)
 
 The two studies use workspace backup version 82. Older backups restore the indicators and settings they contain. Analysis exports retain empty cells during warm-up and record valid zeros explicitly.
+
+## Qstick, Williams Accumulation/Distribution and Center of Gravity
+
+Enable these studies independently from **Indicators**. Each pane stores its own settings. The analysis CSV includes the Qstick value, the price accumulation total, and both Center of Gravity lines.
+
+**Qstick** averages close minus open over a full window. The default is 10 bars. A one-bar setting gives the signed body directly. The result uses price units. [TA-Lib, Qstick](https://ta-lib.org/functions/qstick.html)
+
+**Williams Accumulation/Distribution** starts at zero. When the close rises, it adds the close minus the lesser of the low and previous close. When the close falls, it adds the close minus the greater of the high and previous close. Equal closes contribute zero. The price-only version preserves gap contributions and exact cumulative values at wide magnitudes. [TA-Lib, Williams Accumulation/Distribution](https://ta-lib.org/functions/wad.html)
+
+**Center of Gravity** weights each bar midpoint by its position, with position one at the most recent bar. It negates the weighted sum divided by the sum of the midpoints over a full window, with 10 bars by default. A zero sum leaves the line undefined. The signal shows the line from one bar earlier, so it can remain visible while the current line is undefined. [TA-Lib, Center of Gravity Oscillator](https://ta-lib.org/functions/cg.html)
+
+The workspace writes backup version 83 when these settings are present. It still reads prior versions, with signed values and chart periods restored from the available data.

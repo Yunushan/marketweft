@@ -1402,6 +1402,9 @@ export interface MarketCore {
   chaikinMoneyFlow(period: number, bars: readonly Bar[]): (bigint | null)[];
   chaikinOscillator(fast: number, slow: number, bars: readonly Bar[]): (bigint | null)[];
   macd(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
+  qstick(period: number, bars: readonly Bar[]): (bigint | null)[];
+  williamsAccumulationDistribution(bars: readonly Bar[]): (bigint | null)[];
+  centerOfGravity(period: number, bars: readonly Bar[]): OscillatorSignal[];
   trueStrengthIndex(fast: number, slow: number, signal: number, bars: readonly Bar[]): OscillatorSignal[];
   klingerOscillator(fast: number, slow: number, signal: number, bars: readonly Bar[]): OscillatorSignal[];
   percentagePriceOscillator(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
@@ -1597,6 +1600,9 @@ interface MarketExports extends WebAssembly.Exports {
   mw_chaikin_money_flow(period: number): number;
   mw_chaikin_oscillator(fast: number, slow: number): number;
   mw_macd(fast: number, slow: number, signal: number): number;
+  mw_qstick(period: number): number;
+  mw_williams_accumulation_distribution(): number;
+  mw_center_of_gravity(period: number): number;
   mw_true_strength_index(fast: number, slow: number, signal: number): number;
   mw_klinger_oscillator(fast: number, slow: number, signal: number): number;
   mw_percentage_price_oscillator(fast: number, slow: number, signal: number): number;
@@ -3069,6 +3075,29 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       }
       return Array.from({ length: bars.length }, (_, index) => ({
         line: value(index * 24), signal: value(index * 24 + 8), histogram: value(index * 24 + 16),
+      }));
+    },
+    qstick(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'Qstick');
+      return readIndicatorTicks(output(api.mw_qstick(period)), bars.length);
+    },
+    williamsAccumulationDistribution(bars) {
+      validateIndicatorHistory(1, bars.length);
+      putIndicatorBars(bars, 'Williams Accumulation/Distribution');
+      return readWideIndicator(output(api.mw_williams_accumulation_distribution()), bars.length);
+    },
+    centerOfGravity(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      if (period < 2) throw new Error('Center of Gravity needs at least two bars per window.');
+      putIndicatorBars(bars, 'Center of Gravity');
+      const out = output(api.mw_center_of_gravity(period));
+      const value = (offset: number) => {
+        const ticks = signed128(out, offset);
+        return ticks === -(1n << 127n) ? null : ticks;
+      };
+      return Array.from({ length: bars.length }, (_, index) => ({
+        line: value(index * 32), signal: value(index * 32 + 16),
       }));
     },
     trueStrengthIndex(fast, slow, signal, bars) {

@@ -88,10 +88,12 @@ const SINE_LINE_BACKUP_VERSION = 79
 const ROLLING_REGRESSION_BACKUP_VERSION = 80
 const ATR_TREND_OVERLAYS_BACKUP_VERSION = 81
 const STRENGTH_AND_VOLUME_BACKUP_VERSION = 82
+const PRICE_BODY_STUDIES_BACKUP_VERSION = 83
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
   const studies = Object.values(preferences.studies ?? {})
+  if (studies.some(pane => pane?.qstick || pane?.williams_ad || pane?.center_of_gravity)) return PRICE_BODY_STUDIES_BACKUP_VERSION
   if (studies.some(pane => pane?.tsi || pane?.klinger)) return STRENGTH_AND_VOLUME_BACKUP_VERSION
   if (studies.some(pane => pane?.supertrend || pane?.chandelier_exit)) return ATR_TREND_OVERLAYS_BACKUP_VERSION
   if (studies.some(pane => pane?.linear_regression_slope || pane?.time_series_forecast)) return ROLLING_REGRESSION_BACKUP_VERSION
@@ -306,6 +308,7 @@ export async function verifyWorkspaceBackup(
     ROLLING_REGRESSION_BACKUP_VERSION,
     ATR_TREND_OVERLAYS_BACKUP_VERSION,
     STRENGTH_AND_VOLUME_BACKUP_VERSION,
+    PRICE_BODY_STUDIES_BACKUP_VERSION,
     PRICE_VOLUME_SCATTER_BACKUP_VERSION,
     NORMALIZED_PRICE_AND_RANGE_BACKUP_VERSION,
     STOCHASTIC_RSI_AND_ULTIMATE_BACKUP_VERSION,

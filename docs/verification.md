@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.275.0 · Candle body and price-range studies
+
+- Rust and Wasm verify signed candle bodies, accumulation through gaps and equal closes, and the midpoint-based oscillator's exact zero and undefined sum. Cumulative and weighted values beyond signed 64-bit range stay exact.
+- Offline Chromium checks exact analysis CSV rows, separate Qstick settings by pane and version 83 restoration after restoring version 82.
+
 ## 0.274.0 · True Strength Index and Klinger Oscillator
 
 - Rust and Wasm verify two-stage warm-up, exact signed momentum, flat denominators, tied direction, reversals and a wide volume input. Replaying observed prefixes keeps all earlier values.

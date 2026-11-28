@@ -10,6 +10,25 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('Qstick, Williams accumulation and Center of Gravity preserve exact signed outputs', () => {
+  const bars = [[-2,1,-3,-1],[2,6,2,5],[6,8,4,5],[-3,-2,-5,-4],[1,2,0,1],[-1,1,-3,1],[2,4,0,0]].map(([open, high, low, close], index) =>
+    ({ time: 1748872800 + index * 60, open, high, low, close, volume: 10 }));
+  assert.deepEqual(core.qstick(2, bars), [null, 2000000n, 1000000n, -1000000n, -500000n, 1000000n, 0n]);
+  assert.deepEqual(core.williamsAccumulationDistribution(bars), [0n, 6000000n, 6000000n, -3000000n, 2000000n, 2000000n, -2000000n]);
+  const center = core.centerOfGravity(2, bars);
+  assert.deepEqual(center.map(row => row.line), [null, -666667n, -1400000n, -3400000n, -2400000n, null, 0n]);
+  assert.deepEqual(center[5], { line: null, signal: -2400000n });
+  assert.deepEqual(center[6], { line: 0n, signal: null });
+  for (let length = 0; length <= bars.length; length++) {
+    assert.deepEqual(core.centerOfGravity(2, bars.slice(0, length)), center.slice(0, length));
+  }
+  const large = bars.slice(0, 2).map((bar, index) => {
+    const close = index === 0 ? 2000000000 : -1999999999.999999;
+    return { ...bar, open: close, high: close, low: close, close };
+  });
+  assert.deepEqual(core.centerOfGravity(2, large)[1], { line: -2000000000000001000000n, signal: null });
+});
+
 test('TSI and Klinger preserve warm-up, swing direction and exact signal values', () => {
   const bar = (close, index) => ({
     time: 1748872800 + index * 60, open: close,
