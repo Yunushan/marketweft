@@ -4507,6 +4507,37 @@ pub extern "C" fn mw_ultimate_oscillator(short: usize, medium: usize, long: usiz
     })
 }
 
+#[no_mangle]
+pub extern "C" fn mw_choppiness_index(period: usize) -> u32 {
+    process(|input| {
+        crate::choppiness_index(period, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_stochastic_momentum_index(
+    lookback: usize,
+    first: usize,
+    second: usize,
+    signal: usize,
+) -> u32 {
+    process(|input| {
+        let rows = crate::stochastic_momentum_index(
+            lookback,
+            first,
+            second,
+            signal,
+            &decode_bars(input)?,
+        )?;
+        let mut bytes = Vec::with_capacity(rows.len() * 16);
+        for row in rows {
+            bytes.extend_from_slice(&row.line.unwrap_or(i64::MIN).to_le_bytes());
+            bytes.extend_from_slice(&row.signal.unwrap_or(i64::MIN).to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
 fn encode_price_bands(bands: Vec<Option<crate::PriceBand>>) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(24 * bands.len());
     for band in bands {

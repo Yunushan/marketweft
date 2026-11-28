@@ -12,6 +12,7 @@ mod bollinger_measures;
 mod candle_patterns;
 mod chaikin;
 mod chart_movement;
+mod choppiness_and_smi;
 mod close_change;
 mod close_distribution;
 mod close_swings;
@@ -101,6 +102,9 @@ pub use bollinger_measures::{bollinger_measures, BollingerMeasures};
 pub use candle_patterns::{replay_candle_patterns, CandlePattern, CandlePatternHit};
 pub use chaikin::{chaikin_money_flow, chaikin_oscillator};
 pub use chart_movement::PriceMovement;
+pub use choppiness_and_smi::{
+    choppiness_index, stochastic_momentum_index, StochasticMomentumValue,
+};
 pub use close_change::{close_changes, opening_gaps, OpeningGap};
 pub use close_distribution::{observed_close_distributions, CloseDistribution};
 pub use close_swings::{confirmed_close_swings, ConfirmedSwing, SwingSide};

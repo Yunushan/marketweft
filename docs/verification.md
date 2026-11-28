@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.247.0 · Choppiness Index and Stochastic Momentum Index
+
+- Rust and Wasm verify a gap-driven Choppiness value of 200, zero, missing flat windows, signed SMI values, half-tick midpoints and observed prefixes. The SMI signal restarts after a zero smoothed span.
+- Offline Chromium checks independent pane periods, signed analysis CSV and restoration of versions 71 and 72 with the prior TWAP drawing intact.
+
+[Choppiness Index and SMI](chart-workspace.md#choppiness-index-and-stochastic-momentum-index)
+
 ## 0.246.0 · Scoped portfolio scenario service
 
 - REST verifies authorization, exact seed and path values, cutoff changes and rewind. Invalid fields, numeric seeds, missing complete blocks and unsupported pagination return the expected errors.

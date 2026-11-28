@@ -464,6 +464,14 @@ Both studies use observed bars and preserve separate pane settings. Research CSV
 
 The studies save independent periods for each pane. Research CSV columns use exact signed values with up to six decimal places, including `ppo_line_12_26_9`, `ppo_signal_12_26_9`, `ppo_histogram_12_26_9` and `natr_14` with the defaults. Workspace backup version 69 stores these settings and reads earlier formats.
 
+### Choppiness Index and Stochastic Momentum Index
+
+The **Choppiness Index** compares the sum of true ranges over a complete window with the difference between its highest high and lowest low. Each true range can include the preceding observed close. The index is 100 times the base-10 logarithm of that ratio divided by the base-10 logarithm of the window size. The default is 14 bars. A flat high–low window leaves a gap, while a ratio of one gives zero. A gap into a narrow window can produce a value above 100. The readout and export retain it. [Choppiness Index formula](https://www.tradingview.com/support/solutions/43000501980-choppiness-index-chop/).
+
+The **Stochastic Momentum Index** divides the twice-smoothed distance of the close from the observed high–low midpoint by half the twice-smoothed high–low span. The first and second exponential averages have independent periods and start from their own complete simple-average windows. The lookback, first average, second average and signal default to 13, 25, 2 and 9 bars. A zero smoothed span leaves the line undefined and restarts signal warm-up. The signal is an exponential average of the available SMI values. [Stochastic Momentum Index formula](https://ta-lib.org/functions/smi.html).
+
+Each pane saves its own settings in a version 72 workspace backup. Analysis CSV includes the index and both SMI lines with their periods in the column names. Undefined values leave empty cells.
+
 ### Stochastic RSI and Ultimate Oscillator
 
 **Stochastic RSI** places the current Wilder RSI within the highest and lowest RSI values in a complete observed window, on a 0–100% scale. The defaults are 14 bars for Wilder RSI, 14 for its range, 3 for %K smoothing and 3 for %D smoothing. The two smoothing stages use simple averages over complete defined windows. An unchanged RSI range leaves a gap. A current RSI at the bottom of a nonflat range gives a raw value of 0%. The panel guides are at 20% and 80%. [Stochastic RSI formula](https://www.tradingview.com/support/solutions/43000502333-stochastic-rsi-stoch-rsi/)

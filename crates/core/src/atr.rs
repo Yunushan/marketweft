@@ -4,6 +4,12 @@ use crate::{
     Bar, MAX_BARS,
 };
 
+pub(crate) fn true_range(bar: &Bar, previous: Option<i64>) -> i64 {
+    previous.map_or(bar.high - bar.low, |close| {
+        bar.high.max(close) - bar.low.min(close)
+    })
+}
+
 /// Wilder Average True Range in signed price units encoded as millionths.
 /// The first bar uses its observed high minus low because no preceding close exists.
 pub fn average_true_range(period: usize, bars: &[Bar]) -> Result<Vec<Option<i64>>, String> {
@@ -21,9 +27,7 @@ pub fn average_true_range(period: usize, bars: &[Bar]) -> Result<Vec<Option<i64>
         validate_bar_time(bar.time, previous_time, index)?;
         previous_time = Some(bar.time);
 
-        let range = previous_close.map_or(bar.high - bar.low, |close| {
-            bar.high.max(close) - bar.low.min(close)
-        });
+        let range = true_range(bar, previous_close);
         previous_close = Some(bar.close);
         let sample = i128::from(range) * PRECISION;
         if index < period {

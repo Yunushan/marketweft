@@ -98,6 +98,30 @@ test('anchored TWAP retains signed prices, exact elapsed time and prefix behavio
   assert.throws(() => core.anchoredTwap(0.5, bars), /whole UTC second/);
 });
 
+test('Choppiness and stochastic momentum keep exact observed gaps, wide ranges and signed values', async () => {
+  const bars = core.parseCsv(await readFile(new URL(
+    '../crates/core/tests/fixtures/synthetic-choppiness-and-smi.csv', import.meta.url,
+  ), 'utf8'));
+  const chop = core.choppinessIndex(2, bars);
+  assert.deepEqual(chop, [null, 100000000n, 0n, 200000000n, 0n, null, null, 0n, 100000000n]);
+  const unsmoothed = core.stochasticMomentumIndex(2, 1, 1, 2, bars);
+  assert.deepEqual(unsmoothed.map(row => row.line),
+    [null, 100000000n, 100000000n, 33333333n, 0n, null, null, -100000000n, 100000000n]);
+  assert.deepEqual(unsmoothed.map(row => row.signal),
+    [null, null, 100000000n, 55555555n, 18518518n, null, null, null, 0n]);
+  const smoothed = core.stochasticMomentumIndex(2, 2, 2, 2, bars);
+  assert.deepEqual(smoothed[3], { line: 88235294n, signal: null });
+  assert.deepEqual(smoothed.at(-1), { line: 22112398n, signal: 7518532n });
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.choppinessIndex(2, bars.slice(0, end)), chop.slice(0, end));
+    assert.deepEqual(core.stochasticMomentumIndex(2, 2, 2, 2, bars.slice(0, end)), smoothed.slice(0, end));
+  }
+  const wide = core.parseCsv('time,open,high,low,close,volume\n0,0,0.000001,0,0,0\n60,0,2000000000,-2000000000,2000000000,0\n');
+  assert.deepEqual(core.stochasticMomentumIndex(1, 1, 1, 1, wide),
+    [{ line: -100000000n, signal: -100000000n }, { line: 100000000n, signal: 100000000n }]);
+  assert.throws(() => core.choppinessIndex(1, bars), /at least two bars/);
+});
+
 test('PPO and normalized ATR preserve signed wide percentages and independent zero behavior', async () => {
   const input = await readFile(new URL('../crates/core/tests/fixtures/synthetic-normalized-indicators.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(input);

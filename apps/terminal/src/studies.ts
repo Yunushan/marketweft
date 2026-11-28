@@ -6,6 +6,7 @@ export const STUDIES = {
   rsi: { name: 'RSI', label: 'Relative Strength Index', minPeriod: 2, defaultPeriod: 14, color: '#8eb3fa' },
   atr: { name: 'ATR', label: 'Average True Range', minPeriod: 1, defaultPeriod: 14, color: '#e6ab66' },
   natr: { name: 'Normalized ATR', label: 'Normalized Average True Range', minPeriod: 1, defaultPeriod: 14, color: '#bdb1ef' },
+  choppiness: { name: 'Choppiness Index', label: 'Choppiness Index', minPeriod: 2, defaultPeriod: 14, color: '#a2b4e7' },
   bb: { name: 'Bollinger Bands', label: 'Bollinger Bands', minPeriod: 1, defaultPeriod: 20 },
   bb_percent_b: { name: 'Bollinger %B', label: 'Bollinger %B', minPeriod: 1, defaultPeriod: 20, color: '#e797c7' },
   bb_bandwidth: { name: 'BandWidth', label: 'Bollinger BandWidth', minPeriod: 1, defaultPeriod: 20, color: '#6acec6' },
@@ -13,6 +14,8 @@ export const STUDIES = {
   keltner: { name: 'Keltner Channels', label: 'Keltner Channels', minPeriod: 1, defaultPeriod: 20, periodLabel: 'Keltner EMA' },
   stochastic: { name: 'Stochastic Oscillator', label: 'Stochastic Oscillator', minPeriod: 1, defaultPeriod: 14, periodLabel: 'Stochastic lookback', color: '#a6c9f8' },
   stochastic_rsi: { name: 'Stochastic RSI', label: 'Stochastic RSI', minPeriod: 2, defaultPeriod: 14, periodLabel: 'Stochastic RSI Wilder RSI', color: '#aca8f2' },
+  stochastic_momentum: { name: 'Stochastic Momentum Index', label: 'Stochastic Momentum Index', minPeriod: 1,
+    defaultPeriod: 13, periodLabel: 'SMI lookback', color: '#96d1e4' },
   ultimate: { name: 'Ultimate Oscillator', label: 'Ultimate Oscillator', minPeriod: 1, defaultPeriod: 7, periodLabel: 'Ultimate Oscillator short', color: '#79cdb5' },
   williams_r: { name: 'Williams %R', label: 'Williams %R', minPeriod: 1, defaultPeriod: 14, color: '#ceaeec' },
   macd: { name: 'MACD', label: 'Moving Average Convergence Divergence', minPeriod: 1, defaultPeriod: 12, periodLabel: 'MACD fast', color: '#9abdfd' },
@@ -59,6 +62,9 @@ export const EXTRA_STUDY_PERIODS = {
   stochRsiLookback: { label: 'Stochastic RSI lookback', defaultPeriod: 14 },
   stochRsiSmoothing: { label: 'Stochastic RSI %K smoothing', defaultPeriod: 3 },
   stochRsiSignal: { label: 'Stochastic RSI %D', defaultPeriod: 3 },
+  smiFirstPeriod: { label: 'SMI first EMA', defaultPeriod: 25 },
+  smiSecondPeriod: { label: 'SMI second EMA', defaultPeriod: 2 },
+  smiSignalPeriod: { label: 'SMI signal EMA', defaultPeriod: 9 },
   ultimateMiddlePeriod: { label: 'Ultimate Oscillator medium', defaultPeriod: 14 },
   ultimateLongPeriod: { label: 'Ultimate Oscillator long', defaultPeriod: 28 },
   slowPeriod: { label: 'MACD slow', defaultPeriod: 26 },
@@ -76,6 +82,7 @@ const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPerio
   keltner: ['atrPeriod'],
   stochastic: ['smoothPeriod', 'signalPeriod'],
   stochastic_rsi: ['stochRsiLookback', 'stochRsiSmoothing', 'stochRsiSignal'],
+  stochastic_momentum: ['smiFirstPeriod', 'smiSecondPeriod', 'smiSignalPeriod'],
   ultimate: ['ultimateMiddlePeriod', 'ultimateLongPeriod'],
   macd: ['slowPeriod', 'macdSignalPeriod'],
   ppo: ['ppoSlowPeriod', 'ppoSignalPeriod'],
@@ -240,6 +247,14 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
         { color: STUDIES[kind].color, series: core.ultimateOscillator(period, medium, long, bars) },
       ] }]
     }
+    if (kind === 'stochastic_momentum') {
+      const [first, second, signal] = extraStudyPeriods(kind).map(key => study[key] ?? EXTRA_STUDY_PERIODS[key].defaultPeriod)
+      const values = core.stochasticMomentumIndex(period, first, second, signal, bars)
+      return [{ kind, periods: [period, first, second, signal], guides: [-100, 0, 100], lines: [
+        { key: 'line', label: 'Line', color: STUDIES[kind].color, series: values.map(row => row.line) },
+        { key: 'signal', label: 'Signal', color: '#f4ba85', series: values.map(row => row.signal) },
+      ] }]
+    }
     if (kind === 'macd' || kind === 'ppo') {
       const [slow, signal] = extraStudyPeriods(kind).map(key => study[key] ?? EXTRA_STUDY_PERIODS[key].defaultPeriod)
       const rows = kind === 'macd' ? core.macd(period, slow, signal, bars) : core.percentagePriceOscillator(period, slow, signal, bars)
@@ -252,6 +267,9 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     }
     if (kind === 'natr') return [{ kind, periods: [period], zeroLine: true, lines: [
       { color: STUDIES[kind].color, series: core.normalizedAverageTrueRange(period, bars) },
+    ] }]
+    if (kind === 'choppiness') return [{ kind, periods: [period], unit: 'index', guides: [0, 100], lines: [
+      { color: STUDIES[kind].color, series: core.choppinessIndex(period, bars) },
     ] }]
     if (kind === 'chaikin_oscillator') {
       const slow = study.chaikinSlowPeriod ?? EXTRA_STUDY_PERIODS.chaikinSlowPeriod.defaultPeriod

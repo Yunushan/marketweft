@@ -68,6 +68,11 @@ export interface StochasticValue {
   percentD: bigint | null;
 }
 
+export interface StochasticMomentumValue {
+  line: bigint | null;
+  signal: bigint | null;
+}
+
 export interface BollingerMeasures {
   percentB: bigint | null;
   bandwidth: bigint | null;
@@ -1284,6 +1289,8 @@ export interface MarketCore {
   stochasticOscillator(lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
   stochasticRsi(rsi: number, lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
   ultimateOscillator(short: number, medium: number, long: number, bars: readonly Bar[]): (bigint | null)[];
+  choppinessIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
+  stochasticMomentumIndex(lookback: number, first: number, second: number, signal: number, bars: readonly Bar[]): StochasticMomentumValue[];
   bollingerMeasures(period: number, bars: readonly Bar[]): BollingerMeasures[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
   replayCandlePatterns(calendar: string, intervalSeconds: number, bars: readonly Bar[], knownAt: number): CandlePatternHit[];
@@ -1451,6 +1458,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_stochastic_oscillator(lookback: number, smoothing: number, signal: number): number;
   mw_stochastic_rsi(rsi: number, lookback: number, smoothing: number, signal: number): number;
   mw_ultimate_oscillator(short: number, medium: number, long: number): number;
+  mw_choppiness_index(period: number): number;
+  mw_stochastic_momentum_index(lookback: number, first: number, second: number, signal: number): number;
   mw_bollinger_measures(period: number): number;
   mw_formula_version(): number;
   mw_evaluate_scalar_plugin(ticks: bigint): number;
@@ -1972,14 +1981,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     });
   }
 
-  function readStochasticValues(out: DataView, length: number): StochasticValue[] {
+  function readIndicatorPairs<T>(out: DataView, length: number, pair: (first: bigint | null, second: bigint | null) => T): T[] {
     function value(offset: number) {
       const ticks = out.getBigInt64(offset, true);
       return ticks === MISSING ? null : ticks;
     }
-    return Array.from({ length }, (_, index) => ({
-      percentK: value(index * 16), percentD: value(index * 16 + 8),
-    }));
+    return Array.from({ length }, (_, index) => pair(value(index * 16), value(index * 16 + 8)));
+  }
+
+  function readStochasticValues(out: DataView, length: number): StochasticValue[] {
+    return readIndicatorPairs(out, length, (percentK, percentD) => ({ percentK, percentD }));
   }
 
   function observedCloseIndicator(
@@ -2883,6 +2894,17 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         throw new Error('Ultimate Oscillator periods must increase strictly within 1–100,000 bars, with at most 100,000 source bars.');
       putIndicatorBars(bars, 'Ultimate Oscillator');
       return readIndicatorTicks(output(api.mw_ultimate_oscillator(short, medium, long)), bars.length);
+    },
+    choppinessIndex(period, bars) {
+      if (period < 2) throw new Error('Choppiness Index needs at least two bars per window.');
+      return observedIndicator(api.mw_choppiness_index, period, bars, 'Choppiness Index');
+    },
+    stochasticMomentumIndex(lookback, first, second, signal, bars) {
+      if (![lookback, first, second, signal].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Stochastic Momentum Index periods and histories must fit within 100,000 bars.');
+      putIndicatorBars(bars, 'Stochastic Momentum Index');
+      return readIndicatorPairs(output(api.mw_stochastic_momentum_index(lookback, first, second, signal)),
+        bars.length, (line, signal) => ({ line, signal }));
     },
     bollingerMeasures(period, bars) {
       validateIndicatorHistory(period, bars.length);
