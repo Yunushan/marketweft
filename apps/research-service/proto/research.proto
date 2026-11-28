@@ -6,6 +6,7 @@ package marketweft.research.v1;
 service Research {
   rpc EvaluateFormula(FormulaQuery) returns (FormulaPage);
   rpc GetMonthlyReturns(MonthlyReturnsQuery) returns (MonthlyReturnsPage);
+  rpc GetMacroCalendar(MacroCalendarQuery) returns (MacroCalendarPage);
   rpc ScreenUniverse(ScreenQuery) returns (ScreenPage);
   rpc CompareUniverseRanks(RankComparisonQuery) returns (RankComparisonPage);
   rpc SnapshotOptions(OptionQuery) returns (OptionPage);
@@ -72,6 +73,39 @@ message MonthlyReturnsPage {
   uint32 offset = 5;
   optional uint32 next_offset = 6;
   repeated MonthlyReturnsRow rows = 7;
+}
+
+message MacroCalendarQuery {
+  string csv = 1;
+  string published_through = 2;
+  string known_at = 3;
+  optional uint64 offset = 4;
+  optional uint64 limit = 5;
+}
+
+message MacroCalendarRow {
+  string release_id = 1;
+  string series_id = 2;
+  sint64 reference_date = 3;
+  string unit = 4;
+  string record_id = 5;
+  string kind = 6;
+  sint64 published_at = 7;
+  sint64 observed_at = 8;
+  optional sint64 scheduled_at = 9;
+  // Exact signed integer millionths in the declared unit.
+  optional string value_ticks = 10;
+  optional string supersedes = 11;
+}
+
+message MacroCalendarPage {
+  string published_through = 1;
+  string known_at = 2;
+  uint32 total_releases = 3;
+  uint32 total_rows = 4;
+  uint32 offset = 5;
+  optional uint32 next_offset = 6;
+  repeated MacroCalendarRow rows = 7;
 }
 
 message ScreenQuery {

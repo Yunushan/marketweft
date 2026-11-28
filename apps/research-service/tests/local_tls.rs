@@ -3,7 +3,9 @@ mod support;
 use futures_util::{SinkExt, StreamExt};
 use marketweft_research_service::{
     issue_research_credential,
-    proto::{research_client::ResearchClient, FormulaQuery, RankComparisonQuery},
+    proto::{
+        research_client::ResearchClient, FormulaQuery, MacroCalendarQuery, RankComparisonQuery,
+    },
 };
 use rcgen::{generate_simple_self_signed, CertifiedKey};
 use rustls::{pki_types::ServerName, ClientConfig, RootCertStore};
@@ -94,6 +96,28 @@ async fn validates_the_peer_and_uses_managed_credentials_for_tls_research() {
     );
     let answer = client.evaluate_formula(request).await.unwrap().into_inner();
     assert_eq!(answer.rows[0].value_ticks.as_deref(), Some("10000001"));
+
+    let calendar = MacroCalendarQuery {
+        csv: include_str!("../../../crates/core/tests/fixtures/synthetic-macro-calendar.csv")
+            .into(),
+        published_through: "2025-04-03T14:50:00Z".into(),
+        known_at: "2025-04-03T14:52:00Z".into(),
+        offset: Some(4),
+        limit: Some(1),
+    };
+    let mut request = Request::new(calendar);
+    request.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {}", issued.token).parse().unwrap(),
+    );
+    let answer = client
+        .get_macro_calendar(request)
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(answer.rows[0].value_ticks.as_deref(), Some("2800000"));
+    assert_eq!(answer.rows[0].supersedes.as_deref(), Some("CPI-A1"));
+    assert_eq!(answer.next_offset, Some(5));
 
     assert!(endpoint
         .clone()

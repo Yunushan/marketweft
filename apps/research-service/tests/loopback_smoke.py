@@ -58,6 +58,20 @@ def verify(origin, formula_token, screen_token, options_token):
     assert status == 200 and [row["percent_micros"] for row in late["rows"]] == ["25000000", "-25000000"], late
     assert post(calendar_route, formula_token, calendar) == (200, early)
 
+    macro_route = "/v1/macro-calendar"
+    macro = {
+        "csv": fixture("synthetic-macro-calendar.csv"), "published_through": "2025-04-03T14:50:00Z",
+        "known_at": "2025-04-03T14:31:59Z", "offset": 2, "limit": 2,
+    }
+    assert post(macro_route, screen_token, macro)[0] == 403
+    status, hidden = post(macro_route, formula_token, macro)
+    assert status == 200 and [row["record_id"] for row in hidden["rows"]] == ["PAY-S1"], hidden
+    status, revealed = post(macro_route, formula_token, dict(macro, known_at="2025-04-03T14:52:00Z"))
+    assert status == 200 and revealed["next_offset"] == 4, revealed
+    assert [row["value_ticks"] for row in revealed["rows"]] == ["2700000", "2600000"], revealed
+    assert revealed["rows"][1]["supersedes"] == "CPI-A0", revealed
+    assert post(macro_route, formula_token, macro) == (200, hidden)
+
     query = {
         "membership_csv": fixture("synthetic-universe.csv"),
         "prices_csv": fixture("synthetic-universe-prices.csv"),
@@ -158,7 +172,7 @@ def main(executable):
         executable, formula_token, screen_token, MARKETWEFT_OPTIONS_TOKEN=options_token,
     ) as (_, origin, _):
         verify(origin, formula_token, screen_token, options_token)
-    print("Verified scoped formulas, monthly returns, universe screens, option snapshots and American valuations over loopback TCP.")
+    print("Verified scoped formulas, monthly returns, economic releases, universe screens, option snapshots and American valuations over loopback TCP.")
 
 
 if __name__ == "__main__":

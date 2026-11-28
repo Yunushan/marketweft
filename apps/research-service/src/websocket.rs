@@ -41,6 +41,21 @@ pub(crate) async fn monthly_returns(
     .await
 }
 
+pub(crate) async fn macro_calendar(
+    State(state): State<Arc<Server>>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    upgrade(
+        state,
+        &headers,
+        ws,
+        Scope::Formula,
+        analytics::macro_calendar,
+    )
+    .await
+}
+
 pub(crate) async fn screen(
     State(state): State<Arc<Server>>,
     headers: HeaderMap,

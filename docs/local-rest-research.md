@@ -1,6 +1,6 @@
 # Local research service
 
-The Rust research service defaults to IPv4 loopback and exposes read-only formula and universe screening endpoints over REST, WebSocket and gRPC. It uses the same core that powers the native executable and WebAssembly terminal.
+The Rust research service defaults to IPv4 loopback and exposes read-only formula, calendar, universe and option research over REST, WebSocket and gRPC. It uses the same core that powers the native executable and WebAssembly terminal.
 
 For Ubuntu 24.04 on Linux x64, download the `research-service-linux-x64-attempt-N` artifact from a successful GitHub verification run and unpack its enclosed tar.gz archive. Extract the service with its notices. Start it with `./marketweft-research-service` after configuring its environment as shown below. To build from source, use the same settings from the repository root and run the Cargo command.
 
@@ -18,6 +18,7 @@ The service prints the bound loopback address. The port defaults to 4174. Set `M
 | --- | --- | --- |
 | `POST /v1/formula` | `MARKETWEFT_FORMULA_TOKEN` | `formula`, `history_csv`, optional `observed_through` UTC seconds and ordered `functions` |
 | `POST /v1/monthly-returns` | `MARKETWEFT_FORMULA_TOKEN` | `history_csv`, `first_year`, `last_year` and an exact `observed_through` UTC timestamp |
+| `POST /v1/macro-calendar` | `MARKETWEFT_FORMULA_TOKEN` | Economic report `csv` and exact `published_through` and `known_at` UTC cutoffs |
 | `POST /v1/universe/screen` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `prices_csv`, `baseline_at`, `effective_at` and `known_at` |
 | `POST /v1/universe/rank-comparison` | `MARKETWEFT_SCREEN_TOKEN` | Both CSVs, a shared baseline and two effective and known cutoff pairs |
 | `POST /v1/options/snapshot` | `MARKETWEFT_OPTIONS_TOKEN` | `underlying_csv`, `quotes_csv`, `effective_at`, `known_at` and optional `max_age` |
@@ -40,6 +41,18 @@ Each row contains the year, month, UTC window state, preceding and current close
 Connect to `/v1/monthly-returns/stream` with a formula credential and send one text frame containing the REST query. Each `page` frame contains the same response as the REST endpoint. Reconnect with the last accepted `next_offset` and the same history, years and cutoff to resume. The socket closes after the last page. Use `wss` on the configured private TLS listener.
 
 Use `marketweft.research.v1.Research/GetMonthlyReturns` over HTTP/2 for a typed unary page. Send the formula bearer credential as gRPC metadata. Set the next request's `offset` from the optional `next_offset` field. Close timestamps use signed UTC seconds, and prices and return values use strings to preserve their full integer precision. Missing close messages or return strings remain absent. The same formula admission controls, managed quotas and audit receipts apply across REST, WebSocket and gRPC. [Research Protobuf schema](../apps/research-service/proto/research.proto).
+
+## Economic release calendar
+
+Send `POST /v1/macro-calendar` with a formula bearer credential. Use the contents of an authorized calendar CSV in `csv` and two inclusive `YYYY-MM-DDTHH:MM:SSZ` cutoffs in `published_through` and `known_at`. The engine accepts up to 1 MiB and 10,000 reports. [Economic calendar inputs and cutoff rules](macro-calendar.md)
+
+The page echoes both cutoffs and includes `total_releases`, `total_rows`, `offset`, `next_offset` and `rows`. Rows carry the release and series IDs, reference date, unit, report ID and kind, publication and observation times, and any scheduled time or predecessor ID. Versioned reports stay in chain order within each release. Numeric values use signed decimal strings in integer millionths and times in rows use whole Unix seconds. JSON uses `null` for unavailable fields.
+
+Use `limit` from 1 to 250 records with a default of 100. Pass `next_offset` as `offset` with the same CSV and cutoffs. At the synthetic fixture's 14:50 UTC publication cutoff and 14:52 UTC knowledge cutoff, the inflation chain is `CPI-A0`, `CPI-A1` and `CPI-A2`. Moving knowledge back to 14:31:59 retains the schedule and forecast and withholds the first actual. [Synthetic economic calendar](../crates/core/tests/fixtures/synthetic-macro-calendar.csv)
+
+Connect to `/v1/macro-calendar/stream` and send the same query as one JSON text frame. The service streams REST-shaped pages and closes after the terminal page. Resume after a disconnect with the same query and the last accepted `next_offset`. Use `wss` on a configured TLS listener.
+
+Use `marketweft.research.v1.Research/GetMacroCalendar` for a typed unary page over HTTP/2. Send the formula token as `authorization` metadata. Protobuf preserves absence for the optional scheduled time, numeric value, predecessor and next offset. Formula-scoped admission, managed quotas and audit receipts apply to all three routes. [Research Protobuf schema](../apps/research-service/proto/research.proto)
 
 ## Compare universe ranks
 
@@ -70,6 +83,8 @@ Use a Protobuf client over HTTP/2 at the printed service address. The default lo
 | Unary method in `marketweft.research.v1.Research` | Required scope |
 | --- | --- |
 | `EvaluateFormula` | `MARKETWEFT_FORMULA_TOKEN` |
+| `GetMonthlyReturns` | `MARKETWEFT_FORMULA_TOKEN` |
+| `GetMacroCalendar` | `MARKETWEFT_FORMULA_TOKEN` |
 | `ScreenUniverse` | `MARKETWEFT_SCREEN_TOKEN` |
 | `CompareUniverseRanks` | `MARKETWEFT_SCREEN_TOKEN` |
 | `SnapshotOptions` | `MARKETWEFT_OPTIONS_TOKEN` |

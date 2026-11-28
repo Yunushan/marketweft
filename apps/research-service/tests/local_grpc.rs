@@ -7,8 +7,8 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use marketweft_research_service::{
     proto::{
-        research_client::ResearchClient, AmericanOptionQuery, FormulaQuery, MonthlyReturnsQuery,
-        OptionQuery, RankComparisonQuery, ScreenQuery,
+        research_client::ResearchClient, AmericanOptionQuery, FormulaQuery, MacroCalendarQuery,
+        MonthlyReturnsQuery, OptionQuery, RankComparisonQuery, ScreenQuery,
     },
     research_router, Tokens,
 };
@@ -128,6 +128,87 @@ async fn preserves_formula_pagination_and_protobuf_presence() {
     assert_eq!(last.next_offset, None);
     assert_eq!(last.rows[0].value_ticks, None);
     assert_eq!(last.rows[1].value_ticks.as_deref(), Some("14500000"));
+}
+
+#[tokio::test]
+async fn economic_calendar_grpc_matches_rest_and_preserves_optional_exact_evidence() {
+    const REPORTS: &str =
+        include_str!("../../../crates/core/tests/fixtures/synthetic-macro-calendar.csv");
+    let server = ResearchProcess::start(Settings::default());
+    let mut client = connect(&server).await;
+    let mut query = MacroCalendarQuery {
+        csv: REPORTS.replace("2.8,CPI-A1", "-9007199254.740993,CPI-A1"),
+        published_through: "2025-04-03T14:50:00Z".into(),
+        known_at: "2025-04-03T14:52:00Z".into(),
+        offset: None,
+        limit: Some(2),
+    };
+    assert_eq!(
+        client
+            .get_macro_calendar(query.clone())
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unauthenticated
+    );
+    assert_eq!(
+        client
+            .get_macro_calendar(authorized(query.clone(), SCREEN_TOKEN))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+    let first = client
+        .get_macro_calendar(authorized(query.clone(), FORMULA_TOKEN))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(first.rows[0].scheduled_at, Some(1_743_690_600));
+    assert_eq!(first.rows[0].value_ticks, None);
+    assert_eq!(first.rows[1].value_ticks.as_deref(), Some("2500000"));
+    query.offset = Some(4);
+    let last = client
+        .get_macro_calendar(authorized(query.clone(), FORMULA_TOKEN))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(last.next_offset, None);
+    assert_eq!(
+        last.rows[0].value_ticks.as_deref(),
+        Some("-9007199254740993")
+    );
+    assert_eq!(last.rows[0].supersedes.as_deref(), Some("CPI-A1"));
+    assert_eq!(last.rows[0].scheduled_at, None);
+
+    let rest = research_router(
+        "127.0.0.1:4174".parse().unwrap(),
+        Tokens::new(Some(FORMULA_TOKEN), None).unwrap(),
+    )
+    .unwrap();
+    let response = rest
+        .oneshot(
+            HttpRequest::post("/v1/macro-calendar")
+                .header("host", "127.0.0.1:4174")
+                .header("authorization", format!("Bearer {FORMULA_TOKEN}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "csv": query.csv, "published_through": query.published_through,
+                        "known_at": query.known_at, "offset": query.offset, "limit": query.limit,
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&bytes).unwrap(),
+        serde_json::to_value(&last).unwrap()
+    );
 }
 
 #[tokio::test]

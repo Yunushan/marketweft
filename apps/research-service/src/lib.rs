@@ -518,6 +518,8 @@ fn route_authority(
     Router::new()
         .route("/v1/formula", post(formula))
         .route("/v1/monthly-returns", post(monthly_returns))
+        .route("/v1/macro-calendar", post(macro_calendar))
+        .route("/v1/macro-calendar/stream", get(websocket::macro_calendar))
         .route(
             "/v1/monthly-returns/stream",
             get(websocket::monthly_returns),
@@ -718,6 +720,13 @@ async fn monthly_returns(
         analytics::monthly_return_page,
     )
     .await
+}
+
+async fn macro_calendar(
+    State(state): State<Arc<Server>>,
+    request: Request,
+) -> Result<Json<ResearchPage>, ApiError> {
+    execute(state, request, Scope::Formula, analytics::macro_calendar).await
 }
 
 async fn screen(

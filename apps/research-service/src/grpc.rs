@@ -3,9 +3,9 @@ use crate::{
     audit::{Outcome, Transport},
     proto::{
         research_server::{Research, ResearchServer},
-        AmericanOptionQuery, AmericanOptionResponse, FormulaPage, FormulaQuery, MonthlyReturnsPage,
-        MonthlyReturnsQuery, OptionPage, OptionQuery, RankComparisonPage, RankComparisonQuery,
-        ScreenPage, ScreenQuery,
+        AmericanOptionQuery, AmericanOptionResponse, FormulaPage, FormulaQuery, MacroCalendarPage,
+        MacroCalendarQuery, MonthlyReturnsPage, MonthlyReturnsQuery, OptionPage, OptionQuery,
+        RankComparisonPage, RankComparisonQuery, ScreenPage, ScreenQuery,
     },
     shutdown::ResearchPermit,
     ApiError, Scope, Server, BODY_LIMIT,
@@ -35,6 +35,10 @@ pub(crate) fn routes(state: Arc<Server>) -> Router {
         )
         .route_service(
             "/marketweft.research.v1.Research/GetMonthlyReturns",
+            service.clone(),
+        )
+        .route_service(
+            "/marketweft.research.v1.Research/GetMacroCalendar",
             service.clone(),
         )
         .route_layer(from_fn_with_state(
@@ -164,6 +168,13 @@ impl Research for LocalResearch {
         request: GrpcRequest<MonthlyReturnsQuery>,
     ) -> Result<GrpcResponse<MonthlyReturnsPage>, Status> {
         unary(request, analytics::evaluate_monthly_returns).await
+    }
+
+    async fn get_macro_calendar(
+        &self,
+        request: GrpcRequest<MacroCalendarQuery>,
+    ) -> Result<GrpcResponse<MacroCalendarPage>, Status> {
+        unary(request, analytics::evaluate_macro_calendar).await
     }
 
     async fn screen_universe(

@@ -1,10 +1,11 @@
 use crate::{
     proto::{
         AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close, FormulaPage,
-        FormulaQuery, FormulaRow, MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery,
-        MonthlyReturnsRow, OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying,
-        RankComparisonLeg, RankComparisonPage, RankComparisonQuery, RankComparisonRow, ScreenPage,
-        ScreenQuery, ScreenRow,
+        FormulaQuery, FormulaRow, MacroCalendarPage, MacroCalendarQuery, MacroCalendarRow,
+        MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery, MonthlyReturnsRow,
+        OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying, RankComparisonLeg,
+        RankComparisonPage, RankComparisonQuery, RankComparisonRow, ScreenPage, ScreenQuery,
+        ScreenRow,
     },
     ApiError,
 };
@@ -12,9 +13,9 @@ use axum::http::StatusCode;
 use marketweft_core::{
     monthly_returns, parse_csv, parse_dividends, parse_exact_utc, parse_universe,
     AmericanValuationRequest, CashOptionError, ExerciseStyle, Formula, FormulaFunctionDefinition,
-    FormulaLibrary, MonthWindow, MonthlyClose, OptionAnalytics, OptionBook, OptionSide, PriceBook,
-    PriceObservation, ScreenComparisonLeg, ScreenCutoff, UniverseAction, FORMULA_VERSION,
-    MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
+    FormulaLibrary, MacroCalendar, MonthWindow, MonthlyClose, OptionAnalytics, OptionBook,
+    OptionSide, PriceBook, PriceObservation, ReportKind, ScreenComparisonLeg, ScreenCutoff,
+    UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -27,6 +28,7 @@ const MAX_RESULTS: u64 = 1000;
 pub(crate) enum ResearchPage {
     Formula(FormulaPage),
     MonthlyReturns(MonthlyReturnsPage),
+    MacroCalendar(MacroCalendarPage),
     Screen(ScreenPage),
     RankComparison(RankComparisonPage),
     Options(OptionPage),
@@ -194,6 +196,87 @@ pub(crate) fn evaluate_monthly_returns(
                     prior: row.prior.map(Into::into),
                     current: row.current.map(Into::into),
                     percent_micros: row.percent.map(|value| value.to_string()),
+                })
+                .collect(),
+        },
+    );
+    Ok(())
+}
+
+pub(crate) fn macro_calendar(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_macro_calendar(request(bytes)?, &mut |page| {
+        emit(ResearchPage::MacroCalendar(page))
+    })
+}
+
+pub(crate) fn evaluate_macro_calendar(
+    query: MacroCalendarQuery,
+    emit: &mut dyn FnMut(MacroCalendarPage) -> bool,
+) -> Result<(), ApiError> {
+    let limit = query.limit.unwrap_or(100);
+    if !(1..=250).contains(&limit) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Economic calendar page size must be 1–250.",
+        ));
+    }
+    let (offset, limit) = pagination(query.offset, Some(limit), 10_000)?;
+    let (published, known) = parse_exact_utc(&query.published_through)
+        .zip(parse_exact_utc(&query.known_at))
+        .ok_or_else(|| {
+            ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "Use YYYY-MM-DDTHH:MM:SSZ publication and knowledge cutoffs.",
+            )
+        })?;
+    let calendar = MacroCalendar::parse(&query.csv).map_err(analytical_error)?;
+    let releases = calendar.as_of(published, known);
+    let evidence: Vec<_> = releases
+        .iter()
+        .flat_map(|release| {
+            release
+                .schedule
+                .into_iter()
+                .chain(release.forecast)
+                .chain(release.actual_history.iter().copied())
+                .map(move |record| (release, record))
+        })
+        .collect();
+    pages(
+        offset,
+        limit,
+        evidence.len(),
+        emit,
+        |offset, range, next_offset| MacroCalendarPage {
+            published_through: query.published_through.clone(),
+            known_at: query.known_at.clone(),
+            total_releases: releases.len() as u32,
+            total_rows: evidence.len() as u32,
+            offset,
+            next_offset,
+            rows: evidence[range]
+                .iter()
+                .map(|(release, record)| MacroCalendarRow {
+                    release_id: release.release_id.into(),
+                    series_id: release.series_id.into(),
+                    reference_date: release.reference_date,
+                    unit: release.unit.into(),
+                    record_id: record.record_id.clone(),
+                    kind: match record.kind {
+                        ReportKind::Schedule => "schedule",
+                        ReportKind::Forecast => "forecast",
+                        ReportKind::Actual => "actual",
+                        ReportKind::Revision => "revision",
+                    }
+                    .into(),
+                    published_at: record.published_at,
+                    observed_at: record.observed_at,
+                    scheduled_at: record.scheduled_at,
+                    value_ticks: record.value.map(|value| value.to_string()),
+                    supersedes: record.supersedes.clone(),
                 })
                 .collect(),
         },

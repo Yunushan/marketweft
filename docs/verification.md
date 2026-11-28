@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.238.0 · Economic release service transports
+
+- Native service tests verify formula-scope admission, independent release and knowledge cutoffs, exact decimal ticks and revision chains split across REST and resumable WebSocket pages.
+- The typed gRPC result matches REST, retains optional fields and works with a managed formula credential over TLS. The standalone service smoke test checks the revision cutoff and rewind over loopback TCP.
+
+[Economic release calendar](local-rest-research.md#economic-release-calendar)
+
 ## 0.237.0 · Economic releases over MCP
 
 - The installed Python wheel and official MCP client verify independent publication and observation cutoffs, exact schedule and frozen forecast evidence, and a revision chain split across three pages.

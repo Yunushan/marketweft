@@ -11,6 +11,8 @@ const HISTORY: &str =
     include_str!("../../../crates/core/tests/fixtures/synthetic-formula-bars.csv");
 const MONTHLY_HISTORY: &str =
     include_str!("../../../crates/core/tests/fixtures/synthetic-monthly-returns.csv");
+const MACRO_REPORTS: &str =
+    include_str!("../../../crates/core/tests/fixtures/synthetic-macro-calendar.csv");
 const MEMBERSHIP: &str = include_str!("../../../crates/core/tests/fixtures/synthetic-universe.csv");
 const PRICES: &str =
     include_str!("../../../crates/core/tests/fixtures/synthetic-universe-prices.csv");
@@ -98,6 +100,72 @@ async fn formulas_keep_exact_ticks_and_independent_cutoffs_over_http() {
     ))
     .await;
     assert_eq!(null_limit.0, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn economic_calendar_rest_preserves_both_cutoffs_and_exact_revision_pages() {
+    let path = "/v1/macro-calendar";
+    let query = json!({ "csv": MACRO_REPORTS, "published_through": "2025-04-03T14:50:00Z",
+        "known_at": "2025-04-03T14:31:59Z", "limit": 2 });
+    assert_eq!(
+        send(request(path, None, json!({}))).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        send(request(path, Some(SCREEN_TOKEN), json!({}))).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let run = |query| send(request(path, Some(FORMULA_TOKEN), query));
+    let (status, early) = run(query.clone()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(early["total_releases"], 2);
+    assert_eq!(early["total_rows"], 3);
+    assert_eq!(early["next_offset"], 2);
+    assert_eq!(
+        early["rows"][0],
+        json!({
+            "release_id": "INFLATION-MAR", "series_id": "DEMO.CPI", "reference_date": 1740787200,
+            "unit": "percent", "record_id": "CPI-S2", "kind": "schedule", "published_at": 1743689280,
+            "observed_at": 1743689340, "scheduled_at": 1743690600, "value_ticks": null, "supersedes": null,
+        })
+    );
+    assert_eq!(early["rows"][1]["value_ticks"], "2500000");
+    let mut late = query.clone();
+    late["known_at"] = json!("2025-04-03T14:52:00Z");
+    late["offset"] = json!(2);
+    let (status, first_actuals) = run(late.clone()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(first_actuals["total_rows"], 6);
+    assert_eq!(first_actuals["rows"][0]["record_id"], "CPI-A0");
+    assert_eq!(first_actuals["rows"][1]["supersedes"], "CPI-A0");
+    late["offset"] = first_actuals["next_offset"].clone();
+    late["csv"] = json!(MACRO_REPORTS.replace("2.8,CPI-A1", "-9007199254.740993,CPI-A1"));
+    let (status, final_page) = run(late).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(final_page["rows"][0]["value_ticks"], "-9007199254740993");
+    assert_eq!(final_page["rows"][0]["supersedes"], "CPI-A1");
+    assert_eq!(final_page["next_offset"], Value::Null);
+    assert_eq!(run(query.clone()).await, (StatusCode::OK, early));
+    for (field, value, expected) in [
+        ("limit", json!(251), StatusCode::BAD_REQUEST),
+        ("limit", Value::Null, StatusCode::BAD_REQUEST),
+        ("offset", json!(10001), StatusCode::BAD_REQUEST),
+        ("csv_path", json!("reports.csv"), StatusCode::BAD_REQUEST),
+        (
+            "known_at",
+            json!("2025-02-29T14:52:00Z"),
+            StatusCode::BAD_REQUEST,
+        ),
+        (
+            "csv",
+            json!(MACRO_REPORTS.replace("2.8,CPI-A1", "2.8,CPI-A0")),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ),
+    ] {
+        let mut invalid = query.clone();
+        invalid[field] = value;
+        assert_eq!(run(invalid).await.0, expected);
+    }
 }
 
 #[tokio::test]

@@ -149,6 +149,61 @@ async fn reconnects_at_the_next_formula_offset_with_exact_nulls_and_ticks() {
 }
 
 #[tokio::test]
+async fn streams_economic_release_evidence_across_resumed_revision_pages() {
+    const REPORTS: &str =
+        include_str!("../../../crates/core/tests/fixtures/synthetic-macro-calendar.csv");
+    let server = ResearchProcess::start(Settings::default());
+    let route = "/v1/macro-calendar/stream";
+    assert_http_error(
+        server.connect(route, None, None).await,
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_http_error(
+        server.connect(route, Some(SCREEN_TOKEN), None).await,
+        StatusCode::FORBIDDEN,
+    );
+    let mut query = json!({ "csv": REPORTS, "published_through": "2025-04-03T14:50:00Z",
+        "known_at": "2025-04-03T14:52:00Z", "limit": 2 });
+    let mut initial = server
+        .connect(route, Some(FORMULA_TOKEN), None)
+        .await
+        .unwrap();
+    send(&mut initial, query.clone()).await;
+    let first = frame(&mut initial).await;
+    assert_eq!(first["type"], "page");
+    assert_eq!(first["page"]["rows"][0]["scheduled_at"], 1743690600);
+    assert_eq!(first["page"]["rows"][0]["value_ticks"], Value::Null);
+    drop(initial);
+
+    query["offset"] = first["page"]["next_offset"].clone();
+    let mut resumed = server
+        .connect(route, Some(FORMULA_TOKEN), None)
+        .await
+        .unwrap();
+    send(&mut resumed, query.clone()).await;
+    let middle = frame(&mut resumed).await;
+    assert_eq!(middle["page"]["offset"], 2);
+    assert_eq!(middle["page"]["rows"][0]["kind"], "actual");
+    assert_eq!(middle["page"]["rows"][1]["supersedes"], "CPI-A0");
+    let last = frame(&mut resumed).await;
+    assert_eq!(last["page"]["rows"][0]["supersedes"], "CPI-A1");
+    assert_eq!(last["page"]["rows"][0]["value_ticks"], "2800000");
+    assert_eq!(last["page"]["next_offset"], Value::Null);
+    assert!(matches!(next(&mut resumed).await, Message::Close(_)));
+
+    query["published_through"] = json!("2025-04-03T14:29:59Z");
+    let mut early = server
+        .connect(route, Some(FORMULA_TOKEN), None)
+        .await
+        .unwrap();
+    send(&mut early, query).await;
+    let hidden = frame(&mut early).await;
+    assert_eq!(hidden["page"]["total_rows"], 3);
+    assert_eq!(hidden["page"]["rows"][0]["record_id"], "PAY-S1");
+    assert!(matches!(next(&mut early).await, Message::Close(_)));
+}
+
+#[tokio::test]
 async fn streams_monthly_price_evidence_and_resumes_from_the_next_utc_month() {
     const CALENDAR: &str =
         include_str!("../../../crates/core/tests/fixtures/synthetic-monthly-returns.csv");

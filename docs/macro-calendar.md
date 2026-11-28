@@ -55,6 +55,8 @@ Each result carries the release and series IDs, reference date at midnight UTC, 
 
 Local MCP clients can request these records with the read-only `macro_calendar_as_of` tool. It returns exact decimal-string values and a continuation offset for long histories. [Economic releases over MCP](local-mcp-research.md#economic-releases)
 
+The private research service exposes the same records through REST, a resumable WebSocket stream and a typed gRPC page. It uses the formula bearer scope and applies the same admission controls to all three transports. [Economic release service](local-rest-research.md#economic-release-calendar)
+
 ### Native calendar protocol
 
 Run `marketweft-research macro-calendar` with a UTF-8 request on standard input. The first line contains `marketweft-macro-calendar`, protocol `1`, the publication cutoff and the knowledge cutoff, separated by tabs and followed by LF. Append up to 1 MiB of calendar CSV. Use `YYYY-MM-DDTHH:MM:SSZ` for both cutoffs.

@@ -103,7 +103,7 @@ async fn shared_limits_reject_a_burst_and_release_capacity_on_disconnect() {
     let error = websocket(&server).await.unwrap_err();
     assert!(matches!(error, Error::Http(response)
         if response.status() == 429 && response.headers()["retry-after"] == "1"));
-    for path in ["/v1/formula", "/v1/monthly-returns"] {
+    for path in ["/v1/formula", "/v1/monthly-returns", "/v1/macro-calendar"] {
         let response = rest_overload(&server, path).await.to_ascii_lowercase();
         assert!(response.starts_with("http/1.1 429 "));
         assert!(response.contains("\r\nretry-after: 1\r\n"));
