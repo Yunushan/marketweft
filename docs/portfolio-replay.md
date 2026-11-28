@@ -31,6 +31,12 @@ The concentration uses exact closes at the selected effective time, including re
 
 In **Load portfolio demo**, keep the effective time at 14:10 UTC on 2025-06-02. At the 14:10 knowledge cutoff, the known USD gross is 204 and BETA-001 has no rank. At 14:12, BETA-001 has 73.298429% of 764 USD. At 14:16, its revised mark gives it 71.22708% of 709 USD. Returning knowledge to 14:10 restores the missing mark. At both 14:45 cutoffs, BETA-002 has 100% of the 225 EUR in marked equity.
 
+### Equity concentration SDKs
+
+The TypeScript SDK exposes `equityConcentrationAsOf(membershipCsv, holdingsCsv, pricesCsv, effectiveAt, knownAt)`. Python exposes `ResearchEngine.equity_concentration_as_of` with the same three CSV contents and the `effective_at` and `known_at` keyword cutoffs. Both return the applied cutoffs in whole Unix seconds and the same ranked groups shown by the terminal. Marks and weights are integer millionths. TypeScript uses `bigint` for both, and Python uses integers. Missing values are `null` in TypeScript and `None` in Python. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md)
+
+Run `marketweft-research equity-concentration` with a version 1 UTF-8 request on stdin. The first line is `marketweft-equity-concentration`, version `1`, membership CSV byte length and holdings CSV byte length, separated with tabs. The next two lines contain effective and known UTC cutoffs. Append the membership, holdings and close CSV contents in order. The first response line repeats the protocol and version, followed by the group count. The `H` row echoes both Unix cutoffs, `G` rows carry the currency and known gross, and each group's `E` rows contain the listing ID, signed mark, rank and weight. Empty fields represent unavailable values.
+
 ## Portfolio currency translation
 
 Choose **Load portfolio FX demo**, or add **Portfolio FX rates CSV** when opening your holdings and close reports. Open **Portfolio currency translation** and apply a three-letter reporting currency. The table converts the known currency subtotals shown directly above it. Those subtotals include valued shares, delisting cash and receivables, and dividend subtotals when dividend reports are present. The converted subtotal includes currencies with available conversions. The source table carries the original amounts and the positions table identifies missing valuations.

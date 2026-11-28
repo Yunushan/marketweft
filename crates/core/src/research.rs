@@ -11,6 +11,9 @@ use crate::macro_wire::macro_snapshot_rows;
 use crate::option_chain::MAX_OPTION_CSV_BYTES;
 use crate::option_price::MAX_VOLATILITY;
 use crate::option_wire::{option_cash_status, option_dividend_rows, option_snapshot_rows};
+use crate::portfolio::{
+    equity_concentration_rows, portfolio_source_input, PortfolioBook, MAX_HOLDINGS_BYTES,
+};
 use crate::portfolio_scenario_wire::{portfolio_scenario_report, portfolio_scenario_rows};
 use crate::screen::MAX_PRICE_BYTES;
 use crate::universe::{valid_id, MAX_MEMBERSHIP_BYTES};
@@ -38,6 +41,47 @@ pub const MAX_MACRO_CALENDAR_REQUEST_BYTES: usize = MAX_MACRO_CSV_BYTES + 128;
 pub const MAX_PORTFOLIO_SCENARIOS_REQUEST_BYTES: usize =
     MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 1024;
 pub const MAX_PORTFOLIO_FX_REQUEST_BYTES: usize = 2 * 1024 * 1024;
+pub const MAX_EQUITY_CONCENTRATION_REQUEST_BYTES: usize =
+    MAX_MEMBERSHIP_BYTES + MAX_HOLDINGS_BYTES + MAX_PRICE_BYTES + 192;
+
+/// Return known gross share weights per quote currency from historical portfolio reports.
+pub fn equity_concentration_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_EQUITY_CONCENTRATION_REQUEST_BYTES {
+        return Err("Equity concentration request exceeds its byte limit.".into());
+    }
+    let request =
+        std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 equity concentration request.")?;
+    let (header, payload) = request
+        .split_once('\n')
+        .ok_or("Missing equity concentration request header.")?;
+    let fields: Vec<_> = header.splitn(5, '\t').collect();
+    let ["marketweft-equity-concentration", "1", membership_bytes, holdings_bytes] =
+        fields.as_slice()
+    else {
+        return Err("Invalid equity concentration request or protocol version.".into());
+    };
+    let membership_bytes = membership_bytes
+        .parse::<usize>()
+        .map_err(|_| "Supply the membership CSV byte length.")?;
+    let holdings_bytes = holdings_bytes
+        .parse::<usize>()
+        .map_err(|_| "Supply the holdings CSV byte length.")?;
+    let (effective, known, data) = portfolio_source_input(payload)?;
+    let (membership, rest) = data
+        .split_at_checked(membership_bytes)
+        .ok_or("Supply the membership CSV.")?;
+    let (holdings, prices) = rest
+        .split_at_checked(holdings_bytes)
+        .ok_or("Supply holdings and close CSVs.")?;
+    let universe = parse_universe(membership)?;
+    let book = PortfolioBook::parse(&universe, holdings, prices, "")?;
+    let groups = book.as_of(effective, known).equity_concentration();
+    Ok(format!(
+        "marketweft-equity-concentration\t{PROTOCOL_VERSION}\t{}\nH\t{effective}\t{known}\n{}",
+        groups.len(),
+        equity_concentration_rows(&groups),
+    ))
+}
 
 /// Translate supplied known currency subtotals at independent UTC cutoffs.
 pub fn portfolio_fx_request(bytes: &[u8]) -> Result<String, String> {

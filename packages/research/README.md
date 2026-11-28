@@ -2,10 +2,10 @@
 
 The TypeScript SDK evaluates versioned time-series formulas against user-supplied OHLCV. It uses the same checked-in Rust WebAssembly module as the terminal.
 
-Download `marketweft-research-0.15.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+Download `marketweft-research-0.16.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-npm install --offline ./marketweft-research-0.15.0.tgz
+npm install --offline ./marketweft-research-0.16.0.tgz
 ```
 
 ```js
@@ -33,6 +33,8 @@ Call `macroAsOf(csv, publishedThrough, knownAt)` with an authorized economic cal
 Call `portfolioScenarios(membershipCsv, pricesCsv, allocations, settings)` to resample joint returns or contiguous return blocks at independent UTC cutoffs. The result includes eligible block counts, listing coverage, percentiles and exact `bigint` path values. [Portfolio scenario SDKs](../../docs/portfolio-scenarios.md#research-sdks).
 
 Call `portfolioFxAsOf(ratesCsv, reporting, effectiveAt, knownAt, amounts)` for exact foreign exchange conversions and source quote evidence. Supply known subtotals as `bigint` integer millionths. [Portfolio FX research SDKs](../../docs/portfolio-replay.md#portfolio-fx-research-sdks).
+
+Call `equityConcentrationAsOf(membershipCsv, holdingsCsv, pricesCsv, effectiveAt, knownAt)` for ranked source-currency groups and known gross marked share values. Both marks and weights use `bigint`. [Equity concentration SDKs](../../docs/portfolio-replay.md#equity-concentration-sdks).
 
 For point-in-time universe screening, call `universeScreen` with the membership CSV, prices CSV and exact baseline, effective and known UTC times. The ordered rows contain their selected close observations and exact `bigint` return units. [Universe screening](../../docs/research-universe-screen.md).
 

@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.256.0 · Equity concentration research SDKs
+
+- The installed Python and TypeScript packages reproduce known gross values of 204, 764 and 709 USD as price reports and revisions become visible. Rewinding restores the original missing mark. Both packages keep BETA-002 distinct in EUR after the earlier listing delists.
+- The native CLI rejects malformed frames and invalid CSV byte lengths. The Python reader checks that the received cutoffs, ranks and weights reconcile with each ordered currency group.
+
+[Equity concentration SDKs](portfolio-replay.md#equity-concentration-sdks)
+
 ## 0.255.0 · Point-in-time portfolio equity concentration
 
 - At the fixed 14:10 UTC effective cutoff, the original mark leaves BETA-001 without rank. The late 14:12 report puts it first at 73.298429% of known USD gross. The 14:16 revision changes its weight to 71.22708%. Rewinding restores the original missing mark.

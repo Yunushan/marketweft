@@ -132,6 +132,14 @@ jobs:
           assert.equal(translate('2025-06-02T14:45:00Z').rows[0].converted, null)
           assert.equal(translate('2025-06-02T14:46:00Z').knownSubtotal, 340000000n)
           assert.equal(translate('2025-06-02T14:49:00Z').knownSubtotal, 362500000n)
+          const [equityMembership, equityHoldings, equityCloses] = await Promise.all([
+            fixture('synthetic-universe.csv'), fixture('synthetic-portfolio-holdings.csv'), fixture('synthetic-universe-prices.csv'),
+          ])
+          const concentration = known => research.equityConcentrationAsOf(equityMembership, equityHoldings,
+            equityCloses, '2025-06-02T14:10:00Z', known).groups[0]
+          assert.equal(concentration('2025-06-02T14:10:00Z').positions[1].mark, null)
+          assert.equal(concentration('2025-06-02T14:12:00Z').positions[0].weightMicros, 73298429n)
+          assert.equal(concentration('2025-06-02T14:16:00Z').positions[0].weightMicros, 71227080n)
 
           const [underlying, quotes, cash] = await Promise.all([
             fixture('synthetic-option-underlying.csv'), fixture('synthetic-option-exercise-quotes.csv'),

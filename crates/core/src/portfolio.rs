@@ -62,6 +62,52 @@ pub use successor::{
 const MAX_SHARE_RATIO: u32 = 1_000_000;
 const MAX_HOLDING_REPORTS: usize = 10_000;
 const MAX_HOLDING_LISTINGS: usize = 1_000;
+pub(crate) const MAX_HOLDINGS_BYTES: usize = 2 * 1024 * 1024;
+
+pub(crate) fn portfolio_source_input(input: &str) -> Result<(i64, i64, &str), String> {
+    let mut parts = input.splitn(3, '\n');
+    let mut cutoff = || {
+        parts
+            .next()
+            .and_then(exact_utc)
+            .ok_or("Use YYYY-MM-DDTHH:MM:SSZ portfolio cutoffs.")
+    };
+    let effective = cutoff()?;
+    let known = cutoff()?;
+    let body = parts.next().ok_or("Supply portfolio source reports.")?;
+    Ok((effective, known, body))
+}
+
+pub(crate) fn equity_concentration_rows(groups: &[EquityConcentration<'_>]) -> String {
+    use std::fmt::Write;
+    let mut text = String::new();
+    for group in groups {
+        writeln!(
+            text,
+            "G\t{}\t{}",
+            group.currency.unwrap_or_default(),
+            group
+                .gross_mark
+                .map(|mark| mark.to_string())
+                .unwrap_or_default(),
+        )
+        .unwrap();
+        for row in &group.positions {
+            writeln!(
+                text,
+                "E\t{}\t{}\t{}\t{}",
+                row.listing_id,
+                row.mark.map(|mark| mark.to_string()).unwrap_or_default(),
+                row.rank.map(|rank| rank.to_string()).unwrap_or_default(),
+                row.weight_micros
+                    .map(|weight| weight.to_string())
+                    .unwrap_or_default(),
+            )
+            .unwrap();
+        }
+    }
+    text
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PortfolioState {
@@ -323,7 +369,7 @@ fn parse_holdings(
     universe: &UniverseBook,
     csv: &str,
 ) -> Result<BTreeMap<String, PositionSeries>, String> {
-    if csv.len() > 2 * 1024 * 1024 {
+    if csv.len() > MAX_HOLDINGS_BYTES {
         return Err("Portfolio holdings CSV exceeds 2 MiB.".into());
     }
     let mut lines = csv

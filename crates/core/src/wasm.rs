@@ -533,17 +533,7 @@ pub extern "C" fn mw_portfolio_income_as_of(
 }
 
 fn portfolio_input(input: &[u8]) -> Result<(i64, i64, &str), String> {
-    let mut parts = utf8(input)?.splitn(3, '\n');
-    let mut cutoff = || {
-        parts
-            .next()
-            .and_then(exact_utc)
-            .ok_or("Use YYYY-MM-DDTHH:MM:SSZ portfolio cutoffs.")
-    };
-    let effective = cutoff()?;
-    let known = cutoff()?;
-    let body = parts.next().ok_or("Supply portfolio source reports.")?;
-    Ok((effective, known, body))
+    crate::portfolio::portfolio_source_input(utf8(input)?)
 }
 
 struct PortfolioActionInput<'a> {
@@ -1117,31 +1107,9 @@ fn portfolio_report(
         snapshot.effective_at, snapshot.known_at, snapshot.unvalued_positions
     )
     .unwrap();
-    for group in snapshot.equity_concentration() {
-        writeln!(
-            text,
-            "G\t{}\t{}",
-            group.currency.unwrap_or_default(),
-            group
-                .gross_mark
-                .map(|mark| mark.to_string())
-                .unwrap_or_default()
-        )
-        .unwrap();
-        for row in group.positions {
-            writeln!(
-                text,
-                "E\t{}\t{}\t{}\t{}",
-                row.listing_id,
-                row.mark.map(|mark| mark.to_string()).unwrap_or_default(),
-                row.rank.map(|rank| rank.to_string()).unwrap_or_default(),
-                row.weight_micros
-                    .map(|weight| weight.to_string())
-                    .unwrap_or_default(),
-            )
-            .unwrap();
-        }
-    }
+    text.push_str(&crate::portfolio::equity_concentration_rows(
+        &snapshot.equity_concentration(),
+    ));
     for (currency, totals) in snapshot.totals {
         writeln!(
             text,

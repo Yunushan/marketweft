@@ -10,6 +10,7 @@ from typing import Sequence
 
 __all__ = [
     "AmericanOptionValuation", "OptionCashDividend",
+    "EquityConcentration", "EquityConcentrationPosition", "EquityConcentrationSnapshot",
     "FinancialFiling", "FinancialMarketCap", "FinancialMultiple", "FinancialMultiples",
     "FinancialSnapshot", "FinancialTrailing",
     "FormulaFunction", "FormulaResult", "FormulaRow",
@@ -39,6 +40,8 @@ _MONTHLY_PROTOCOL = "marketweft-monthly-returns"
 _MACRO_PROTOCOL = "marketweft-macro-calendar"
 _PORTFOLIO_PROTOCOL = "marketweft-portfolio-scenarios"
 _FX_PROTOCOL = "marketweft-portfolio-fx"
+_CONCENTRATION_PROTOCOL = "marketweft-equity-concentration"
+_MAX_CONCENTRATION_POSITIONS = 1_000
 _I128_LIMIT = 1 << 127
 _MAX_FX_CURRENCIES = 26 ** 3
 _PORTFOLIO_START = r"[0-9]{1,20}(?:\.[0-9]{1,6})?"
@@ -220,6 +223,28 @@ class FxTranslation:
 
 
 @dataclass(frozen=True)
+class EquityConcentrationPosition:
+    listing_id: str
+    mark: int | None
+    rank: int | None
+    weight_micros: int | None
+
+
+@dataclass(frozen=True)
+class EquityConcentration:
+    currency: str | None
+    gross_mark: int | None
+    positions: tuple[EquityConcentrationPosition, ...]
+
+
+@dataclass(frozen=True)
+class EquityConcentrationSnapshot:
+    effective_at: int
+    known_at: int
+    groups: tuple[EquityConcentration, ...]
+
+
+@dataclass(frozen=True)
 class FinancialFiling:
     source_id: str
     fiscal_start: int
@@ -398,11 +423,59 @@ def _scenario_values(row: str, tag: str) -> tuple[int, int, int]:
 
 def _i128(text: str) -> int:
     if not _WIDE.fullmatch(text):
-        raise ResearchError("Invalid fixed-point value in portfolio FX response.")
+        raise ResearchError("Invalid fixed-point value in research response.")
     value = int(text)
     if not -_I128_LIMIT <= value < _I128_LIMIT:
-        raise ResearchError("Portfolio FX value exceeds the signed 128-bit range.")
+        raise ResearchError("Research value exceeds the signed 128-bit range.")
     return value
+
+
+def _concentration_group(currency: str, gross: str, rows: list[EquityConcentrationPosition]) -> EquityConcentration:
+    ordered = sorted(rows, key=lambda row: (row.mark is None, -abs(row.mark or 0), row.listing_id))
+    marks = [abs(row.mark) for row in rows if row.mark is not None]
+    total = _i128(gross) if gross else None
+    if not rows or ordered != rows or total != (sum(marks) if marks else None) or (not currency and marks):
+        raise ResearchError("Invalid or inconsistent equity concentration group.")
+    for index, row in enumerate(rows, 1):
+        rank = weight = None
+        if total and row.mark is not None:
+            rank = index
+            weight = (abs(row.mark) * 100_000_000 + total // 2) // total
+        if (row.rank, row.weight_micros) != (rank, weight):
+            raise ResearchError("Equity concentration weights do not match the known gross mark.")
+    return EquityConcentration(currency or None, total, tuple(rows))
+
+
+def _equity_concentration(output: bytes, effective: int, known: int) -> EquityConcentrationSnapshot:
+    count, lines = _response(output, _CONCENTRATION_PROTOCOL)
+    if not lines or len(lines) > 1 + 2 * _MAX_CONCENTRATION_POSITIONS:
+        raise ResearchError("Invalid equity concentration row count.")
+    header = lines[0].split("\t")
+    if len(header) != 3 or header[0] != "H" or tuple(map(_whole, header[1:])) != (effective, known):
+        raise ResearchError("Equity concentration cutoffs do not match the request.")
+    blocks: list[tuple[str, str, list[EquityConcentrationPosition]]] = []
+    listings: set[str] = set()
+    for line in lines[1:]:
+        fields = line.split("\t")
+        if fields[0] == "G" and len(fields) == 3:
+            _, currency, gross = fields
+            if (currency and not _CURRENCY.fullmatch(currency)) or (blocks and currency <= blocks[-1][0]):
+                raise ResearchError("Invalid equity concentration currencies.")
+            blocks.append((currency, gross, []))
+        elif fields[0] == "E" and len(fields) == 5 and blocks:
+            _, listing, mark, rank, weight = fields
+            if not _IDENTITY.fullmatch(listing) or listing in listings:
+                raise ResearchError("Invalid or repeated holding in equity concentration response.")
+            listings.add(listing)
+            blocks[-1][2].append(EquityConcentrationPosition(
+                listing, _i128(mark) if mark else None, _whole(rank) if rank else None,
+                _whole(weight) if weight else None,
+            ))
+        else:
+            raise ResearchError("Invalid equity concentration response row.")
+    if len(blocks) != _whole(count) or len(listings) > _MAX_CONCENTRATION_POSITIONS:
+        raise ResearchError("Invalid equity concentration row count.")
+    return EquityConcentrationSnapshot(effective, known, tuple(_concentration_group(*block) for block in blocks))
 
 
 def _fx_translation(
@@ -1083,6 +1156,24 @@ class ResearchEngine:
                              str(fee_basis_points), str(seed), str(paths), sampling, weight_field, ""))
         output = self._invoke(request.encode("ascii") + membership + prices, "portfolio-scenarios")
         return _portfolio_scenarios(output, weights, paths, block_size)
+
+    def equity_concentration_as_of(
+        self, membership_csv: str, holdings_csv: str, prices_csv: str, *, effective_at: str, known_at: str,
+    ) -> EquityConcentrationSnapshot:
+        """Rank known share marks within quote currencies at independent UTC cutoffs."""
+        times = (effective_at, known_at)
+        if any(not isinstance(instant, str) or not _UTC.fullmatch(instant) for instant in times):
+            raise ValueError("Use YYYY-MM-DDTHH:MM:SSZ UTC portfolio cutoffs.")
+        try:
+            effective, known = (_epoch_second(datetime.fromisoformat(instant[:-1])) for instant in times)
+        except ValueError as error:
+            raise ValueError("Use valid UTC equity concentration cutoffs.") from error
+        reports = tuple(csv.encode("utf-8") for csv in (membership_csv, holdings_csv, prices_csv))
+        if any(len(csv) > limit * 1024 * 1024 for csv, limit in zip(reports, (1, 2, 2))):
+            raise ValueError("Equity concentration CSV exceeds its byte limit.")
+        header = "\n".join((f"{_CONCENTRATION_PROTOCOL}\t1\t{len(reports[0])}\t{len(reports[1])}", *times, ""))
+        output = self._invoke(header.encode("ascii") + b"".join(reports), "equity-concentration")
+        return _equity_concentration(output, effective, known)
 
     def portfolio_fx_as_of(
         self, rates_csv: str, amounts: Sequence[FxAmount], *, reporting_currency: str,

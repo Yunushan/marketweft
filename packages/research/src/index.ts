@@ -1,9 +1,9 @@
 import { instantiateMarketCore } from './core.js'
-import type { Bar, FormulaFunction, FormulaResult, MarketCore } from './core.js'
+import type { Bar, EquityConcentration, FormulaFunction, FormulaResult, MarketCore } from './core.js'
 
 export type {
   AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
-  Filing, FinancialIssuer, FinancialSnapshot,
+  EquityConcentration, Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   JointScenarioPath, JointScenarioQuery, JointScenarioReport, ScenarioAllocation,
   FxAmount, FxCurrencyValue, FxTranslation,
@@ -14,6 +14,12 @@ export type {
 
 export const RESEARCH_SDK_VERSION = 1
 export const MARKET_CORE_WASM_URL = new URL('./marketweft_core.wasm', import.meta.url).href
+
+export interface EquityConcentrationSnapshot {
+  effectiveAt: number
+  knownAt: number
+  groups: EquityConcentration[]
+}
 
 export interface MarketResearch {
   readonly version: typeof RESEARCH_SDK_VERSION
@@ -28,6 +34,8 @@ export interface MarketResearch {
   compareUniverseRanks: MarketCore['compareUniverseRanks']
   portfolioScenarios: MarketCore['portfolioScenarios']
   portfolioFxAsOf: MarketCore['portfolioFxAsOf']
+  equityConcentrationAsOf(membership: string, holdings: string, closes: string,
+    effectiveAt: string, knownAt: string): EquityConcentrationSnapshot
   recordedDepthSweep: MarketCore['recordedDepthSweep']
   classifyRecordedTrades: MarketCore['classifyRecordedTrades']
   paperDepthIndex: MarketCore['paperDepthIndex']
@@ -58,6 +66,10 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     compareUniverseRanks: core.compareUniverseRanks,
     portfolioScenarios: core.portfolioScenarios,
     portfolioFxAsOf: core.portfolioFxAsOf,
+    equityConcentrationAsOf(membership, holdings, closes, effectiveAt, knownAt) {
+      const report = core.portfolioAsOf(membership, holdings, closes, '', effectiveAt, knownAt)
+      return { effectiveAt: report.effectiveAt, knownAt: report.knownAt, groups: report.equityConcentration }
+    },
     recordedDepthSweep: core.recordedDepthSweep,
     classifyRecordedTrades: core.classifyRecordedTrades,
     paperDepthIndex: core.paperDepthIndex,

@@ -9,6 +9,25 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('point-in-time equity concentration matches the terminal in the public TypeScript SDK', async () => {
+  const [membership, holdings, closes] = await Promise.all(['universe', 'portfolio-holdings', 'universe-prices'].map(name =>
+    readFile(new URL('../../../crates/core/tests/fixtures/synthetic-' + name + '.csv', import.meta.url), 'utf8')))
+  const research = await createResearchEngine(wasm)
+  const utc = minute => '2025-06-02T14:' + minute + ':00Z'
+  const run = (known, effective = 10) => research.equityConcentrationAsOf(membership, holdings, closes, utc(effective), utc(known))
+  const early = run(10)
+  assert.equal(early.effectiveAt, Date.parse(utc(10)) / 1000)
+  assert.equal(early.knownAt, early.effectiveAt)
+  assert.deepEqual(early.groups[0].positions.map(row => [row.listing, row.rank, row.weightMicros]),
+    [['ALFA-001', 1, 100000000n], ['BETA-001', null, null]])
+  assert.deepEqual([early, run(12), run(16), run(10)].map(row => row.groups[0].grossMark),
+    [204000000n, 764000000n, 709000000n, 204000000n])
+  assert.equal(run(12).groups[0].positions[0].weightMicros, 73298429n)
+  assert.equal(run(16).groups[0].positions[0].weightMicros, 71227080n)
+  assert.deepEqual(run(45, 45).groups.map(group => [group.currency, group.grossMark, group.positions[0].listing]),
+    [['EUR', 225000000n, 'BETA-002'], ['USD', null, 'ALFA-001']])
+})
+
 test('portfolio FX uses exact subtotal ticks and both evidence cutoffs in the public TypeScript SDK', async () => {
   const rates = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-portfolio-fx.csv', import.meta.url), 'utf8')
   const research = await createResearchEngine(wasm)
