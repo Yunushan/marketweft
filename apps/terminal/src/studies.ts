@@ -23,6 +23,8 @@ export const STUDIES = {
   dmi: { name: 'DMI', label: 'Directional Movement System', minPeriod: 1, defaultPeriod: 14, periodLabel: 'DI', color: '#aaa3f0' },
   cci: { name: 'CCI', label: 'Commodity Channel Index', minPeriod: 1, defaultPeriod: 20, color: '#c5adf1' },
   roc: { name: 'ROC', label: 'Rate of Change', minPeriod: 1, defaultPeriod: 12, color: '#73c3e4' },
+  cmo: { name: 'CMO', label: 'Chande Momentum Oscillator', minPeriod: 2, defaultPeriod: 20, color: '#82c4e8' },
+  trix: { name: 'TRIX', label: 'TRIX', minPeriod: 1, defaultPeriod: 30, color: '#dfba79' },
   aroon: { name: 'Aroon', label: 'Aroon', minPeriod: 1, defaultPeriod: 25 },
   aroon_oscillator: { name: 'Aroon Oscillator', label: 'Aroon Oscillator', minPeriod: 1, defaultPeriod: 25, color: '#98c9ef' },
 } as const
@@ -198,6 +200,10 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       return [{ kind, periods: [period], zeroLine: true, lines: [
         { color: STUDIES.roc.color, series: core.rateOfChange(period, bars) },
       ] }]
+    }
+    if (kind === 'cmo' || kind === 'trix') {
+      const series = kind === 'cmo' ? core.chandeMomentumOscillator(period, bars) : core.trix(period, bars)
+      return [{ kind, periods: [period], zeroLine: true, lines: [{ color: STUDIES[kind].color, series }] }]
     }
     let series: StudyValue[]
     if (kind === 'bb_percent_b' || kind === 'bb_bandwidth') {

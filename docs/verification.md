@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.213.0 · Chande Momentum Oscillator and TRIX
+
+- Native Rust and the Wasm bridge verify prefix stability, signed CMO and flat windows. They check each TRIX warm-up stage, exact millionth rounding, a zero baseline and a signed value beyond the 64-bit tick range.
+- Offline Chromium verifies independent pane settings, gapped observations, exact CSV output and both version 54 and version 55 restore. The earlier close-distribution selection survives the upgrade.
+
+[Chande Momentum Oscillator and TRIX](chart-workspace.md#chande-momentum-oscillator-and-trix)
+
 ## 0.212.0 · Native and Python plugin close series
 
 - The installed Python SDK reproduces the browser's earlier cutoff, later observed close, empty range, exact signed outputs and fresh per-row state through the native executable.

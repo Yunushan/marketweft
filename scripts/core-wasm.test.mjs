@@ -30,6 +30,24 @@ test('scalar plugins preserve exact signed values and enforce instance isolation
   assert.equal(run('increment', -123456789n), -123456788n);
 });
 
+test('the CMO and TRIX bridges preserve warm-up, signed values and six-place rounding', () => {
+  const bars = ticks => ticks.map((tick, index) => {
+    const close = tick / 1e6;
+    return { time: index * 60, open: close, high: close, low: close, close, volume: 1 };
+  });
+  const closes = bars([-5, -1, -3, 5, 5, 5, -1, -3, 4]);
+  const cmo = [null, null, 33333333n, 60000000n, 100000000n, 0n, -100000000n, -100000000n, 55555556n];
+  for (let end = 0; end <= closes.length; end++)
+    assert.deepEqual(core.chandeMomentumOscillator(2, closes.slice(0, end)), cmo.slice(0, end));
+  assert.throws(() => core.chandeMomentumOscillator(1, closes), /2–100,000/);
+  const smoothed = bars([0, 1, 2, 3, 4, 5]);
+  const trix = [null, null, null, null, 33333333n, 25000000n];
+  for (let end = 0; end <= smoothed.length; end++)
+    assert.deepEqual(core.trix(2, smoothed.slice(0, end)), trix.slice(0, end));
+  assert.deepEqual(core.trix(1, bars([0, -5, -4, 0, 1, 2e15])),
+    [null, null, -20000000n, -100000000n, null, 199999999999999900000000n]);
+});
+
 test('scalar plugin series keeps inclusive UTC starting and ending rows and a shared fuel budget', async () => {
   const source = await readFile(new URL('../crates/core/tests/fixtures/scalar-plugins.txt', import.meta.url), 'utf8');
   const module = name => Buffer.from(source.match(new RegExp('^' + name + ' ([a-f0-9]+)$', 'm'))[1], 'hex');

@@ -1227,6 +1227,8 @@ export interface MarketCore {
   observedCloseDistributions(bars: readonly Bar[], size: number): CloseDistribution[];
   confirmedCloseSwings(left: number, right: number, intervalSeconds: number, bars: readonly Bar[]): (ConfirmedSwing | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
+  chandeMomentumOscillator(period: number, bars: readonly Bar[]): (bigint | null)[];
+  trix(period: number, bars: readonly Bar[]): (bigint | null)[];
   directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
   moneyFlowIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   volumeWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1367,6 +1369,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_anchored_vwap(anchorAt: bigint): number;
   mw_confirmed_close_swings(left: number, right: number, intervalSeconds: number): number;
   mw_rate_of_change(period: number): number;
+  mw_chande_momentum_oscillator(period: number): number;
+  mw_trix(period: number): number;
   mw_directional_movement(diPeriod: number, adxPeriod: number): number;
   mw_money_flow_index(period: number): number;
   mw_volume_weighted_average(period: number): number;
@@ -1884,8 +1888,11 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
   ): (bigint | null)[] {
     validateIndicatorHistory(period, bars.length);
     putIndicatorBars(bars, label);
-    const out = output(calculate(period));
-    return Array.from({ length: bars.length }, (_, index) => {
+    return readIndicatorTicks(output(calculate(period)), bars.length);
+  }
+
+  function readIndicatorTicks(out: DataView, length: number) {
+    return Array.from({ length }, (_, index) => {
       const ticks = out.getBigInt64(index * 8, true);
       return ticks === MISSING ? null : ticks;
     });
@@ -2504,6 +2511,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
       return readWideIndicator(output(api.mw_rate_of_change(period)), bars.length);
+    },
+    chandeMomentumOscillator(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorCloses(bars);
+      return readIndicatorTicks(output(api.mw_chande_momentum_oscillator(period)), bars.length);
+    },
+    trix(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorCloses(bars);
+      return readWideIndicator(output(api.mw_trix(period)), bars.length);
     },
     directionalMovement(diPeriod, adxPeriod, bars) {
       if (![diPeriod, adxPeriod].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)

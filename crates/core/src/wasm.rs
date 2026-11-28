@@ -4070,6 +4070,21 @@ pub extern "C" fn mw_rate_of_change(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_chande_momentum_oscillator(period: usize) -> u32 {
+    process(|input| {
+        crate::chande_momentum_oscillator(period, &indicator_closes(input)?)
+            .map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_trix(period: usize) -> u32 {
+    process(|input| {
+        crate::trix(period, &indicator_closes(input)?).map(encode_wide_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_rebased_percent_changes(anchor_at: i64) -> u32 {
     process(|input| {
         crate::rebased_percent_changes(anchor_at, &decode_bars(input)?)

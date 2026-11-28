@@ -37,13 +37,15 @@ type PlottedStudy = Omit<PanelStudy, 'lines'> & {
 type FixedStudyScale = { ticks: number[]; guides: number[]; format: (value: number) => string }
 const asPercent = (value: number) => value + '%'
 const STOCHASTIC_SCALE = { ticks: [0, 20, 80, 100], guides: [20, 80], format: asPercent }
+const SIGNED_OSCILLATOR_SCALE = { ticks: [-100, -50, 0, 50, 100], guides: [0], format: asPercent }
 const FIXED_STUDY_SCALES: Partial<Record<PanelStudy['kind'], FixedStudyScale>> = {
   rsi: { ticks: [0, 30, 70, 100], guides: [30, 70], format: String },
   stochastic: STOCHASTIC_SCALE,
   mfi: STOCHASTIC_SCALE,
   dmi: { ticks: [0, 25, 50, 75, 100], guides: [25], format: asPercent },
   aroon: { ticks: [0, 50, 100], guides: [50], format: asPercent },
-  aroon_oscillator: { ticks: [-100, -50, 0, 50, 100], guides: [0], format: asPercent },
+  aroon_oscillator: SIGNED_OSCILLATOR_SCALE,
+  cmo: SIGNED_OSCILLATOR_SCALE,
   williams_r: { ticks: [-100, -80, -20, 0], guides: [-80, -20], format: asPercent },
 }
 

@@ -172,8 +172,8 @@ pub use portfolio::{
     SuccessorShareTerms,
 };
 pub use price_momentum::{
-    commodity_channel_index, observed_drawdown, rate_of_change, rebased_percent_changes,
-    DrawdownPoint,
+    chande_momentum_oscillator, commodity_channel_index, observed_drawdown, rate_of_change,
+    rebased_percent_changes, trix, DrawdownPoint,
 };
 pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use range_bars::RangeBar;

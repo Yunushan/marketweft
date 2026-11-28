@@ -364,6 +364,14 @@ ROC defaults to 12 changes. It subtracts the close one lookback ago from the cur
 
 The default research CSV columns are `cci_20` and `roc_12`. Values are rounded directly to six decimal places. The plot leaves gaps where output is absent, and the CSV leaves those cells empty. Exact ROC readouts and CSV values can exceed the signed 64-bit tick range.
 
+### Chande Momentum Oscillator and TRIX
+
+Enable **CMO** or **TRIX** in either pane’s indicator settings. CMO defaults to 20 close changes and accepts a period from 2 through 100,000. It divides the net signed change by the sum of the absolute changes over the same trailing window, then expresses the ratio as a percentage. A full flat window has a value of 0%. The scale spans −100% to 100%. [TA-Lib’s unsmoothed Chande Momentum Oscillator](https://ta-lib.org/functions/cmou.html)
+
+TRIX defaults to 30 closes and accepts 1 through 100,000. Three successive EMAs each start with a full-window simple average and round to six places after each step. The oscillator reports the percentage change from the preceding value of the third EMA. A zero previous value leaves the percentage empty. The readout and export keep exact signed values, including percentages beyond the 64-bit tick range. [TA-Lib’s TRIX formula](https://ta-lib.org/functions/trix.html)
+
+Both studies operate on the available closes in the selected timeframe. Their default research CSV columns are `cmo_20` and `trix_30`. Warm-up values remain empty. Workspace backup version 55 preserves each pane’s enabled studies and periods.
+
 ### Aroon and Aroon Oscillator
 
 Enable **Aroon** or **Aroon Oscillator** in either pane’s indicator settings. Aroon Up and Down share a 0% to 100% scale. The oscillator uses a −100% to 100% scale with a zero reference. Each study defaults to 25 and saves its own period from 1 through 100,000. [TradingView’s Aroon calculation](https://www.tradingview.com/support/solutions/43000501801-aroon-indicator/) · [StockCharts’ Aroon Oscillator calculation](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/aroon-oscillator).

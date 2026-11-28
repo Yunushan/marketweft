@@ -141,6 +141,60 @@ test('CCI and ROC plot signed values, leave an absent zero-base result and expor
   await expect(roc).toHaveText('ROC 2 -400%')
 })
 
+test('CMO and TRIX save independent panes and export exact observed values offline', async ({ page, context }) => {
+  const start = Date.parse('2026-01-01T09:00:00Z') / 1000
+  const csv = ['time,open,high,low,close,volume', ...[10, 20, 30, 40, 50, 60, 70].map((close, index) =>
+    [start + (index + Number(index >= 3)) * 60, close, close, close, close, 1].join(','))].join('\n')
+  await importOffline(page, context, 'OSCILLATORS', csv)
+  await page.getByRole('button', { name: 'Compare charts' }).click()
+  await page.getByLabel('Comparison instrument').selectOption('LOCAL:OSCILLATORS')
+  const comparisonType = page.getByLabel('Comparison chart type')
+  await comparisonType.selectOption('close-distribution')
+  const previous = await downloadWorkspace(page)
+  expect(previous.version).toBe(54)
+
+  await page.getByRole('button', { name: /Indicators/ }).click()
+  await apply(page, 'Primary', 'CMO', '2')
+  await apply(page, 'Comparison', 'TRIX', '2')
+  await page.keyboard.press('Escape')
+  const primary = page.getByRole('region', { name: 'Primary chart pane' })
+  const comparison = page.getByRole('region', { name: 'Comparison chart pane' })
+  const cmo = primary.getByRole('group', { name: 'Chande Momentum Oscillator' })
+  const trix = comparison.getByRole('group', { name: 'TRIX', exact: true })
+  await expect(cmo).toHaveText('CMO 2 100%')
+  await expect(trix).toHaveText('TRIX 2 22.222222%')
+
+  for (const [pane, key, expected] of [
+    [primary, 'cmo_2', ['', '', '100', '100', '100', '100', '100']],
+    [comparison, 'trix_2', ['', '', '', '', '40', '28.571429', '22.222222']],
+  ]) {
+    const [columns, ...rows] = await researchRows(page, pane)
+    const offset = columns.split(',').indexOf(key)
+    expect(offset).toBeGreaterThanOrEqual(0)
+    expect(rows.map(row => row.split(',')[offset])).toEqual(expected)
+    expect(rows.map(row => Number(row.split(',')[0]))).toEqual([0, 1, 2, 4, 5, 6, 7].map(i => start + i * 60))
+  }
+  const saved = await downloadWorkspace(page)
+  expect(saved.version).toBe(55)
+  expect(saved.manifest.preferences.studies).toEqual({
+    primary: { cmo: { enabled: true, period: 2 } },
+    comparison: { trix: { enabled: true, period: 2 } },
+  })
+  expect(saved.manifest.series).toEqual(previous.manifest.series)
+  for (const backup of [previous, saved]) {
+    await page.getByRole('button', { name: 'Workspace backup', exact: true }).click()
+    await selectBackup(page, backup)
+    await page.getByRole('button', { name: 'Restore workspace', exact: true }).click()
+    await expect(page.getByText('Workspace restored.')).toBeVisible()
+    await expect(comparisonType).toHaveValue('close-distribution')
+    await expect(cmo).toHaveCount(backup === previous ? 0 : 1)
+    await expect(trix).toHaveCount(backup === previous ? 0 : 1)
+  }
+  await page.reload()
+  await expect(cmo).toHaveText('CMO 2 100%')
+  await expect(trix).toHaveText('TRIX 2 22.222222%')
+})
+
 test('ROC carries a magnitude above signed 64-bit ticks through the browser readout and CSV', async ({ page, context }) => {
   const csv = [
     'time,open,high,low,close,volume',

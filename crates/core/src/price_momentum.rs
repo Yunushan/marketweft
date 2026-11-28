@@ -1,7 +1,8 @@
 use crate::{
     history::{typical_sum, valid_second, validate_bar_time, validate_ohlcv},
+    indicator::average_values,
     screen::rounded_div,
-    Bar, MAX_BARS, MAX_TICKS, SCALE,
+    Average, Bar, MAX_BARS, MAX_TICKS, SCALE,
 };
 
 // A Fenwick tree stores counts and price sums by rank. Both updates and
@@ -97,13 +98,7 @@ pub fn commodity_channel_index(period: usize, bars: &[Bar]) -> Result<Vec<Option
 /// The percentage change from the signed close exactly one lookback ago.
 /// A zero baseline has no defined result.
 pub fn rate_of_change(period: usize, closes: &[i64]) -> Result<Vec<Option<i128>>, String> {
-    validate_period(period, closes.len())?;
-    if closes
-        .iter()
-        .any(|close| !(-MAX_TICKS..=MAX_TICKS).contains(close))
-    {
-        return Err("A close is outside the supported fixed-point range.".into());
-    }
+    validate_closes(period, closes)?;
     Ok(closes
         .iter()
         .enumerate()
@@ -112,6 +107,67 @@ pub fn rate_of_change(period: usize, closes: &[i64]) -> Result<Vec<Option<i128>>
             percent_change(close, base)
         })
         .collect())
+}
+
+fn validate_closes(period: usize, closes: &[i64]) -> Result<(), String> {
+    validate_period(period, closes.len())?;
+    if closes
+        .iter()
+        .any(|close| !(-MAX_TICKS..=MAX_TICKS).contains(close))
+    {
+        return Err("A close is outside the supported fixed-point range.".into());
+    }
+    Ok(())
+}
+
+/// The unsmoothed Chande Momentum Oscillator in millionths of a percent.
+pub fn chande_momentum_oscillator(
+    period: usize,
+    closes: &[i64],
+) -> Result<Vec<Option<i64>>, String> {
+    validate_closes(period, closes)?;
+    if period < 2 {
+        return Err("Chande Momentum Oscillator periods must be 2–100,000.".into());
+    }
+    let change = |pair: &[i64]| i128::from(pair[1]) - i128::from(pair[0]);
+    let mut variation = 0;
+    let mut result = vec![None; closes.len()];
+    for (index, pair) in closes.windows(2).enumerate() {
+        variation += change(pair).abs();
+        if let Some(expired) = index.checked_sub(period) {
+            variation -= change(&closes[expired..expired + 2]).abs();
+        }
+        if let Some(start) = (index + 1).checked_sub(period) {
+            let net = i128::from(pair[1]) - i128::from(closes[start]);
+            result[index + 1] = Some(if variation == 0 {
+                0
+            } else {
+                rounded_div(net * i128::from(100 * SCALE), variation) as i64
+            });
+        }
+    }
+    Ok(result)
+}
+
+/// The one-observation percentage change of the triple-smoothed EMA.
+pub fn trix(period: usize, closes: &[i64]) -> Result<Vec<Option<i128>>, String> {
+    validate_closes(period, closes)?;
+    let mut ema = average_values(Average::Exponential, period, closes)
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    for _ in 0..2 {
+        ema = average_values(Average::Exponential, period, &ema)
+            .into_iter()
+            .flatten()
+            .collect();
+    }
+    let mut result = vec![None; closes.len()];
+    let start = closes.len() - ema.len() + 1;
+    for (index, pair) in ema.windows(2).enumerate() {
+        result[start + index] = percent_change(pair[1], pair[0]);
+    }
+    Ok(result)
 }
 
 /// Percentage change from the close at the exact UTC anchor, in millionths of a percent.

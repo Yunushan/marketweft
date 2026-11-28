@@ -1,7 +1,57 @@
 use marketweft_core::{
-    commodity_channel_index, observed_drawdown, parse_csv, rate_of_change, rebased_percent_changes,
-    Bar, MAX_BARS, MAX_TICKS, SCALE,
+    chande_momentum_oscillator, commodity_channel_index, observed_drawdown, parse_csv,
+    rate_of_change, rebased_percent_changes, trix, Bar, MAX_BARS, MAX_TICKS, SCALE,
 };
+
+#[test]
+fn cmo_uses_the_exact_net_move_and_absolute_variation_in_each_prefix() {
+    let closes = [-5, -1, -3, 5, 5, 5, -1, -3, 4];
+    let expected = [
+        None,
+        None,
+        Some(33_333_333),
+        Some(60_000_000),
+        Some(100_000_000),
+        Some(0),
+        Some(-100_000_000),
+        Some(-100_000_000),
+        Some(55_555_556),
+    ];
+    for end in 0..=closes.len() {
+        assert_eq!(
+            chande_momentum_oscillator(2, &closes[..end]).unwrap(),
+            expected[..end]
+        );
+    }
+    assert_eq!(
+        chande_momentum_oscillator(2, &[1, -1, 0]).unwrap()[2],
+        Some(-33_333_333)
+    );
+    assert!(chande_momentum_oscillator(1, &closes).is_err());
+    assert!(chande_momentum_oscillator(2, &[MAX_TICKS + 1]).is_err());
+}
+
+#[test]
+fn trix_waits_for_three_ema_stages_and_keeps_wide_values_exact() {
+    let closes = [0, 1, 2, 3, 4, 5];
+    let expected = [None, None, None, None, Some(33_333_333), Some(25_000_000)];
+    for end in 0..=closes.len() {
+        assert_eq!(trix(2, &closes[..end]).unwrap(), expected[..end]);
+    }
+    assert_eq!(
+        trix(1, &[0, -5, -4, 0, 1, MAX_TICKS]).unwrap(),
+        [
+            None,
+            None,
+            Some(-20_000_000),
+            Some(-100_000_000),
+            None,
+            Some(199_999_999_999_999_900_000_000),
+        ]
+    );
+    assert!(trix(0, &closes).is_err());
+    assert!(trix(2, &[MAX_TICKS + 1]).is_err());
+}
 
 #[test]
 fn verifies_signed_cci_and_roc_every_prefix_with_zero_baselines() {

@@ -60,9 +60,12 @@ const FIBONACCI_TIME_ZONES_BACKUP_VERSION = 51
 const HOLLOW_CANDLES_BACKUP_VERSION = 52
 const FIBONACCI_FAN_BACKUP_VERSION = 53
 const CLOSE_DISTRIBUTION_BACKUP_VERSION = 54
+const MOMENTUM_OSCILLATORS_BACKUP_VERSION = 55
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
+  const studies = Object.values(preferences.studies ?? {})
+  if (studies.some(pane => pane?.cmo || pane?.trix)) return MOMENTUM_OSCILLATORS_BACKUP_VERSION
   if (Object.values(preferences.chartTypes ?? {}).includes('close-distribution'))
     return CLOSE_DISTRIBUTION_BACKUP_VERSION
   if (Object.values(preferences.annotations ?? {}).some(entries => entries.some(entry => entry.kind === 'fibonacci-fan')))
@@ -113,7 +116,6 @@ function backupVersion({ preferences, series }: CatalogData) {
       return ANCHORED_ANNOTATION_BACKUP_VERSION
     return ANNOTATION_BACKUP_VERSION
   }
-  const studies = Object.values(preferences.studies ?? {})
   if (studies.some(pane => pane?.aroon || pane?.aroon_oscillator)) return AROON_BACKUP_VERSION
   if (studies.some(pane => pane?.cci || pane?.roc)) return PRICE_MOMENTUM_BACKUP_VERSION
   if (studies.some(pane => pane?.dmi)) return DIRECTIONAL_MOVEMENT_BACKUP_VERSION
@@ -230,6 +232,7 @@ export async function verifyWorkspaceBackup(
     throw Error('Choose a MarketWeft workspace backup.')
   if (typeof file.version !== 'number' || ![
     CLOSE_DISTRIBUTION_BACKUP_VERSION,
+    MOMENTUM_OSCILLATORS_BACKUP_VERSION,
     SINGLE_PANE_BACKUP_VERSION, COMPARISON_BACKUP_VERSION, DRAWING_BACKUP_VERSION,
     INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
     STRUCTURED_GRANT_BACKUP_VERSION,

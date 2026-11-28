@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.212.0 · 0BSD**
+**0.213.0 · 0BSD**
 
 **لغات الدليل**
 
@@ -21,18 +21,18 @@ MarketWeft محطة بحث بتشتغل محلي للمحللين والمطور
 
 <div dir="rtl">
 
-بيضيف MarketWeft 0.212.0 تشغيل الإضافات على أسعار الإقفال المتسجلة لسطر الأوامر الأصلي وحزمة Python. MarketWeft 0.7.0 بيضيف ترتيب أعضاء المجموعة حسب عائد السعر بالمعلومات اللي كانت معروفة وقت الاستعلام. إعادة التشغيل حسب الجلسة فيها تجزئة الأسهم والتوزيعات النقدية وتغييرات العضوية والشطب. المستودع فيه كمان مراقب TypeScript للقراءة بس لخدمة trading-bot منفصلة وغلاف Tauri تجريبي. تغذية البيانات والأوامر والمثبّتات الموقّعة والاستضافة لأكتر من مستخدم لسه في خطة الشغل.
+بيضيف MarketWeft 0.213.0 مؤشّرات الزخم CMO وTRIX لكل لوحة رسم. MarketWeft 0.7.0 بيضيف ترتيب أعضاء المجموعة حسب عائد السعر بالمعلومات اللي كانت معروفة وقت الاستعلام. إعادة التشغيل حسب الجلسة فيها تجزئة الأسهم والتوزيعات النقدية وتغييرات العضوية والشطب. المستودع فيه كمان مراقب TypeScript للقراءة بس لخدمة trading-bot منفصلة وغلاف Tauri تجريبي. تغذية البيانات والأوامر والمثبّتات الموقّعة والاستضافة لأكتر من مستخدم لسه في خطة الشغل.
 
 </div>
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Native and Python close series](../time-series-language.md#native-and-python-close-series)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Chande Momentum Oscillator and TRIX](../chart-workspace.md#chande-momentum-oscillator-and-trix)
 
 <!-- section:02 -->
 ## شغّل النسخة المحمولة
 
 <div dir="rtl">
 
-نزّل browser-terminal-attempt-N من تشغيل GitHub ناجح. فك MarketWeft-browser-0.212.0.zip وسيب dist/ جنب serve-terminal.mjs وشغّل الأمر جوه نفس المجلد. افتح http://127.0.0.1:4173/ في متصفح حديث فيه WebAssembly وCanvas وBigInt وIndexedDB. استخدم Node.js 22.12 أو أحدث. مش محتاج تثبت npm. استنى Offline ready قبل ما تفصل النت.
+نزّل browser-terminal-attempt-N من تشغيل GitHub ناجح. فك MarketWeft-browser-0.213.0.zip وسيب dist/ جنب serve-terminal.mjs وشغّل الأمر جوه نفس المجلد. افتح http://127.0.0.1:4173/ في متصفح حديث فيه WebAssembly وCanvas وBigInt وIndexedDB. استخدم Node.js 22.12 أو أحدث. مش محتاج تثبت npm. استنى Offline ready قبل ما تفصل النت.
 
 </div>
 
