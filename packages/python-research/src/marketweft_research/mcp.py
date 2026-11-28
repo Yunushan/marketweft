@@ -9,12 +9,13 @@ from typing import BinaryIO
 
 from . import FinancialMultiples, FinancialSnapshot, FormulaFunction, ResearchEngine, ResearchError, ScreenComparisonLeg, ScreenPrice
 from . import (
-    _MAX_FINANCIAL_CSV, _MAX_OPTION_CSV, _MAX_OPTION_DIVIDEND_CSV, _MAX_OPTION_ROWS, _OPTION_STATUSES,
+    _MAX_CSV, _MAX_FINANCIAL_CSV, _MAX_MONTHLY_YEARS, _MAX_OPTION_CSV, _MAX_OPTION_DIVIDEND_CSV,
+    _MAX_OPTION_ROWS, _OPTION_STATUSES,
 )
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.10.0"
+SERVER_VERSION = "0.11.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -25,6 +26,7 @@ RANK_COMPARISON_TOOL_NAME = "compare_universe_ranks_as_of"
 FINANCIAL_TOOL_NAME = "financial_snapshot_as_of"
 OPTION_SNAPSHOT_TOOL_NAME = "option_snapshot_as_of"
 AMERICAN_OPTION_TOOL_NAME = "american_option_valuation_as_of"
+MONTHLY_RETURNS_TOOL_NAME = "monthly_returns_as_of"
 _UTC_SCHEMA = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
 INPUT_SCHEMA = {
     "type": "object",
@@ -83,6 +85,45 @@ TOOL = {
     "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False, "idempotentHint": True},
     "inputSchema": INPUT_SCHEMA,
     "outputSchema": OUTPUT_SCHEMA,
+}
+
+_MAX_MONTHS = 12 * _MAX_MONTHLY_YEARS
+_MAX_MONTHLY_PAGE = 120
+_MONTH_YEAR = {"type": "integer", "minimum": 1, "maximum": 9999}
+_MONTH_OFFSET = {"type": "integer", "minimum": 0, "maximum": _MAX_MONTHS}
+_MONTHLY_INPUT = {
+    "history_csv": {"type": "string", "minLength": 1, "maxLength": _MAX_CSV},
+    "first_year": _MONTH_YEAR, "last_year": _MONTH_YEAR, "observed_through": _UTC_SCHEMA,
+    "offset": {**_MONTH_OFFSET, "default": 0},
+    "limit": {"type": "integer", "minimum": 1, "maximum": _MAX_MONTHLY_PAGE, "default": 60},
+}
+_MONTHLY_CLOSE = {
+    "type": ["object", "null"],
+    "properties": {"at": {"type": "integer"}, "ticks": {"type": "string", "pattern": "^-?[0-9]+$"}},
+    "required": ["at", "ticks"], "additionalProperties": False,
+}
+_MONTHLY_ROW = {
+    "year": _MONTH_YEAR, "month": {"type": "integer", "minimum": 1, "maximum": 12},
+    "window": {"enum": ["complete", "month-to-date", "future"]},
+    "prior": _MONTHLY_CLOSE, "current": _MONTHLY_CLOSE,
+    "percent_micros": {"type": ["string", "null"], "pattern": "^-?[0-9]+$"},
+}
+_MONTHLY_OUTPUT = {
+    "first_year": _MONTH_YEAR, "last_year": _MONTH_YEAR, "observed_through": _UTC_SCHEMA,
+    "total_rows": {"type": "integer", "minimum": 12, "maximum": _MAX_MONTHS}, "offset": _MONTH_OFFSET,
+    "next_offset": {**_MONTH_OFFSET, "type": ["integer", "null"]},
+    "rows": {"type": "array", "maxItems": _MAX_MONTHLY_PAGE, "items": {
+        "type": "object", "properties": _MONTHLY_ROW, "required": list(_MONTHLY_ROW), "additionalProperties": False,
+    }},
+}
+MONTHLY_RETURNS_TOOL = {
+    "name": MONTHLY_RETURNS_TOOL_NAME,
+    "description": "Calculate UTC monthly price returns from supplied OHLCV, with exact close evidence at the requested cutoff. Use next_offset with the same history, years and cutoff for another page.",
+    "annotations": TOOL["annotations"],
+    "inputSchema": {"type": "object", "properties": _MONTHLY_INPUT,
+                    "required": ["history_csv", "first_year", "last_year", "observed_through"], "additionalProperties": False},
+    "outputSchema": {"type": "object", "properties": _MONTHLY_OUTPUT,
+                     "required": list(_MONTHLY_OUTPUT), "additionalProperties": False},
 }
 SCREEN_INPUT_SCHEMA = {
     "type": "object",
@@ -499,7 +540,8 @@ class ResearchServer:
         if method == "tools/list":
             if params.get("cursor") is not None:
                 raise RequestError(-32602, "The tool list fits on a single page.")
-            return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL, AMERICAN_OPTION_TOOL]}
+            return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL,
+                              AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -515,6 +557,8 @@ class ResearchServer:
                 return self._option_snapshot(arguments)
             if name == AMERICAN_OPTION_TOOL_NAME:
                 return self._american_option(arguments)
+            if name == MONTHLY_RETURNS_TOOL_NAME:
+                return self._monthly_returns(arguments)
             raise RequestError(-32602, "Unknown research tool.")
         raise RequestError(-32601, "Method not found.")
 
@@ -546,6 +590,32 @@ class ResearchServer:
             ],
         }
         return _structured(data)
+
+    def _monthly_returns(self, arguments) -> dict:
+        if not isinstance(arguments, dict) or set(arguments) - _MONTHLY_INPUT.keys():
+            raise RequestError(-32602, "Supply only the documented monthly return arguments.")
+        history, observed = arguments.get("history_csv"), arguments.get("observed_through")
+        if not isinstance(history, str) or not history or not isinstance(observed, str) or not observed:
+            raise RequestError(-32602, "Supply historical OHLCV CSV and an observation cutoff.")
+        first = _integer(arguments, "first_year", 0, 1, 9999)
+        last = _integer(arguments, "last_year", 0, 1, 9999)
+        offset = _integer(arguments, "offset", 0, 0, _MAX_MONTHS)
+        limit = _integer(arguments, "limit", 60, 1, _MAX_MONTHLY_PAGE)
+        try:
+            rows = self._engine.monthly_returns(history, first_year=first, last_year=last, observed_through=observed)
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+        page = rows[offset:offset + limit]
+        end = offset + len(page)
+        return _structured({
+            "first_year": first, "last_year": last, "observed_through": observed,
+            "total_rows": len(rows), "offset": offset, "next_offset": end if end < len(rows) else None,
+            "rows": [{
+                "year": month.year, "month": month.month, "window": month.window,
+                "prior": _fixed_fields(month.prior, "ticks"), "current": _fixed_fields(month.current, "ticks"),
+                "percent_micros": None if month.percent_micros is None else str(month.percent_micros),
+            } for month in page],
+        })
 
     def _screen(self, arguments) -> dict:
         if not isinstance(arguments, dict) or set(arguments) - SCREEN_INPUT_SCHEMA["properties"].keys():

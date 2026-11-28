@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.220.0 · Monthly returns over local MCP
+
+- The installed Python wheel advertises a read-only monthly returns tool with input and output schemas. A subprocess fixture negotiates MCP, advances and rewinds the cutoff and verifies exact signed string values, missing close evidence and repeatable page boundaries.
+- A wide result survives JSON transport as a decimal string. Malformed tool arguments and a rejected date preserve the initialized connection, and text mirrors the structured page.
+
+[MCP monthly returns](local-mcp-research.md#monthly-returns)
+
 ## 0.219.0 · Native and Python monthly returns
 
 - The local Rust command and installed Python SDK use the browser's synthetic calendar history. Fixtures verify exact result parity at both cutoffs, missing and zero baselines, leap-day observations, supported year boundaries and a return wider than 64 bits.

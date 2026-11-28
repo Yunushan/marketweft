@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
+MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
 
 ```json
 {
@@ -27,6 +27,14 @@ The read-only `screen_universe_as_of` tool accepts membership and price CSV cont
 Call `compare_universe_ranks_as_of` to compare two snapshots using a shared baseline and independent effective and known cutoffs. Each page retains membership and close evidence for both snapshots and gives rank movement when both ranks are available. [Rank comparison arguments and pagination](research-universe-screen.md#compare-rank-snapshots).
 
 The server negotiates protocol revision 2025-11-25 during initialization. A malformed RPC request returns a protocol error. A rejected tool query leaves the connection ready for another request. [MCP lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle).
+
+## Monthly returns
+
+Call the read-only `monthly_returns_as_of` tool with `history_csv`, `first_year`, `last_year` and an inclusive `observed_through` in `YYYY-MM-DDTHH:MM:SSZ` format. Supply up to 8 MiB of UTF-8 OHLCV and a range of up to 30 consecutive UTC years. The native engine applies the same close selection and return calculation as the browser calendar. [Monthly returns calendar](chart-workspace.md#monthly-returns-calendar).
+
+Each row includes the year, month, UTC window state, preceding close, current close and return. A close carries its UTC second as an integer and its price ticks as an exact decimal string. `percent_micros` is a decimal string in millionths of a percentage point. Unavailable closes and returns are `null`. Each response includes the applied years and cutoff, and the compatibility text carries the same data as the structured response. [MCP structured tool output](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
+
+The default page contains up to 60 months. Set `limit` from 1 to 120, or pass `next_offset` as `offset` with the same source, years and cutoff. A `null` offset marks the last page. Rewind the cutoff to recover the original visible prices and return values.
 
 ## Financial snapshots
 

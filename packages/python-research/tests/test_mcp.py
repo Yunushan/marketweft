@@ -68,7 +68,7 @@ class McpTest(unittest.TestCase):
         tools = replies[2]["result"]["tools"]
         self.assertEqual([item["name"] for item in tools],
                          [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.RANK_COMPARISON_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME,
-                          mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME])
+                          mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME, mcp.MONTHLY_RETURNS_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -79,6 +79,60 @@ class McpTest(unittest.TestCase):
         self.assertEqual(rows[-1]["observed_at"], end)
         self.assertEqual(json.loads(replies[5]["result"]["content"][0]["text"]), pages[-1])
         self.assertEqual(replies[6]["result"], {})
+
+    def test_monthly_returns_paging_preserves_signed_evidence_and_historical_cutoffs(self):
+        history = (ROOT / "crates/core/tests/fixtures/synthetic-monthly-returns.csv").read_text(encoding="utf-8")
+        early = "2024-01-15T16:00:00Z"
+        late = "2024-12-31T23:59:59Z"
+        arguments = {"history_csv": history, "first_year": 2024, "last_year": 2024,
+                     "observed_through": early, "offset": 0, "limit": 2}
+
+        def query(request_id, **overrides):
+            return rpc("tools/call", request_id, {"name": mcp.MONTHLY_RETURNS_TOOL_NAME,
+                       "arguments": {**arguments, **overrides}})
+
+        wide = ("time,open,high,low,close,volume\n2023-12-01,0.000001,0.000001,0.000001,0.000001,0\n"
+                "2024-01-01,2000000000,2000000000,2000000000,2000000000,0\n")
+        result = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(rpc("initialize", 1, INITIALIZE), rpc("notifications/initialized"), rpc("tools/list", 2),
+                       query(3), query(4, observed_through=late), query(5, observed_through=late, offset=2, limit=4),
+                       query(6, observed_through=late, offset=10), query(7), query(8, history_csv=wide),
+                       query(9, first_year=True), query(10, limit=121), query(11, history_path="history.csv"),
+                       query(12, observed_through="2025-02-29T00:00:00Z"), query(13, offset=360), query(14)),
+            timeout=15, capture_output=True, check=True,
+        )
+        self.assertEqual(result.stderr, b"")
+        replies = {message["id"]: message for message in map(json.loads, result.stdout.splitlines())}
+        tool = next(item for item in replies[2]["result"]["tools"] if item["name"] == mcp.MONTHLY_RETURNS_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertFalse(tool["annotations"]["openWorldHint"])
+        self.assertEqual(tool["inputSchema"]["properties"]["offset"]["maximum"], 360)
+        self.assertEqual(tool["outputSchema"]["properties"]["rows"]["maxItems"], 120)
+        first, completed, next_rows, last, rewind, large = (
+            replies[index]["result"]["structuredContent"] for index in range(3, 9))
+        self.assertEqual(first, rewind)
+        self.assertEqual(json.loads(replies[3]["result"]["content"][0]["text"]), first)
+        self.assertEqual(first["observed_through"], early)
+        self.assertEqual([first["total_rows"], first["next_offset"]], [12, 2])
+        self.assertEqual(first["rows"][0], {"year": 2024, "month": 1, "window": "month-to-date",
+                         "prior": {"at": 1703865600, "ticks": "80000000"},
+                         "current": {"at": 1705334400, "ticks": "90000000"}, "percent_micros": "12500000"})
+        self.assertEqual(first["rows"][1]["window"], "future")
+        self.assertIsNone(first["rows"][1]["current"])
+        self.assertEqual([row["percent_micros"] for row in completed["rows"]], ["25000000", "-25000000"])
+        self.assertEqual([next_rows["offset"], next_rows["next_offset"]], [2, 6])
+        self.assertIsNone(next_rows["rows"][0]["current"])
+        self.assertIsNone(next_rows["rows"][1]["prior"])
+        self.assertEqual(next_rows["rows"][3]["prior"]["ticks"], "0")
+        self.assertIsNone(next_rows["rows"][3]["percent_micros"])
+        self.assertEqual([row["month"] for row in last["rows"]], [11, 12])
+        self.assertIsNone(last["next_offset"])
+        self.assertEqual(large["rows"][0]["percent_micros"], "199999999999999900000000")
+        self.assertEqual([replies[index]["error"]["code"] for index in (9, 10, 11)], [-32602] * 3)
+        self.assertTrue(replies[12]["result"]["isError"])
+        self.assertEqual(replies[13]["result"]["structuredContent"]["rows"], [])
+        self.assertEqual(replies[14]["result"]["structuredContent"], first)
 
     def test_tool_and_protocol_errors_preserve_the_session(self):
         server = mcp.ResearchServer(ResearchEngine(EXECUTABLE))
