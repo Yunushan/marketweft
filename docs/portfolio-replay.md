@@ -51,6 +51,8 @@ const report = research.portfolioFxAsOf(
 
 The Python SDK exposes the same calculation through `ResearchEngine.portfolio_fx_as_of`. Use `FxAmount` records for source subtotals and the keywords `reporting_currency`, `effective_at` and `known_at`. Python returns integer values and TypeScript uses `bigint`. Both preserve the full signed 128-bit range. Each row keeps its original subtotal and the exact supporting quote when available. An identity conversion has a converted value without quote evidence. An unavailable conversion has neither. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md).
 
+The read-only MCP tool and scoped REST, WebSocket and gRPC routes use the same FX calculation. They page currency rows and preserve exact signed 128-bit amounts as decimal text. [Portfolio FX via MCP](local-mcp-research.md#portfolio-currency-conversion) · [Portfolio FX service](local-rest-research.md#portfolio-currency-conversion).
+
 #### Native FX protocol
 
 Run `marketweft-research portfolio-fx` with a UTF-8 request on standard input. Start with `marketweft-portfolio-fx` and version `1` separated by a tab. The next lines contain the effective timestamp, observed cutoff, reporting currency and tab-separated source entries in `currency=integer_millionths` form. Use an empty source line for an empty portfolio. Append the FX CSV after those lines.

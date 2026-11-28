@@ -10,6 +10,7 @@ service Research {
   rpc ScreenUniverse(ScreenQuery) returns (ScreenPage);
   rpc CompareUniverseRanks(RankComparisonQuery) returns (RankComparisonPage);
   rpc GetPortfolioScenarios(PortfolioScenariosQuery) returns (PortfolioScenariosPage);
+  rpc GetPortfolioFx(PortfolioFxQuery) returns (PortfolioFxPage);
   rpc SnapshotOptions(OptionQuery) returns (OptionPage);
   rpc ValueAmericanOption(AmericanOptionQuery) returns (AmericanOptionResponse);
 }
@@ -170,6 +171,50 @@ message PortfolioScenariosPage {
   repeated PortfolioScenarioCoverage coverage = 14;
   PortfolioScenarioPercentiles percentiles = 15;
   repeated PortfolioScenarioPath paths = 16;
+}
+
+message PortfolioFxAmount {
+  string currency = 1;
+  // Signed 128-bit integer millionths in decimal text.
+  string subtotal_ticks = 2;
+}
+
+message PortfolioFxQuery {
+  string rates_csv = 1;
+  string reporting_currency = 2;
+  string effective_at = 3;
+  string known_at = 4;
+  repeated PortfolioFxAmount amounts = 5;
+  optional uint64 offset = 6;
+  optional uint64 limit = 7;
+}
+
+message PortfolioFxRate {
+  string base_currency = 1;
+  string quote_currency = 2;
+  sint64 rate_at = 3;
+  sint64 observed_at = 4;
+  // Integer millionths of quote currency units per base currency unit.
+  string rate_ticks = 5;
+  bool inverted = 6;
+}
+
+message PortfolioFxRow {
+  string currency = 1;
+  string subtotal_ticks = 2;
+  optional string converted_ticks = 3;
+  PortfolioFxRate rate = 4;
+}
+
+message PortfolioFxPage {
+  string effective_at = 1;
+  string known_at = 2;
+  string reporting_currency = 3;
+  optional string known_subtotal_ticks = 4;
+  uint32 total_rows = 5;
+  uint32 offset = 6;
+  optional uint32 next_offset = 7;
+  repeated PortfolioFxRow rows = 8;
 }
 
 message ScreenQuery {

@@ -3,10 +3,11 @@ use crate::{
         AmericanOptionQuery, AmericanOptionResponse, AppliedDividend, Close, FormulaPage,
         FormulaQuery, FormulaRow, MacroCalendarPage, MacroCalendarQuery, MacroCalendarRow,
         MonthlyReturnsClose, MonthlyReturnsPage, MonthlyReturnsQuery, MonthlyReturnsRow,
-        OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying,
-        PortfolioScenarioCoverage, PortfolioScenarioPath, PortfolioScenarioPercentiles,
-        PortfolioScenariosPage, PortfolioScenariosQuery, RankComparisonLeg, RankComparisonPage,
-        RankComparisonQuery, RankComparisonRow, ScreenPage, ScreenQuery, ScreenRow,
+        OptionModel, OptionPage, OptionQuery, OptionRow, OptionUnderlying, PortfolioFxPage,
+        PortfolioFxQuery, PortfolioFxRate, PortfolioFxRow, PortfolioScenarioCoverage,
+        PortfolioScenarioPath, PortfolioScenarioPercentiles, PortfolioScenariosPage,
+        PortfolioScenariosQuery, RankComparisonLeg, RankComparisonPage, RankComparisonQuery,
+        RankComparisonRow, ScreenPage, ScreenQuery, ScreenRow,
     },
     ApiError,
 };
@@ -14,8 +15,8 @@ use axum::http::StatusCode;
 use marketweft_core::{
     monthly_returns, parse_csv, parse_dividends, parse_exact_utc, parse_universe,
     AmericanValuationRequest, CashOptionError, ExerciseStyle, Formula, FormulaFunctionDefinition,
-    FormulaLibrary, MacroCalendar, MonthWindow, MonthlyClose, OptionAnalytics, OptionBook,
-    OptionSide, PortfolioScenarioConfig, PriceBook, PriceObservation, ReportKind,
+    FormulaLibrary, FxAmount, FxBook, MacroCalendar, MonthWindow, MonthlyClose, OptionAnalytics,
+    OptionBook, OptionSide, PortfolioScenarioConfig, PriceBook, PriceObservation, ReportKind,
     ScenarioAllocation, ScenarioConfig, ScreenComparisonLeg, ScreenCutoff, ThreeQuantiles,
     UniverseAction, FORMULA_VERSION, MAX_AMERICAN_STEPS, MAX_MONTHLY_RETURN_YEARS,
 };
@@ -24,6 +25,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::ops::Range;
 
 const MAX_RESULTS: u64 = 1000;
+const MAX_FX_CURRENCIES: usize = 26_usize.pow(3);
 
 #[derive(Serialize)]
 #[serde(untagged)]
@@ -34,6 +36,7 @@ pub(crate) enum ResearchPage {
     Screen(ScreenPage),
     RankComparison(RankComparisonPage),
     PortfolioScenarios(PortfolioScenariosPage),
+    PortfolioFx(PortfolioFxPage),
     Options(OptionPage),
     AmericanOption(AmericanOptionResponse),
 }
@@ -438,6 +441,89 @@ fn close(price: Option<PriceObservation>) -> Option<Close> {
         ticks: price.ticks.to_string(),
         observed_at: price.observed_at,
     })
+}
+
+pub(crate) fn portfolio_fx(
+    bytes: &[u8],
+    emit: &mut dyn FnMut(ResearchPage) -> bool,
+) -> Result<(), ApiError> {
+    evaluate_portfolio_fx(request(bytes)?, &mut |page| {
+        emit(ResearchPage::PortfolioFx(page))
+    })
+}
+
+pub(crate) fn evaluate_portfolio_fx(
+    query: PortfolioFxQuery,
+    emit: &mut dyn FnMut(PortfolioFxPage) -> bool,
+) -> Result<(), ApiError> {
+    let (offset, limit) = pagination(query.offset, query.limit, MAX_FX_CURRENCIES as u64)?;
+    let Some((effective, known)) =
+        parse_exact_utc(&query.effective_at).zip(parse_exact_utc(&query.known_at))
+    else {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Use YYYY-MM-DDTHH:MM:SSZ portfolio FX cutoffs.",
+        ));
+    };
+    if query.amounts.len() > MAX_FX_CURRENCIES {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Supply each source currency subtotal once.",
+        ));
+    }
+    let amounts = query
+        .amounts
+        .iter()
+        .map(|amount| {
+            let subtotal = amount.subtotal_ticks.parse().map_err(|_| {
+                ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "Supply signed 128-bit subtotals in integer millionths as decimal text.",
+                )
+            })?;
+            Ok(FxAmount {
+                currency: &amount.currency,
+                subtotal,
+            })
+        })
+        .collect::<Result<Vec<_>, ApiError>>()?;
+    let book = FxBook::parse(&query.rates_csv).map_err(analytical_error)?;
+    let report = book
+        .translate_as_of(&query.reporting_currency, effective, known, &amounts)
+        .map_err(analytical_error)?;
+    let known_subtotal_ticks = report.known_subtotal.map(|amount| amount.to_string());
+    pages(
+        offset,
+        limit,
+        report.rows.len(),
+        emit,
+        |offset, range, next_offset| PortfolioFxPage {
+            effective_at: query.effective_at.clone(),
+            known_at: query.known_at.clone(),
+            reporting_currency: report.reporting_currency.clone(),
+            known_subtotal_ticks: known_subtotal_ticks.clone(),
+            total_rows: report.rows.len() as u32,
+            offset,
+            next_offset,
+            rows: report.rows[range]
+                .iter()
+                .map(|row| PortfolioFxRow {
+                    currency: row.currency.clone(),
+                    subtotal_ticks: row.subtotal.to_string(),
+                    converted_ticks: row.converted.map(|amount| amount.to_string()),
+                    rate: row.rate.as_ref().map(|rate| PortfolioFxRate {
+                        base_currency: rate.base_currency.clone(),
+                        quote_currency: rate.quote_currency.clone(),
+                        rate_at: rate.rate_at,
+                        observed_at: rate.observed_at,
+                        rate_ticks: rate.rate_ticks.to_string(),
+                        inverted: rate.inverted,
+                    }),
+                })
+                .collect(),
+        },
+    );
+    Ok(())
 }
 
 pub(crate) fn portfolio_scenarios(

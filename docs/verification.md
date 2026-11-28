@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.252.0 · Scoped portfolio FX service
+
+- REST reproduces 70, 340 and 362.5 USD at independent cutoffs and returns to 70 USD on rewind. It distinguishes identity conversions from missing rates and retains exact signed 128-bit values.
+- WebSocket streams the same two one-row currency pages as REST. gRPC returns the same reciprocal evidence and 278.846154 EUR known subtotal. All three transports reject the formula scope and requests without credentials.
+- The service rejects unknown fields, explicit null pagination settings, malformed UTC cutoffs and out-of-range or numeric JSON subtotals.
+
+[Portfolio FX service](local-rest-research.md#portfolio-currency-conversion)
+
 ## 0.251.0 · Mass Index and Detrended Price Oscillator
 
 - Rust and Wasm reproduce a Mass Index of 2.863636 on an expanding range, keep undefined flat windows empty, and reconstruct the rolling sum when valid ranges resume. Maximum supported price ranges fit the fixed-point calculation.

@@ -534,6 +534,8 @@ fn route_authority(
             "/v1/universe/portfolio-scenarios/stream",
             get(websocket::portfolio_scenarios),
         )
+        .route("/v1/portfolio/fx", post(portfolio_fx))
+        .route("/v1/portfolio/fx/stream", get(websocket::portfolio_fx))
         .route("/v1/options/snapshot", post(option_snapshot))
         .route("/v1/options/snapshot/stream", get(websocket::options))
         .route("/v1/options/american/valuation", post(american_option))
@@ -748,6 +750,13 @@ async fn portfolio_scenarios(
         analytics::portfolio_scenarios,
     )
     .await
+}
+
+async fn portfolio_fx(
+    State(state): State<Arc<Server>>,
+    request: Request,
+) -> Result<Json<ResearchPage>, ApiError> {
+    execute(state, request, Scope::Screen, analytics::portfolio_fx).await
 }
 
 async fn screen(

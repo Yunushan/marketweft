@@ -1,6 +1,6 @@
 # Local research service
 
-The Rust research service defaults to IPv4 loopback and exposes read-only formula, calendar, universe and option research over REST, WebSocket and gRPC. It uses the same core that powers the native executable and WebAssembly terminal.
+The Rust research service defaults to IPv4 loopback and exposes read-only formula, calendar, universe, portfolio and option research over REST, WebSocket and gRPC. It uses the same core that powers the native executable and WebAssembly terminal.
 
 For Ubuntu 24.04 on Linux x64, download the `research-service-linux-x64-attempt-N` artifact from a successful GitHub verification run and unpack its enclosed tar.gz archive. Extract the service with its notices. Start it with `./marketweft-research-service` after configuring its environment as shown below. To build from source, use the same settings from the repository root and run the Cargo command.
 
@@ -22,6 +22,7 @@ The service prints the bound loopback address. The port defaults to 4174. Set `M
 | `POST /v1/universe/screen` | `MARKETWEFT_SCREEN_TOKEN` | `membership_csv`, `prices_csv`, `baseline_at`, `effective_at` and `known_at` |
 | `POST /v1/universe/rank-comparison` | `MARKETWEFT_SCREEN_TOKEN` | Both CSVs, a shared baseline and two effective and known cutoff pairs |
 | `POST /v1/universe/portfolio-scenarios` | `MARKETWEFT_SCREEN_TOKEN` | Point-in-time membership and price reports, allocations and deterministic sampling settings |
+| `POST /v1/portfolio/fx` | `MARKETWEFT_SCREEN_TOKEN` | `rates_csv`, source subtotals, reporting currency and independent effective and known cutoffs |
 | `POST /v1/options/snapshot` | `MARKETWEFT_OPTIONS_TOKEN` | `underlying_csv`, `quotes_csv`, `effective_at`, `known_at` and optional `max_age` |
 | `POST /v1/options/american/valuation` | `MARKETWEFT_OPTIONS_TOKEN` | Option CSVs, `contract_id`, both UTC cutoffs, and optional volatility and cash dividends |
 
@@ -71,6 +72,14 @@ Each page reports the cutoffs, seed, horizon, block size, eligible vectors and b
 
 Connect to `/v1/universe/portfolio-scenarios/stream` using the same screen credential and send the REST JSON query in one text frame. On reconnect, resume with the last accepted `next_offset`. Use `wss` on the configured TLS listener. The gRPC method `marketweft.research.v1.Research/GetPortfolioScenarios` returns an equivalent typed unary page and uses the bearer token in `authorization` metadata. Both use the same screen admission controls, quotas and audit receipts as REST. [Research Protobuf schema](../apps/research-service/proto/research.proto).
 
+## Portfolio currency conversion
+
+Send `POST /v1/portfolio/fx` with a screen bearer credential. Supply the contents of the FX report in `rates_csv`, the three-letter uppercase `reporting_currency` and exact UTC `effective_at` and `known_at` cutoffs. Use `amounts` to send one `currency` and `subtotal_ticks` object per source currency. Subtotals are signed 128-bit integer millionths sent as decimal strings. The report accepts up to 1 MiB and 10,000 rate observations. [Portfolio FX inputs and rate selection](portfolio-replay.md#portfolio-currency-translation)
+
+Each page echoes the cutoffs and reports the known converted subtotal across all supplied currencies. Rows are sorted by source currency. Each row carries the source subtotal, any converted amount and the exact rate evidence used, including the currency pair, effective and observation times, and reciprocal flag. Money and rates are decimal strings in millionths. Quote times use whole Unix seconds. Identity conversions have a value and a `null` rate. Missing conversions have `null` for both. Use `limit` from 1 to 1,000 with a default of 200. Pass `next_offset` with the same query to continue.
+
+Connect to `/v1/portfolio/fx/stream` with the screen credential and send the REST query as one text frame. Each page matches its REST equivalent. On reconnect, use the last accepted `next_offset` to resume. Use `wss` on the configured private TLS listener. The unary gRPC method `marketweft.research.v1.Research/GetPortfolioFx` uses the same screen credential in `authorization` metadata and preserves absent quotes and converted values through optional fields. The same admission controls, managed quotas and audit receipts apply to all three transports. [Research Protobuf schema](../apps/research-service/proto/research.proto)
+
 ## WebSocket streaming
 
 Connect to `ws://127.0.0.1:4174/v1/formula/stream` or `ws://127.0.0.1:4174/v1/universe/screen/stream`, using the port printed by the service. Use a client that can set the `Authorization: Bearer <token>` header on the upgrade request. Each path requires the same scope as its REST equivalent. Option snapshots also have a stream at `/v1/options/snapshot/stream` under the options scope. The Host and Origin checks apply to the upgrade.
@@ -99,6 +108,7 @@ Use a Protobuf client over HTTP/2 at the printed service address. The default lo
 | `ScreenUniverse` | `MARKETWEFT_SCREEN_TOKEN` |
 | `CompareUniverseRanks` | `MARKETWEFT_SCREEN_TOKEN` |
 | `GetPortfolioScenarios` | `MARKETWEFT_SCREEN_TOKEN` |
+| `GetPortfolioFx` | `MARKETWEFT_SCREEN_TOKEN` |
 | `SnapshotOptions` | `MARKETWEFT_OPTIONS_TOKEN` |
 | `ValueAmericanOption` | `MARKETWEFT_OPTIONS_TOKEN` |
 
