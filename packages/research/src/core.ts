@@ -1191,6 +1191,7 @@ export type AnchoredVwapPoint = { price: bigint; cumulativeVolume: bigint };
 
 export type RiskRewardSide = 'long' | 'short';
 export type GannFanLevel = { priceUnits: number; timeUnits: number; ticks: bigint };
+export type VortexValue = { positive: bigint; negative: bigint };
 export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; rewardPerRiskMicros: bigint };
 
 export type RegressionChannel = { observations: number; startTicks: bigint; endTicks: bigint; residualTicks: bigint };
@@ -1242,6 +1243,8 @@ export interface MarketCore {
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   chandeMomentumOscillator(period: number, bars: readonly Bar[]): (bigint | null)[];
   trix(period: number, bars: readonly Bar[]): (bigint | null)[];
+  vortexIndicator(period: number, bars: readonly Bar[]): (VortexValue | null)[];
+  balanceOfPower(bars: readonly Bar[]): (bigint | null)[];
   linearlyWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   doubleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   tripleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1370,6 +1373,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_aggregate_session_timeframe(calendarBytes: number, sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
   mw_gann_fan_levels(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
+  mw_vortex_indicator(period: number): number;
+  mw_balance_of_power(): number;
   mw_measure_risk_reward(side: number, entry: bigint, stop: bigint, target: bigint): number;
   mw_indicator(kind: number, period: number): number;
   mw_atr(period: number): number;
@@ -1485,6 +1490,7 @@ interface MarketExports extends WebAssembly.Exports {
 
 const SCALE = 1_000_000;
 const MISSING = -(1n << 63n);
+const WIDE_MISSING = -(1n << 127n);
 
 function validateIndicatorHistory(period: number, length: number): void {
   if (!validIndicatorPeriod(period) || length > MAX_INDICATOR_PERIOD)
@@ -1494,7 +1500,7 @@ function validateIndicatorHistory(period: number, length: number): void {
 function readWideIndicator(out: DataView, length: number): (bigint | null)[] {
   return Array.from({ length }, (_, index) => {
     const ticks = signed128(out, index * 16);
-    return ticks === -(1n << 127n) ? null : ticks;
+    return ticks === WIDE_MISSING ? null : ticks;
   });
 }
 
@@ -2549,7 +2555,7 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         const percent = signed128(data, start + 36);
         return { year: data.getUint16(start, true), month: data.getUint8(start + 2), window,
           prior: readClose(start + 4), current: readClose(start + 20),
-          percent: percent === -(1n << 127n) ? null : percent };
+          percent: percent === WIDE_MISSING ? null : percent };
       });
     },
     observedCloseDistributions(bars, size) {
@@ -2587,6 +2593,26 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
       return readWideIndicator(output(api.mw_trix(period)), bars.length);
+    },
+    vortexIndicator(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'Vortex');
+      const data = output(api.mw_vortex_indicator(period));
+      if (data.byteLength !== bars.length * 32) throw new Error('Invalid Vortex response size.');
+      return Array.from({ length: bars.length }, (_, index) => {
+        const start = index * 32;
+        const positive = signed128(data, start);
+        return positive === WIDE_MISSING ? null : { positive, negative: signed128(data, start + 16) };
+      });
+    },
+    balanceOfPower(bars) {
+      validateIndicatorHistory(1, bars.length);
+      putIndicatorBars(bars, 'Balance of Power');
+      const data = output(api.mw_balance_of_power());
+      return Array.from({ length: bars.length }, (_, index) => {
+        const value = data.getBigInt64(index * 8, true);
+        return value === MISSING ? null : value;
+      });
     },
     linearlyWeightedAverage(period, bars) {
       return observedCloseIndicator(api.mw_linearly_weighted_average, period, bars);

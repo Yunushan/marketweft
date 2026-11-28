@@ -83,6 +83,19 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('Vortex and Balance of Power preserve signed bars and wide exact ratios in Wasm', () => {
+  const bars = [[0, -4, -2, -5, -3], [60, -3, 0, -4, -1], [240, 1, 3, 0, 0],
+    [300, 0, 0, 0, 0], [360, 0, 0, 0, 0], [500, 0, 2, -2, 0]].map(([time, open, high, low, close]) => ({
+    time, open: open / 1e6, high: high / 1e6, low: low / 1e6, close: close / 1e6, volume: 1,
+  }));
+  assert.deepEqual(core.vortexIndicator(2, bars), [null, null, { positive: 1500000n, negative: 250000n },
+    { positive: 1750000n, negative: 750000n }, null, { positive: 500000n, negative: 500000n }]);
+  assert.deepEqual(core.balanceOfPower(bars), [333333n, 500000n, -333333n, null, null, 0n]);
+  const wide = core.parseCsv('time,open,high,low,close,volume\n0,0,2000000000,-2000000000,0,1\n60,0,0.000001,0,0,1');
+  assert.deepEqual(core.vortexIndicator(1, wide)[1], { positive: 2000000000000001000000n, negative: 2000000000000000000000n });
+  assert.throws(() => core.vortexIndicator(1, [...bars].reverse()), /later than the previous/);
+});
+
 test('Gann fan bridge retains nine signed crossings and full exact tick precision', () => {
   const endpoints = (start, end) => ({ start: { time: 0, ticks: start }, end: { time: 120, ticks: end } });
   const fan = core.gannFanLevels(endpoints(-1000000, 1000000));

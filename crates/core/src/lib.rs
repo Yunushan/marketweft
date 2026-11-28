@@ -48,6 +48,7 @@ mod portfolio;
 mod price_momentum;
 mod provider_history;
 mod range_bars;
+mod range_oscillators;
 mod range_position;
 mod regression_channel;
 mod renko;
@@ -186,6 +187,7 @@ pub use price_momentum::{
 };
 pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use range_bars::RangeBar;
+pub use range_oscillators::{balance_of_power, vortex_indicator, VortexValue};
 pub use range_position::williams_percent_r;
 pub use regression_channel::{regression_channel, RegressionChannel};
 pub use renko::renko;

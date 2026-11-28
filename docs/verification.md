@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.218.0 · Vortex and Balance of Power
+
+- Rust and Wasm verify signed price histories, observed-pair warm-up, zero true-range windows, signed one-third rounding, an actual zero and exact Vortex ratios beyond the 64-bit tick range. Rust verifies the maximum history length and rejects invalid bars and periods.
+- Offline Chromium checks independent Vortex periods, unsmoothed Balance of Power, blank and zero CSV cells, and restore of both versions 57 and 58 with the Gann fan preserved.
+
+[Vortex and Balance of Power](chart-workspace.md#vortex-and-balance-of-power)
+
 ## 0.217.0 · Gann fan
 
 - Native Rust and Wasm verify all nine ratios, signed reference prices, exact half rounding, wide projection prices and rejected degenerate anchors.

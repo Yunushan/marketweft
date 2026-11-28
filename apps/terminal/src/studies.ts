@@ -29,6 +29,8 @@ export const STUDIES = {
   roc: { name: 'ROC', label: 'Rate of Change', minPeriod: 1, defaultPeriod: 12, color: '#73c3e4' },
   cmo: { name: 'CMO', label: 'Chande Momentum Oscillator', minPeriod: 2, defaultPeriod: 20, color: '#82c4e8' },
   trix: { name: 'TRIX', label: 'TRIX', minPeriod: 1, defaultPeriod: 30, color: '#dfba79' },
+  vortex: { name: 'Vortex', label: 'Vortex Indicator', minPeriod: 1, defaultPeriod: 14 },
+  bop: { name: 'Balance of Power', label: 'Balance of Power', color: '#b5a2e5' },
   aroon: { name: 'Aroon', label: 'Aroon', minPeriod: 1, defaultPeriod: 25 },
   aroon_oscillator: { name: 'Aroon Oscillator', label: 'Aroon Oscillator', minPeriod: 1, defaultPeriod: 25, color: '#98c9ef' },
 } as const
@@ -140,6 +142,9 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
         { color: STUDIES[kind].color, series: cumulative.map(row => row[key]) },
       ] }]
     }
+    if (kind === 'bop') return [{ kind, periods: [], unit: 'index', lines: [
+      { color: STUDIES.bop.color, series: core.balanceOfPower(bars) },
+    ] }]
     const { period = STUDIES[kind].defaultPeriod } = study
     if (kind === 'bb') return [priceBands(kind, [period], core.bollingerBands(period, bars))]
     if (kind === 'donchian') return [priceBands(kind, [period], core.donchianChannels(period, bars))]
@@ -159,6 +164,13 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
         { key: 'plus_di', label: '+DI', color: '#6ecb99', series: rows.map(row => row.plusDi) },
         { key: 'minus_di', label: '−DI', color: '#e68a88', series: rows.map(row => row.minusDi) },
         { key: 'adx', label: 'ADX', color: STUDIES.dmi.color, series: rows.map(row => row.adx) },
+      ] }]
+    }
+    if (kind === 'vortex') {
+      const rows = core.vortexIndicator(period, bars)
+      return [{ kind, periods: [period], unit: 'index', guides: [1], lines: [
+        { key: 'positive', label: 'VI+', color: '#83ceae', series: rows.map(row => row?.positive ?? null) },
+        { key: 'negative', label: 'VI−', color: '#eaa1a2', series: rows.map(row => row?.negative ?? null) },
       ] }]
     }
     if (kind === 'stochastic') {

@@ -4284,6 +4284,26 @@ fn encode_wide_indicator_values(values: Vec<Option<i128>>) -> Vec<u8> {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_balance_of_power() -> u32 {
+    process(|input| crate::balance_of_power(&decode_bars(input)?).map(encode_indicator_values))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_vortex_indicator(period: usize) -> u32 {
+    process(|input| {
+        let rows = crate::vortex_indicator(period, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 32);
+        for row in rows {
+            let (positive, negative) =
+                row.map_or((i128::MIN, i128::MIN), |row| (row.positive, row.negative));
+            bytes.extend_from_slice(&positive.to_le_bytes());
+            bytes.extend_from_slice(&negative.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_directional_movement(di_period: usize, adx_period: usize) -> u32 {
     process(|input| {
         let rows = crate::directional_movement(di_period, adx_period, &decode_bars(input)?)?;

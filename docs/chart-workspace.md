@@ -398,6 +398,14 @@ A period of 25 searches the current bar and 25 preceding observed bars. Up track
 
 The oscillator subtracts Down from Up before rounding the result to six decimal places. The chart and CSV leave warm-up values empty. The default research CSV columns are `aroon_up_25`, `aroon_down_25` and `aroon_oscillator_25`.
 
+### Vortex and Balance of Power
+
+Enable **Vortex** in either pane and choose a lookback from one to 100,000 observed bar pairs. The default is 14. VI+ uses the absolute distance from the current high to the prior low. VI− uses the absolute distance from the current low to the prior high. Each line divides the sum of its movement by the same window's total true range. The first value needs one preceding close and a full window of pairs. A zero true-range total leaves both lines empty. [Vortex formula](https://www.tradingview.com/support/solutions/43000591352-vortex-indicator/).
+
+**Balance of Power** divides the signed close-minus-open move by that bar's high-minus-low range. It uses each bar independently and has a fixed scale from −1 to +1. A zero range leaves an empty value. A nonzero range with an unchanged open and close gives zero. [Balance of Power formula](https://ta-lib.org/functions/bop.html).
+
+Each pane uses the bars available to its selected history and timeframe. Both studies round once to six decimal places. The research CSV uses `vortex_positive_14`, `vortex_negative_14` and `bop`, with the chosen lookback in the Vortex column names. A saved Vortex or Balance of Power setting uses workspace backup version 58.
+
 ## Monthly returns calendar
 
 Open **Monthly returns calendar** from the workspace for the selected primary instrument. Choose up to 30 consecutive UTC calendar years and set an inclusive **Observed through (UTC)** timestamp. The calendar uses the bar timestamps and closes in the selected history. Each cell compares the last close through that cutoff with the last close in the immediately preceding UTC month, including the December observation for the first displayed January when available.
