@@ -24,9 +24,10 @@ class PortfolioAllocationTest(unittest.TestCase):
     def setUp(self):
         self.engine = ResearchEngine(EXECUTABLE)
 
-    def query(self, known: int, membership=MEMBERS, prices=PRICES, listings=("B", "A")):
+    def query(self, known: int, membership=MEMBERS, prices=PRICES, listings=("B", "A"), maximum=None):
         return self.engine.portfolio_allocation_as_of(
             membership, prices, listings, from_at=utc(0), through_at=utc(6), known_at=utc(known), interval_seconds=60,
+            maximum_weight_basis_points=maximum,
         )
 
     def test_native_matches_browser_at_late_and_rewound_samples(self):
@@ -51,6 +52,16 @@ class PortfolioAllocationTest(unittest.TestCase):
         three = self.query(7, membership, prices, ("C", "B", "A"))
         self.assertEqual(three.common_returns, 2)
         self.assertEqual([row.optimized_basis_points for row in three.listings], [0, 0, 10_000])
+        capped = self.query(7, membership, prices, ("C", "B", "A"), 6000)
+        self.assertIsNone(three.maximum_weight_basis_points)
+        self.assertEqual(capped.maximum_weight_basis_points, 6000)
+        self.assertEqual([row.optimized_basis_points for row in capped.listings], [4000, 0, 6000])
+        sparse = self.query(6, membership, prices, ("A", "B", "C"), 6000)
+        self.assertEqual((sparse.common_returns, sparse.maximum_weight_basis_points, sparse.sample), (1, 6000, None))
+        self.assertEqual(self.query(6, membership, prices, ("C", "A", "B"), 6000), sparse)
+        for maximum in (True, 3333, 6000.5, 10_001):
+            with self.assertRaisesRegex(ValueError, "fully allocated"):
+                self.query(6, membership, prices, ("A", "B", "C"), maximum)
 
     def test_rejects_invalid_source_bounds_and_inconsistent_native_results(self):
         with self.assertRaisesRegex(ValueError, "distinct"):
@@ -75,3 +86,12 @@ class PortfolioAllocationTest(unittest.TestCase):
             with patch.object(self.engine, "_invoke", return_value=response):
                 with self.assertRaisesRegex(ResearchError, phrase):
                     self.query(6)
+        capped = valid.replace(b"\t1\t2\nT", b"\t2\t2\nT").replace(b"3160\t60\n", b"3160\t60\t5000\n")
+        for response, phrase in (
+            (valid, "protocol version"),
+            (capped.replace(b"\t60\t5000\n", b"\t60\t6000\n"), "maximum weight"),
+            (capped.replace(b"A\t6\t5000\t5000", b"A\t6\t5000\t5001"), "Invalid portfolio allocation weights"),
+        ):
+            with patch.object(self.engine, "_invoke", return_value=response):
+                with self.assertRaisesRegex(ResearchError, phrase):
+                    self.query(6, maximum=5000)

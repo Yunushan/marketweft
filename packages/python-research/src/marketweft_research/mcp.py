@@ -288,11 +288,11 @@ _MULTIPLE_STATUSES = ["missing-filing", "missing-cap", "currency", "missing-deno
 _TRAILING_STATUSES = ["insufficient-quarters", "noncontiguous", "currency"]
 
 
-def _object_schema(properties: dict, *, nullable: bool = False) -> dict:
+def _object_schema(properties: dict, *, nullable: bool = False, optional: tuple[str, ...] = ()) -> dict:
     return {
         "type": ["object", "null"] if nullable else "object",
         "properties": properties,
-        "required": list(properties),
+        "required": [name for name in properties if name not in optional],
         "additionalProperties": False,
     }
 
@@ -659,14 +659,17 @@ _ALLOCATION_QUERY_TEXT = {
 }
 _ALLOCATION_COUNT = {"type": "integer", "minimum": 0, "maximum": 100_000}
 _ALLOCATION_WEIGHT = {"type": ["integer", "null"], "minimum": 0, "maximum": 10_000}
+_ALLOCATION_MAXIMUM = "maximum_weight_basis_points"
 PORTFOLIO_ALLOCATION_INPUT = _object_schema({
     **_ALLOCATION_QUERY_TEXT,
     "listing_ids": {"type": "array", "minItems": 2, "maxItems": 16, "uniqueItems": True, "items": _IDENTIFIER_SCHEMA},
     "interval_seconds": PORTFOLIO_SCENARIOS_INPUT["properties"]["interval_seconds"],
-})
+    _ALLOCATION_MAXIMUM: {"type": "integer", "minimum": 1, "maximum": 10_000},
+}, optional=(_ALLOCATION_MAXIMUM,))
 PORTFOLIO_ALLOCATION_OUTPUT = _object_schema({
     **_PORTFOLIO_TIMES,
     "interval_seconds": PORTFOLIO_ALLOCATION_INPUT["properties"]["interval_seconds"],
+    _ALLOCATION_MAXIMUM: PORTFOLIO_ALLOCATION_INPUT["properties"][_ALLOCATION_MAXIMUM],
     "expected_returns": _ALLOCATION_COUNT,
     "common_returns": _ALLOCATION_COUNT,
     "listings": {"type": "array", "minItems": 2, "maxItems": 16, "items": _object_schema({
@@ -679,12 +682,12 @@ PORTFOLIO_ALLOCATION_OUTPUT = _object_schema({
         "variance_gap": {"type": "number", "minimum": 0},
         "iterations": {"type": "integer", "minimum": 0, "maximum": 20_000},
     }, nullable=True),
-})
+}, optional=(_ALLOCATION_MAXIMUM,))
 PORTFOLIO_ALLOCATION_TOOL = {
     "name": PORTFOLIO_ALLOCATION_TOOL_NAME,
     "description": (
         "Estimate long-only minimum-variance weights on a common sample of historical returns for 2 to 16 listings. "
-        "Return observed coverage and exact basis-point weights where the sample is available."
+        "Return observed coverage and exact basis-point weights, with an optional per-listing maximum."
     ),
     "annotations": TOOL["annotations"],
     "inputSchema": PORTFOLIO_ALLOCATION_INPUT,
@@ -942,18 +945,25 @@ class ResearchServer:
         })
 
     def _portfolio_allocation(self, arguments) -> dict:
-        if not isinstance(arguments, dict) or set(arguments) != PORTFOLIO_ALLOCATION_INPUT["properties"].keys():
+        if (not isinstance(arguments, dict)
+                or set(arguments) - PORTFOLIO_ALLOCATION_INPUT["properties"].keys()
+                or set(PORTFOLIO_ALLOCATION_INPUT["required"]) - arguments.keys()):
             raise RequestError(-32602, "Supply the documented portfolio allocation arguments.")
         fields = {name: arguments[name] for name in _ALLOCATION_QUERY_TEXT}
         listings = arguments["listing_ids"]
         if not all(isinstance(value, str) and value for value in fields.values()) or not isinstance(listings, list):
             raise RequestError(-32602, "Supply membership and prices CSV, three UTC cutoffs and a listing array.")
         interval = _integer(arguments, "interval_seconds", 0, 1, _U32_MAX)
+        maximum = _integer(arguments, _ALLOCATION_MAXIMUM, 0, 1, 10_000) if _ALLOCATION_MAXIMUM in arguments else None
         try:
-            report = self._engine.portfolio_allocation_as_of(**fields, listing_ids=listings, interval_seconds=interval)
+            report = self._engine.portfolio_allocation_as_of(
+                **fields, listing_ids=listings, interval_seconds=interval, maximum_weight_basis_points=maximum,
+            )
         except (ResearchError, ValueError) as error:
             return {"content": _text(str(error)), "isError": True}
         result = asdict(report)
+        if maximum is None:
+            result.pop(_ALLOCATION_MAXIMUM)
         result["listings"] = list(result["listings"])
         result.update({name: fields[name] for name in _PORTFOLIO_TIMES})
         return _structured(result)

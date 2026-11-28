@@ -317,4 +317,22 @@ fn native_allocation_protocol_echoes_cutoffs_and_rejects_bad_boundaries() {
     assert!(portfolio_allocation_request(request(1, usize::MAX, "A\tB").as_bytes()).is_err());
     assert!(portfolio_allocation_request(request(1, MEMBERSHIP.len(), "A\tA").as_bytes()).is_err());
     assert!(portfolio_allocation_request(valid.replace("60\nB", "70\nB").as_bytes()).is_err());
+    let with_limit = |weight| {
+        valid.replacen(
+            &format!("\t1\t{}\n", MEMBERSHIP.len()),
+            &format!("\t2\t{}\t{weight}\n", MEMBERSHIP.len()),
+            1,
+        )
+    };
+    let capped = portfolio_allocation_request(with_limit(5000).as_bytes()).unwrap();
+    let capped: Vec<_> = capped.lines().collect();
+    assert_eq!(capped[0], "marketweft-portfolio-allocation\t2\t2");
+    assert_eq!(capped[1], "T\t1748872800\t1748873160\t1748873160\t60\t5000");
+    assert_eq!(capped[2..], lines[2..]);
+    assert!(portfolio_allocation_request(with_limit(4999).as_bytes()).is_err());
+    assert!(portfolio_allocation_request(with_limit(65536).as_bytes()).is_err());
+    assert!(
+        portfolio_allocation_request(with_limit(5000).replace("\t2\t", "\t1\t").as_bytes())
+            .is_err()
+    );
 }

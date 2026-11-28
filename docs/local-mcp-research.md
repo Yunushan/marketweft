@@ -58,6 +58,8 @@ Call the read-only `portfolio_allocation_as_of` tool. Supply the contents of the
 
 The tool returns common and per-listing coverage at every cutoff. With at least two common returns, it includes the sample metrics and weights as integer basis points. A missing sample or weight is `null`, and a computed zero is `0`. [Portfolio allocation service](local-rest-research.md#portfolio-allocation)
 
+Pass the optional integer `maximum_weight_basis_points` to bound each listing's weight. The tool echoes the supplied ceiling, including on a coverage-only result.
+
 ## Portfolio currency conversion
 
 Call the read-only `portfolio_fx_as_of` tool with `rates_csv` contents, a three-letter uppercase `reporting_currency`, and exact UTC `effective_at` and `known_at` cutoffs. Supply `amounts` as an array of source currency and `subtotal_ticks` objects. Send each currency once and use signed decimal strings in integer millionths for subtotals. The FX CSV accepts up to 1 MiB of UTF-8 data. [Portfolio FX inputs and rate selection](portfolio-replay.md#portfolio-currency-translation)

@@ -694,17 +694,24 @@ pub(crate) fn evaluate_portfolio_allocation(
     let listings: Vec<_> = query.listing_ids.iter().map(String::as_str).collect();
     let universe = parse_universe(&query.membership_csv).map_err(analytical_error)?;
     let prices = PriceBook::parse(&universe, &query.prices_csv).map_err(analytical_error)?;
-    let report = prices
-        .portfolio_allocation(
-            &listings,
-            PortfolioVarianceQuery {
-                from_at,
-                through_at,
-                known_at,
-                interval_seconds: query.interval_seconds,
-            },
-        )
-        .map_err(analytical_error)?;
+    let cutoffs = PortfolioVarianceQuery {
+        from_at,
+        through_at,
+        known_at,
+        interval_seconds: query.interval_seconds,
+    };
+    let maximum = query
+        .maximum_weight_basis_points
+        .map(u16::try_from)
+        .transpose()
+        .map_err(|_| {
+            analytical_error("Use at most 10,000 basis points for the maximum weight.".into())
+        })?;
+    let report = match maximum {
+        Some(maximum) => prices.portfolio_allocation_with_limit(&listings, cutoffs, maximum),
+        None => prices.portfolio_allocation(&listings, cutoffs),
+    }
+    .map_err(analytical_error)?;
     let listings = report
         .listings
         .into_iter()
@@ -735,6 +742,7 @@ pub(crate) fn evaluate_portfolio_allocation(
         through_at: query.through_at,
         known_at: query.known_at,
         interval_seconds: query.interval_seconds,
+        maximum_weight_basis_points: query.maximum_weight_basis_points,
         expected_returns: report.expected_returns as u32,
         common_returns: report.common_returns as u32,
         listings,

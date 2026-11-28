@@ -92,7 +92,11 @@ An export with an explicit limit appends `maximum_weight_basis_points` to every 
 
 Call `portfolioAllocationAsOf(membershipCsv, pricesCsv, listingIds, query)` in TypeScript. Supply `from`, `through`, `known` and `intervalSeconds` in the query. In Python, call `ResearchEngine.portfolio_allocation_as_of(membership_csv, prices_csv, listing_ids, from_at=..., through_at=..., known_at=..., interval_seconds=...)`. Both return the three UTC cutoffs in whole Unix seconds, the interval, common coverage and ascending listing IDs with individual coverage and weights. A coverage-only result leaves the sample and weights unavailable. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md)
 
+For a weight ceiling, pass `maximumWeightBasisPoints` in the TypeScript query or `maximum_weight_basis_points` in Python. Each SDK returns the applied ceiling with the cutoffs. [Allocation weight limits](#allocation-weight-limits)
+
 Run `marketweft-research portfolio-allocation` and send UTF-8 on standard input. The first line has three tab-separated fields, `marketweft-portfolio-allocation`, version `1` and the membership CSV byte length. The next lines contain the from, through and known UTC times, then the whole interval in seconds and a tab-separated list of 2–16 stable listing IDs. Append the membership and prices CSV contents in that order. The CSV limits are 1 and 2 MiB.
+
+Use version `2` and append the maximum basis points as the fourth field of the first line for a capped estimate. The response echoes version `2` and appends the applied maximum to the `T` row after the interval. Requests without a ceiling retain version `1` and its original response layout.
 
 The response begins with the protocol, version and listing row count. The `T` row echoes the three Unix seconds and interval. The next row has expected and common counts, followed by a metrics row with equal mean return, equal volatility, estimated mean return, estimated volatility, variance gap and iterations. This row is empty when fewer than two common intervals are available. Listing rows have an ID, known count, equal-weight basis points and estimated basis points. An empty weight means unavailable, while `0` remains a computed zero.
 

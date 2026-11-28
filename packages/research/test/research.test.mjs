@@ -28,6 +28,22 @@ test('the public SDK preserves allocation cutoffs and common coverage through a 
   assert.equal(at(1).sample, null)
   assert.equal(at(1).listings[0].optimizedBasisPoints, null)
   assert.deepEqual(at(6), original)
+  assert.equal(Object.hasOwn(original, 'maximumWeightBasisPoints'), false)
+
+  const members = membership + `RISK,C-ADD,C,DEMO:GAMMA,${time(0)},${time(0)},add\n`
+  const closes = prices.replaceAll(',90\n', ',120\n') + [[0, 0], [1, 1], [2, 7]]
+    .map(([at, known]) => `RISK,C,${time(at)},${time(known)},10\n`).join('')
+  const capped = (known, maximumWeightBasisPoints = 6000) =>
+    engine.portfolioAllocationAsOf(members, closes, ['C', 'A', 'B'], {
+      from: time(0), through: time(6), known: time(known), intervalSeconds: 60, maximumWeightBasisPoints,
+    })
+  const cappedEarly = capped(6)
+  assert.equal(cappedEarly.maximumWeightBasisPoints, 6000)
+  assert.equal(cappedEarly.sample, null)
+  assert.deepEqual(capped(7).listings.map(row => row.optimizedBasisPoints), [4000, 0, 6000])
+  assert.deepEqual(capped(7, 10000).listings.map(row => row.optimizedBasisPoints), [0, 0, 10000])
+  assert.throws(() => capped(6, 3333), /fully allocated/)
+  assert.deepEqual(capped(6), cappedEarly)
 })
 
 test('equity target drift matches the terminal across original, revised and withdrawn reports', async () => {

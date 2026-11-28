@@ -188,3 +188,5 @@ Append the exact underlying and option CSV bytes, then the cash dividend CSV in 
 The response header contains the identifier, protocol version and contract ID with currency separated by a comma. The next tab-separated row is either a status or `value`, model price and annual volatility. Each applied dividend follows on a `D` row with ID, announcement time, ex-date, pay date, observation time, currency and exact integer millionths per share.
 
 Call `ResearchEngine.portfolio_allocation_as_of(membership_csv, prices_csv, listing_ids, from_at=..., through_at=..., known_at=..., interval_seconds=...)` to estimate historical minimum-variance weights. The result includes the applied UTC cutoffs and common coverage, along with exact integer basis-point weights when a sample is usable. The local MCP tool of the same name returns this report. [Portfolio allocation SDKs](../../docs/portfolio-scenarios.md#portfolio-allocation-sdks) · [MCP tool](../../docs/local-mcp-research.md#portfolio-allocation)
+
+Set `maximum_weight_basis_points` on the SDK or MCP request for a uniform per-listing ceiling. Each response carries an explicit ceiling with the sample cutoffs and coverage.

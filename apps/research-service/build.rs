@@ -72,6 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "ScreenQuery.limit",
         "RankComparisonQuery.offset",
         "RankComparisonQuery.limit",
+        "PortfolioAllocationQuery.maximum_weight_basis_points",
         "PortfolioScenariosQuery.block_size",
         "PortfolioScenariosQuery.offset",
         "PortfolioScenariosQuery.limit",
@@ -94,6 +95,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
     builder
+        .field_attribute(
+            "PortfolioAllocationResponse.maximum_weight_basis_points",
+            "#[serde(skip_serializing_if = \"Option::is_none\")]",
+        )
         .field_attribute("FormulaQuery.functions", "#[serde(default)]")
         .compile_fds(descriptors)?;
     Ok(())

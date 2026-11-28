@@ -154,11 +154,20 @@ pub fn portfolio_allocation_request(bytes: &[u8]) -> Result<String, String> {
     let (header, payload) = input
         .split_once('\n')
         .ok_or("Missing portfolio allocation request header.")?;
-    let mut fields = header.splitn(4, '\t');
-    let [Some("marketweft-portfolio-allocation"), Some("1"), Some(membership), None] =
+    let mut fields = header.splitn(5, '\t');
+    let [Some("marketweft-portfolio-allocation"), Some(version), Some(membership), maximum, None] =
         std::array::from_fn(|_| fields.next())
     else {
         return Err("Invalid portfolio allocation request or protocol version.".into());
+    };
+    let maximum_weight = match (version, maximum) {
+        ("1", None) => None,
+        ("2", Some(weight)) => Some(
+            weight
+                .parse::<u16>()
+                .map_err(|_| "Supply a whole basis-point maximum weight.")?,
+        ),
+        _ => return Err("Invalid portfolio allocation request or protocol version.".into()),
     };
     let membership_bytes = membership
         .parse()
@@ -182,9 +191,10 @@ pub fn portfolio_allocation_request(bytes: &[u8]) -> Result<String, String> {
         known_at,
         interval_seconds,
     };
-    let report = portfolio_allocation_report(reports, membership_bytes, query, None)?;
+    let report = portfolio_allocation_report(reports, membership_bytes, query, maximum_weight)?;
+    let maximum = maximum_weight.map_or_else(String::new, |value| format!("\t{value}"));
     Ok(format!(
-        "marketweft-portfolio-allocation\t{PROTOCOL_VERSION}\t{}\nT\t{from_at}\t{through_at}\t{known_at}\t{interval_seconds}\n{}",
+        "marketweft-portfolio-allocation\t{version}\t{}\nT\t{from_at}\t{through_at}\t{known_at}\t{interval_seconds}{maximum}\n{}",
         report.listings.len(), portfolio_allocation_rows(&report)
     ))
 }

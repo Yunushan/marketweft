@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.279.0 · Capped allocation SDKs and research service
+
+- The native version 2 request echoes the cap and rejects unsupported bounds. Version 1 retains its original result layout. Python validates the echoed ceiling and rejects any result above it.
+- The TypeScript and Python packages, read-only MCP tool, REST, WebSocket, and typed gRPC reproduce the same sparse coverage and exact capped weights of 4,000, zero, and 6,000 after the late close. The tests also check rewind and the original uncapped response.
+
 ## 0.278.0 · Allocation weight limits
 
 - Rust verifies the capped analytical solution of 6,000, 3,200 and 800 basis points, and checks the rounding boundary at 3,334 and the fully allocated sixteen-listing case at 625. Rust and Wasm reject infeasible caps before estimation.

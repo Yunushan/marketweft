@@ -1,11 +1,11 @@
 import { instantiateMarketCore } from './core.js'
-import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, FormulaResult, MarketCore, PortfolioAllocationReport, PortfolioVarianceQuery } from './core.js'
+import type { Bar, EquityConcentration, EquityTargetDrift, FormulaFunction, FormulaResult, MarketCore, PortfolioAllocationQuery, PortfolioAllocationReport } from './core.js'
 
 export type {
   AmericanCashImpliedPrice, AmericanCashPrice, AmericanImplied, Bar, DepthLevel, DepthStamp, DepthStatus, DepthSweep,
   EquityConcentration, EquityTargetDrift, Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
-  JointScenarioPath, JointScenarioQuery, JointScenarioReport, PortfolioAllocationReport, PortfolioVarianceQuery, ScenarioAllocation,
+  JointScenarioPath, JointScenarioQuery, JointScenarioReport, PortfolioAllocationQuery, PortfolioAllocationReport, PortfolioVarianceQuery, ScenarioAllocation,
   FxAmount, FxCurrencyValue, FxTranslation,
   OptionUnavailable, OptionUnderlying, PaperConfig, PaperDepthSnapshot, PaperSnapshot, QuarterlyValuation,
   ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
@@ -32,6 +32,7 @@ export interface PortfolioAllocationSnapshot extends PortfolioAllocationReport {
   throughAt: number
   knownAt: number
   intervalSeconds: number
+  maximumWeightBasisPoints?: number
 }
 
 export interface MarketResearch {
@@ -46,7 +47,7 @@ export interface MarketResearch {
   universeScreen: MarketCore['universeScreen']
   compareUniverseRanks: MarketCore['compareUniverseRanks']
   portfolioAllocationAsOf(membership: string, closes: string, listingIds: readonly string[],
-    query: PortfolioVarianceQuery): PortfolioAllocationSnapshot
+    query: PortfolioAllocationQuery): PortfolioAllocationSnapshot
   portfolioScenarios: MarketCore['portfolioScenarios']
   portfolioFxAsOf: MarketCore['portfolioFxAsOf']
   equityConcentrationAsOf(membership: string, holdings: string, closes: string,
@@ -84,7 +85,8 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     portfolioAllocationAsOf(membership, closes, listingIds, query) {
       const report = core.portfolioAllocation(membership, closes, listingIds, query)
       return { ...report, fromAt: Date.parse(query.from) / 1000, throughAt: Date.parse(query.through) / 1000,
-        knownAt: Date.parse(query.known) / 1000, intervalSeconds: query.intervalSeconds }
+        knownAt: Date.parse(query.known) / 1000, intervalSeconds: query.intervalSeconds,
+        ...(query.maximumWeightBasisPoints === undefined ? {} : { maximumWeightBasisPoints: query.maximumWeightBasisPoints }) }
     },
     portfolioScenarios: core.portfolioScenarios,
     portfolioFxAsOf: core.portfolioFxAsOf,

@@ -469,6 +469,10 @@ class McpTest(unittest.TestCase):
             input=wire(
                 rpc("initialize", "init", INITIALIZE), rpc("notifications/initialized"), rpc("tools/list", "tools"),
                 query("early"), query("late", known_at=utc(7)), query("rewind"),
+                query("capped-early", maximum_weight_basis_points=6000),
+                query("capped-late", known_at=utc(7), maximum_weight_basis_points=6000),
+                query("capped-rewind", maximum_weight_basis_points=6000),
+                query("bad-cap", maximum_weight_basis_points=3333), query("null-cap", maximum_weight_basis_points=None),
                 query("bad-list", listing_ids="ABC"), query("duplicate", listing_ids=["A", "A"]),
                 query("bad-interval", interval_seconds=0), query("unknown", price_path="closes.csv"), rpc("ping", "ping"),
             ),
@@ -479,6 +483,7 @@ class McpTest(unittest.TestCase):
         tool = next(tool for tool in messages["tools"]["result"]["tools"] if tool["name"] == mcp.PORTFOLIO_ALLOCATION_TOOL_NAME)
         self.assertTrue(tool["annotations"]["readOnlyHint"])
         self.assertTrue(tool["inputSchema"]["properties"]["listing_ids"]["uniqueItems"])
+        self.assertNotIn("maximum_weight_basis_points", tool["inputSchema"]["required"])
 
         def data(request_id):
             result = messages[request_id]["result"]
@@ -494,8 +499,15 @@ class McpTest(unittest.TestCase):
         self.assertEqual([row["optimized_basis_points"] for row in later["listings"]], [0, 0, 10_000])
         self.assertEqual(later["sample"]["optimized_volatility"], 0)
         self.assertEqual(data("rewind"), earlier)
-        for key in ("bad-list", "bad-interval", "unknown"):
+        self.assertNotIn("maximum_weight_basis_points", earlier)
+        self.assertEqual(data("capped-early"), earlier | {"maximum_weight_basis_points": 6000})
+        capped = data("capped-late")
+        self.assertEqual(capped["maximum_weight_basis_points"], 6000)
+        self.assertEqual([row["optimized_basis_points"] for row in capped["listings"]], [4000, 0, 6000])
+        self.assertEqual(data("capped-rewind"), data("capped-early"))
+        for key in ("bad-list", "bad-interval", "unknown", "null-cap"):
             self.assertEqual(messages[key]["error"]["code"], -32602)
+        self.assertTrue(messages["bad-cap"]["result"]["isError"])
         self.assertTrue(messages["duplicate"]["result"]["isError"])
         self.assertEqual(messages["ping"]["result"], {})
 

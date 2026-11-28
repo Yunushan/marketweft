@@ -197,6 +197,7 @@ class PortfolioAllocationSnapshot:
     common_returns: int
     listings: tuple[PortfolioAllocationListing, ...]
     sample: PortfolioAllocationSample | None
+    maximum_weight_basis_points: int | None = None
 
 
 @dataclass(frozen=True)
@@ -457,14 +458,14 @@ def _validate_scalar_module(module: bytes) -> None:
         raise ValueError("Scalar plugin exceeds 64 KiB.")
 
 
-def _response(output: bytes, protocol: str) -> tuple[str, list[str]]:
+def _response(output: bytes, protocol: str, version: str = "1") -> tuple[str, list[str]]:
     try:
         response = output.decode("ascii")
     except UnicodeDecodeError as exc:
         raise ResearchError("Research response is not ASCII.") from exc
     header, newline, body = response.partition("\n")
     fields = header.split("\t")
-    if not newline or len(fields) != 3 or fields[:2] != [protocol, "1"]:
+    if not newline or len(fields) != 3 or fields[:2] != [protocol, version]:
         raise ResearchError("Invalid research response or protocol version.")
     if body and not body.endswith("\n"):
         raise ResearchError("Incomplete research result.")
@@ -632,12 +633,16 @@ def _fx_translation(
 
 def _portfolio_allocation(
     output: bytes, listing_ids: tuple[str, ...], times: tuple[int, int, int], interval: int,
+    maximum: int | None = None,
 ) -> PortfolioAllocationSnapshot:
-    count, rows = _response(output, _ALLOCATION_PROTOCOL)
+    count, rows = _response(output, _ALLOCATION_PROTOCOL, "1" if maximum is None else "2")
     if _whole(count) != len(listing_ids) or len(rows) != len(listing_ids) + 3:
         raise ResearchError("Invalid portfolio allocation row count.")
-    if rows[0].split("\t") != ["T", *map(str, times), str(interval)]:
-        raise ResearchError("Portfolio allocation cutoffs differ from the request.")
+    settings = ["T", *map(str, times), str(interval)]
+    if maximum is not None:
+        settings.append(str(maximum))
+    if rows[0].split("\t") != settings:
+        raise ResearchError("Portfolio allocation cutoffs or maximum weight differ from the request.")
     coverage = rows[1].split("\t")
     if len(coverage) != 2:
         raise ResearchError("Invalid portfolio allocation coverage.")
@@ -678,14 +683,14 @@ def _portfolio_allocation(
                 raise ResearchError("Portfolio weights require two common returns.")
         else:
             weights = tuple(map(_whole, fields[2:]))
-            if any(not 0 <= weight <= 10_000 for weight in weights):
+            if any(not 0 <= weight <= (10_000 if maximum is None else maximum) for weight in weights):
                 raise ResearchError("Invalid portfolio allocation weights.")
         listings.append(PortfolioAllocationListing(listing, known, *weights))
     if sample is not None:
         equal, optimized = zip(*[(row.equal_basis_points, row.optimized_basis_points) for row in listings])
         if sum(equal) != 10_000 or sum(optimized) != 10_000 or max(equal) - min(equal) > 1:
             raise ResearchError("Portfolio allocation weights must sum to 10,000 basis points.")
-    return PortfolioAllocationSnapshot(*times, interval, expected, common, tuple(listings), sample)
+    return PortfolioAllocationSnapshot(*times, interval, expected, common, tuple(listings), sample, maximum)
 
 
 def _portfolio_scenarios(
@@ -1298,6 +1303,7 @@ class ResearchEngine:
     def portfolio_allocation_as_of(
         self, membership_csv: str, prices_csv: str, listing_ids: Sequence[str], *,
         from_at: str, through_at: str, known_at: str, interval_seconds: int,
+        maximum_weight_basis_points: int | None = None,
     ) -> PortfolioAllocationSnapshot:
         """Estimate long-only portfolio weights using common returns at the supplied cutoffs."""
         times = (from_at, through_at, known_at)
@@ -1318,13 +1324,20 @@ class ResearchEngine:
                 or any(not isinstance(listing, str) or not _IDENTITY.fullmatch(listing) for listing in listings)
                 or len(set(listings)) != len(listings)):
             raise ValueError("Use 2 to 16 distinct portfolio listing IDs.")
+        maximum = maximum_weight_basis_points
+        if maximum is not None and (type(maximum) is not int or not 1 <= maximum <= 10_000
+                                    or maximum * len(listings) < 10_000):
+            raise ValueError("Use a whole basis-point maximum that allows a fully allocated portfolio.")
         membership, prices = membership_csv.encode("utf-8"), prices_csv.encode("utf-8")
         if len(membership) > 1024 * 1024 or len(prices) > 2 * 1024 * 1024:
             raise ValueError("Membership and prices CSV exceed the portfolio allocation input limits.")
-        header = "\t".join((_ALLOCATION_PROTOCOL, "1", str(len(membership))))
+        command = (_ALLOCATION_PROTOCOL, "1", str(len(membership))) if maximum is None else (
+            _ALLOCATION_PROTOCOL, "2", str(len(membership)), str(maximum),
+        )
+        header = "\t".join(command)
         request = "\n".join((header, *times, str(interval_seconds), "\t".join(listings), "")).encode("ascii")
         output = self._invoke(request + membership + prices, "portfolio-allocation")
-        return _portfolio_allocation(output, listings, (start, end, known), interval_seconds)
+        return _portfolio_allocation(output, listings, (start, end, known), interval_seconds, maximum)
 
     def portfolio_scenarios(
         self, membership_csv: str, prices_csv: str, allocations: Sequence[ScenarioAllocation], *,

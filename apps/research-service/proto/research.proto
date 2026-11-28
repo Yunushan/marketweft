@@ -184,6 +184,7 @@ message PortfolioAllocationQuery {
   string through_at = 5;
   string known_at = 6;
   uint32 interval_seconds = 7;
+  optional uint32 maximum_weight_basis_points = 8;
 }
 
 message PortfolioAllocationListing {
@@ -213,6 +214,7 @@ message PortfolioAllocationResponse {
   uint32 common_returns = 6;
   repeated PortfolioAllocationListing listings = 7;
   PortfolioAllocationSample sample = 8;
+  optional uint32 maximum_weight_basis_points = 9;
 }
 
 message PortfolioFxAmount {

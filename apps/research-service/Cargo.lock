@@ -745,14 +745,14 @@ dependencies = [
 
 [[package]]
 name = "marketweft-core"
-version = "0.143.0"
+version = "0.144.0"
 dependencies = [
  "wasmi",
 ]
 
 [[package]]
 name = "marketweft-research-service"
-version = "0.36.0"
+version = "0.37.0"
 dependencies = [
  "axum",
  "axum-server",

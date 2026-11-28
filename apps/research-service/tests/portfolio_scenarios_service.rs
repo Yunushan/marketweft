@@ -323,6 +323,30 @@ async fn allocation_preserves_common_samples_and_zero_weights_across_scoped_tran
     assert_eq!(advanced["listings"][0]["optimized_basis_points"], 0);
     assert_eq!(advanced["listings"][2]["optimized_basis_points"], 10_000);
     assert_eq!(advanced["sample"]["optimized_volatility"], 0.0);
+    assert!(advanced.get("maximum_weight_basis_points").is_none());
+    let mut capped_early = request.clone();
+    capped_early["maximum_weight_basis_points"] = json!(6000);
+    let (status, capped_sparse) =
+        rest(&router, ALLOCATION_ROUTE, Some(SCREEN_TOKEN), &capped_early).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(capped_sparse["maximum_weight_basis_points"], 6000);
+    assert_eq!(capped_sparse["common_returns"], 1);
+    assert!(capped_sparse["sample"].is_null());
+    let mut capped_later = later.clone();
+    capped_later["maximum_weight_basis_points"] = json!(6000);
+    let (status, capped) = rest(&router, ALLOCATION_ROUTE, Some(SCREEN_TOKEN), &capped_later).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(capped["maximum_weight_basis_points"], 6000);
+    assert_eq!(capped["common_returns"], 2);
+    assert_eq!(capped["listings"][0]["optimized_basis_points"], 4000);
+    assert_eq!(capped["listings"][1]["optimized_basis_points"], 0);
+    assert_eq!(capped["listings"][2]["optimized_basis_points"], 6000);
+    assert_eq!(
+        rest(&router, ALLOCATION_ROUTE, Some(SCREEN_TOKEN), &capped_early)
+            .await
+            .1,
+        capped_sparse
+    );
     assert_eq!(
         rest(&router, ALLOCATION_ROUTE, Some(SCREEN_TOKEN), &request)
             .await
@@ -347,6 +371,21 @@ async fn allocation_preserves_common_samples_and_zero_weights_across_scoped_tran
             StatusCode::UNPROCESSABLE_ENTITY,
         ),
         ("offset", json!(0), StatusCode::BAD_REQUEST),
+        (
+            "maximum_weight_basis_points",
+            Value::Null,
+            StatusCode::BAD_REQUEST,
+        ),
+        (
+            "maximum_weight_basis_points",
+            json!(3333),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ),
+        (
+            "maximum_weight_basis_points",
+            json!(65536),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ),
     ] {
         let mut invalid = later.clone();
         invalid[field] = value;
@@ -370,6 +409,14 @@ async fn allocation_preserves_common_samples_and_zero_weights_across_scoped_tran
     let frame: Value =
         serde_json::from_str(receive(&mut streaming).await.to_text().unwrap()).unwrap();
     assert_eq!(frame, json!({"type":"page", "page":advanced}));
+    assert!(matches!(receive(&mut streaming).await, Message::Close(_)));
+    let mut streaming = websocket(&server, ALLOCATION_ROUTE, Some(SCREEN_TOKEN))
+        .await
+        .unwrap();
+    send(&mut streaming, &capped_later).await;
+    let frame: Value =
+        serde_json::from_str(receive(&mut streaming).await.to_text().unwrap()).unwrap();
+    assert_eq!(frame, json!({"type":"page", "page":capped}));
     assert!(matches!(receive(&mut streaming).await, Message::Close(_)));
 
     let channel = Endpoint::from_shared(server.origin.clone())
@@ -410,4 +457,13 @@ async fn allocation_preserves_common_samples_and_zero_weights_across_scoped_tran
         .unwrap()
         .into_inner();
     assert_eq!(serde_json::to_value(response).unwrap(), advanced);
+    let mut capped_request = authorize(SCREEN_TOKEN);
+    *capped_request.get_mut() = serde_json::from_value(capped_later).unwrap();
+    let response = client
+        .get_portfolio_allocation(capped_request)
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(response.maximum_weight_basis_points, Some(6000));
+    assert_eq!(serde_json::to_value(response).unwrap(), capped);
 }

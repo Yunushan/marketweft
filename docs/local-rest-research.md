@@ -81,6 +81,8 @@ Send `POST /v1/portfolio/allocation` with a screen bearer credential. Provide CS
 
 The response fits in one report. It echoes the inputs that define the sample window and gives expected and common returns, sorted listing coverage and any estimated weights. The `sample` carries the equal and estimated mean returns and volatilities, the estimated variance gap and iteration count. A coverage-only report has a `null` sample and `null` basis-point fields. A computed zero uses the number `0`.
 
+Use the optional integer `maximum_weight_basis_points` to apply the same ceiling to every selected listing. The cap times the listing count must be at least 10,000. The response echoes the supplied cap even when a sample is unavailable. [Allocation weight limits](portfolio-scenarios.md#allocation-weight-limits)
+
 Connect to `/v1/portfolio/allocation/stream` and send the same query for one WebSocket report. The HTTP/2 method is `marketweft.research.v1.Research/GetPortfolioAllocation`. Both use the same screen scope, admission and audit rules as REST. [Research Protobuf schema](../apps/research-service/proto/research.proto)
 
 ## Portfolio currency conversion
