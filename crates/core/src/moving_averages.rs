@@ -10,7 +10,13 @@ pub fn linearly_weighted_average(
     closes: &[i64],
 ) -> Result<Vec<Option<i64>>, String> {
     validate_close_window(period, closes)?;
-    Ok(with_warmup(closes.len(), weighted_tail(period, closes)))
+    Ok(with_warmup(
+        closes.len(),
+        weighted_tail(period, closes)
+            .into_iter()
+            .map(|value| value as i64)
+            .collect(),
+    ))
 }
 
 /// Compute twice the first EMA minus the second EMA at the same observation.
@@ -61,7 +67,10 @@ pub fn hull_moving_average(period: usize, closes: &[i64]) -> Result<Vec<Option<i
         .collect();
     Ok(with_warmup(
         closes.len(),
-        weighted_tail(period.isqrt(), &difference),
+        weighted_tail(period.isqrt(), &difference)
+            .into_iter()
+            .map(|value| value as i64)
+            .collect(),
     ))
 }
 
@@ -140,7 +149,7 @@ fn with_warmup(length: usize, values: Vec<i64>) -> Vec<Option<i64>> {
     result
 }
 
-fn weighted_tail(period: usize, values: &[i64]) -> Vec<i64> {
+pub(crate) fn weighted_tail<T: Copy + Into<i128>>(period: usize, values: &[T]) -> Vec<i128> {
     if period > values.len() {
         return Vec::new();
     }
@@ -149,18 +158,18 @@ fn weighted_tail(period: usize, values: &[i64]) -> Vec<i64> {
     let mut sum = 0;
     let mut weighted = 0;
     for (index, &value) in values[..period].iter().enumerate() {
-        let value = i128::from(value);
+        let value = value.into();
         sum += value;
         weighted += (index as i128 + 1) * value;
     }
     let mut result = Vec::with_capacity(values.len() - period + 1);
-    result.push(rounded_div(weighted, denominator) as i64);
+    result.push(rounded_div(weighted, denominator));
     for index in period..values.len() {
-        let value = i128::from(values[index]);
+        let value = values[index].into();
         // Moving the window reduces each retained coefficient by one.
         weighted += weight * value - sum;
-        sum += value - i128::from(values[index - period]);
-        result.push(rounded_div(weighted, denominator) as i64);
+        sum += value - values[index - period].into();
+        result.push(rounded_div(weighted, denominator));
     }
     result
 }

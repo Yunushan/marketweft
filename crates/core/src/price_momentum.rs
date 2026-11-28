@@ -1,6 +1,7 @@
 use crate::{
     history::{typical_sum, valid_second, validate_bar_time, validate_ohlcv},
     indicator::exponential_tail,
+    moving_averages::weighted_tail,
     screen::rounded_div,
     Bar, MAX_BARS, MAX_TICKS, SCALE,
 };
@@ -107,6 +108,42 @@ pub fn rate_of_change(period: usize, closes: &[i64]) -> Result<Vec<Option<i128>>
             percent_change(close, base)
         })
         .collect())
+}
+
+/// Smooth the sum of two signed returns with a linearly weighted moving average.
+/// An unavailable baseline breaks the smoothing window.
+pub fn coppock_curve(
+    smoothing_period: usize,
+    first_period: usize,
+    second_period: usize,
+    closes: &[i64],
+) -> Result<Vec<Option<i128>>, String> {
+    validate_closes(smoothing_period, closes)?;
+    validate_period(first_period, closes.len())?;
+    validate_period(second_period, closes.len())?;
+    let changes: Vec<_> = closes
+        .iter()
+        .enumerate()
+        .map(|(index, &close)| {
+            let first = percent_change(close, closes[index.checked_sub(first_period)?])?;
+            let second = percent_change(close, closes[index.checked_sub(second_period)?])?;
+            Some(first + second)
+        })
+        .collect();
+    let mut results = vec![None; closes.len()];
+    let mut offset = 0;
+    for run in changes.split(Option::is_none) {
+        let end = offset + run.len();
+        if run.len() >= smoothing_period {
+            let values: Vec<_> = run.iter().flatten().copied().collect();
+            let smoothed = weighted_tail(smoothing_period, &values);
+            for (result, value) in results[end - smoothed.len()..end].iter_mut().zip(smoothed) {
+                *result = Some(value);
+            }
+        }
+        offset = end + 1;
+    }
+    Ok(results)
 }
 
 fn validate_closes(period: usize, closes: &[i64]) -> Result<(), String> {

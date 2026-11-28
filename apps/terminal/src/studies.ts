@@ -30,12 +30,15 @@ export const STUDIES = {
   dmi: { name: 'DMI', label: 'Directional Movement System', minPeriod: 1, defaultPeriod: 14, periodLabel: 'DI', color: '#aaa3f0' },
   cci: { name: 'CCI', label: 'Commodity Channel Index', minPeriod: 1, defaultPeriod: 20, color: '#c5adf1' },
   roc: { name: 'ROC', label: 'Rate of Change', minPeriod: 1, defaultPeriod: 12, color: '#73c3e4' },
+  coppock: { name: 'Coppock Curve', label: 'Coppock Curve', minPeriod: 1, defaultPeriod: 10,
+    periodLabel: 'Coppock smoothing', color: '#e8b185' },
   cmo: { name: 'CMO', label: 'Chande Momentum Oscillator', minPeriod: 2, defaultPeriod: 20, color: '#82c4e8' },
   trix: { name: 'TRIX', label: 'TRIX', minPeriod: 1, defaultPeriod: 30, color: '#dfba79' },
   vortex: { name: 'Vortex', label: 'Vortex Indicator', minPeriod: 1, defaultPeriod: 14 },
   bop: { name: 'Balance of Power', label: 'Balance of Power', color: '#b5a2e5' },
   daily_pivots: { name: 'Daily Floor Pivots', label: 'Daily Floor Pivots' },
   elder_force: { name: 'Elder Force Index', label: 'Elder Force Index', minPeriod: 1, defaultPeriod: 13, color: '#e5b57f' },
+  elder_ray: { name: 'Elder-Ray Index', label: 'Elder-Ray Index', minPeriod: 1, defaultPeriod: 13 },
   chaikin_volatility: { name: 'Chaikin Volatility', label: 'Chaikin Volatility', minPeriod: 1, defaultPeriod: 10,
     periodLabel: 'Chaikin Volatility smoothing', color: '#a2cee5' },
   aroon: { name: 'Aroon', label: 'Aroon', minPeriod: 1, defaultPeriod: 25 },
@@ -51,6 +54,8 @@ export const EXTRA_STUDY_PERIODS = {
   macdSignalPeriod: { label: 'MACD signal', defaultPeriod: 9 },
   chaikinSlowPeriod: { label: 'Chaikin slow', defaultPeriod: 10 },
   volatilityLookback: { label: 'Chaikin Volatility comparison', defaultPeriod: 10 },
+  coppockFirstPeriod: { label: 'Coppock first change', defaultPeriod: 11 },
+  coppockSecondPeriod: { label: 'Coppock second change', defaultPeriod: 14 },
   adxPeriod: { label: 'ADX smoothing', defaultPeriod: 14 },
 } as const
 type ExtraStudyPeriod = keyof typeof EXTRA_STUDY_PERIODS
@@ -60,6 +65,7 @@ const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPerio
   macd: ['slowPeriod', 'macdSignalPeriod'],
   chaikin_oscillator: ['chaikinSlowPeriod'],
   chaikin_volatility: ['volatilityLookback'],
+  coppock: ['coppockFirstPeriod', 'coppockSecondPeriod'],
   dmi: ['adxPeriod'],
 }
 export function extraStudyPeriods(kind: StudyKind): readonly ExtraStudyPeriod[] {
@@ -235,6 +241,13 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     if (kind === 'elder_force') return [{ kind, periods: [period], unit: 'index', zeroLine: true, lines: [
       { color: STUDIES[kind].color, series: core.elderForceIndex(period, bars) },
     ] }]
+    if (kind === 'elder_ray') {
+      const rows = core.elderRayIndex(period, bars)
+      return [{ kind, periods: [period], unit: 'price', zeroLine: true, lines: [
+        { key: 'bull', label: 'Bull Power', color: '#77cba5', series: rows.map(row => row?.bull ?? null) },
+        { key: 'bear', label: 'Bear Power', color: '#e397a2', series: rows.map(row => row?.bear ?? null) },
+      ] }]
+    }
     if (kind === 'chaikin_volatility') {
       const comparison = study.volatilityLookback ?? EXTRA_STUDY_PERIODS.volatilityLookback.defaultPeriod
       return [{ kind, periods: [period, comparison], zeroLine: true, lines: [
@@ -263,6 +276,13 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     if (kind === 'roc') {
       return [{ kind, periods: [period], zeroLine: true, lines: [
         { color: STUDIES.roc.color, series: core.rateOfChange(period, bars) },
+      ] }]
+    }
+    if (kind === 'coppock') {
+      const first = study.coppockFirstPeriod ?? EXTRA_STUDY_PERIODS.coppockFirstPeriod.defaultPeriod
+      const second = study.coppockSecondPeriod ?? EXTRA_STUDY_PERIODS.coppockSecondPeriod.defaultPeriod
+      return [{ kind, periods: [period, first, second], zeroLine: true, lines: [
+        { color: STUDIES[kind].color, series: core.coppockCurve(period, first, second, bars) },
       ] }]
     }
     if (kind === 'cmo' || kind === 'trix') {

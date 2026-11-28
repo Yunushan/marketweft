@@ -125,7 +125,9 @@ pub use drawing::{
     DrawingMeasurement, GannFanLevel, RiskRewardMeasurement, RiskRewardSide,
 };
 pub use floor_pivots::{daily_floor_pivots, FloorPivotLevels};
-pub use force_and_volatility::{chaikin_volatility, elder_force_index};
+pub use force_and_volatility::{
+    chaikin_volatility, elder_force_index, elder_ray_index, ElderRayValue,
+};
 pub use formula::{Formula, FormulaFunctionDefinition, FormulaLibrary, FORMULA_VERSION};
 pub use formula_walk::{
     walk_forward_formulas, FormulaWalkCandidate, FormulaWalkConfig, FormulaWalkFold,
@@ -186,8 +188,8 @@ pub use portfolio::{
     SuccessorShareTerms,
 };
 pub use price_momentum::{
-    chande_momentum_oscillator, commodity_channel_index, observed_drawdown, rate_of_change,
-    rebased_percent_changes, trix, DrawdownPoint,
+    chande_momentum_oscillator, commodity_channel_index, coppock_curve, observed_drawdown,
+    rate_of_change, rebased_percent_changes, trix, DrawdownPoint,
 };
 pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use range_bars::RangeBar;

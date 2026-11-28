@@ -1192,6 +1192,7 @@ export type AnchoredVwapPoint = { price: bigint; cumulativeVolume: bigint };
 export type RiskRewardSide = 'long' | 'short';
 export type GannFanLevel = { priceUnits: number; timeUnits: number; ticks: bigint };
 export type VortexValue = { positive: bigint; negative: bigint };
+export type ElderRayValue = { bull: bigint; bear: bigint };
 export type FloorPivotLevels = { priorCloseAt: number; pivot: bigint; supportOne: bigint; supportTwo: bigint;
   resistanceOne: bigint; resistanceTwo: bigint };
 export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; rewardPerRiskMicros: bigint };
@@ -1244,11 +1245,13 @@ export interface MarketCore {
   monthlyReturns(bars: readonly Bar[], firstYear: number, lastYear: number, knownThrough: number): MonthlyReturn[];
   confirmedCloseSwings(left: number, right: number, intervalSeconds: number, bars: readonly Bar[]): (ConfirmedSwing | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
+  coppockCurve(smoothing: number, first: number, second: number, bars: readonly Bar[]): (bigint | null)[];
   chandeMomentumOscillator(period: number, bars: readonly Bar[]): (bigint | null)[];
   trix(period: number, bars: readonly Bar[]): (bigint | null)[];
   vortexIndicator(period: number, bars: readonly Bar[]): (VortexValue | null)[];
   balanceOfPower(bars: readonly Bar[]): (bigint | null)[];
   elderForceIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
+  elderRayIndex(period: number, bars: readonly Bar[]): (ElderRayValue | null)[];
   chaikinVolatility(smoothing: number, comparison: number, bars: readonly Bar[]): (bigint | null)[];
   dailyFloorPivots(bars: readonly Bar[], queryTimes: readonly number[]): (FloorPivotLevels | null)[];
   linearlyWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1385,6 +1388,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_vortex_indicator(period: number): number;
   mw_balance_of_power(): number;
   mw_elder_force_index(period: number): number;
+  mw_elder_ray_index(period: number): number;
   mw_chaikin_volatility(smoothing: number, comparison: number): number;
   mw_daily_floor_pivots(sourceCount: number): number;
   mw_measure_risk_reward(side: number, entry: bigint, stop: bigint, target: bigint): number;
@@ -1405,6 +1409,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_anchored_vwap(anchorAt: bigint): number;
   mw_confirmed_close_swings(left: number, right: number, intervalSeconds: number): number;
   mw_rate_of_change(period: number): number;
+  mw_coppock_curve(smoothing: number, first: number, second: number): number;
   mw_chande_momentum_oscillator(period: number): number;
   mw_trix(period: number): number;
   mw_linearly_weighted_average(period: number): number;
@@ -2613,6 +2618,11 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       putIndicatorCloses(bars);
       return readWideIndicator(output(api.mw_rate_of_change(period)), bars.length);
     },
+    coppockCurve(smoothing, first, second, bars) {
+      for (const period of [smoothing, first, second]) validateIndicatorHistory(period, bars.length);
+      putIndicatorCloses(bars);
+      return readWideIndicator(output(api.mw_coppock_curve(smoothing, first, second)), bars.length);
+    },
     chandeMomentumOscillator(period, bars) {
       return observedCloseIndicator(api.mw_chande_momentum_oscillator, period, bars);
     },
@@ -2643,6 +2653,17 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       validateIndicatorHistory(period, bars.length);
       putIndicatorBars(bars, 'Elder Force Index');
       return readWideIndicator(output(api.mw_elder_force_index(period)), bars.length);
+    },
+    elderRayIndex(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'Elder-Ray Index');
+      const data = output(api.mw_elder_ray_index(period));
+      if (data.byteLength !== bars.length * 16) throw new Error('Invalid Elder-Ray response size.');
+      return Array.from({ length: bars.length }, (_, index) => {
+        const start = index * 16;
+        const bull = data.getBigInt64(start, true);
+        return bull === MISSING ? null : { bull, bear: data.getBigInt64(start + 8, true) };
+      });
     },
     chaikinVolatility(smoothing, comparison, bars) {
       validateIndicatorHistory(smoothing, bars.length);

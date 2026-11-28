@@ -6,6 +6,36 @@ use crate::{
     Bar, MAX_BARS, SCALE,
 };
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ElderRayValue {
+    pub bull: i64,
+    pub bear: i64,
+}
+
+/// Compare each high and low with the same observed close EMA.
+pub fn elder_ray_index(period: usize, bars: &[Bar]) -> Result<Vec<Option<ElderRayValue>>, String> {
+    if !(1..=MAX_BARS).contains(&period) || bars.len() > MAX_BARS {
+        return Err("Elder-Ray requires a period of 1–100,000 and at most 100,000 bars.".into());
+    }
+    let mut closes = Vec::with_capacity(bars.len());
+    for (index, bar) in bars.iter().enumerate() {
+        let prior = index.checked_sub(1).map(|before| bars[before].time);
+        validate_bar_time(bar.time, prior, index)?;
+        validate_ohlcv(bar, index)?;
+        closes.push(bar.close);
+    }
+    Ok(bars
+        .iter()
+        .zip(average_values(Average::Exponential, period, &closes))
+        .map(|(bar, average)| {
+            average.map(|ema| ElderRayValue {
+                bull: bar.high - ema,
+                bear: bar.low - ema,
+            })
+        })
+        .collect())
+}
+
 /// Smooth the signed close change times current volume with an exact EMA.
 /// The EMA is seeded by the first full window of observed close pairs.
 pub fn elder_force_index(period: usize, bars: &[Bar]) -> Result<Vec<Option<i128>>, String> {

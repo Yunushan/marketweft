@@ -4135,6 +4135,14 @@ pub extern "C" fn mw_chande_momentum_oscillator(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_coppock_curve(smoothing: usize, first: usize, second: usize) -> u32 {
+    process(|input| {
+        crate::coppock_curve(smoothing, first, second, &indicator_closes(input)?)
+            .map(encode_wide_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_trix(period: usize) -> u32 {
     process(|input| {
         crate::trix(period, &indicator_closes(input)?).map(encode_wide_indicator_values)
@@ -4370,6 +4378,20 @@ pub extern "C" fn mw_daily_floor_pivots(source_count: usize) -> u32 {
 pub extern "C" fn mw_elder_force_index(period: usize) -> u32 {
     process(|input| {
         crate::elder_force_index(period, &decode_bars(input)?).map(encode_wide_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_elder_ray_index(period: usize) -> u32 {
+    process(|input| {
+        let rows = crate::elder_ray_index(period, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 16);
+        for row in rows {
+            let (bull, bear) = row.map_or((i64::MIN, i64::MIN), |row| (row.bull, row.bear));
+            bytes.extend_from_slice(&bull.to_le_bytes());
+            bytes.extend_from_slice(&bear.to_le_bytes());
+        }
+        Ok(bytes)
     })
 }
 

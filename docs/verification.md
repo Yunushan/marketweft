@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.230.0 · Elder-Ray Index and Coppock Curve
+
+- Rust and Wasm check exact signed Bull Power and Bear Power from a shared EMA, both Coppock change windows, and renewed smoothing after an undefined zero baseline. Fixtures cover values beyond signed 64-bit percentage storage and prefix stability.
+- Offline Chromium verifies exact CSV columns including blank warm-up rows, independent pane settings, and workspace versions 62 and 63.
+
+[Elder-Ray and Coppock](chart-workspace.md#elder-ray-index-and-coppock-curve)
+
 ## 0.229.0 · Kaufman adaptive average and efficiency ratio
 
 - Rust and Wasm verify signed seed and adaptive values, flat and reversing windows, a gap in the observed timestamps and exact equality across all recorded prefixes. The native fixture accumulates wide path lengths over a near-maximum window.

@@ -420,6 +420,14 @@ Each pane uses the bars available to its selected history and timeframe. Both st
 
 Both studies use observed bars and preserve separate pane settings. Research CSV names include the configured periods, such as `elder_force_13` and `chaikin_volatility_10_10`. Their settings use workspace backup version 59.
 
+### Elder-Ray Index and Coppock Curve
+
+Enable **Elder-Ray Index** to plot Bull Power and Bear Power in price units around zero. Bull Power subtracts the close EMA from the observed high. Bear Power subtracts the same EMA from the observed low. The EMA starts with the first full close window, defaults to 13 bars, and uses the same rounding as the chart EMA. A rising or falling market can put both lines on one side of zero. [Elder-Ray formula](https://ta-lib.org/functions/eri.html).
+
+**Coppock Curve** adds two close-to-close rates of change and applies a linearly weighted moving average to that sum. The default periods are 10 for smoothing and 11 and 14 for the two rates of change. Each percentage uses its signed prior close and rounds to six places before summing. A zero prior close leaves the value undefined and starts a new smoothing window when both rates become available. Both studies use observed bars, including across gaps in recorded timestamps. [Coppock Curve formula](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/coppock-curve).
+
+Research CSV includes `elder_ray_bull_13`, `elder_ray_bear_13` and `coppock_10_11_14` with the default periods. Backup version 63 preserves independent pane settings and all three Coppock periods.
+
 ### Kaufman adaptive average and efficiency ratio
 
 Enable **KAMA** on the price plot or **Kaufman Efficiency Ratio** in its own 0–100% study panel. Each study and each pane has an independent lookback, with a default of 10 observed bars. The ratio measures absolute net close movement over the lookback divided by the sum of absolute consecutive close changes. It starts after a complete window of close changes. A flat window reports 0%. [Kaufman indicator formulas](https://www.tradingview.com/support/solutions/43000773012-kaufman-s-adaptive-moving-average-kama/).

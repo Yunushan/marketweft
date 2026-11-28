@@ -83,6 +83,24 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('Elder-Ray and Coppock preserve signed, wide and undefined results in Wasm', () => {
+  const bars = [-4, -2, 0, -2, 4, 2, 1, 3, 4, 8].map((close, index) => ({
+    time: index * 60 + (index >= 6 ? 180 : 0), open: close, high: close + 1, low: close - 1, close, volume: 1,
+  }));
+  const first = [null, null, null, null, null, null, -166666667n, 125000000n, 305555555n, 288888889n];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.coppockCurve(2, 1, 2, bars.slice(0, end)), first.slice(0, end));
+  }
+  assert.deepEqual(core.elderRayIndex(2, bars).slice(0, 4), [
+    null, { bull: 2000000n, bear: 0n }, { bull: 2000000n, bear: 0n }, { bull: 666667n, bear: -1333333n },
+  ]);
+  assert.deepEqual(core.elderRayIndex(2, bars).at(-1), { bull: 2505716n, bear: 505716n });
+  assert.equal(core.coppockCurve(2, 2, 3, bars).at(-1), 711111111n);
+  const wide = core.parseCsv('time,open,high,low,close,volume\n0,0.000001,0.000001,0.000001,0.000001,0\n60,2000000000,2000000000,2000000000,2000000000,0');
+  assert.equal(core.coppockCurve(1, 1, 1, wide)[1], 399999999999999800000000n);
+  assert.throws(() => core.coppockCurve(2, 0, 2, bars), /indicator period/);
+});
+
 test('Kaufman adaptive average and efficiency ratio keep exact observed prefixes and warm-up', () => {
   const bars = [-4, -2, 0, -2, 0, 0, 0, 4, 0, -2].map((close, index) => ({
     time: index * 60 + (index >= 6 ? 180 : 0), open: close, high: close, low: close, close, volume: 1,
