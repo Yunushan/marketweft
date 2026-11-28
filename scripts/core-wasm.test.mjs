@@ -185,6 +185,30 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('triangular weights and Tillson T3 factors preserve signed observations in Wasm', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-triangular-t3.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(source);
+  const cases = [
+    [observed => core.triangularMovingAverage(4, observed),
+      [null, null, null, 166667n, -666667n, -666667n, -666667n, -1666667n, -2500000n]],
+    [observed => core.triangularMovingAverage(5, observed),
+      [null, null, null, null, 0n, -777778n, -555556n, -1444444n, -1777778n]],
+    ...[
+      [0, [-668039n, -2702180n, -1595743n]],
+      [7000, [-1159883n, -4576575n, -974730n]],
+      [10000, [-1438297n, -5592985n, -448994n]],
+    ].map(([factor, tail]) => [
+      observed => core.tillsonT3(2, factor, observed), [...Array(6).fill(null), ...tail],
+    ]),
+  ];
+  for (const [compute, expected] of cases) {
+    for (let end = 0; end <= bars.length; end++) {
+      assert.deepEqual(compute(bars.slice(0, end)), expected.slice(0, end));
+    }
+  }
+  for (const factor of [-1, 0.5, 10001]) assert.throws(() => core.tillsonT3(2, factor, bars), /whole T3 factor/);
+});
+
 test('anchored TWAP retains signed prices, exact elapsed time and prefix behavior in Wasm', async () => {
   const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-anchored-twap.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(source);

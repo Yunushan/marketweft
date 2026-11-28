@@ -1402,6 +1402,8 @@ export interface MarketCore {
   doubleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   tripleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   hullMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
+  triangularMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
+  tillsonT3(period: number, factorBasisPoints: number, bars: readonly Bar[]): (bigint | null)[];
   directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
   adxRating(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): (bigint | null)[];
   moneyFlowIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1600,6 +1602,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_double_exponential_moving_average(period: number): number;
   mw_triple_exponential_moving_average(period: number): number;
   mw_hull_moving_average(period: number): number;
+  mw_triangular_moving_average(period: number): number;
+  mw_tillson_t3(period: number, factorBasisPoints: number): number;
   mw_directional_movement(diPeriod: number, adxPeriod: number): number;
   mw_adx_rating(diPeriod: number, adxPeriod: number): number;
   mw_money_flow_index(period: number): number;
@@ -3014,6 +3018,15 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     },
     hullMovingAverage(period, bars) {
       return observedCloseIndicator(api.mw_hull_moving_average, period, bars);
+    },
+    triangularMovingAverage(period, bars) {
+      return observedCloseIndicator(api.mw_triangular_moving_average, period, bars);
+    },
+    tillsonT3(period, factorBasisPoints, bars) {
+      if (!Number.isInteger(factorBasisPoints) || factorBasisPoints < 0 || factorBasisPoints > 10_000) {
+        throw new Error('Use a whole T3 factor from 0 to 10,000 basis points.');
+      }
+      return observedCloseIndicator(value => api.mw_tillson_t3(value, factorBasisPoints), period, bars);
     },
     kaufmanAdaptiveMovingAverage(period, bars) {
       return observedCloseIndicator(api.mw_kaufman_adaptive_moving_average, period, bars);

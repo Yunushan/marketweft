@@ -430,6 +430,14 @@ HMA subtracts the full-period WMA from twice the half-period WMA, then smooths t
 
 Before the required windows are available, outputs stay empty in the plot and CSV. The default columns are `wma_20`, `dema_20`, `tema_20` and `hma_20`. Version 56 workspace backups preserve each pane’s settings.
 
+### Triangular Moving Average and Tillson T3
+
+Enable **TRIMA** or **T3** in either pane. TRIMA defaults to 20 observed closes. Its symmetric weights rise toward the middle of the window and fall away from it. A four-close window uses weights 1, 2, 2, 1, while a five-close window uses 1, 2, 3, 2, 1. The exact weighted sum rounds once to the nearest price millionth, with half ticks away from zero. [TA-Lib TRIMA](https://ta-lib.org/functions/trima.html)
+
+Tillson T3 defaults to five observed closes per EMA stage and a factor of 7,000 basis points. Change the factor from 0 to 10,000 to adjust the weights on four aligned outputs from six chained EMAs. Each stage starts with a full-window simple average. The first T3 value requires the sixth stage to be available. Both overlays accept whole periods from 1 to 100,000. [TA-Lib Tillson T3](https://ta-lib.org/functions/t3.html)
+
+Both overlays share the price axis and count observed bars across UTC gaps. With the packaged `triangular-t3.csv`, TRIMA at period five finishes at −1.777778 and T3 at period two with a factor of 7,000 finishes at −0.974730. Research CSV records the applied setting in columns such as `trima_5` and `t3_factor_7000_2`. Version 85 backups retain each pane's settings. [Synthetic bars](../crates/core/tests/fixtures/synthetic-triangular-t3.csv)
+
 ### Directional Movement System
 
 Enable **DMI** in either pane’s indicator settings. +DI, −DI and ADX share a fixed 0% to 100% scale with a reference at 25%. The DI period and ADX smoothing period each default to 14 and accept 1 through 100,000 observed bars. [StockCharts’ Wilder Directional Movement System](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/average-directional-index-adx).

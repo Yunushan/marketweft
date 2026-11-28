@@ -50,6 +50,8 @@ export const STUDIES = {
   dema: { name: 'DEMA', label: 'Double Exponential Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#9bd5b1' },
   tema: { name: 'TEMA', label: 'Triple Exponential Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#efac94' },
   hma: { name: 'HMA', label: 'Hull Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#c0abf3' },
+  trima: { name: 'TRIMA', label: 'Triangular Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#a3d0b1' },
+  t3: { name: 'T3', label: 'Tillson T3', minPeriod: 1, defaultPeriod: 5, color: '#dbb3df' },
   kama: { name: 'KAMA', label: 'Kaufman Adaptive Moving Average', minPeriod: 1, defaultPeriod: 10, color: '#e2b764' },
   kaufman_efficiency: { name: 'Kaufman Efficiency Ratio', label: 'Kaufman Efficiency Ratio',
     minPeriod: 1, defaultPeriod: 10, color: '#81d2c0' },
@@ -132,7 +134,12 @@ const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPerio
 export function extraStudyPeriods(kind: StudyKind): readonly ExtraStudyPeriod[] {
   return EXTRA_PERIODS_BY_STUDY[kind] ?? []
 }
-export type StudySettings = { enabled: boolean; period?: number } & Partial<Record<ExtraStudyPeriod, number>>
+export const DEFAULT_T3_FACTOR = 7000
+export function validT3Factor(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 10_000
+}
+export type StudySettings = { enabled: boolean; period?: number; t3FactorBasisPoints?: number } &
+  Partial<Record<ExtraStudyPeriod, number>>
 export function hasStudyPeriod(kind: StudyKind): boolean {
   return 'defaultPeriod' in STUDIES[kind]
 }
@@ -140,6 +147,7 @@ export function defaultStudySettings(kind: StudyKind): StudySettings {
   const description = STUDIES[kind]
   const settings: StudySettings = { enabled: false }
   if ('defaultPeriod' in description) settings.period = description.defaultPeriod
+  if (kind === 't3') settings.t3FactorBasisPoints = DEFAULT_T3_FACTOR
   for (const key of extraStudyPeriods(kind)) settings[key] = EXTRA_STUDY_PERIODS[key].defaultPeriod
   return settings
 }
@@ -152,10 +160,11 @@ const PRICE_AVERAGES = {
   dema: 'doubleExponentialMovingAverage',
   tema: 'tripleExponentialMovingAverage',
   hma: 'hullMovingAverage',
+  trima: 'triangularMovingAverage',
   kama: 'kaufmanAdaptiveMovingAverage',
 } as const
 type PriceAverageKind = keyof typeof PRICE_AVERAGES
-type PriceStudyKind = BandKind | PriceAverageKind | 'daily_pivots' | 'time_series_forecast' | 'supertrend' | 'chandelier_exit'
+type PriceStudyKind = BandKind | PriceAverageKind | 't3' | 'daily_pivots' | 'time_series_forecast' | 'supertrend' | 'chandelier_exit'
 function isPriceAverage(kind: StudyKind): kind is PriceAverageKind {
   return Object.hasOwn(PRICE_AVERAGES, kind)
 }
@@ -259,6 +268,13 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       return [{ kind, periods: [period], heading: STUDIES[kind].name, priceOverlay: true,
         lines: [{ color: STUDIES[kind].color, series: core[PRICE_AVERAGES[kind]](period, bars) }],
       }]
+    }
+    if (kind === 't3') {
+      const factor = study.t3FactorBasisPoints ?? DEFAULT_T3_FACTOR
+      return [{ kind, periods: [period], heading: STUDIES.t3.name, priceOverlay: true, lines: [{
+        key: 'factor_' + factor, label: 'T3 ' + period + ' · ' + factor + ' bp',
+        color: STUDIES.t3.color, series: core.tillsonT3(period, factor, bars),
+      }] }]
     }
     if (kind === 'dmi') {
       const adx = study.adxPeriod ?? EXTRA_STUDY_PERIODS.adxPeriod.defaultPeriod

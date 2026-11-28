@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { OverlayPeriods } from './catalog-schema'
 import { MAX_INDICATOR_PERIOD, validIndicatorPeriod } from './market-core'
-import { extraStudyPeriods, EXTRA_STUDY_PERIODS, STUDIES, studyPeriodOrderError, validStudyPeriod } from './studies'
+import { DEFAULT_T3_FACTOR, extraStudyPeriods, EXTRA_STUDY_PERIODS, STUDIES, studyPeriodOrderError, validStudyPeriod, validT3Factor } from './studies'
 import type { StudyKind, StudySettings } from './studies'
 
 export function IndicatorPeriods({ label, periods, saving, onApply }: {
@@ -54,6 +54,7 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
   const minPeriod = 'minPeriod' in study ? study.minPeriod : undefined
   const [enabled, setEnabled] = useState(settings.enabled)
   const [period, setPeriod] = useState(settings.period === undefined ? '' : String(settings.period))
+  const [t3Factor, setT3Factor] = useState(String(settings.t3FactorBasisPoints ?? DEFAULT_T3_FACTOR))
   const extraPeriods = extraStudyPeriods(kind)
   const [extraValues, setExtraValues] = useState(() => Object.fromEntries(extraPeriods.map(key =>
     [key, String(settings[key] ?? EXTRA_STUDY_PERIODS[key].defaultPeriod)],
@@ -80,6 +81,14 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
         }
         next[key] = parsed
       }
+      if (kind === 't3') {
+        const factor = Number(t3Factor)
+        if (!/^\d+$/.test(t3Factor.trim()) || !validT3Factor(factor)) {
+          setError('Enter a whole T3 factor from 0 to 10,000 basis points.')
+          return
+        }
+        next.t3FactorBasisPoints = factor
+      }
       const orderError = studyPeriodOrderError(kind, next)
       if (orderError) {
         setError(orderError)
@@ -101,6 +110,10 @@ export function StudyControls({ kind, label, settings, saving, onApply }: {
           <input type="text" inputMode="numeric" value={extraValues[key]} disabled={saving}
             onChange={event => { setExtraValues({ ...extraValues, [key]: event.target.value }); setError(null) }} />
         </label>)}
+        {kind === 't3' && <label>T3 factor (bp)
+          <input type="text" inputMode="numeric" value={t3Factor} disabled={saving}
+            onChange={event => { setT3Factor(event.target.value); setError(null) }} />
+        </label>}
         <button type="submit" disabled={saving}>Apply {name}</button>
         {error && <p role="alert">{error !== 'period' ? error : kind === 'macd' || kind === 'ppo' ?
           `Enter whole ${name} periods from 1 through 100,000 bars.` : kind === 'keltner' ?

@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.280.0 · Triangular Moving Average and Tillson T3
+
+- Rust and Wasm verify exact signed odd and even triangular windows, half-tick rounding, a genuine zero, and six successive EMA warm-up stages at factors 0, 7,000, and 10,000 basis points.
+- Chromium verifies pane-specific periods and factors, full research CSV columns, rejected out-of-range settings, and offline restoration from version 85 after restoring version 56.
+
 ## 0.279.0 · Capped allocation SDKs and research service
 
 - The native version 2 request echoes the cap and rejects unsupported bounds. Version 1 retains its original result layout. Python validates the echoed ceiling and rejects any result above it.

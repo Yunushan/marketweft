@@ -5,7 +5,7 @@ import { MAX_CHART_PRICE_TICKS } from './fixed-point'
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
 import type { Asset, SavedImport } from './workspace'
 import { isSha256, sha256Text } from './sha256'
-import { extraStudyPeriods, hasStudyPeriod, isStudyKind, studyPeriodOrderError, validStudyPeriod } from './studies'
+import { extraStudyPeriods, hasStudyPeriod, isStudyKind, studyPeriodOrderError, validStudyPeriod, validT3Factor } from './studies'
 import type { StudySet, StudySettings } from './studies'
 import { validProvider, verifyProviderSignature } from './provider-signature'
 
@@ -335,7 +335,8 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
         if (!isStudyKind(kind)) throw Error('Unknown configured study.')
         const periods = extraStudyPeriods(kind)
         const needsPeriod = hasStudyPeriod(kind)
-        fields(entry, ['enabled', ...(needsPeriod ? ['period'] : []), ...periods], 'pane study settings')
+        fields(entry, ['enabled', ...(needsPeriod ? ['period'] : []), ...periods,
+          ...(kind === 't3' ? ['t3FactorBasisPoints'] : [])], 'pane study settings')
         if (typeof entry.enabled !== 'boolean') throw Error('Invalid enabled setting for the configured study.')
         const study: StudySettings = { enabled: entry.enabled }
         if (needsPeriod) {
@@ -346,6 +347,10 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           const period = entry[key]
           if (!validIndicatorPeriod(period)) throw Error('Invalid auxiliary study period.')
           study[key] = period
+        }
+        if (kind === 't3') {
+          if (!validT3Factor(entry.t3FactorBasisPoints)) throw Error('Invalid factor for Tillson T3.')
+          study.t3FactorBasisPoints = entry.t3FactorBasisPoints
         }
         const orderError = studyPeriodOrderError(kind, study)
         if (orderError) throw Error(orderError)

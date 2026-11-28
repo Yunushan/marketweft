@@ -74,6 +74,84 @@ pub fn hull_moving_average(period: usize, closes: &[i64]) -> Result<Vec<Option<i
     ))
 }
 
+/// Use a symmetric triangular window and round once after summing exact weights.
+pub fn triangular_moving_average(
+    period: usize,
+    closes: &[i64],
+) -> Result<Vec<Option<i64>>, String> {
+    validate_close_window(period, closes)?;
+    if closes.len() < period {
+        return Ok(vec![None; closes.len()]);
+    }
+    let shorter = period.div_ceil(2);
+    let longer = period / 2 + 1;
+    let mut sum: i128 = closes[..shorter].iter().copied().map(i128::from).sum();
+    let mut subtotals = vec![sum];
+    subtotals.extend(
+        closes[shorter..]
+            .iter()
+            .zip(closes)
+            .map(|(&added, &removed)| {
+                sum += i128::from(added) - i128::from(removed);
+                sum
+            }),
+    );
+    let divisor = shorter as i128 * longer as i128;
+    let mut weighted_sum: i128 = subtotals[..longer].iter().sum();
+    let mut values = vec![rounded_div(weighted_sum, divisor) as i64];
+    values.extend(
+        subtotals[longer..]
+            .iter()
+            .zip(&subtotals)
+            .map(|(&added, &removed)| {
+                weighted_sum += added - removed;
+                rounded_div(weighted_sum, divisor) as i64
+            }),
+    );
+    Ok(with_warmup(closes.len(), values))
+}
+
+/// Combine six EMA stages using Tillson's factor in whole basis points.
+pub fn tillson_t3(
+    period: usize,
+    factor_basis_points: u32,
+    closes: &[i64],
+) -> Result<Vec<Option<i64>>, String> {
+    validate_close_window(period, closes)?;
+    const WHOLE: u32 = 10_000;
+    if factor_basis_points > WHOLE {
+        return Err("Use a T3 factor from 0 to 10,000 basis points.".into());
+    }
+    let first = exponential_tail(period, closes);
+    let second = exponential_tail(period, &first);
+    let third = exponential_tail(period, &second);
+    let fourth = exponential_tail(period, &third);
+    let fifth = exponential_tail(period, &fourth);
+    let sixth = exponential_tail(period, &fifth);
+    let factor = i128::from(factor_basis_points);
+    let combined = i128::from(WHOLE) + factor;
+    let coefficients = [
+        combined.pow(3),
+        -3 * factor * combined.pow(2),
+        3 * factor.pow(2) * combined,
+        -factor.pow(3),
+    ];
+    let length = sixth.len();
+    let aligned = [&third, &fourth, &fifth, &sixth].map(|stage| &stage[stage.len() - length..]);
+    let divisor = i128::from(WHOLE).pow(3);
+    let values = (0..length)
+        .map(|index| {
+            let weighted = coefficients
+                .iter()
+                .zip(aligned)
+                .map(|(coefficient, stage)| coefficient * i128::from(stage[index]))
+                .sum();
+            rounded_div(weighted, divisor) as i64
+        })
+        .collect();
+    Ok(with_warmup(closes.len(), values))
+}
+
 /// Express absolute movement divided by path length in millionths of a percent.
 pub fn kaufman_efficiency_ratio(period: usize, closes: &[i64]) -> Result<Vec<Option<i64>>, String> {
     validate_close_window(period, closes)?;

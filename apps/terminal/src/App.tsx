@@ -665,6 +665,7 @@ export function App({
     const { rsi: legacy, studies: current, ...preferences } = ws
     const defaults = defaultStudySettings(kind)
     const useDefault = !settings.enabled && settings.period === defaults.period &&
+      settings.t3FactorBasisPoints === defaults.t3FactorBasisPoints &&
       extraStudyPeriods(kind).every(key => settings[key] === defaults[key])
     if (useDefault && kind !== 'rsi' && !current) return
     if (kind === 'rsi' && !current) {

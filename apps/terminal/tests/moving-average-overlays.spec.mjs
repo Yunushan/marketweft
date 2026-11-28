@@ -121,3 +121,84 @@ test('four signed price overlays have exact readouts and restore per-pane settin
   await expect(wma).toHaveText('WMA 3 0.000008')
   await expect(hma).toHaveText('HMA 4 0.000012')
 })
+
+test('TRIMA and Tillson T3 keep signed results, factors and backups independent in both panes', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+  const csv = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-triangular-t3.csv', import.meta.url), 'utf8')
+  await openImport(page, 'SMOOTH', csv)
+  const dialog = page.getByRole('dialog')
+  await dialog.getByText('Series details', { exact: true }).click()
+  await dialog.getByRole('combobox', { name: 'Redistribution', exact: true }).selectOption('granted')
+  await submitImport(page, 'SMOOTH')
+  await page.getByRole('button', { name: 'Compare charts' }).click()
+  await page.getByLabel('Comparison instrument').selectOption('LOCAL:SMOOTH')
+  const menu = page.getByRole('button', { name: /Indicators/ })
+  async function apply(pane, name, period, factor) {
+    const form = page.getByRole('form', { name: pane + ' chart ' + name, exact: true })
+    await form.getByLabel('Show ' + name).check()
+    await form.getByLabel(name + ' period (bars)').fill(String(period))
+    if (factor !== undefined) await form.getByLabel('T3 factor (bp)', { exact: true }).fill(String(factor))
+    await form.getByRole('button', { name: 'Apply ' + name }).click()
+    return form
+  }
+  await menu.click()
+  await apply('Primary', 'WMA', 3)
+  await page.keyboard.press('Escape')
+  const previous = await downloadWorkspace(page)
+  expect(previous.version).toBe(56)
+  await menu.click()
+  await apply('Primary', 'TRIMA', 5)
+  await apply('Comparison', 'TRIMA', 4)
+  const invalid = await apply('Primary', 'T3', 2, 10001)
+  await expect(invalid.getByRole('alert')).toHaveText('Enter a whole T3 factor from 0 to 10,000 basis points.')
+  await apply('Primary', 'T3', 2, 0)
+  await apply('Comparison', 'T3', 2, 7000)
+  await page.keyboard.press('Escape')
+
+  const primary = page.getByRole('region', { name: 'Primary chart pane', exact: true })
+  const comparison = page.getByRole('region', { name: 'Comparison chart pane', exact: true })
+  const trima = pane => pane.getByRole('group', { name: 'Triangular Moving Average', exact: true })
+  const t3 = pane => pane.getByRole('group', { name: 'Tillson T3', exact: true })
+  async function expectValues() {
+    await expect(trima(primary)).toHaveText('TRIMA 5 -1.777778')
+    await expect(trima(comparison)).toHaveText('TRIMA 4 -2.5')
+    await expect(t3(primary)).toHaveText('T3 2 · 0 bp -1.595743')
+    await expect(t3(comparison)).toHaveText('T3 2 · 7000 bp -0.97473')
+  }
+  await expectValues()
+  for (const [pane, values] of [
+    [primary, { trima_5: ['', '', '', '', '0', '-0.777778', '-0.555556', '-1.444444', '-1.777778'],
+      t3_factor_0_2: ['', '', '', '', '', '', '-0.668039', '-2.70218', '-1.595743'] }],
+    [comparison, { trima_4: ['', '', '', '0.166667', '-0.666667', '-0.666667', '-0.666667', '-1.666667', '-2.5'],
+      t3_factor_7000_2: ['', '', '', '', '', '', '-1.159883', '-4.576575', '-0.97473'] }],
+  ]) {
+    await pane.getByText('Export CSV', { exact: true }).click()
+    await pane.getByLabel('Contents').selectOption('analysis')
+    const pending = page.waitForEvent('download')
+    await pane.getByRole('button', { name: 'Download CSV' }).click()
+    const [head, ...rows] = (await readFile(await (await pending).path(), 'utf8')).trimEnd().split(/\r?\n/)
+    for (const [column, expected] of Object.entries(values)) {
+      const index = head.split(',').indexOf(column)
+      expect(index).toBeGreaterThan(0)
+      expect(rows.map(row => row.split(',')[index])).toEqual(expected)
+    }
+  }
+  const current = await downloadWorkspace(page)
+  expect(current.version).toBe(85)
+  expect(current.manifest.preferences.studies.primary.t3).toEqual({ enabled: true, period: 2, t3FactorBasisPoints: 0 })
+  expect(current.manifest.preferences.studies.comparison.t3).toEqual({ enabled: true, period: 2, t3FactorBasisPoints: 7000 })
+  expect(current.manifest.series).toEqual(previous.manifest.series)
+  for (const bundle of [previous, current]) {
+    await page.getByRole('button', { name: 'Workspace backup', exact: true }).click()
+    await selectBackup(page, bundle)
+    await page.getByRole('button', { name: 'Restore workspace', exact: true }).click()
+    await expect(page.getByText('Workspace restored.')).toBeVisible()
+    await expect(t3(primary)).toHaveCount(bundle === current ? 1 : 0)
+    await expect(primary.getByRole('group', { name: 'Weighted Moving Average', exact: true })).toBeVisible()
+  }
+  await page.reload()
+  await expectValues()
+})

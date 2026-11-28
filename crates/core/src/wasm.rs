@@ -4350,6 +4350,22 @@ pub extern "C" fn mw_hull_moving_average(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_triangular_moving_average(period: usize) -> u32 {
+    process(|input| {
+        crate::triangular_moving_average(period, &indicator_closes(input)?)
+            .map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_tillson_t3(period: usize, factor_basis_points: u32) -> u32 {
+    process(|input| {
+        crate::tillson_t3(period, factor_basis_points, &indicator_closes(input)?)
+            .map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_kaufman_adaptive_moving_average(period: usize) -> u32 {
     process(|input| {
         crate::kaufman_adaptive_moving_average(period, &indicator_closes(input)?)
