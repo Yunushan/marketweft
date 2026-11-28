@@ -80,7 +80,15 @@ test('scatter uses both coordinates, retains exact linked UTC and restores acros
   expect(lower.y).toBeGreaterThan(upper.y)
   expect((lower.x - zeroLow.x) / (maximum.x - zeroLow.x)).toBeCloseTo(0.25)
   expect(maximum.y).toBeLessThan(upper.y)
-  const bounds = await canvas.boundingBox()
+  // Measure plot interactions in canvas coordinates without depending on page scroll position.
+  async function move(point) {
+    await canvas.evaluate((element, point) => {
+      const rect = element.getBoundingClientRect()
+      element.dispatchEvent(new PointerEvent('pointermove', {
+        bubbles: true, pointerType: 'mouse', clientX: rect.left + point.x, clientY: rect.top + point.y,
+      }))
+    }, point)
+  }
   async function checkPoint(time, close, volume) {
     const second = String(Date.parse(time) / 1000)
     await expect(chart).toHaveAttribute('data-crosshair-time', second)
@@ -89,14 +97,13 @@ test('scatter uses both coordinates, retains exact linked UTC and restores acros
     await expect(readout).toContainText('Volume ' + volume)
   }
   async function hover(point, time, close, volume) {
-    const box = await canvas.boundingBox()
-    await page.mouse.move(box.x + point.x, box.y + point.y)
+    await move(point)
     await checkPoint(time, close, volume)
   }
   await hover(lower, '2025-06-06T14:05:00Z', '-1.125001', '2.5')
   await hover(upper, '2025-06-06T14:02:00Z', '4.5', '2.5')
   await hover(zeroLow, '2025-06-06T14:00:00Z', '-4', '0')
-  await page.mouse.move(bounds.x + (lower.x + maximum.x) / 2, bounds.y + lower.y)
+  await move({ x: (lower.x + maximum.x) / 2, y: lower.y })
   await expect(chart).not.toHaveAttribute('data-crosshair-time', /./)
   await canvas.press('ArrowUp')
   await expect(chart).toHaveAttribute('data-crosshair-time', String(Date.parse('2025-06-06T14:05:00Z') / 1000))
@@ -119,14 +126,7 @@ test('scatter uses both coordinates, retains exact linked UTC and restores acros
   await expect.poll(() => page.evaluate(() => window.scatterProof?.points.length)).toBe(3)
   const rolled = (await page.evaluate(() => window.scatterProof)).points.sort((a, b) => a.x - b.x)
   expect((rolled[1].x - rolled[0].x) / (rolled[2].x - rolled[0].x)).toBeCloseTo(0.2)
-  // Send the event to the canvas using its current bounds after the timeframe form changes the page layout.
-  await canvas.evaluate((element, point) => {
-    const rect = element.getBoundingClientRect()
-    element.dispatchEvent(new PointerEvent('pointermove', {
-      bubbles: true, pointerType: 'mouse', clientX: rect.left + point.x, clientY: rect.top + point.y,
-    }))
-  }, rolled[2])
-  await checkPoint('2025-06-06T14:02:00Z', '5.25', '12.5')
+  await hover(rolled[2], '2025-06-06T14:02:00Z', '5.25', '12.5')
 
   const current = await downloadWorkspace(page)
   expect(current.version).toBe(70)
