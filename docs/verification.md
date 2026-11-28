@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.277.0 · Harami and Harami Cross replay
+
+- Rust and Wasm verify signed containment, strict price bounds, half-width rules, missing intervals, independent sessions and exact inclusive cutoffs. Starting from the observed prefix gives the same results.
+- Offline Chromium verifies all four directional patterns, the early session close, rewind, duplicate suppression, and both raw candles in a saved alert export after reload.
+
 ## 0.276.0 · Schiff pitchfork variants
 
 - Offline Chromium checks the two median origins, three parallel rays for each variant, a half-second UTC midpoint through an observed gap, and a signed half-tick price.

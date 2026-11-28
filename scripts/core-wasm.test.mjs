@@ -2862,3 +2862,27 @@ test('piercing and dark cloud cover use observed signed gaps and the exact prior
     assert.deepEqual(core.replayCandlePatterns(calendar, 60, bars, hit.observedAt), expected.slice(0, index + 1));
   }
 });
+
+test('harami and harami cross use both bodies and close-time observation without bridging gaps', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
+  const [calendar, source] = await Promise.all([
+    fixture('synthetic-candle-pattern-sessions'), fixture('synthetic-harami'),
+  ]);
+  const bars = core.parseCsv(source);
+  const expected = [
+    ['bullish-harami', 1, '2026-01-12T14:02:00Z'],
+    ['bearish-harami', 3, '2026-01-12T14:04:00Z'],
+    ['doji', 4, '2026-01-12T14:06:00Z'],
+    ['doji', 6, '2026-01-12T14:08:00Z'],
+    ['bullish-harami-cross', 6, '2026-01-12T14:08:00Z'],
+    ['doji', 9, '2026-01-13T14:02:30Z'],
+    ['bearish-harami-cross', 9, '2026-01-13T14:02:30Z'],
+  ].map(([kind, barIndex, time]) => ({ kind, barIndex, observedAt: Date.parse(time) / 1000 }));
+  for (const { observedAt, barIndex } of expected) {
+    for (const cutoff of [observedAt - 1, observedAt]) {
+      const visible = expected.filter(hit => hit.observedAt <= cutoff);
+      assert.deepEqual(core.replayCandlePatterns(calendar, 60, bars, cutoff), visible);
+      assert.deepEqual(core.replayCandlePatterns(calendar, 60, bars.slice(0, barIndex + 1), cutoff), visible);
+    }
+  }
+});

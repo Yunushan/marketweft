@@ -8,6 +8,10 @@ pub enum CandlePattern {
     BearishEngulfing = 2,
     Piercing = 3,
     DarkCloudCover = 4,
+    BullishHarami = 5,
+    BearishHarami = 6,
+    BullishHaramiCross = 7,
+    BearishHaramiCross = 8,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -17,7 +21,36 @@ pub struct CandlePatternHit {
     pub observed_at: i64,
 }
 
-fn pair_pattern(previous: &Bar, current: &Bar) -> Option<CandlePattern> {
+fn harami(previous: &Bar, current: &Bar, doji: bool) -> Option<CandlePattern> {
+    let previous_bottom = previous.open.min(previous.close);
+    let previous_top = previous.open.max(previous.close);
+    let bottom = current.open.min(current.close);
+    let top = current.open.max(current.close);
+    let previous_body = previous_top - previous_bottom;
+    let body = top - bottom;
+    if bottom <= previous_bottom
+        || top >= previous_top
+        || previous_body * 2 < previous.high - previous.low
+        || body * 2 > previous_body
+    {
+        return None;
+    }
+    let previous_rising = previous.close > previous.open;
+    if doji {
+        return Some(if previous_rising {
+            CandlePattern::BearishHaramiCross
+        } else {
+            CandlePattern::BullishHaramiCross
+        });
+    }
+    match (previous_rising, current.close.cmp(&current.open)) {
+        (true, std::cmp::Ordering::Less) => Some(CandlePattern::BearishHarami),
+        (false, std::cmp::Ordering::Greater) => Some(CandlePattern::BullishHarami),
+        _ => None,
+    }
+}
+
+fn pair_pattern(previous: &Bar, current: &Bar, doji: bool) -> Option<CandlePattern> {
     let (previous_open, previous_close) = (previous.open, previous.close);
     let (open, close) = (current.open, current.close);
     if previous_open > previous_close
@@ -51,7 +84,7 @@ fn pair_pattern(previous: &Bar, current: &Bar) -> Option<CandlePattern> {
     {
         return Some(CandlePattern::DarkCloudCover);
     }
-    None
+    harami(previous, current, doji)
 }
 
 /// Classify completed raw candles through the inclusive observation cutoff.
@@ -77,14 +110,15 @@ pub fn replay_candle_patterns(
         let bar = &bars[bar_index];
         validate_ohlcv(bar, bar_index)?;
         let range = bar.high - bar.low;
-        if range > 0 && (bar.close - bar.open).abs() * 10 <= range {
+        let doji = range > 0 && (bar.close - bar.open).abs() * 10 <= range;
+        if doji {
             hits.push(CandlePatternHit {
                 kind: CandlePattern::Doji,
                 bar_index,
                 observed_at: event.observed_at,
             });
         }
-        if let Some(kind) = previous.and_then(|prior| pair_pattern(prior, bar)) {
+        if let Some(kind) = previous.and_then(|prior| pair_pattern(prior, bar, doji)) {
             hits.push(CandlePatternHit {
                 kind,
                 bar_index,
