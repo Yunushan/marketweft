@@ -54,6 +54,9 @@ Import close-order-statistics.csv and enable Rolling Median and Close
 Percentile Rank with a three-bar period. The last result is -1 and 25 percent.
 Import volume-movement.csv and enable Ease of Movement and Negative Volume
 Index. A three-move window ends at 5.333333 and the index ends at 1800.
+Import ohlc-volatility.csv and enable Garman–Klass Volatility and
+Rogers–Satchell Volatility. Two-bar windows end at 13.207976 and 13.417559
+percent. Windows containing zero or negative prices leave blank rows.
 Import rolling-regression.csv and enable Least Squares Moving Average with a
 three-bar period. The last fitted close is -3.5.
 Import true-range.csv and choose True Range histogram to inspect exact
@@ -359,6 +362,7 @@ def main():
     files["rolling-regression.csv"] = (fixture / "synthetic-rolling-regression.csv").read_bytes()
     files["true-range.csv"] = (fixture / "synthetic-true-range.csv").read_bytes()
     files["close-waterfall.csv"] = (fixture / "synthetic-close-waterfall.csv").read_bytes()
+    files["ohlc-volatility.csv"] = (fixture / "synthetic-ohlc-volatility.csv").read_bytes()
     files["time-underwater.csv"] = (fixture / "synthetic-time-underwater.csv").read_bytes()
     files["candle-pattern-sessions.csv"] = (fixture / "synthetic-candle-pattern-sessions.csv").read_bytes()
     for kind in ("underlying", "quotes"):

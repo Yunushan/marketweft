@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.308.0 · Garman–Klass and Rogers–Satchell volatility
+
+- Rust and Wasm match independent high-precision calculations, including every observed prefix, consecutive nonpositive bars, genuine zero and recovery after an extreme leaves the window. Rust also verifies the full 100,000-bar bound.
+- The TypeScript SDK and offline Chromium reproduce exact percentage values. Chromium verifies independent pane periods, empty CSV cells for unavailable windows, explicit zeros, and restoration of both the preceding workspace and version 95.
+
 ## 0.307.0 · Session relative volume transports
 
 - REST, resumed WebSocket and typed gRPC return identical screen-scoped pages, including the exact baseline sum, shortened interval, unavailable average and observed zero.

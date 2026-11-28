@@ -49,6 +49,7 @@ mod monthly_returns;
 mod moving_averages;
 mod normalized_indicators;
 mod notional_bars;
+mod ohlc_volatility;
 mod option_cash;
 mod option_chain;
 mod option_price;
@@ -247,6 +248,7 @@ pub use weighted_volume::{
     money_flow_index, volume_oscillator, volume_rate_of_change, volume_weighted_average,
 };
 pub type RenkoBrick = PriceMovement;
+pub use ohlc_volatility::{rolling_ohlc_volatility, OhlcVolatility};
 pub use replay::{parse_sessions, replay, EventKind, ReplayEvent, Session};
 pub use rsi::relative_strength_index;
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};

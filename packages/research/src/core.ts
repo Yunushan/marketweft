@@ -1380,6 +1380,7 @@ export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; re
 export type RegressionChannel = { observations: number; startTicks: bigint; endTicks: bigint; residualTicks: bigint };
 export type CloseRegressionValues = { slope: bigint | null; forecast: bigint | null };
 export type CloseOrderStatistics = { median: bigint | null; percentileRank: bigint | null };
+export type OhlcVolatility = { garmanKlass: bigint | null; rogersSatchell: bigint | null };
 
 export interface MarketCore {
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
@@ -1419,6 +1420,7 @@ export interface MarketCore {
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
   rollingCloseStandardDeviation(period: number, bars: readonly Bar[]): (bigint | null)[];
   rollingCloseOrderStatistics(period: number, bars: readonly Bar[]): CloseOrderStatistics[];
+  rollingOhlcVolatility(period: number, bars: readonly Bar[]): OhlcVolatility[];
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   accelerationBands(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
@@ -1640,6 +1642,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_bollinger_bands(period: number): number;
   mw_rolling_close_standard_deviation(period: number): number;
   mw_rolling_close_order_statistics(period: number): number;
+  mw_rolling_ohlc_volatility(period: number): number;
   mw_donchian_channels(period: number): number;
   mw_acceleration_bands(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
@@ -2898,6 +2901,12 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       putIndicatorCloses(bars);
       return readIndicatorPairs(output(api.mw_rolling_close_order_statistics(period)), bars.length,
         (median, percentileRank) => ({ median, percentileRank }));
+    },
+    rollingOhlcVolatility(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'OHLC volatility');
+      return readIndicatorPairs(output(api.mw_rolling_ohlc_volatility(period)), bars.length,
+        (garmanKlass, rogersSatchell) => ({ garmanKlass, rogersSatchell }));
     },
     donchianChannels(period, bars) {
       validateIndicatorHistory(period, bars.length);

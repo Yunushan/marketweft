@@ -9,6 +9,18 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK returns both intrabar volatility estimates in percentage millionths', async () => {
+  const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-ohlc-volatility.csv', import.meta.url), 'utf8')
+  const engine = await createResearchEngine(wasm)
+  const bars = engine.parseBars(source)
+  const values = engine.rollingOhlcVolatility(2, bars)
+  assert.deepEqual(values.map(({ garmanKlass, rogersSatchell }) => [garmanKlass, rogersSatchell]), [
+    [null, null], [17_264_331n, 16_785_301n], [10_425_941n, 9_834_238n], [0n, 0n],
+    [null, null], [null, null], [null, null], [3_911_744n, 0n], [12_373_140n, 11_969_673n], [13_207_976n, 13_417_559n],
+  ])
+  assert.deepEqual(engine.rollingOhlcVolatility(2, bars.slice(0, 7)), values.slice(0, 7))
+})
+
 test('the public SDK aligns session relative volume with prior observed slots and skips shorter intervals', async () => {
   const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/synthetic-session-volume-' + name + '.csv', import.meta.url), 'utf8')
   const [calendar, reports] = await Promise.all([fixture('calendar'), fixture('bars')])

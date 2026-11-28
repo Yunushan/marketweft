@@ -3202,3 +3202,17 @@ test('harami and harami cross use both bodies and close-time observation without
     }
   }
 });
+
+test('OHLC volatility returns the exact rounded pair for each complete observed window', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-ohlc-volatility.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(source);
+  const result = core.rollingOhlcVolatility(2, bars);
+  assert.deepEqual(result.map(({ garmanKlass, rogersSatchell }) => [garmanKlass, rogersSatchell]), [
+    [null, null], [17_264_331n, 16_785_301n], [10_425_941n, 9_834_238n], [0n, 0n],
+    [null, null], [null, null], [null, null], [3_911_744n, 0n], [12_373_140n, 11_969_673n], [13_207_976n, 13_417_559n],
+  ]);
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.rollingOhlcVolatility(2, bars.slice(0, end)), result.slice(0, end));
+  }
+  assert.throws(() => core.rollingOhlcVolatility(0, bars), /period/);
+});

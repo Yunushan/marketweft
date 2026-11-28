@@ -40,6 +40,8 @@ Call `crossSectionReplay(membership, prices, liquidity, from, through, known, co
 
 Call `easeOfMovement(period, bars)` or `negativeVolumeIndex(bars)` for exact values indexed by observed bars. Each result carries `bigint` millionths or `null` for an unavailable observation. [Ease of Movement and Negative Volume Index](../../docs/chart-workspace.md#ease-of-movement-and-negative-volume-index)
 
+Call `rollingOhlcVolatility(period, bars)` for both intrabar estimates. Each row carries `garmanKlass` and `rogersSatchell` as `bigint` millionths of a percentage point. Both values are `null` until the window is full and while it contains a nonpositive price. [Garman–Klass and Rogers–Satchell volatility](../../docs/chart-workspace.md#garmanklass-and-rogerssatchell-volatility)
+
 Call `sessionRelativeVolume(calendar, intervalSeconds, bars, lookbackSessions, knownAt)` for causal session-relative volume with integer UTC observation cutoffs, exact offset and duration, and the count of comparable earlier sessions. [Session relative volume](../../docs/historical-replay.md#session-relative-volume)
 
 Call `equityConcentrationAsOf(membershipCsv, holdingsCsv, pricesCsv, effectiveAt, knownAt)` for ranked source-currency groups and known gross marked share values. Both marks and weights use `bigint`. [Equity concentration SDKs](../../docs/portfolio-replay.md#equity-concentration-sdks).

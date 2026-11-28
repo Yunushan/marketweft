@@ -8,7 +8,7 @@ export type {
   EquityConcentration, EquityTargetDrift, Filing, FinancialIssuer, FinancialSnapshot,
   FormulaFunction, FormulaResult, MacroRecord, MacroRelease, MonthlyClose, MonthlyReturn, NotionalBar, OptionAnalytics, OptionCashDividendReport, OptionReport, OptionSnapshot, OptionSource,
   JointScenarioPath, JointScenarioQuery, JointScenarioReport, PortfolioAllocationQuery, PortfolioAllocationReport, PortfolioVarianceQuery, ScenarioAllocation,
-  ListingDownsideRiskPoint, ListingRiskQuery,
+  ListingDownsideRiskPoint, ListingRiskQuery, OhlcVolatility,
   FxAmount, FxCurrencyValue, FxTranslation,
   PortfolioSnapshot,
   OptionUnavailable, OptionUnderlying, PaperConfig, PaperDepthSnapshot, PaperSnapshot, QuarterlyValuation,
@@ -82,6 +82,7 @@ export interface MarketResearch {
   recordedTradePrints: MarketCore['recordedTradePrints']
   rollingCloseStandardDeviation: MarketCore['rollingCloseStandardDeviation']
   rollingCloseOrderStatistics: MarketCore['rollingCloseOrderStatistics']
+  rollingOhlcVolatility: MarketCore['rollingOhlcVolatility']
   easeOfMovement: MarketCore['easeOfMovement']
   negativeVolumeIndex: MarketCore['negativeVolumeIndex']
   leastSquaresMovingAverage: MarketCore['leastSquaresMovingAverage']
@@ -150,6 +151,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     recordedTradePrints: core.recordedTradePrints,
     rollingCloseStandardDeviation: core.rollingCloseStandardDeviation,
     rollingCloseOrderStatistics: core.rollingCloseOrderStatistics,
+    rollingOhlcVolatility: core.rollingOhlcVolatility,
     easeOfMovement: core.easeOfMovement,
     negativeVolumeIndex: core.negativeVolumeIndex,
     leastSquaresMovingAverage: core.leastSquaresMovingAverage,

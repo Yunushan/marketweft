@@ -4309,6 +4309,22 @@ pub extern "C" fn mw_rolling_close_order_statistics(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_rolling_ohlc_volatility(period: usize) -> u32 {
+    process(|input| {
+        let rows = crate::rolling_ohlc_volatility(period, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 16);
+        for row in rows {
+            let [garman_klass, rogers_satchell] = row.map_or([i64::MIN; 2], |point| {
+                [point.garman_klass, point.rogers_satchell]
+            });
+            bytes.extend_from_slice(&garman_klass.to_le_bytes());
+            bytes.extend_from_slice(&rogers_satchell.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_donchian_channels(period: usize) -> u32 {
     process(|input| crate::donchian_channels(period, &decode_bars(input)?).map(encode_price_bands))
 }

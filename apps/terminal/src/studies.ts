@@ -1,5 +1,5 @@
 import { validIndicatorPeriod } from './market-core'
-import type { AroonValue, Bar, BollingerMeasures, CloseOrderStatistics, CloseRegressionValues, CumulativeVolume, FloorPivotLevels, MarketCore, PriceBand } from './market-core'
+import type { AroonValue, Bar, BollingerMeasures, CloseOrderStatistics, CloseRegressionValues, CumulativeVolume, FloorPivotLevels, MarketCore, OhlcVolatility, PriceBand } from './market-core'
 import type { ExportOverlay } from './chart-export'
 
 export const STUDIES = {
@@ -16,6 +16,10 @@ export const STUDIES = {
   bb: { name: 'Bollinger Bands', label: 'Bollinger Bands', minPeriod: 1, defaultPeriod: 20 },
   close_stddev: { name: 'Close Standard Deviation', label: 'Close Standard Deviation',
     minPeriod: 1, defaultPeriod: 20, color: '#acbdf0' },
+  garman_klass: { name: 'Garman–Klass Volatility', label: 'Garman–Klass Volatility',
+    minPeriod: 1, defaultPeriod: 20, color: '#92cbd6' },
+  rogers_satchell: { name: 'Rogers–Satchell Volatility', label: 'Rogers–Satchell Volatility',
+    minPeriod: 1, defaultPeriod: 20, color: '#deae98' },
   rolling_median: { name: 'Rolling Median', label: 'Rolling Median', minPeriod: 2, defaultPeriod: 20, color: '#6fcac9' },
   close_percentile_rank: { name: 'Close Percentile Rank', label: 'Close Percentile Rank',
     minPeriod: 2, defaultPeriod: 20, color: '#d5ad87' },
@@ -244,6 +248,7 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
   const aroonByPeriod = new Map<number, (AroonValue | null)[]>()
   const regressionByPeriod = new Map<number, CloseRegressionValues[]>()
   const orderStatsByPeriod = new Map<number, CloseOrderStatistics[]>()
+  const volatilityByPeriod = new Map<number, OhlcVolatility[]>()
   let cumulative: CumulativeVolume[] | undefined
   return STUDY_KINDS.flatMap<StudyValues>(kind => {
     const study = settings?.[kind]
@@ -283,6 +288,17 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     if (kind === 'close_stddev') return [{ kind, periods: [period], unit: 'price', zeroLine: true, lines: [
       { color: STUDIES[kind].color, series: core.rollingCloseStandardDeviation(period, bars) },
     ] }]
+    if (kind === 'garman_klass' || kind === 'rogers_satchell') {
+      let values = volatilityByPeriod.get(period)
+      if (!values) {
+        values = core.rollingOhlcVolatility(period, bars)
+        volatilityByPeriod.set(period, values)
+      }
+      const key = kind === 'garman_klass' ? 'garmanKlass' : 'rogersSatchell'
+      return [{ kind, periods: [period], zeroLine: true, lines: [
+        { color: STUDIES[kind].color, series: values.map(row => row[key]) },
+      ] }]
+    }
     if (kind === 'rolling_median' || kind === 'close_percentile_rank') {
       let values = orderStatsByPeriod.get(period)
       if (!values) {

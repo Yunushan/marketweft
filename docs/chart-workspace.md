@@ -404,6 +404,14 @@ Enable **Close Standard Deviation** to plot the population standard deviation of
 
 The sample with a two-bar period yields a blank, 3, 0, 1.5 and 0 in observation order. The research CSV column is `close_stddev_2`. Each pane stores its own period, and settings use workspace backup version 89. [Synthetic close fixture](../crates/core/tests/fixtures/synthetic-close-dispersion.csv)
 
+### Garman–Klass and Rogers–Satchell volatility
+
+In **Indicators**, enable **Garman–Klass Volatility**, **Rogers–Satchell Volatility**, or both. Each window ends at the selected bar and defaults to 20 observed bars. Each study saves its own period per pane. The curves report volatility as a percentage per bar without annualization. Each bar contributes variance using its own open, high, low and close.
+
+For positive open `O`, high `H`, low `L` and close `C`, the simplified Garman–Klass variance is `½ [ln(H/L)]² − (2 ln(2) − 1) [ln(C/O)]²`. The Rogers–Satchell variance is `ln(H/O) × ln(H/C) + ln(L/O) × ln(L/C)`. Each result is the square root of the trailing mean variance, expressed in percentage points and rounded to six decimal places. [Garman and Klass, 1980](https://www-2.rotman.utoronto.ca/~kan/3032/pdf/FinancialAssetReturns/Garman_Klass_JB_1980.pdf) · [Rogers and Satchell, 1991](https://skokholm.co.uk/wp-content/uploads/2016/01/R_Satchell_HLOC.pdf)
+
+Warm-up and any window containing a nonpositive price leave both values blank. Flat positive bars contribute zero. A missing timestamp adds no observation. The bundled `ohlc-volatility.csv` example ends at 13.207976% and 13.417559% with two-bar periods. The research CSV columns are `garman_klass_2` and `rogers_satchell_2`. Workspace backups with these settings use version 95. [Synthetic volatility fixture](../crates/core/tests/fixtures/synthetic-ohlc-volatility.csv)
+
 ### Rolling Median and Close Percentile Rank
 
 **Rolling Median** overlays the middle close in the sorted trailing window. An even window averages its two middle closes. The average rounds once to the nearest millionth with half ticks rounded away from zero.

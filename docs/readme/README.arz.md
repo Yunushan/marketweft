@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.307.0 · 0BSD**
+**0.308.0 · 0BSD**
 
 **لغات الدليل**
 
@@ -23,7 +23,7 @@ MarketWeft محطة بحث بتشتغل محلي للمحللين والمطور
 
 MarketWeft 0.307.0 بيوفّر الحجم النسبي للجلسة عبر REST وWebSocket وgRPC وMCP للقراءة بس. MarketWeft 0.7.0 بيضيف ترتيب أعضاء المجموعة حسب عائد السعر بالمعلومات اللي كانت معروفة وقت الاستعلام. إعادة التشغيل حسب الجلسة فيها تجزئة الأسهم والتوزيعات النقدية وتغييرات العضوية والشطب. المستودع فيه كمان مراقب TypeScript للقراءة بس لخدمة trading-bot منفصلة وغلاف Tauri تجريبي. تغذية البيانات والأوامر والمثبّتات الموقّعة والاستضافة لأكتر من مستخدم لسه في خطة الشغل.
 
-</div>
+</div> قائمة المؤشرات فيها دلوقتي تقلب جارمان–كلاس وروجرز–ساتشيل كنسبة مئوية لكل شمعة. لما تختار فترة من شمعتين، المثال المرفق بينتهي عند 13.207976% و13.417559%. [Garman–Klass · Rogers–Satchell](../chart-workspace.md#garmanklass-and-rogerssatchell-volatility)
 
 [ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Session relative volume service](../local-rest-research.md#session-relative-volume) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
 
@@ -32,7 +32,7 @@ MarketWeft 0.307.0 بيوفّر الحجم النسبي للجلسة عبر REST
 
 <div dir="rtl">
 
-نزّل browser-terminal-attempt-N من تشغيل GitHub ناجح. فك MarketWeft-browser-0.307.0.zip وسيب dist/ جنب serve-terminal.mjs وشغّل الأمر جوه نفس المجلد. افتح http://127.0.0.1:4173/ في متصفح حديث فيه WebAssembly وCanvas وBigInt وIndexedDB. استخدم Node.js 22.12 أو أحدث. مش محتاج تثبت npm. استنى Offline ready قبل ما تفصل النت.
+نزّل browser-terminal-attempt-N من تشغيل GitHub ناجح. فك MarketWeft-browser-0.308.0.zip وسيب dist/ جنب serve-terminal.mjs وشغّل الأمر جوه نفس المجلد. افتح http://127.0.0.1:4173/ في متصفح حديث فيه WebAssembly وCanvas وBigInt وIndexedDB. استخدم Node.js 22.12 أو أحدث. مش محتاج تثبت npm. استنى Offline ready قبل ما تفصل النت.
 
 </div>
 

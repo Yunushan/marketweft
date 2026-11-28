@@ -100,11 +100,13 @@ const TIME_UNDERWATER_BACKUP_VERSION = 91
 const CLOSE_ORDER_STATISTICS_BACKUP_VERSION = 92
 const VOLUME_MOVEMENT_BACKUP_VERSION = 93
 const CLOSE_WATERFALL_BACKUP_VERSION = 94
+const OHLC_VOLATILITY_BACKUP_VERSION = 95
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
-  if (Object.values(preferences.chartTypes ?? {}).includes('close-waterfall')) return CLOSE_WATERFALL_BACKUP_VERSION
   const studies = Object.values(preferences.studies ?? {})
+  if (studies.some(pane => pane?.garman_klass || pane?.rogers_satchell)) return OHLC_VOLATILITY_BACKUP_VERSION
+  if (Object.values(preferences.chartTypes ?? {}).includes('close-waterfall')) return CLOSE_WATERFALL_BACKUP_VERSION
   if (studies.some(pane => pane?.ease_of_movement || pane?.negative_volume_index)) return VOLUME_MOVEMENT_BACKUP_VERSION
   if (studies.some(pane => pane?.rolling_median || pane?.close_percentile_rank)) return CLOSE_ORDER_STATISTICS_BACKUP_VERSION
   if (Object.values(preferences.chartTypes ?? {}).includes('time-underwater')) return TIME_UNDERWATER_BACKUP_VERSION
@@ -344,6 +346,7 @@ export async function verifyWorkspaceBackup(
     CLOSE_ORDER_STATISTICS_BACKUP_VERSION,
     VOLUME_MOVEMENT_BACKUP_VERSION,
     CLOSE_WATERFALL_BACKUP_VERSION,
+    OHLC_VOLATILITY_BACKUP_VERSION,
     PRICE_VOLUME_SCATTER_BACKUP_VERSION,
     NORMALIZED_PRICE_AND_RANGE_BACKUP_VERSION,
     STOCHASTIC_RSI_AND_ULTIMATE_BACKUP_VERSION,
