@@ -390,6 +390,14 @@ A period of 25 searches the current bar and 25 preceding observed bars. Up track
 
 The oscillator subtracts Down from Up before rounding the result to six decimal places. The chart and CSV leave warm-up values empty. The default research CSV columns are `aroon_up_25`, `aroon_down_25` and `aroon_oscillator_25`.
 
+## Monthly returns calendar
+
+Open **Monthly returns calendar** from the workspace for the selected primary instrument. Choose up to 30 consecutive UTC calendar years and set an inclusive **Observed through (UTC)** timestamp. The calendar uses the bar timestamps and closes in the selected history. Each cell compares the last close through that cutoff with the last close in the immediately preceding UTC month, including the December observation for the first displayed January when available.
+
+The price return is `(current close − prior close) ÷ prior close × 100`, rounded once to six decimal places. A cutoff before a month's final UTC second labels that month **Month to date**. Missing closes, a zero prior close and future months have separate labels. A missing month also leaves the following month without a baseline. A genuine zero return shows **0%**. The calculation uses the source's existing adjustment convention and does not add dividend cash flows.
+
+The calendar works offline and requires an automated-use grant for user-imported history. **Download monthly returns CSV** requires a separate redistribution grant and writes the selected source, cutoff, month state, price availability, exact UTC close timestamps and prices, and return. Repeating a prior cutoff with the same source reproduces the same CSV.
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.

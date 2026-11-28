@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.215.0 · UTC monthly returns calendar
+
+- The same synthetic price history drives Rust, Wasm and offline Chromium. It crosses December into January and includes a leap-day close, an empty month, a zero prior close, a flat return and both signs. Rust and Wasm also check ordered input, wide exact returns and bounded calendar ranges.
+- Chromium verifies month-to-date and future labels, exact export evidence, byte-identical CSV after rewind, separate usage grants and keyboard focus return. The calendar leaves the saved workspace intact.
+
+[Monthly returns calendar](chart-workspace.md#monthly-returns-calendar)
+
 ## 0.214.0 · Weighted, double, triple and Hull moving averages
 
 - Rust and Wasm verify signed warm-up, exact rounding at each stage, prefix stability and period-one identity. An independent direct window scan checks the WMA recurrence, including a full 100,000-bar window at the price limit.

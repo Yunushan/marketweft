@@ -349,6 +349,25 @@ main {
 .universe-table td {
   white-space: nowrap;
 }
+.monthly-returns td {
+  text-align: center;
+}
+.monthly-returns td[data-return='positive'] {
+  background: #153a31;
+  color: #b7f2d7;
+}
+.monthly-returns td[data-return='negative'] {
+  background: #442831;
+  color: #ffcad6;
+}
+.monthly-returns td small {
+  display: block;
+  margin-block-start: 4px;
+}
+.replay-table-scroll[tabindex]:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 2px;
+}
 .provider-replay-verification dd {
   margin: 0 0 8px;
   overflow-wrap: anywhere;

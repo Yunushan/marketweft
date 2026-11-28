@@ -4141,6 +4141,31 @@ pub extern "C" fn mw_observed_drawdown() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_monthly_returns(first_year: u16, last_year: u16, known_through: i64) -> u32 {
+    process(|input| {
+        let months =
+            crate::monthly_returns(first_year, last_year, known_through, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(months.len() * 52);
+        for month in months {
+            bytes.extend_from_slice(&month.year.to_le_bytes());
+            bytes.push(month.month);
+            bytes.push(match month.window {
+                crate::MonthWindow::Complete => 0,
+                crate::MonthWindow::MonthToDate => 1,
+                crate::MonthWindow::Future => 2,
+            });
+            for close in [month.prior, month.current] {
+                let (at, ticks) = close.map_or((i64::MIN, 0), |close| (close.at, close.ticks));
+                bytes.extend_from_slice(&at.to_le_bytes());
+                bytes.extend_from_slice(&ticks.to_le_bytes());
+            }
+            bytes.extend_from_slice(&month.percent.unwrap_or(i128::MIN).to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_observed_close_distributions(size: usize) -> u32 {
     process(|input| {
         let results = crate::observed_close_distributions(&decode_bars(input)?, size)?;

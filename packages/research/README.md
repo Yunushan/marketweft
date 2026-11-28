@@ -2,10 +2,10 @@
 
 The TypeScript SDK evaluates versioned time-series formulas against user-supplied OHLCV. It uses the same checked-in Rust WebAssembly module as the terminal.
 
-Download `marketweft-research-0.11.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
+Download `marketweft-research-0.12.0.tgz` from the `research-sdk-attempt-N` artifact of a successful MarketWeft verification run. Install the archive in your project, then load the bundled engine and read your own CSV in Node.js 22.12 or later. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-npm install --offline ./marketweft-research-0.11.0.tgz
+npm install --offline ./marketweft-research-0.12.0.tgz
 ```
 
 ```js
@@ -25,6 +25,8 @@ Browser hosts can supply the same engine bytes in an `ArrayBuffer` from their ow
 Call `evaluateScalarPlugin(module, ticks)` to run a binary WebAssembly module against one explicit signed 64-bit `bigint` in millionths. For the portable release's `scalar-increment.wasm`, `research.evaluateScalarPlugin(await readFile('./scalar-increment.wasm'), -123456789n)` returns `-123456788n`. [Scalar plugin ABI and resource limits](../../docs/time-series-language.md#scalar-wasm-plugins)
 
 Use `evaluateScalarPluginSeries(module, bars, from, through)` for up to 256 closes in an inclusive UTC range. The result lists each observed time, source close and plugin output. The last two values are exact `bigint` millionths. [Scalar plugin close series](../../docs/time-series-language.md#scalar-plugins-on-observed-closes)
+
+Call `monthlyReturns(bars, firstYear, lastYear, observedThrough)` with whole UTC seconds for the cutoff. The result gives 12 ordered rows per year, each with its UTC window state, prior and current source closes, and a `bigint` percentage in millionths or `null`. [Monthly returns calendar](../../docs/chart-workspace.md#monthly-returns-calendar).
 
 For point-in-time universe screening, call `universeScreen` with the membership CSV, prices CSV and exact baseline, effective and known UTC times. The ordered rows contain their selected close observations and exact `bigint` return units. [Universe screening](../../docs/research-universe-screen.md).
 

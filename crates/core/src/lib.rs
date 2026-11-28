@@ -35,6 +35,7 @@ mod keltner;
 mod line_break;
 mod macd;
 mod macro_calendar;
+mod monthly_returns;
 mod moving_averages;
 mod option_cash;
 mod option_chain;
@@ -137,6 +138,9 @@ pub use keltner::keltner_channels;
 pub use line_break::three_line_break;
 pub use macd::{macd, MacdValue};
 pub use macro_calendar::{MacroCalendar, ReleaseRecord, ReleaseSnapshot, ReportKind};
+pub use monthly_returns::{
+    monthly_returns, MonthWindow, MonthlyClose, MonthlyReturn, MAX_MONTHLY_RETURN_YEARS,
+};
 pub use moving_averages::{
     double_exponential_moving_average, hull_moving_average, linearly_weighted_average,
     triple_exponential_moving_average,

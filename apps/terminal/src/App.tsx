@@ -67,6 +67,10 @@ const FormulaResearch = lazy(async () => {
   const module = await import('./FormulaResearch')
   return { default: module.FormulaResearch }
 })
+const MonthlyReturnsResearch = lazy(async () => {
+  const module = await import('./MonthlyReturnsResearch')
+  return { default: module.MonthlyReturnsResearch }
+})
 const ProviderRevisionResearch = lazy(async () => {
   const module = await import('./ProviderRevisionResearch')
   return { default: module.ProviderRevisionResearch }
@@ -432,7 +436,7 @@ export function App({
   const [saved, setSaved] = useState(initial)
   const [replaying, setReplaying] = useState(false)
   const [marketResearch, setMarketResearch] = useState<
-    'tick-bars' | 'range-bars' | 'volume-bars' | 'depth' | 'footprint' | 'formula' | 'provider-revisions' | null
+    'tick-bars' | 'range-bars' | 'volume-bars' | 'depth' | 'footprint' | 'formula' | 'monthly-returns' | 'provider-revisions' | null
   >(null)
   const replayButton = useRef<HTMLButtonElement>(null)
   const tickResearchButton = useRef<HTMLButtonElement>(null)
@@ -444,6 +448,7 @@ export function App({
   const depthResearchButton = useRef<HTMLButtonElement>(null)
   const footprintResearchButton = useRef<HTMLButtonElement>(null)
   const formulaResearchButton = useRef<HTMLButtonElement>(null)
+  const monthlyReturnsButton = useRef<HTMLButtonElement>(null)
   const providerResearchButton = useRef<HTMLButtonElement>(null)
   const restoreReplayFocus = useRef(false)
   const restoreResearchFocus = useRef<typeof marketResearch>(null)
@@ -459,7 +464,7 @@ export function App({
         'tick-bars': tickResearchButton, 'range-bars': tradePane === 'primary' ? rangeResearchButton : comparisonRangeButton,
         'volume-bars': tradePane === 'primary' ? volumeResearchButton : comparisonVolumeButton,
         depth: depthResearchButton, footprint: footprintResearchButton,
-        formula: formulaResearchButton, 'provider-revisions': providerResearchButton,
+        formula: formulaResearchButton, 'monthly-returns': monthlyReturnsButton, 'provider-revisions': providerResearchButton,
       }[restoreResearchFocus.current]
       restoreResearchFocus.current = null
       button.current?.focus()
@@ -777,7 +782,7 @@ export function App({
       </Suspense>
     }
     const Research = { 'tick-bars': TickBarsResearch, depth: DepthResearch, footprint: FootprintResearch,
-      formula: FormulaResearch, 'provider-revisions': ProviderRevisionResearch }[marketResearch]
+      formula: FormulaResearch, 'monthly-returns': MonthlyReturnsResearch, 'provider-revisions': ProviderRevisionResearch }[marketResearch]
     return <Suspense fallback={researchLoading}>
     <Research key={asset.id} core={core} asset={asset} sourceLabel={descriptor?.source ?? source}
       sourceRights={sourceRights} policy={importPolicy} close={closeResearch} />
@@ -854,6 +859,8 @@ export function App({
               onClick={() => setMarketResearch('footprint')}>Recorded footprint</button>
             <button ref={formulaResearchButton} className="outline" disabled={saving}
               onClick={() => setMarketResearch('formula')}>Time-series formulas</button>
+            <button ref={monthlyReturnsButton} className="outline" disabled={saving}
+              onClick={() => setMarketResearch('monthly-returns')}>Monthly returns calendar</button>
             <button ref={providerResearchButton} className="outline" disabled={saving}
               onClick={() => setMarketResearch('provider-revisions')}>Provider revisions</button>
           </div>

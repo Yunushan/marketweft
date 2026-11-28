@@ -1165,6 +1165,16 @@ export interface PortfolioSpinOffBasis {
 }
 
 export type DrawdownPoint = { peakAt: number; peakClose: bigint; percent: bigint };
+const MONTH_WINDOWS = ['complete', 'month-to-date', 'future'] as const;
+export type MonthlyClose = { at: number; ticks: bigint };
+export interface MonthlyReturn {
+  year: number;
+  month: number;
+  window: typeof MONTH_WINDOWS[number];
+  prior: MonthlyClose | null;
+  current: MonthlyClose | null;
+  percent: bigint | null;
+}
 export interface CloseDistribution {
   firstAt: number;
   lastAt: number;
@@ -1225,6 +1235,7 @@ export interface MarketCore {
   regressionChannel(startAt: number, endAt: number, bars: readonly Bar[]): RegressionChannel | null;
   observedDrawdown(bars: readonly Bar[]): (DrawdownPoint | null)[];
   observedCloseDistributions(bars: readonly Bar[], size: number): CloseDistribution[];
+  monthlyReturns(bars: readonly Bar[], firstYear: number, lastYear: number, knownThrough: number): MonthlyReturn[];
   confirmedCloseSwings(left: number, right: number, intervalSeconds: number, bars: readonly Bar[]): (ConfirmedSwing | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   chandeMomentumOscillator(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1368,6 +1379,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_close_changes(intervalSeconds: number): number;
   mw_rebased_percent_changes(anchorAt: bigint): number;
   mw_observed_drawdown(): number;
+  mw_monthly_returns(firstYear: number, lastYear: number, knownThrough: bigint): number;
   mw_observed_close_distributions(size: number): number;
   mw_regression_channel(startAt: bigint, endAt: bigint): number;
   mw_anchored_vwap(anchorAt: bigint): number;
@@ -2498,6 +2510,32 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           peakClose: out.getBigInt64(start + 8, true),
           percent,
         };
+      });
+    },
+    monthlyReturns(bars, firstYear, lastYear, knownThrough) {
+      if (![firstYear, lastYear].every(year => Number.isInteger(year) && year >= 1 && year <= 9999) ||
+          lastYear < firstYear || lastYear - firstYear >= 30) {
+        throw new Error('Choose up to 30 consecutive UTC calendar years between 0001 and 9999.');
+      }
+      if (!Number.isSafeInteger(knownThrough) || bars.length > 100_000) {
+        throw new Error('Monthly returns require a whole UTC second and up to 100,000 bars.');
+      }
+      putIndicatorBars(bars, 'Monthly returns');
+      const data = output(api.mw_monthly_returns(firstYear, lastYear, BigInt(knownThrough)));
+      const count = 12 * (lastYear - firstYear + 1);
+      if (data.byteLength !== count * 52) throw new Error('Invalid monthly returns response size.');
+      const readClose = (offset: number) => {
+        const at = data.getBigInt64(offset, true);
+        return at === MISSING ? null : { at: Number(at), ticks: data.getBigInt64(offset + 8, true) };
+      };
+      return Array.from({ length: count }, (_, index) => {
+        const start = index * 52;
+        const window = MONTH_WINDOWS[data.getUint8(start + 3)];
+        if (!window) throw new Error('Invalid monthly returns window.');
+        const percent = signed128(data, start + 36);
+        return { year: data.getUint16(start, true), month: data.getUint8(start + 2), window,
+          prior: readClose(start + 4), current: readClose(start + 20),
+          percent: percent === -(1n << 127n) ? null : percent };
       });
     },
     observedCloseDistributions(bars, size) {

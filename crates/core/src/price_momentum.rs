@@ -226,7 +226,7 @@ pub fn observed_drawdown(bars: &[Bar]) -> Result<Vec<Option<DrawdownPoint>>, Str
         .collect()
 }
 
-fn percent_change(close: i64, base: i64) -> Option<i128> {
+pub(crate) fn percent_change(close: i64, base: i64) -> Option<i128> {
     let base = i128::from(base);
     if base == 0 {
         return None;

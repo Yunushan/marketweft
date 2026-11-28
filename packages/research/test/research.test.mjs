@@ -48,6 +48,20 @@ test('the packaged SDK exports exact plugin series at separate UTC cutoffs', asy
     [one, { time: first + 180, close: 3n, value: 4n }])
 })
 
+test('the packaged SDK supplies exact monthly price evidence at a historical cutoff', async () => {
+  const fixture = new URL('../../../crates/core/tests/fixtures/synthetic-monthly-returns.csv', import.meta.url)
+  const [history, research] = await Promise.all([readFile(fixture, 'utf8'), createResearchEngine(wasm)])
+  const bars = research.parseBars(history)
+  const first = research.monthlyReturns(bars, 2024, 2024, bars[1].time)
+  assert.equal(first.length, 12)
+  assert.deepEqual(first[0], { year: 2024, month: 1, window: 'month-to-date',
+    prior: { at: bars[0].time, ticks: 80000000n }, current: { at: bars[1].time, ticks: 90000000n }, percent: 12500000n })
+  const later = research.monthlyReturns(bars, 2024, 2024, bars[3].time)
+  assert.equal(later[0].percent, 25000000n)
+  assert.equal(later[1].percent, -25000000n)
+  assert.deepEqual(research.monthlyReturns(bars, 2024, 2024, bars[1].time), first)
+})
+
 test('the packaged SDK reports depth sweep cutoffs and exact fixed-point execution', async () => {
   const depth = new URL('../../../crates/core/tests/fixtures/synthetic-depth.csv', import.meta.url)
   const [reports, research] = await Promise.all([readFile(depth, 'utf8'), createResearchEngine(wasm)])

@@ -83,6 +83,28 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('monthly returns bridge preserves UTC windows, exact closes and wide signed returns', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-monthly-returns.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(source);
+  const utc = value => Date.parse(value) / 1000;
+  const run = cutoff => core.monthlyReturns(bars, 2024, 2024, utc(cutoff));
+  const early = run('2024-01-15T16:00:00Z');
+  assert.deepEqual(early[0], { year: 2024, month: 1, window: 'month-to-date',
+    prior: { at: bars[0].time, ticks: 80000000n }, current: { at: bars[1].time, ticks: 90000000n }, percent: 12500000n });
+  assert.deepEqual(early[1], { year: 2024, month: 2, window: 'future', prior: null, current: null, percent: null });
+  const late = run('2024-12-31T23:59:59Z');
+  assert.deepEqual(late.map(row => row.percent),
+    [25000000n, -25000000n, null, null, -100000000n, null, 0n, -200000000n, 100000000n, null, null, null]);
+  assert.equal(late[5].prior.ticks, 0n);
+  assert.deepEqual(run('2024-01-15T16:00:00Z'), early);
+  assert.throws(() => core.monthlyReturns(bars, 1, 31, 0), /30 consecutive/);
+  assert.throws(() => core.monthlyReturns([...bars].reverse(), 2024, 2024, 0), /later than the previous/);
+  const wide = core.parseCsv(['time,open,high,low,close,volume',
+    '2023-12-01,0.000001,0.000001,0.000001,0.000001,0',
+    '2024-01-01,2000000000,2000000000,2000000000,2000000000,0'].join('\n'));
+  assert.equal(core.monthlyReturns(wide, 2024, 2024, utc('2024-01-01'))[0].percent, 199999999999999900000000n);
+});
+
 test('subscription rights keep the fractional entitlement, whole exercise and exact cash requirement in Wasm', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, reports] = await Promise.all([
