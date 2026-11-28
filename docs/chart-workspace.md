@@ -344,6 +344,16 @@ VWMA defaults to 20 bars. It divides the sum of each close times its reported vo
 
 The default research CSV columns are `mfi_14` and `vwma_20`. The chart leaves gaps for absent values. Missing timestamps contribute zero observations.
 
+### WMA, DEMA, TEMA and Hull moving average
+
+Enable **WMA**, **DEMA**, **TEMA** or **HMA** in either pane’s indicator settings. The four lines share the price axis. Each defaults to 20 observed closes and accepts a period from 1 through 100,000. The chart readout shows exact signed price millionths. A period of one follows the observed close.
+
+WMA assigns weights from one for the oldest close through the chosen period for the newest close. DEMA combines twice the first EMA with the negative of the second. TEMA combines the first, second and third successive EMAs with coefficients 3, −3 and 1. Each EMA stage starts with a full-window simple average and rounds after each observation. [TA-Lib WMA](https://ta-lib.org/functions/wma.html) · [TA-Lib DEMA](https://ta-lib.org/functions/dema.html) · [TA-Lib TEMA](https://ta-lib.org/functions/tema.html)
+
+HMA subtracts the full-period WMA from twice the half-period WMA, then smooths the result over the whole-number square root of the period. The half period rounds down and has a minimum of one. Each WMA stage rounds to the nearest price millionth with half ticks away from zero. [Alan Hull’s moving average](https://alanhull.com/the-hull-moving-average/)
+
+Before the required windows are available, outputs stay empty in the plot and CSV. The default columns are `wma_20`, `dema_20`, `tema_20` and `hma_20`. Version 56 workspace backups preserve each pane’s settings.
+
 ### Directional Movement System
 
 Enable **DMI** in either pane’s indicator settings. +DI, −DI and ADX share a fixed 0% to 100% scale with a reference at 25%. The DI period and ADX smoothing period each default to 14 and accept 1 through 100,000 observed bars. [StockCharts’ Wilder Directional Movement System](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/average-directional-index-adx).

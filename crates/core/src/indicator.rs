@@ -18,6 +18,11 @@ pub(crate) fn advance_ema(previous: i128, current: i128, weight: i128) -> i128 {
 /// SMA uses an exact rolling sum. EMA starts at the first full-window SMA and
 /// uses alpha=2/(period+1), rounding to one millionth after each new close.
 pub fn indicator(kind: Average, period: usize, closes: &[i64]) -> Result<Vec<Option<i64>>, String> {
+    validate_close_window(period, closes)?;
+    Ok(average_values(kind, period, closes))
+}
+
+pub(crate) fn validate_close_window(period: usize, closes: &[i64]) -> Result<(), String> {
     if !(1..=MAX_BARS).contains(&period) || closes.len() > MAX_BARS {
         return Err(
             "Indicator periods must be 1–100,000 and histories at most 100,000 bars.".into(),
@@ -26,7 +31,14 @@ pub fn indicator(kind: Average, period: usize, closes: &[i64]) -> Result<Vec<Opt
     if closes.iter().any(|c| !(-MAX_TICKS..=MAX_TICKS).contains(c)) {
         return Err("A close is outside the supported fixed-point range.".into());
     }
-    Ok(average_values(kind, period, closes))
+    Ok(())
+}
+
+pub(crate) fn exponential_tail(period: usize, closes: &[i64]) -> Vec<i64> {
+    average_values(Average::Exponential, period, closes)
+        .into_iter()
+        .flatten()
+        .collect()
 }
 
 pub(crate) fn average_values(kind: Average, period: usize, closes: &[i64]) -> Vec<Option<i64>> {

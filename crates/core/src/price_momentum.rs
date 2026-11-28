@@ -1,8 +1,8 @@
 use crate::{
     history::{typical_sum, valid_second, validate_bar_time, validate_ohlcv},
-    indicator::average_values,
+    indicator::exponential_tail,
     screen::rounded_div,
-    Average, Bar, MAX_BARS, MAX_TICKS, SCALE,
+    Bar, MAX_BARS, MAX_TICKS, SCALE,
 };
 
 // A Fenwick tree stores counts and price sums by rank. Both updates and
@@ -152,15 +152,9 @@ pub fn chande_momentum_oscillator(
 /// The one-observation percentage change of the triple-smoothed EMA.
 pub fn trix(period: usize, closes: &[i64]) -> Result<Vec<Option<i128>>, String> {
     validate_closes(period, closes)?;
-    let mut ema = average_values(Average::Exponential, period, closes)
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+    let mut ema = exponential_tail(period, closes);
     for _ in 0..2 {
-        ema = average_values(Average::Exponential, period, &ema)
-            .into_iter()
-            .flatten()
-            .collect();
+        ema = exponential_tail(period, &ema);
     }
     let mut result = vec![None; closes.len()];
     let start = closes.len() - ema.len() + 1;

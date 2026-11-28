@@ -4085,6 +4085,37 @@ pub extern "C" fn mw_trix(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_linearly_weighted_average(period: usize) -> u32 {
+    process(|input| {
+        crate::linearly_weighted_average(period, &indicator_closes(input)?)
+            .map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_double_exponential_moving_average(period: usize) -> u32 {
+    process(|input| {
+        crate::double_exponential_moving_average(period, &indicator_closes(input)?)
+            .map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_triple_exponential_moving_average(period: usize) -> u32 {
+    process(|input| {
+        crate::triple_exponential_moving_average(period, &indicator_closes(input)?)
+            .map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_hull_moving_average(period: usize) -> u32 {
+    process(|input| {
+        crate::hull_moving_average(period, &indicator_closes(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_rebased_percent_changes(anchor_at: i64) -> u32 {
     process(|input| {
         crate::rebased_percent_changes(anchor_at, &decode_bars(input)?)

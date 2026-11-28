@@ -20,6 +20,10 @@ export const STUDIES = {
     periodLabel: 'Chaikin fast', color: '#d39ce1' },
   mfi: { name: 'MFI', label: 'Money Flow Index', minPeriod: 1, defaultPeriod: 14, color: '#a9cc89' },
   vwma: { name: 'VWMA', label: 'Volume-Weighted Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#f1c177' },
+  wma: { name: 'WMA', label: 'Weighted Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#79a9ed' },
+  dema: { name: 'DEMA', label: 'Double Exponential Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#9bd5b1' },
+  tema: { name: 'TEMA', label: 'Triple Exponential Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#efac94' },
+  hma: { name: 'HMA', label: 'Hull Moving Average', minPeriod: 1, defaultPeriod: 20, color: '#c0abf3' },
   dmi: { name: 'DMI', label: 'Directional Movement System', minPeriod: 1, defaultPeriod: 14, periodLabel: 'DI', color: '#aaa3f0' },
   cci: { name: 'CCI', label: 'Commodity Channel Index', minPeriod: 1, defaultPeriod: 20, color: '#c5adf1' },
   roc: { name: 'ROC', label: 'Rate of Change', minPeriod: 1, defaultPeriod: 12, color: '#73c3e4' },
@@ -64,6 +68,17 @@ export function defaultStudySettings(kind: StudyKind): StudySettings {
 export type StudySet = Partial<Record<StudyKind, StudySettings>>
 export type StudyValue = number | bigint | null
 type BandKind = 'bb' | 'donchian' | 'keltner'
+const PRICE_AVERAGES = {
+  vwma: 'volumeWeightedAverage',
+  wma: 'linearlyWeightedAverage',
+  dema: 'doubleExponentialMovingAverage',
+  tema: 'tripleExponentialMovingAverage',
+  hma: 'hullMovingAverage',
+} as const
+type PriceAverageKind = keyof typeof PRICE_AVERAGES
+function isPriceAverage(kind: StudyKind): kind is PriceAverageKind {
+  return Object.hasOwn(PRICE_AVERAGES, kind)
+}
 type StudyLine<Value> = {
   label?: string
   key?: string
@@ -72,7 +87,7 @@ type StudyLine<Value> = {
 }
 export type PanelLine = StudyLine<StudyValue> & { histogram?: { negativeColor: string } }
 export type PanelStudy = {
-  kind: Exclude<StudyKind, BandKind | 'vwma'>
+  kind: Exclude<StudyKind, BandKind | PriceAverageKind>
   periods: number[]
   unit?: 'price' | 'volume' | 'index'
   guides?: number[]
@@ -80,7 +95,7 @@ export type PanelStudy = {
   lines: PanelLine[]
 }
 export type PriceStudy = {
-  kind: BandKind | 'vwma'
+  kind: BandKind | PriceAverageKind
   periods: number[]
   heading: string
   priceOverlay: true
@@ -132,9 +147,9 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       const atrPeriod = study.atrPeriod ?? EXTRA_STUDY_PERIODS.atrPeriod.defaultPeriod
       return [priceBands(kind, [period, atrPeriod], core.keltnerChannels(period, atrPeriod, bars))]
     }
-    if (kind === 'vwma') {
-      return [{ kind, periods: [period], heading: STUDIES.vwma.name, priceOverlay: true,
-        lines: [{ color: STUDIES.vwma.color, series: core.volumeWeightedAverage(period, bars) }],
+    if (isPriceAverage(kind)) {
+      return [{ kind, periods: [period], heading: STUDIES[kind].name, priceOverlay: true,
+        lines: [{ color: STUDIES[kind].color, series: core[PRICE_AVERAGES[kind]](period, bars) }],
       }]
     }
     if (kind === 'dmi') {

@@ -1229,6 +1229,10 @@ export interface MarketCore {
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   chandeMomentumOscillator(period: number, bars: readonly Bar[]): (bigint | null)[];
   trix(period: number, bars: readonly Bar[]): (bigint | null)[];
+  linearlyWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
+  doubleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
+  tripleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
+  hullMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
   moneyFlowIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   volumeWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1371,6 +1375,10 @@ interface MarketExports extends WebAssembly.Exports {
   mw_rate_of_change(period: number): number;
   mw_chande_momentum_oscillator(period: number): number;
   mw_trix(period: number): number;
+  mw_linearly_weighted_average(period: number): number;
+  mw_double_exponential_moving_average(period: number): number;
+  mw_triple_exponential_moving_average(period: number): number;
+  mw_hull_moving_average(period: number): number;
   mw_directional_movement(diPeriod: number, adxPeriod: number): number;
   mw_money_flow_index(period: number): number;
   mw_volume_weighted_average(period: number): number;
@@ -1896,6 +1904,14 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       const ticks = out.getBigInt64(index * 8, true);
       return ticks === MISSING ? null : ticks;
     });
+  }
+
+  function observedCloseIndicator(
+    calculate: (period: number) => number, period: number, bars: readonly Bar[],
+  ) {
+    validateIndicatorHistory(period, bars.length);
+    putIndicatorCloses(bars);
+    return readIndicatorTicks(output(calculate(period)), bars.length);
   }
 
   function putIndicatorCloses(bars: readonly Bar[]) {
@@ -2513,14 +2529,24 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return readWideIndicator(output(api.mw_rate_of_change(period)), bars.length);
     },
     chandeMomentumOscillator(period, bars) {
-      validateIndicatorHistory(period, bars.length);
-      putIndicatorCloses(bars);
-      return readIndicatorTicks(output(api.mw_chande_momentum_oscillator(period)), bars.length);
+      return observedCloseIndicator(api.mw_chande_momentum_oscillator, period, bars);
     },
     trix(period, bars) {
       validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
       return readWideIndicator(output(api.mw_trix(period)), bars.length);
+    },
+    linearlyWeightedAverage(period, bars) {
+      return observedCloseIndicator(api.mw_linearly_weighted_average, period, bars);
+    },
+    doubleExponentialMovingAverage(period, bars) {
+      return observedCloseIndicator(api.mw_double_exponential_moving_average, period, bars);
+    },
+    tripleExponentialMovingAverage(period, bars) {
+      return observedCloseIndicator(api.mw_triple_exponential_moving_average, period, bars);
+    },
+    hullMovingAverage(period, bars) {
+      return observedCloseIndicator(api.mw_hull_moving_average, period, bars);
     },
     directionalMovement(diPeriod, adxPeriod, bars) {
       if (![diPeriod, adxPeriod].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)

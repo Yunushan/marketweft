@@ -61,10 +61,12 @@ const HOLLOW_CANDLES_BACKUP_VERSION = 52
 const FIBONACCI_FAN_BACKUP_VERSION = 53
 const CLOSE_DISTRIBUTION_BACKUP_VERSION = 54
 const MOMENTUM_OSCILLATORS_BACKUP_VERSION = 55
+const MOVING_AVERAGES_BACKUP_VERSION = 56
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
   const studies = Object.values(preferences.studies ?? {})
+  if (studies.some(pane => pane?.wma || pane?.dema || pane?.tema || pane?.hma)) return MOVING_AVERAGES_BACKUP_VERSION
   if (studies.some(pane => pane?.cmo || pane?.trix)) return MOMENTUM_OSCILLATORS_BACKUP_VERSION
   if (Object.values(preferences.chartTypes ?? {}).includes('close-distribution'))
     return CLOSE_DISTRIBUTION_BACKUP_VERSION
@@ -233,6 +235,7 @@ export async function verifyWorkspaceBackup(
   if (typeof file.version !== 'number' || ![
     CLOSE_DISTRIBUTION_BACKUP_VERSION,
     MOMENTUM_OSCILLATORS_BACKUP_VERSION,
+    MOVING_AVERAGES_BACKUP_VERSION,
     SINGLE_PANE_BACKUP_VERSION, COMPARISON_BACKUP_VERSION, DRAWING_BACKUP_VERSION,
     INDICATOR_PERIODS_BACKUP_VERSION, CHART_TYPES_BACKUP_VERSION, OHLC_BARS_BACKUP_VERSION,
     STRUCTURED_GRANT_BACKUP_VERSION,

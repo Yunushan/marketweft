@@ -66,6 +66,23 @@ test('scalar plugin series keeps inclusive UTC starting and ending rows and a sh
   assert.deepEqual(run(60, 60), [{ time: 60, close: -5n, value: -4n }]);
 });
 
+test('weighted, double, triple and Hull moving averages keep exact signed prefixes in Wasm', () => {
+  const bars = [-5, -2, 4, 9, 3, -6, 0, 7, 11].map((tick, index) => {
+    const close = tick / 1e6;
+    return { time: index * 60, open: close, high: close, low: close, close, volume: 1 };
+  });
+  for (const [compute, period, expected] of [
+    [core.linearlyWeightedAverage, 3, [null, null, 1n, 6n, 5n, -1n, -2n, 3n, 8n]],
+    [core.doubleExponentialMovingAverage, 2, [null, null, 4n, 9n, 4n, -5n, -1n, 6n, 11n]],
+    [core.tripleExponentialMovingAverage, 2, [null, null, null, 10n, 3n, -6n, -1n, 7n, 11n]],
+    [core.hullMovingAverage, 4, [null, null, null, null, 7n, -3n, -5n, 4n, 12n]],
+  ]) {
+    for (let end = 0; end <= bars.length; end++)
+      assert.deepEqual(compute(period, bars.slice(0, end)), expected.slice(0, end));
+    assert.deepEqual(compute(1, bars), bars.map(bar => BigInt(Math.round(bar.close * 1e6))));
+  }
+});
+
 test('subscription rights keep the fractional entitlement, whole exercise and exact cash requirement in Wasm', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, reports] = await Promise.all([

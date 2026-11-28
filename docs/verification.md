@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.214.0 · Weighted, double, triple and Hull moving averages
+
+- Rust and Wasm verify signed warm-up, exact rounding at each stage, prefix stability and period-one identity. An independent direct window scan checks the WMA recurrence, including a full 100,000-bar window at the price limit.
+- Offline Chromium checks price-axis drawing, exact readouts and CSV values, independent pane settings and both version 55 and version 56 workspace restore.
+
+[Weighted moving averages](chart-workspace.md#wma-dema-tema-and-hull-moving-average)
+
 ## 0.213.0 · Chande Momentum Oscillator and TRIX
 
 - Native Rust and the Wasm bridge verify prefix stability, signed CMO and flat windows. They check each TRIX warm-up stage, exact millionth rounding, a zero baseline and a signed value beyond the 64-bit tick range.
