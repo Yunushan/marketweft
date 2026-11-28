@@ -27,6 +27,7 @@ __all__ = [
     "RecordedTradePrint", "RecordedTradePrintsSnapshot",
     "ResearchEngine", "ResearchError", "ScalarPluginPoint",
     "ScreenPrice", "ScreenResult", "ScreenRow",
+    "SessionRelativeVolumePoint", "SessionRelativeVolumeSnapshot",
 ]
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,31}\Z")
@@ -47,6 +48,8 @@ _MACRO_PROTOCOL = "marketweft-macro-calendar"
 _NOTIONAL_BARS_PROTOCOL = "marketweft-notional-bars"
 _TRADE_PRINTS_PROTOCOL = "marketweft-recorded-trade-prints"
 _DIVIDEND_LEDGER_PROTOCOL = "marketweft-dividend-ledger"
+_SESSION_RELATIVE_VOLUME_PROTOCOL = "marketweft-session-relative-volume"
+_MAX_SESSION_CALENDAR_BYTES = 1024 * 1024
 _DIVIDEND_EVENT_KINDS = ("report", "ex", "pay", "entitlement")
 _MAX_DIVIDEND_CSV = 1024 * 1024
 _MAX_DIVIDEND_SHARES = 1_000_000
@@ -285,6 +288,28 @@ class DividendLedgerSnapshot:
     known_at: int | None
     fixed_shares: int | None
     events: tuple[DividendLedgerEvent, ...]
+
+
+@dataclass(frozen=True)
+class SessionRelativeVolumePoint:
+    bar_index: int
+    observed_at: int
+    offset_seconds: int
+    duration_seconds: int
+    previous_sessions: int
+    contributing_sessions: int
+    volume_ticks: int
+    baseline_sum_ticks: int
+    average_ticks: int | None
+    relative_ticks: int | None
+
+
+@dataclass(frozen=True)
+class SessionRelativeVolumeSnapshot:
+    known_at: int
+    interval_seconds: int
+    lookback_sessions: int
+    rows: tuple[SessionRelativeVolumePoint, ...]
 
 
 @dataclass(frozen=True)
@@ -875,6 +900,43 @@ def _dividend_ledger(output: bytes, instrument: str, cutoff: int | None, fixed: 
                                           amount, shares, withholding, tuple(changes)))
         prior = (at, dividend_id)
     return DividendLedgerSnapshot(instrument, cutoff, fixed, tuple(events))
+
+
+def _session_relative_volume(
+    output: bytes, cutoff: int, interval: int, lookback: int,
+) -> SessionRelativeVolumeSnapshot:
+    count, rows = _response(output, _SESSION_RELATIVE_VOLUME_PROTOCOL)
+    total = _whole(count)
+    if not 0 <= total <= 100_000 or len(rows) != total + 1:
+        raise ResearchError("Invalid session relative volume row count.")
+    if rows[0].split("\t") != ["S", str(interval), str(lookback), str(cutoff)]:
+        raise ResearchError("Session relative volume settings differ from the request.")
+
+    previous_observed = _MIN_UTC_SECOND - 1
+    previous_sessions = 0
+    points = []
+    for row in rows[1:]:
+        fields = row.split("\t")
+        if len(fields) != 10:
+            raise ResearchError("Invalid session relative volume row.")
+        index, observed, offset, duration, prior, contributors, volume = map(_whole, fields[:7])
+        baseline = _i128(fields[7])
+        average = _whole(fields[8]) if fields[8] else None
+        relative = _i128(fields[9]) if fields[9] else None
+        if (index != len(points) or not previous_observed < observed <= cutoff
+                or not 0 <= offset < 86_400 or offset % interval
+                or not 1 <= duration <= interval or offset + duration > 86_400
+                or not previous_sessions <= prior <= lookback or not 0 <= contributors <= prior
+                or not 0 <= volume <= _MAX_PRICE_TICKS or not 0 <= baseline <= contributors * _MAX_PRICE_TICKS):
+            raise ResearchError("Session relative volume evidence is inconsistent with the request.")
+        expected_average = (baseline + contributors // 2) // contributors if contributors else None
+        expected_relative = (volume * contributors * 1_000_000 + baseline // 2) // baseline if baseline else None
+        if average != expected_average or relative != expected_relative:
+            raise ResearchError("Session relative volume evidence does not reconcile with its baseline.")
+        points.append(SessionRelativeVolumePoint(index, observed, offset, duration, prior, contributors,
+                                                 volume, baseline, average, relative))
+        previous_observed, previous_sessions = observed, prior
+    return SessionRelativeVolumeSnapshot(cutoff, interval, lookback, tuple(points))
 
 
 def _listing_downside_risk(
@@ -1667,6 +1729,31 @@ class ResearchEngine:
         header = "\n".join((prefix, instrument, known_at or "", "" if shares is None else str(shares), "")).encode("ascii")
         output = self._invoke(header + dividend_bytes + position_bytes, "dividend-ledger")
         return _dividend_ledger(output, instrument, cutoff, shares)
+
+    def session_relative_volume(
+        self, calendar_csv: str, bars_csv: str, *, interval_seconds: int,
+        lookback_sessions: int, known_at: str,
+    ) -> SessionRelativeVolumeSnapshot:
+        """Compare observed bar volumes with prior sessions at an inclusive UTC cutoff."""
+        if not isinstance(calendar_csv, str) or not isinstance(bars_csv, str):
+            raise TypeError("Supply the session calendar and OHLCV CSV contents as text.")
+        if type(interval_seconds) is not int or not 1 <= interval_seconds <= 86_400:
+            raise ValueError("Use a bar interval of 1–86,400 whole seconds.")
+        if type(lookback_sessions) is not int or not 1 <= lookback_sessions <= 10_000:
+            raise ValueError("Use a whole lookback of 1–10,000 prior sessions.")
+        if not isinstance(known_at, str) or not _UTC.fullmatch(known_at):
+            raise ValueError("Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.")
+        try:
+            cutoff = _epoch_second(datetime.fromisoformat(known_at[:-1]))
+        except ValueError as error:
+            raise ValueError("Use a valid UTC observation cutoff.") from error
+        calendar, bars = calendar_csv.encode("utf-8"), bars_csv.encode("utf-8")
+        if len(calendar) > _MAX_SESSION_CALENDAR_BYTES or len(bars) > _MAX_CSV:
+            raise ValueError("The session calendar must be at most 1 MiB and the OHLCV CSV at most 8 MiB.")
+        header = "\t".join((_SESSION_RELATIVE_VOLUME_PROTOCOL, "1", str(len(calendar)),
+                            str(interval_seconds), str(lookback_sessions), known_at))
+        output = self._invoke(header.encode("ascii") + b"\n" + calendar + bars, "session-relative-volume")
+        return _session_relative_volume(output, cutoff, interval_seconds, lookback_sessions)
 
     def listing_downside_risk_as_of(
         self, membership_csv: str, prices_csv: str, left_listing_id: str, right_listing_id: str, *,

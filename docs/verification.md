@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.306.0 · Native and Python session relative volume
+
+- The native process verifies inclusive cutoff, validated UTF-8 calendar boundaries, exact shortened intervals and distinct missing and zero baselines.
+- The installed Python wheel reconciles reported averages and ratios from the exact baseline sum and contributor count. It rejects a conflicting result and reproduces the same earlier rows after rewind.
+
 ## 0.305.0 · Session relative volume
 
 - Rust and Wasm compare the matching duration and session offset across a UTC opening shift, an early close, omitted intervals, an empty session and observed zero volume. Every inclusive cutoff reproduces its historical prefix.

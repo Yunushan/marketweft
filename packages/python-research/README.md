@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.23.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.36.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -53,6 +53,28 @@ The local MCP server exposes the same visible evidence in the read-only `macro_c
 Call `screen_universe` with membership and prices CSV strings and exact baseline, effective and known UTC times. Each result retains membership and close provenance, with `None` for unavailable closes, ranks and returns. [Universe screening](../../docs/research-universe-screen.md).
 
 Use `compare_universe_ranks` with a shared baseline and separate effective and known cutoffs. The result retains exact membership and close evidence, with `None` for unavailable ranks, price observations and rank movement. [Rank comparison example](../../docs/research-universe-screen.md#compare-rank-snapshots).
+
+## Session relative volume
+
+Pass the original calendar and OHLCV text from [historical replay](../../docs/historical-replay.md#session-relative-volume). Use a whole number of seconds, a session lookback, and an inclusive UTC cutoff.
+
+```python
+from pathlib import Path
+from marketweft_research import ResearchEngine
+
+engine = ResearchEngine("/path/to/marketweft-research")
+result = engine.session_relative_volume(
+    Path("session-volume-calendar.csv").read_text(encoding="utf-8"),
+    Path("session-volume-bars.csv").read_text(encoding="utf-8"),
+    interval_seconds=60,
+    lookback_sessions=2,
+    known_at="2025-11-05T14:31:00Z",
+)
+assert result.rows[-1].relative_ticks == 3_000_000
+assert result.rows[-1].baseline_sum_ticks == 300_000_000
+```
+
+Each row carries the raw volume, exact sum, mean and ratio in integer millionths, with the prior-session count and the count of matching observations. The ratio is `None` when the baseline is unavailable or zero. [Native process format](../../docs/historical-replay.md#native-and-python-session-relative-volume)
 
 ## Financial snapshots
 

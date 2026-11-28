@@ -1,3 +1,4 @@
+use crate::replay::MAX_SESSIONS;
 use crate::{history::validate_ohlcv, replay, screen::rounded_div, Bar, EventKind, Session, SCALE};
 use std::collections::{BTreeMap, VecDeque};
 
@@ -10,6 +11,7 @@ pub struct SessionRelativeVolumePoint {
     pub previous_sessions: u32,
     pub contributing_sessions: u32,
     pub volume_ticks: i64,
+    pub baseline_sum_ticks: i128,
     pub average_ticks: Option<i64>,
     pub relative_ticks: Option<i128>,
 }
@@ -23,7 +25,7 @@ pub fn session_relative_volume(
     lookback_sessions: usize,
     known_at: i64,
 ) -> Result<Vec<SessionRelativeVolumePoint>, String> {
-    if !(1..=10_000).contains(&lookback_sessions) {
+    if !(1..=MAX_SESSIONS).contains(&lookback_sessions) {
         return Err("Session relative volume requires 1–10,000 prior sessions.".into());
     }
     let times: Vec<_> = bars.iter().map(|bar| bar.time).collect();
@@ -61,6 +63,7 @@ pub fn session_relative_volume(
                 previous_sessions: completed.len() as u32,
                 contributing_sessions: count,
                 volume_ticks,
+                baseline_sum_ticks: sum,
                 average_ticks,
                 relative_ticks,
             });

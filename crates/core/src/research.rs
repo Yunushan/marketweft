@@ -17,6 +17,7 @@ use crate::portfolio::{
 };
 use crate::portfolio_allocation_wire::{portfolio_allocation_report, portfolio_allocation_rows};
 use crate::portfolio_scenario_wire::{portfolio_scenario_report, portfolio_scenario_rows};
+use crate::replay::MAX_CALENDAR_CSV_BYTES;
 use crate::screen::MAX_PRICE_BYTES;
 use crate::universe::{valid_id, MAX_MEMBERSHIP_BYTES};
 use crate::{
@@ -44,6 +45,7 @@ pub const MAX_MACRO_CALENDAR_REQUEST_BYTES: usize = MAX_MACRO_CSV_BYTES + 128;
 pub const MAX_NOTIONAL_BARS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 160;
 pub const MAX_TRADE_PRINTS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
 pub const MAX_DIVIDEND_LEDGER_REQUEST_BYTES: usize = 2 * MAX_CASH_DIVIDEND_CSV_BYTES + 256;
+pub const MAX_SESSION_VOLUME_REQUEST_BYTES: usize = MAX_CALENDAR_CSV_BYTES + MAX_INPUT_BYTES + 160;
 pub const MAX_LISTING_RISK_REQUEST_BYTES: usize = MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 256;
 pub const MAX_PORTFOLIO_ALLOCATION_REQUEST_BYTES: usize =
     MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 1024;
@@ -218,6 +220,65 @@ pub fn dividend_ledger_request(bytes: &[u8]) -> Result<String, String> {
         "marketweft-dividend-ledger\t{PROTOCOL_VERSION}\t{count}\nD\t{instrument}\t{cutoff}\t{mode}\t{fixed}\n"
     );
     write_ledger_rows(&mut result, &events[..count], true);
+    Ok(result)
+}
+
+/// Compare observed volume with like-duration slots in past calendar sessions.
+pub fn session_relative_volume_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_SESSION_VOLUME_REQUEST_BYTES {
+        return Err("Session relative volume request exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 session volume request.")?;
+    let (header, payload) = request
+        .split_once('\n')
+        .ok_or("Missing session relative volume request header.")?;
+    let mut fields = header.splitn(7, '\t');
+    let [Some("marketweft-session-relative-volume"), Some("1"), Some(calendar_bytes), Some(interval), Some(lookback), Some(known), None] =
+        std::array::from_fn(|_| fields.next())
+    else {
+        return Err("Invalid session relative volume protocol or version.".into());
+    };
+    let calendar_bytes = calendar_bytes
+        .parse::<usize>()
+        .map_err(|_| "Supply the UTF-8 session calendar byte length.")?;
+    let (calendar, bars) = payload.split_at_checked(calendar_bytes).ok_or(
+        "The session calendar byte length is outside the payload or splits a UTF-8 character.",
+    )?;
+    let interval = interval
+        .parse::<u32>()
+        .map_err(|_| "Use a positive whole-second bar interval.")?;
+    let lookback = lookback
+        .parse::<usize>()
+        .map_err(|_| "Use a whole lookback of 1–10,000 sessions.")?;
+    let known = exact_utc(known).ok_or("Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.")?;
+    let sessions = crate::parse_sessions(calendar)?;
+    let history = parse_csv(bars)?;
+    let points = crate::session_relative_volume(&sessions, &history, interval, lookback, known)?;
+    let mut result = format!(
+        "marketweft-session-relative-volume\t{PROTOCOL_VERSION}\t{}\nS\t{interval}\t{lookback}\t{known}\n",
+        points.len()
+    );
+    for point in points {
+        let average = point
+            .average_ticks
+            .map_or_else(String::new, |value| value.to_string());
+        let relative = point
+            .relative_ticks
+            .map_or_else(String::new, |value| value.to_string());
+        writeln!(
+            result,
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{average}\t{relative}",
+            point.bar_index,
+            point.observed_at,
+            point.offset_seconds,
+            point.duration_seconds,
+            point.previous_sessions,
+            point.contributing_sessions,
+            point.volume_ticks,
+            point.baseline_sum_ticks
+        )
+        .unwrap();
+    }
     Ok(result)
 }
 

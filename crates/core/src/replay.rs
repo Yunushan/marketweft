@@ -1,6 +1,7 @@
 use crate::{history::timestamp, MAX_BARS};
 
-const MAX_SESSIONS: usize = 10_000;
+pub(crate) const MAX_SESSIONS: usize = 10_000;
+pub(crate) const MAX_CALENDAR_CSV_BYTES: usize = 1024 * 1024;
 const MAX_EVENTS: usize = 200_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -32,7 +33,7 @@ pub struct ReplayEvent {
 /// Parse explicitly dated, UTC-resolved exchange sessions. The supplied offset
 /// describes the opening time and is checked against its declared trading date.
 pub fn parse_sessions(csv: &str) -> Result<Vec<Session>, String> {
-    if csv.len() > 1024 * 1024 {
+    if csv.len() > MAX_CALENDAR_CSV_BYTES {
         return Err("Session calendar exceeds 1 MiB.".into());
     }
     let mut lines = csv
