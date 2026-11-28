@@ -1,4 +1,4 @@
-# Platform support · MarketWeft 0.222.0
+# Platform support · MarketWeft 0.223.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
@@ -105,6 +105,12 @@ gh attestation verify $Installer --repo Yunushan/marketweft --signer-workflow Yu
 ```
 
 Set `$Installer` to the downloaded x64 or ARM64 installer and `$Commit` to the full commit SHA for the tag. Use the matching tag and attestation bundle when verifying a later release.
+
+## Native upgrade baselines
+
+Native upgrade jobs use a previous successful GitHub push run for the requested commit and architecture. The downloader verifies the Actions artifact's recorded size and SHA-256 digest, then checks the enclosed package against its own SHA-256 manifest before returning it to the test.
+
+The downloader makes up to three attempts for DNS failures, connection interruptions, timeouts and eligible temporary HTTP responses. An interrupted transfer restarts from the beginning. An HTTP 429 response retries only when it supplies a retry delay of at most ten seconds. Authorization, TLS certificate and integrity errors end the download. [GitHub REST API guidance](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately).
 
 ## macOS native builds
 

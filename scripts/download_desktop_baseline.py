@@ -2,14 +2,17 @@
 
 import argparse
 import hashlib
+from http.client import IncompleteRead
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+from socket import gaierror
 import sys
 import tempfile
-from urllib.error import HTTPError
+import time
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 from zipfile import ZipFile
@@ -23,6 +26,8 @@ ARCHITECTURES = {
     "ios-simulator": {"arm64": "arm64"},
     "android": {"x86_64": "x86_64"},
 }
+TRANSIENT_STATUS = {429, 500, 502, 503, 504}
+TRANSIENT_IO = (gaierror, ConnectionError, TimeoutError, IncompleteRead)
 
 
 class BaselineArchiveMissing(RuntimeError):
@@ -44,6 +49,28 @@ def https_location(url):
 class HttpsRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return super().redirect_request(req, fp, code, msg, headers, https_location(newurl))
+
+
+def retry_network(operation):
+    for delay in (1, 2, None):
+        try:
+            return operation()
+        except HTTPError as error:
+            if delay is None or error.code not in TRANSIENT_STATUS:
+                raise
+            retry_after = error.headers.get("Retry-After")
+            if retry_after is not None:
+                if not re.fullmatch(r"[0-9]{1,2}", retry_after) or int(retry_after) > 10:
+                    raise
+                delay = max(delay, int(retry_after))
+            elif error.code == 429:
+                raise
+            error.close()
+        except (URLError, *TRANSIENT_IO) as error:
+            reason = error.reason if isinstance(error, URLError) else error
+            if delay is None or not isinstance(reason, TRANSIENT_IO):
+                raise
+        time.sleep(delay)
 
 
 def package_from_archive(archive, destination, filename):
@@ -72,8 +99,11 @@ def fetch(run_id, commit, version, architecture, output, token, platform="ubuntu
     def api(path):
         return opener.open(Request(API + path, headers=headers), timeout=30)
 
-    with api(f"/actions/runs/{run_id}") as response:
-        run = json.load(response)
+    def api_json(path):
+        with api(path) as response:
+            return json.load(response)
+
+    run = retry_network(lambda: api_json(f"/actions/runs/{run_id}"))
     if (run["head_sha"] != commit or run["path"] != ".github/workflows/verify.yml"
             or run["event"] != "push" or run["status"] != "completed"
             or run["conclusion"] != "success"
@@ -83,9 +113,8 @@ def fetch(run_id, commit, version, architecture, output, token, platform="ubuntu
     stem = {"macos-disk-image": "macos-disk-image", "ios-simulator": "ios-simulator",
             "android": "android-terminal"}.get(platform, f"{platform}-desktop")
     expected = f"{stem}-{runner_arch}-attempt-{run['run_attempt']}"
-    with api(f"/actions/runs/{run_id}/artifacts?per_page=100") as response:
-        found = [item for item in json.load(response)["artifacts"]
-                 if item["name"] == expected and not item["expired"]]
+    artifacts = retry_network(lambda: api_json(f"/actions/runs/{run_id}/artifacts?per_page=100"))
+    found = [item for item in artifacts["artifacts"] if item["name"] == expected and not item["expired"]]
     if not found:
         raise BaselineArchiveMissing("The verified desktop archive is unavailable.")
     if len(found) != 1 or not re.fullmatch(r"sha256:[0-9a-f]{64}", found[0].get("digest") or ""):
@@ -93,7 +122,7 @@ def fetch(run_id, commit, version, architecture, output, token, platform="ubuntu
     artifact = found[0]
 
     try:
-        with api(f"/actions/artifacts/{artifact['id']}/zip"):
+        with retry_network(lambda: api(f"/actions/artifacts/{artifact['id']}/zip")):
             raise ValueError("Expected a redirect for the desktop artifact download.")
     except HTTPError as error:
         if error.code != 302:
@@ -117,17 +146,22 @@ def fetch(run_id, commit, version, architecture, output, token, platform="ubuntu
         temporary = Path(directory)
         archive = temporary / "artifact.zip"
         size = artifact["size_in_bytes"]
-        written = 0
-        digest = hashlib.sha256()
         download = build_opener(HttpsRedirect())
-        with download.open(location, timeout=40) as stream, archive.open("wb") as file:
-            while chunk := stream.read(1024 * 1024):
-                written += len(chunk)
-                if written > size:
-                    raise ValueError("The desktop artifact exceeded its recorded size.")
-                digest.update(chunk)
-                file.write(chunk)
-        if written != size or "sha256:" + digest.hexdigest() != artifact["digest"]:
+
+        def download_archive():
+            written = 0
+            digest = hashlib.sha256()
+            with download.open(location, timeout=40) as stream, archive.open("wb") as file:
+                while chunk := stream.read(1024 * 1024):
+                    written += len(chunk)
+                    if written > size:
+                        raise ValueError("The desktop artifact exceeded its recorded size.")
+                    digest.update(chunk)
+                    file.write(chunk)
+            return written, digest.hexdigest()
+
+        written, digest = retry_network(download_archive)
+        if written != size or "sha256:" + digest != artifact["digest"]:
             raise ValueError("The desktop artifact did not match GitHub’s recorded digest.")
         package_from_archive(archive, temporary, filename)
         shutil.move(temporary / filename, output / filename)

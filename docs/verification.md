@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.223.0 · Native upgrade baseline download recovery
+
+- Downloader fixtures reproduce a DNS error from the native upgrade job, a timeout, an interrupted archive transfer and temporary HTTP errors. They verify the retry limit, the prescribed delay for HTTP 429 and a complete restart after a partial transfer.
+- Fixtures verify that the downloader preserves HTTPS redirects, keeps the bearer token on the GitHub API requests and stops on a digest mismatch or permanent failure. A failed check preserves the previous verified package.
+
+[Native upgrade baselines](platforms.md#native-upgrade-baselines)
+
 ## 0.222.0 · Monthly returns over WebSocket and gRPC
 
 - Actual loopback WebSocket sessions verify formula credentials, an earlier cutoff, disconnect and resume, late observations, empty evidence and final closure. The signed and zero results match REST.
