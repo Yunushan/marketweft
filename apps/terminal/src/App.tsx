@@ -100,6 +100,7 @@ const chartTypeLabels: Record<ChartType, string> = {
   'high-low-band': 'High-low band',
   'rebased-percent': 'Rebased percent change',
   drawdown: 'Peak-to-trough drawdown',
+  'time-underwater': 'Time Underwater',
   'confirmed-swings': 'Confirmed close swings',
   ohlc: 'OHLC bars',
   'heikin-ashi': 'Heikin-Ashi',

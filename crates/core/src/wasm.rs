@@ -4529,6 +4529,20 @@ pub extern "C" fn mw_observed_drawdown() -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_observed_time_underwater() -> u32 {
+    process(|input| {
+        let rows = crate::observed_time_underwater(&decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 24);
+        for row in rows {
+            bytes.extend_from_slice(&row.peak_at.to_le_bytes());
+            bytes.extend_from_slice(&row.peak_close.to_le_bytes());
+            bytes.extend_from_slice(&row.elapsed_seconds.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_monthly_returns(first_year: u16, last_year: u16, known_through: i64) -> u32 {
     process(|input| {
         let months =

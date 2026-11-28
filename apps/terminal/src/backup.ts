@@ -96,9 +96,11 @@ const ACCELERATION_BANDS_BACKUP_VERSION = 87
 const TRUE_RANGE_BACKUP_VERSION = 88
 const CLOSE_STANDARD_DEVIATION_BACKUP_VERSION = 89
 const LEAST_SQUARES_BACKUP_VERSION = 90
+const TIME_UNDERWATER_BACKUP_VERSION = 91
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
+  if (Object.values(preferences.chartTypes ?? {}).includes('time-underwater')) return TIME_UNDERWATER_BACKUP_VERSION
   const studies = Object.values(preferences.studies ?? {})
   if (studies.some(pane => pane?.lsma)) return LEAST_SQUARES_BACKUP_VERSION
   if (studies.some(pane => pane?.close_stddev)) return CLOSE_STANDARD_DEVIATION_BACKUP_VERSION
@@ -332,6 +334,7 @@ export async function verifyWorkspaceBackup(
     TRUE_RANGE_BACKUP_VERSION,
     CLOSE_STANDARD_DEVIATION_BACKUP_VERSION,
     LEAST_SQUARES_BACKUP_VERSION,
+    TIME_UNDERWATER_BACKUP_VERSION,
     PRICE_VOLUME_SCATTER_BACKUP_VERSION,
     NORMALIZED_PRICE_AND_RANGE_BACKUP_VERSION,
     STOCHASTIC_RSI_AND_ULTIMATE_BACKUP_VERSION,

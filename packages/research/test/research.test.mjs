@@ -9,6 +9,17 @@ const [csv, wasm, expectedWasm] = await Promise.all([
   readFile(sample, 'utf8'), readFile(new URL(MARKET_CORE_WASM_URL)), readFile(checkedInCore),
 ])
 
+test('the public SDK measures Time Underwater in whole UTC seconds with signed peak evidence', async () => {
+  const source = await readFile(new URL('../../../crates/core/tests/fixtures/synthetic-time-underwater.csv', import.meta.url), 'utf8')
+  const engine = await createResearchEngine(wasm)
+  const bars = engine.parseBars(source)
+  const report = engine.observedTimeUnderwater(bars)
+  assert.deepEqual(report[1], { peakAt: 1748872800, peakClose: -3000000n, elapsedSeconds: 60 })
+  assert.deepEqual(report[5], { peakAt: 1748873160, peakClose: 100000000n, elapsedSeconds: 0 })
+  assert.equal(report.at(-1).elapsedSeconds, 300)
+  assert.deepEqual(engine.observedTimeUnderwater(bars.slice(0, 5)), report.slice(0, 5))
+})
+
 test('the public SDK scans completed star patterns at an inclusive observation cutoff', async () => {
   const fixture = name => readFile(new URL('../../../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8')
   const [calendar, source] = await Promise.all([fixture('synthetic-candle-star-sessions'), fixture('synthetic-candle-stars')])

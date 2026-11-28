@@ -313,6 +313,38 @@ pub fn observed_drawdown(bars: &[Bar]) -> Result<Vec<Option<DrawdownPoint>>, Str
         .collect()
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TimeUnderwaterPoint {
+    pub peak_at: i64,
+    pub peak_close: i64,
+    pub elapsed_seconds: i64,
+}
+
+/// Measure elapsed UTC seconds since the most recent observation at the
+/// highest close. A return to the same peak resets the duration to zero.
+pub fn observed_time_underwater(bars: &[Bar]) -> Result<Vec<TimeUnderwaterPoint>, String> {
+    if bars.len() > MAX_BARS {
+        return Err("Time Underwater supports up to 100,000 bars.".into());
+    }
+    let mut previous = None;
+    let mut peak: Option<&Bar> = None;
+    bars.iter()
+        .enumerate()
+        .map(|(index, bar)| {
+            validate_ohlcv(bar, index)?;
+            validate_bar_time(bar.time, previous, index)?;
+            previous = Some(bar.time);
+            let source = peak.filter(|prior| prior.close > bar.close).unwrap_or(bar);
+            peak = Some(source);
+            Ok(TimeUnderwaterPoint {
+                peak_at: source.time,
+                peak_close: source.close,
+                elapsed_seconds: bar.time - source.time,
+            })
+        })
+        .collect()
+}
+
 pub(crate) fn percent_change(close: i64, base: i64) -> Option<i128> {
     let base = i128::from(base);
     if base == 0 {

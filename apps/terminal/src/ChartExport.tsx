@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import type { SeriesMetadata } from './catalog-schema'
 import { chartCsv } from './chart-export'
-import type { AnchoredTwapSeries, AnchoredVwapSeries, BarRange, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, ExportOverlay, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView, TrueRangeSeries } from './chart-export'
+import type { AnchoredTwapSeries, AnchoredVwapSeries, BarRange, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, ExportOverlay, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView, TimeUnderwaterSeries, TrueRangeSeries } from './chart-export'
 import { downloadFile } from './download'
 import type { Asset } from './workspace'
 
-export function ChartExport({ asset, visible, metadata, overlays, timeframe, closeChanges, openingGaps, trueRanges, rebasedReturns, drawdowns, swings, closeDistributions, anchoredVwaps, anchoredTwaps }: {
+export function ChartExport({ asset, visible, metadata, overlays, timeframe, closeChanges, openingGaps, trueRanges, rebasedReturns, drawdowns, timeUnderwater, swings, closeDistributions, anchoredVwaps, anchoredTwaps }: {
   asset: Asset
   visible: BarRange
   metadata?: SeriesMetadata
@@ -16,6 +16,7 @@ export function ChartExport({ asset, visible, metadata, overlays, timeframe, clo
   trueRanges?: TrueRangeSeries
   rebasedReturns?: RebasedReturnSeries
   drawdowns?: DrawdownSeries
+  timeUnderwater?: TimeUnderwaterSeries
   swings?: SwingSeries
   closeDistributions?: CloseDistributionSeries
   anchoredVwaps?: readonly AnchoredVwapSeries[]
@@ -26,7 +27,7 @@ export function ChartExport({ asset, visible, metadata, overlays, timeframe, clo
   const [error, setError] = useState('')
   function download() {
     const interval = range === 'visible' ? visible : { start: 0, end: asset.bars.length }
-    const analysis = format === 'analysis' ? { overlays, timeframe, closeChanges, openingGaps, trueRanges, rebasedReturns, drawdowns, swings, closeDistributions, anchoredVwaps, anchoredTwaps } : undefined
+    const analysis = format === 'analysis' ? { overlays, timeframe, closeChanges, openingGaps, trueRanges, rebasedReturns, drawdowns, timeUnderwater, swings, closeDistributions, anchoredVwaps, anchoredTwaps } : undefined
     const identity = (asset.venue + '-' + asset.symbol).replace(/[^A-Za-z0-9_.-]/g, '_')
     const intervalName = timeframe ? '-' + timeframe.targetSeconds + 's' : ''
     setError('')

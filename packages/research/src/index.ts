@@ -12,6 +12,7 @@ export type {
   ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
   ScalarPluginPoint, ScreenPrice, ScreenRow, TradeClassification, TradeClassificationQuery, TradeSideBasis, TrailingFourQuarters,
   RecordedTradePrint,
+  TimeUnderwaterPoint,
 } from './core.js'
 
 export const RESEARCH_SDK_VERSION = 1
@@ -76,6 +77,7 @@ export interface MarketResearch {
   rollingCloseStandardDeviation: MarketCore['rollingCloseStandardDeviation']
   leastSquaresMovingAverage: MarketCore['leastSquaresMovingAverage']
   replayCandlePatterns: MarketCore['replayCandlePatterns']
+  observedTimeUnderwater: MarketCore['observedTimeUnderwater']
   classifyRecordedTrades: MarketCore['classifyRecordedTrades']
   paperDepthIndex: MarketCore['paperDepthIndex']
   paperDepthReplay: MarketCore['paperDepthReplay']
@@ -135,6 +137,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     rollingCloseStandardDeviation: core.rollingCloseStandardDeviation,
     leastSquaresMovingAverage: core.leastSquaresMovingAverage,
     replayCandlePatterns: core.replayCandlePatterns,
+    observedTimeUnderwater: core.observedTimeUnderwater,
     classifyRecordedTrades: core.classifyRecordedTrades,
     paperDepthIndex: core.paperDepthIndex,
     paperDepthReplay: core.paperDepthReplay,

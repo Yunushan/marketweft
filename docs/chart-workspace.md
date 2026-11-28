@@ -102,6 +102,14 @@ Negative closes and incomplete timeframe buckets leave a gap and preserve the pr
 
 The readout and analysis CSV include the observed peak's UTC timestamp and exact close. A visible-only analysis export keeps that peak evidence when the peak is outside the export range. The OHLCV reimport format retains its original fields. Version 44 backups preserve the selected chart types.
 
+### Time Underwater
+
+Choose **Time Underwater** to plot whole UTC seconds since the most recent observation at the running high close. The first observed close is the initial peak. A higher close or a recovery to the same peak resets the clock to zero. Signed closes participate in the calculation, and elapsed time includes unobserved intervals.
+
+Set **Known through (UTC)** independently in either pane. Source bars use their recorded timestamps. With a timeframe, eligible observations use the close of each fully covered bucket. Incomplete buckets show a blank and leave the running peak unchanged. Analysis CSV records the cutoff, peak UTC second, signed peak close and elapsed seconds. Workspace backup version 91 preserves the selected chart types.
+
+In the sample, the source chart reads 180 seconds at 14:05 UTC on June 2, 2025 and resets to zero at 14:06 UTC. With a two-minute timeframe, the bucket ending at 14:04 has incomplete coverage. At 14:06 the rolled chart reads 240 seconds from its previous complete peak of −4. [Synthetic source bars](../crates/core/tests/fixtures/synthetic-time-underwater.csv)
+
 ### Confirmed close swings
 
 Choose **Confirmed close swings** and set the number of bars on either side of a candidate close. Each side accepts 1 through 1,000 bars and starts at two. An eligible high or low must be the first occurrence of the maximum or minimum across that window. A gap restarts the window. The faded line shows observed closes and the markers show the earlier pivot prices on the confirming columns.

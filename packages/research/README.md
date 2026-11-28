@@ -88,3 +88,5 @@ Call `rollingCloseStandardDeviation(20, bars)` to calculate population standard 
 Call `leastSquaresMovingAverage(14, bars)` for the least-squares fitted close at the last observed index of each full window. The SDK returns exact price millionths as `bigint` or `null` before the full window. [Least Squares Moving Average](../../docs/chart-workspace.md#least-squares-moving-average)
 
 Call `replayCandlePatterns(calendarCsv, 60, bars, knownAt)` to classify completed raw candles using an inclusive UTC cutoff in Unix seconds. Each match identifies its pattern, final candle index and observation second. [Candlestick pattern rules](../../docs/candlestick-patterns.md)
+
+Call `observedTimeUnderwater(bars)` for elapsed UTC seconds since the most recent running peak. Each observation returns the peak UTC second, exact peak close as `bigint` millionths and elapsed seconds. [Time Underwater](../../docs/chart-workspace.md#time-underwater)

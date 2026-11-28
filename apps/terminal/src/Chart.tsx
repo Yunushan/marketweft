@@ -16,7 +16,7 @@ import { fanRays, fibonacciChannelRays, pitchforkRays } from './annotation-rays'
 import { equivolumeLayout, volumeOffsets } from './equivolume'
 import { drawPriceVolumeScatter, priceVolumeScatter } from './price-volume-scatter'
 import { ChartExport } from './ChartExport'
-import type { AnchoredTwapSeries, AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView, TrueRangeSeries } from './chart-export'
+import type { AnchoredTwapSeries, AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView, TimeUnderwaterSeries, TrueRangeSeries } from './chart-export'
 import { DrawingEditor, MeasurementReadout, endpointFields, parseEndpoint } from './DrawingEditor'
 import type { DrawingFields, EndpointName } from './DrawingEditor'
 import { dateLabel, price, timeLabel, utc, volume } from './workspace'
@@ -96,6 +96,7 @@ const chartNames: Record<ChartType, string> = {
   'high-low-band': 'high-low band',
   'rebased-percent': 'rebased percent change',
   drawdown: 'peak-to-trough drawdown',
+  'time-underwater': 'Time Underwater',
   'confirmed-swings': 'confirmed close swing',
   'close-distribution': 'close distribution',
   ohlc: 'OHLC bar',
@@ -208,7 +209,7 @@ function draw(
   closeChanges: CloseChangeSeries | undefined,
   openingGaps: OpeningGapSeries | undefined,
   trueRanges: TrueRangeSeries | undefined,
-  percentPlot: Series | undefined,
+  derivedPlot: Series | undefined,
   swings: SwingSeries | undefined,
   closeDistributions: CloseDistributionSeries | undefined,
   bandSeconds: number | undefined,
@@ -238,9 +239,10 @@ function draw(
     rangeHistogram ? trueRanges?.values[index]?.rangeTicks : closeChanges?.values[index]
   const openingGapChart = type === 'opening-gap'
   const percentAxis = type === 'rebased-percent' || type === 'drawdown'
-  const derivedAxis = histogram || percentAxis
+  const durationAxis = type === 'time-underwater'
+  const derivedAxis = histogram || percentAxis || durationAxis
   const derivedValue = (index: number) => histogram ? plotValue(histogramTicks(index) ?? null) :
-    percentPlot?.[index] ?? null
+    derivedPlot?.[index] ?? null
   const volumeWeighted = type === 'volume-candles'
   const hollowCandles = type === 'hollow-candles'
   const rangeBand = type === 'high-low-band'
@@ -310,8 +312,13 @@ function draw(
     high === low
       ? Math.max(Math.abs(high) * 0.00001, 0.000001)
       : (high - low) * 0.07
-  high += delta
-  low -= delta
+  if (durationAxis) {
+    high = Math.max(1, high + delta)
+    low = 0
+  } else {
+    high += delta
+    low -= delta
+  }
   ctx.font = '10px "IBM Plex Mono", Consolas, monospace'
   const tickDigits = clamp(Math.ceil(-Math.log10((high - low) / 5)), 2, 7)
   const tickFormat = new Intl.NumberFormat('en-US', {
@@ -319,7 +326,7 @@ function draw(
     maximumFractionDigits: tickDigits,
   })
   const ticksY = Array.from({ length: 6 }, (_, t) =>
-    tickFormat.format(high - ((high - low) * t) / 5) + (percentAxis ? '%' : ''),
+    tickFormat.format(high - ((high - low) * t) / 5) + (percentAxis ? '%' : durationAxis ? ' s' : ''),
   )
   const studyPanels = studies.map(study => {
     const fixedScale = FIXED_STUDY_SCALES[study.kind]
@@ -344,7 +351,7 @@ function draw(
     return { ...study, low, high, ticks: [...new Set(ticks)].sort((a, b) => a - b), format, guides }
   })
   const studyLabels = studyPanels.flatMap(panel => panel.ticks.map(panel.format))
-  const closeLabel = percentAxis ? '0%' : histogram ? '0' :
+  const closeLabel = percentAxis ? '0%' : durationAxis ? '0 s' : histogram ? '0' :
     price(openingGapChart ? bars[view.end - 1].open : bars[view.end - 1].close)
   const axisWidth = Math.max(
     64,
@@ -697,13 +704,13 @@ function draw(
     ctx.fillStyle = '#a2b4af'
     ctx.fillText(closeLabel, right + 7, zero)
   }
-  if (percentPlot) {
+  if (derivedPlot) {
     if (type === 'drawdown') {
       const zero = y(0)
       ctx.fillStyle = 'rgba(236, 129, 126, 0.18)'
       let open = false
       for (let index = start; index <= view.end; index++) {
-        const value = index === view.end ? null : percentPlot[index]
+        const value = index === view.end ? null : derivedPlot[index]
         if (value != null) {
           if (!open) {
             ctx.beginPath()
@@ -719,7 +726,7 @@ function draw(
         }
       }
     }
-    drawStudyLine(ctx, percentPlot, start, view.end, x, y, type === 'drawdown' ? DOWN : CLOSE_LINE, 3)
+    drawStudyLine(ctx, derivedPlot, start, view.end, x, y, type === 'drawdown' || durationAxis ? DOWN : CLOSE_LINE, 3)
   }
   if (histogram) {
     const zero = y(0)
@@ -1241,6 +1248,7 @@ export function Chart({
   trueRanges,
   rebasedReturns,
   drawdowns,
+  timeUnderwater,
   swings,
   closeDistributions,
   anchoredVwaps,
@@ -1276,6 +1284,7 @@ export function Chart({
   trueRanges?: TrueRangeSeries
   rebasedReturns?: RebasedReturnSeries
   drawdowns?: DrawdownSeries
+  timeUnderwater?: TimeUnderwaterSeries
   swings?: SwingSeries
   closeDistributions?: CloseDistributionSeries
   anchoredVwaps?: readonly AnchoredVwapSeries[]
@@ -1422,8 +1431,11 @@ export function Chart({
   const volumeBar = volumes?.[sourceIndex]
   const notional = notionals?.[sourceIndex]
   const observation = observedAt?.[sourceIndex]
-  const percentPlot = useMemo(() => drawdowns ? drawdowns.map(point => plotValue(point?.percent ?? null)) :
-    rebasedReturns?.values.map(plotValue), [drawdowns, rebasedReturns])
+  const derivedPlot = useMemo(() => {
+    if (timeUnderwater) return timeUnderwater.values.map(point => point?.elapsedSeconds ?? null)
+    if (drawdowns) return drawdowns.map(point => plotValue(point?.percent ?? null))
+    return rebasedReturns?.values.map(plotValue)
+  }, [drawdowns, rebasedReturns, timeUnderwater])
   const drawdown = type === 'drawdown'
   const point = drawdowns?.[sourceIndex]
   const percentChange = point?.percent ?? rebasedReturns?.values[sourceIndex]
@@ -1431,6 +1443,8 @@ export function Chart({
   const baseClose = point ? fixed(point.peakClose, 6) : rebasedReturns?.baseClose === undefined ? undefined :
     fixed(BigInt(Math.round(rebasedReturns.baseClose * 1e6)), 6)
   const percentAxis = drawdown || type === 'rebased-percent'
+  const durationAxis = type === 'time-underwater'
+  const underwaterPoint = timeUnderwater?.values[sourceIndex]
   const swingChart = type === 'confirmed-swings'
   const swingPoint = swings?.values[sourceIndex]
   const distributionChart = type === 'close-distribution'
@@ -1519,7 +1533,7 @@ export function Chart({
           closeChanges,
           openingGaps,
           trueRanges,
-          percentPlot,
+          derivedPlot,
           swings,
           closeDistributions,
           bandSeconds,
@@ -1532,7 +1546,7 @@ export function Chart({
           activeStudyPlotValues,
           scatter,
         )
-  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, drawingLevels, type, equivolumeOffsets, baselineTicks, closeChanges, openingGaps, trueRanges, percentPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues, scatter])
+  }, [plotted, view, plottedSma, plottedEma, active, size, drawing, annotations, markerTimeline, drawingLevels, type, equivolumeOffsets, baselineTicks, closeChanges, openingGaps, trueRanges, derivedPlot, swings, closeDistributions, bandSeconds, timeframe, kagi, pointFigure, crosshairPrice, plottedStudies, plottedPriceLines, activeStudyPlotValues, scatter])
   function pan(amount: number) {
     hover(null)
     setView((v) => changeView(v, n, v.count, amount))
@@ -1613,14 +1627,14 @@ export function Chart({
     picker.accept({ ticks, time: original ?? observed?.sourceTime ?? bars[index].time })
     setAnnotationPicker(null)
   }
-  const priceReadout = !swingChart && !distributionChart && !percentAxis && !histogram && !rangeHistogram && !openingGapChart && !box && !segment && !movement && !displayBars
+  const priceReadout = !swingChart && !distributionChart && !percentAxis && !durationAxis && !histogram && !rangeHistogram && !openingGapChart && !box && !segment && !movement && !displayBars
     ? `${asset.symbol} OHLCV. Open ${price(b.open)}, high ${price(b.high)}, low ${price(b.low)}, close ${price(b.close)}, volume ${volume(b.volume)}`
     : undefined
   return (
-    <section className="plot" aria-label={closeBased || scatterChart || histogram || rangeHistogram || percentAxis || swingChart || distributionChart || openingGapChart || type === 'equivolume' ? chartNames[type] + ' chart' : 'Price and volume chart'}
+    <section className="plot" aria-label={closeBased || scatterChart || histogram || rangeHistogram || percentAxis || durationAxis || swingChart || distributionChart || openingGapChart || type === 'equivolume' ? chartNames[type] + ' chart' : 'Price and volume chart'}
       data-crosshair-time={active === null ? undefined : time}>
-      <div className="ohlc" role={scatterChart || displayBars || movement || selectedObservation || priceReadout || distributionChart || openingGapChart || rangeHistogram ? 'group' : undefined}
-        aria-label={scatterChart ? 'Close and volume point' : openingGapChart ? 'Opening gap prices' : rangeHistogram ? 'True Range evidence' : distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
+      <div className="ohlc" role={scatterChart || displayBars || movement || selectedObservation || priceReadout || distributionChart || openingGapChart || rangeHistogram || durationAxis ? 'group' : undefined}
+        aria-label={scatterChart ? 'Close and volume point' : openingGapChart ? 'Opening gap prices' : rangeHistogram ? 'True Range evidence' : durationAxis ? 'Time Underwater evidence' : distributionChart ? 'Close distribution values' : box ? 'Point and Figure box' : segment ? 'Kagi line' : movement ? (isRenko ? 'Renko brick' : 'Three Line Break line') :
           displayBars ? 'Heikin-Ashi prices' : priceReadout}>
         <time>{timeLabel(time)} UTC</time>
         {scatterChart ? <>
@@ -1660,6 +1674,13 @@ export function Chart({
           {baseAt !== undefined && baseClose !== undefined && time >= baseAt &&
             <span><small>{drawdown ? 'Peak close' : 'Base close'}</small> {baseClose} · {timeLabel(baseAt)} UTC</span>}
           <span className="ohlc-vol"><small>Vol</small> {volume(b.volume)}</span>
+        </> : durationAxis ? <>
+          <span><small>Time underwater</small> {underwaterPoint ? underwaterPoint.elapsedSeconds + ' s' : 'Missing'}</span>
+          <span><small>Observed close</small> {fixed(BigInt(Math.round(b.close * 1e6)), 6)}</span>
+          {underwaterPoint && <>
+            <span><small>Peak close</small> {fixed(underwaterPoint.peakClose, 6)}</span>
+            <span><small>Peak UTC</small> {utc(underwaterPoint.peakAt)}</span>
+          </>}
         </> : rangeHistogram ? <>
           <span><small>True Range</small> {trueRange ? fixed(trueRange.rangeTicks, 6) : 'Missing'}</span>
           <span><small>High</small> {fixed(BigInt(Math.round(b.high * 1e6)), 6)}</span>
@@ -1803,7 +1824,7 @@ export function Chart({
         style={panels.length ? { height: `calc(var(--price-chart-height) + ${110 * panels.length}px)` } : undefined}>
         <canvas
           tabIndex={0}
-          aria-label={asset.symbol + ' interactive ' + chartNames[type] + (closeBased || scatterChart || type === 'equivolume' ? ' chart' : ' and volume chart')}
+          aria-label={asset.symbol + ' interactive ' + chartNames[type] + (closeBased || scatterChart || durationAxis || type === 'equivolume' ? ' chart' : ' and volume chart')}
           ref={ref}
           onPointerDown={(e) => {
             if (e.button !== 0) return
@@ -1954,7 +1975,7 @@ export function Chart({
       {exportOptions && (
         <ChartExport asset={asset} visible={{ start: sourceStart, end: sourceEnd }} metadata={exportOptions.metadata}
           timeframe={timeframe} closeChanges={closeChanges} openingGaps={openingGaps} trueRanges={trueRanges}
-          rebasedReturns={rebasedReturns} drawdowns={drawdowns} swings={swings}
+          rebasedReturns={rebasedReturns} drawdowns={drawdowns} timeUnderwater={timeUnderwater} swings={swings}
           closeDistributions={closeDistributions} anchoredVwaps={anchoredVwaps} anchoredTwaps={anchoredTwaps}
           overlays={[
             ...(periods ? [

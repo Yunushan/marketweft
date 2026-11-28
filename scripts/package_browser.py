@@ -54,6 +54,8 @@ Import rolling-regression.csv and enable Least Squares Moving Average with a
 three-bar period. The last fitted close is -3.5.
 Import true-range.csv and choose True Range histogram to inspect exact
 range and prior close evidence. Try a cutoff at 14:04 UTC on June 2, 2025.
+Import time-underwater.csv and choose Time Underwater. The source chart
+reports 180 seconds at 14:05 UTC on June 2, 2025 and zero at 14:06 UTC.
 Choose Close line to plot observed closing prices, or Candles for OHLC.
 Choose OHLC bars for a high-low stem with left-open and right-close ticks.
 Choose a chart type independently in each pane.
@@ -331,6 +333,7 @@ def main():
     files["close-dispersion.csv"] = (fixture / "synthetic-close-dispersion.csv").read_bytes()
     files["rolling-regression.csv"] = (fixture / "synthetic-rolling-regression.csv").read_bytes()
     files["true-range.csv"] = (fixture / "synthetic-true-range.csv").read_bytes()
+    files["time-underwater.csv"] = (fixture / "synthetic-time-underwater.csv").read_bytes()
     files["candle-pattern-sessions.csv"] = (fixture / "synthetic-candle-pattern-sessions.csv").read_bytes()
     for kind in ("underlying", "quotes"):
         files[f"option-{kind}.csv"] = (fixture / f"synthetic-option-{kind}.csv").read_bytes()

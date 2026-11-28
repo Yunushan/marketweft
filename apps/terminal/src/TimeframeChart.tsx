@@ -8,12 +8,12 @@ import { DEFAULT_KAGI_TICKS, DEFAULT_POINT_FIGURE_TICKS, DEFAULT_RENKO_TICKS, DE
 import type { SwingSettings } from './catalog-schema'
 import { fixed, parsePriceSize, tickPrice } from './fixed-point'
 import type { KagiSegment, PointFigureBox, PriceMovement } from './market-core'
-import type { AnchoredTwapSeries, AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView, TrueRangeSeries } from './chart-export'
+import type { AnchoredTwapSeries, AnchoredVwapSeries, CloseChangeSeries, CloseDistributionSeries, DrawdownSeries, OpeningGapSeries, RebasedReturnSeries, SwingSeries, TimeframeView, TimeUnderwaterSeries, TrueRangeSeries } from './chart-export'
 import type { Bar, MarketCore } from './market-core'
 import { computeStudies, studyOverlays } from './studies'
 import type { StudySet } from './studies'
 
-type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'openingGaps' | 'trueRanges' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'swings' | 'closeDistributions' | 'anchoredVwaps' | 'anchoredTwaps' | 'sourceObservationTimes' | 'regressionDrawings'> & {
+type Props = Omit<ComponentProps<typeof Chart>, 'sma' | 'ema' | 'studies' | 'timeframe' | 'displayBars' | 'priceMovements' | 'kagiSegments' | 'pointFigureBoxes' | 'pointFigureSize' | 'closeChanges' | 'openingGaps' | 'trueRanges' | 'bandSeconds' | 'rebasedReturns' | 'drawdowns' | 'timeUnderwater' | 'swings' | 'closeDistributions' | 'anchoredVwaps' | 'anchoredTwaps' | 'sourceObservationTimes' | 'regressionDrawings'> & {
   core: MarketCore
   activeSma?: boolean
   activeEma?: boolean
@@ -230,8 +230,9 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
   const [swingCutoff, setSwingCutoff] = useState<number>()
   const [gapCutoff, setGapCutoff] = useState<number>()
   const [rangeCutoff, setRangeCutoff] = useState<number>()
+  const [underwaterCutoff, setUnderwaterCutoff] = useState<number>()
   const cutoff = type === 'confirmed-swings' ? swingCutoff : type === 'opening-gap' ? gapCutoff :
-    type === 'true-range' ? rangeCutoff : undefined
+    type === 'true-range' ? rangeCutoff : type === 'time-underwater' ? underwaterCutoff : undefined
   const timeframe = useMemo(() => {
     if (!rolled || rolled.sourceBars !== asset.bars) return undefined
     if (cutoff === undefined) return rolled
@@ -330,6 +331,22 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       return { series: [], error: cause instanceof Error ? cause.message : 'Could not calculate drawdown.' }
     }
   }, [core, type, display.bars, timeframe])
+  const underwater = useMemo<{ series?: TimeUnderwaterSeries; error?: string }>(() => {
+    if (type !== 'time-underwater') return {}
+    try {
+      if (!timeframe) return { series: { cutoff, values: core.observedTimeUnderwater(display.bars) } }
+      const complete = timeframe.buckets.map(bucket => bucket.observedBars === bucket.expectedBars)
+      const observations = display.bars.flatMap((bar, index) => complete[index] ? [{
+        ...bar,
+        time: timeframe.mode === 'session' ? timeframe.buckets[index].closeTime : bar.time + timeframe.targetSeconds,
+      }] : [])
+      const points = core.observedTimeUnderwater(observations)
+      let next = 0
+      return { series: { cutoff, values: complete.map(included => included ? points[next++] : null) } }
+    } catch (cause) {
+      return { error: cause instanceof Error ? cause.message : 'Could not calculate Time Underwater.' }
+    }
+  }, [core, type, display.bars, timeframe, cutoff])
   const swingSeconds = timeframe?.targetSeconds ?? swingSettings.seconds ?? defaultInterval
   const { left: swingLeft, right: swingRight } = swingSettings
   const swing = useMemo<{ series?: SwingSeries; error?: string }>(() => {
@@ -366,7 +383,8 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
       return { error: cause instanceof Error ? cause.message : 'Could not calculate close distributions.' }
     }
   }, [core, type, display.bars, timeframe])
-  const drawingTools = type === 'close-change' || type === 'true-range' || type === 'rebased-percent' || type === 'drawdown' ?
+  const drawingTools = type === 'close-change' || type === 'true-range' || type === 'rebased-percent' ||
+    type === 'drawdown' || type === 'time-underwater' ?
     undefined : chart.drawingTools
   const annotations = drawingTools?.annotations
   const sourceWindows = useMemo(() => timeframe ? timeframeSourceWindows(asset.bars, timeframe) : undefined,
@@ -547,6 +565,14 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         {trueRange.error ? <p role="alert">{trueRange.error}</p> : !display.bars.length &&
           <p role="status">No observations are known at this cutoff.</p>}
       </>}
+      {type === 'time-underwater' && <>
+        <ChartCutoff key={'underwater:' + (cutoff ?? 'latest')} label="Time Underwater history cutoff" cutoff={cutoff} apply={value => {
+          onTimestamp?.(null)
+          setUnderwaterCutoff(value)
+        }} />
+        {underwater.error ? <p role="alert">{underwater.error}</p> : !display.bars.length &&
+          <p role="status">No observations are known at this cutoff.</p>}
+      </>}
       {!display.bars.length ? null : transformed && !count ? <>
         {transformed.error ? <p role="alert">{transformed.error}</p> :
           <p role="status">{type === 'renko' ? 'No source close has moved far enough to form a brick at this size.' :
@@ -568,7 +594,7 @@ export function TimeframeChart({ core, activeSma, activeEma, studySettings, asse
         pointFigureBoxes={transformed?.pointFigureBoxes} pointFigureSize={sizeTicks / 1e6} baselineTicks={baselineTicks}
         closeChanges={changes.series} openingGaps={opening.series} trueRanges={trueRange.series}
         bandSeconds={type === 'high-low-band' ? changeInterval : undefined}
-        rebasedReturns={rebased.series} drawdowns={drawdown.series} swings={swing.series}
+        rebasedReturns={rebased.series} drawdowns={drawdown.series} timeUnderwater={underwater.series} swings={swing.series}
         closeDistributions={closeDistributions.series}
         anchoredVwaps={anchoredVwaps} anchoredTwaps={anchoredTwaps} sourceObservationTimes={sourceObservationTimes}
         regressionDrawings={regressionDrawings}

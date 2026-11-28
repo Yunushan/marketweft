@@ -1,7 +1,7 @@
 import type { SeriesMetadata } from './catalog-schema'
 import { sourcePermissionRestriction } from './catalog-schema'
 import { fixed } from './fixed-point'
-import type { AnchoredTwapPoint, AnchoredVwapPoint, CloseDistribution, ConfirmedSwing, DrawdownPoint, OpeningGap, SessionTimeframeBar, TimeframeBar, TrueRangePoint } from './market-core'
+import type { AnchoredTwapPoint, AnchoredVwapPoint, CloseDistribution, ConfirmedSwing, DrawdownPoint, OpeningGap, SessionTimeframeBar, TimeframeBar, TimeUnderwaterPoint, TrueRangePoint } from './market-core'
 import type { Asset } from './workspace'
 
 export type BarRange = { start: number; end: number }
@@ -11,6 +11,7 @@ export type OpeningGapSeries = { cutoff?: number; values: readonly (OpeningGap |
 export type TrueRangeSeries = { cutoff?: number; values: readonly (TrueRangePoint | null)[] }
 export type RebasedReturnSeries = { anchorAt?: number; baseClose?: number; values: readonly (bigint | null)[] }
 export type DrawdownSeries = readonly (DrawdownPoint | null)[]
+export type TimeUnderwaterSeries = { cutoff?: number; values: readonly (TimeUnderwaterPoint | null)[] }
 export type CloseDistributionSeries = { size: number; values: readonly (CloseDistribution | null)[] }
 export type SwingSeries = { left: number; right: number; seconds: number; cutoff?: number;
   values: readonly (ConfirmedSwing | null)[] }
@@ -34,7 +35,7 @@ export function chartCsv(
   asset: Asset,
   range: BarRange,
   metadata: SeriesMetadata | undefined,
-  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; openingGaps?: OpeningGapSeries; trueRanges?: TrueRangeSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries; swings?: SwingSeries; closeDistributions?: CloseDistributionSeries; anchoredVwaps?: readonly AnchoredVwapSeries[]; anchoredTwaps?: readonly AnchoredTwapSeries[] } | undefined,
+  analysis: { overlays: ExportOverlay[]; timeframe?: TimeframeView; closeChanges?: CloseChangeSeries; openingGaps?: OpeningGapSeries; trueRanges?: TrueRangeSeries; rebasedReturns?: RebasedReturnSeries; drawdowns?: DrawdownSeries; timeUnderwater?: TimeUnderwaterSeries; swings?: SwingSeries; closeDistributions?: CloseDistributionSeries; anchoredVwaps?: readonly AnchoredVwapSeries[]; anchoredTwaps?: readonly AnchoredTwapSeries[] } | undefined,
 ) {
   const restriction = sourcePermissionRestriction(metadata?.sourceRights, 'redistribution')
   if (restriction === 'permission')
@@ -61,6 +62,8 @@ export function chartCsv(
       fields.push('rebased_base_time', 'rebased_base_close', 'rebased_return_pct')
     if (analysis.drawdowns)
       fields.push('drawdown_peak_time', 'drawdown_peak_close', 'drawdown_pct')
+    if (analysis.timeUnderwater)
+      fields.push('underwater_known_through', 'underwater_peak_time', 'underwater_peak_close', 'underwater_seconds')
     if (analysis.closeDistributions)
       fields.push('distribution_size', 'distribution_first_time', 'distribution_last_time', 'distribution_minimum',
         'distribution_q1', 'distribution_median', 'distribution_q3', 'distribution_maximum')
@@ -132,6 +135,11 @@ export function chartCsv(
       if (analysis.drawdowns) {
         const point = analysis.drawdowns[index]
         row += ',' + (point ? [point.peakAt, fixed(point.peakClose, 6), fixed(point.percent, 6)].join(',') : ',,')
+      }
+      if (analysis.timeUnderwater) {
+        const point = analysis.timeUnderwater.values[index]
+        row += ',' + [analysis.timeUnderwater.cutoff ?? '', point?.peakAt ?? '',
+          point ? fixed(point.peakClose, 6) : '', point?.elapsedSeconds ?? ''].join(',')
       }
       if (analysis.closeDistributions) {
         const { size, values } = analysis.closeDistributions

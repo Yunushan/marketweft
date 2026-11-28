@@ -10,6 +10,19 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('Time Underwater retains signed peaks, elapsed UTC gaps and equal recoveries', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-time-underwater.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(source);
+  const full = core.observedTimeUnderwater(bars);
+  assert.deepEqual(full.map(row => row.elapsedSeconds), [0, 60, 0, 120, 180, 0, 60, 180, 240, 300]);
+  assert.deepEqual(full[1], { peakAt: 1748872800, peakClose: -3000000n, elapsedSeconds: 60 });
+  assert.deepEqual(full[4], { peakAt: 1748872920, peakClose: 100000000n, elapsedSeconds: 180 });
+  assert.deepEqual(full[5], { peakAt: 1748873160, peakClose: 100000000n, elapsedSeconds: 0 });
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.observedTimeUnderwater(bars.slice(0, end)), full.slice(0, end));
+  assert.throws(() => core.observedTimeUnderwater([bars[0], bars[0]]), /later/);
+});
+
 test('rolling close standard deviation preserves warm-up, signed windows and exact ticks', async () => {
   const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-close-dispersion.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(source);

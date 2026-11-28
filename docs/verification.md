@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.296.0 · Time Underwater chart
+
+- Rust and Wasm verify signed peaks, observed prefixes, elapsed UTC across gaps, exact timestamp bounds, and zero at an equal recovery.
+- Offline Chromium verifies independent source and rolled cutoffs, a gap for incomplete buckets, the exact early session close, byte-identical rewind, and version 91 restore.
+
 ## 0.295.0 · Morning and Evening Stars
 
 - Rust, Wasm and TypeScript verify the four star patterns, signed midpoint rules, missing intervals, session resets, third-close disclosure and reproducible rewind.

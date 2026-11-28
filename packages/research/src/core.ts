@@ -1318,6 +1318,7 @@ export interface PortfolioSpinOffBasis {
 }
 
 export type DrawdownPoint = { peakAt: number; peakClose: bigint; percent: bigint };
+export type TimeUnderwaterPoint = { peakAt: number; peakClose: bigint; elapsedSeconds: number };
 const MONTH_WINDOWS = ['complete', 'month-to-date', 'future'] as const;
 export type MonthlyClose = { at: number; ticks: bigint };
 export interface MonthlyReturn {
@@ -1415,6 +1416,7 @@ export interface MarketCore {
   rollingCloseRegression(period: number, bars: readonly Bar[]): CloseRegressionValues[];
   leastSquaresMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   observedDrawdown(bars: readonly Bar[]): (DrawdownPoint | null)[];
+  observedTimeUnderwater(bars: readonly Bar[]): TimeUnderwaterPoint[];
   observedCloseDistributions(bars: readonly Bar[], size: number): CloseDistribution[];
   monthlyReturns(bars: readonly Bar[], firstYear: number, lastYear: number, knownThrough: number): MonthlyReturn[];
   confirmedCloseSwings(left: number, right: number, intervalSeconds: number, bars: readonly Bar[]): (ConfirmedSwing | null)[];
@@ -1625,6 +1627,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_observed_true_ranges(): number;
   mw_rebased_percent_changes(anchorAt: bigint): number;
   mw_observed_drawdown(): number;
+  mw_observed_time_underwater(): number;
   mw_monthly_returns(firstYear: number, lastYear: number, knownThrough: bigint): number;
   mw_observed_close_distributions(size: number): number;
   mw_regression_channel(startAt: bigint, endAt: bigint): number;
@@ -2973,6 +2976,20 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
           peakAt: Number(out.getBigInt64(start, true)),
           peakClose: out.getBigInt64(start + 8, true),
           percent,
+        };
+      });
+    },
+    observedTimeUnderwater(bars) {
+      if (bars.length > 100_000) throw new Error('Time Underwater supports up to 100,000 bars.');
+      putIndicatorBars(bars, 'Time Underwater');
+      const out = output(api.mw_observed_time_underwater());
+      if (out.byteLength !== bars.length * 24) throw new Error('Invalid Time Underwater response size.');
+      return Array.from({ length: bars.length }, (_, index) => {
+        const start = 24 * index;
+        return {
+          peakAt: Number(out.getBigInt64(start, true)),
+          peakClose: out.getBigInt64(start + 8, true),
+          elapsedSeconds: Number(out.getBigInt64(start + 16, true)),
         };
       });
     },
