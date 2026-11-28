@@ -238,6 +238,39 @@ pub extern "C" fn mw_gann_box_levels(
 }
 
 #[no_mangle]
+pub extern "C" fn mw_fibonacci_channel_levels(
+    start_time: i64,
+    start_ticks: i64,
+    end_time: i64,
+    end_ticks: i64,
+    width_time: i64,
+    width_ticks: i64,
+) -> u32 {
+    process(|_| {
+        let levels = crate::fibonacci_channel_levels(
+            DrawingEndpoint {
+                time: start_time,
+                ticks: start_ticks,
+            },
+            DrawingEndpoint {
+                time: end_time,
+                ticks: end_ticks,
+            },
+            DrawingEndpoint {
+                time: width_time,
+                ticks: width_ticks,
+            },
+        )?;
+        let mut bytes = Vec::with_capacity(levels.len() * 10);
+        for level in levels {
+            bytes.extend_from_slice(&level.ratio_thousandths.to_le_bytes());
+            bytes.extend_from_slice(&level.offset_ticks.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_measure_risk_reward(side: u32, entry: i64, stop: i64, target: i64) -> u32 {
     process(|_| {
         let side = match side {

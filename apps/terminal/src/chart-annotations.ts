@@ -1,5 +1,5 @@
 import { fixed, MAX_CHART_PRICE_TICKS, parsePriceSize } from './fixed-point'
-import type { DrawingEndpoint, RiskRewardSide } from './market-core'
+import type { DrawingEndpoint, MarketCore, RiskRewardSide } from './market-core'
 import { utc } from './workspace'
 
 type TrianglePoints = [DrawingEndpoint, DrawingEndpoint, DrawingEndpoint]
@@ -17,6 +17,7 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'gann-fan'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'gann-box'; start: DrawingEndpoint; end: DrawingEndpoint; divisions: number } |
   { kind: 'fibonacci-extension'; points: TrianglePoints } |
+  { kind: 'fibonacci-channel'; points: TrianglePoints } |
   { kind: 'ellipse'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'triangle'; points: TrianglePoints } |
   { kind: 'pitchfork'; points: TrianglePoints } |
@@ -29,6 +30,7 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'fibonacci-time-zones'; lower: number; upper: number }
 )
 type TwoPointAnnotation = Extract<ChartAnnotation, { end: DrawingEndpoint }>
+type ThreePointKind = Extract<ChartAnnotation, { points: TrianglePoints }>['kind']
 export type AnnotationKind = ChartAnnotation['kind']
 export type TimeColumn = { time: number; column: number }
 
@@ -48,6 +50,7 @@ export const ANNOTATION_NAMES = {
   'gann-fan': 'Gann fan',
   'gann-box': 'Gann box',
   'fibonacci-extension': 'Fibonacci price extension',
+  'fibonacci-channel': 'Fibonacci channel',
   'fibonacci-time-zones': 'Fibonacci time zones',
   ellipse: 'Ellipse',
   triangle: 'Triangle',
@@ -90,6 +93,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'triangle':
     case 'pitchfork':
     case 'fibonacci-extension':
+    case 'fibonacci-channel':
       return second.kind === first.kind && first.points.length === second.points.length &&
         first.points.every((point, index) => sameEndpoint(point, second.points[index]))
     case 'risk-reward':
@@ -104,8 +108,8 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
   }
 }
 
-export function hasPointList(kind: AnnotationKind): kind is 'polyline' | 'triangle' | 'pitchfork' | 'fibonacci-extension' {
-  return kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork' || kind === 'fibonacci-extension'
+export function hasPointList(kind: AnnotationKind): kind is 'polyline' | ThreePointKind {
+  return kind === 'polyline' || kind === 'triangle' || kind === 'pitchfork' || kind === 'fibonacci-extension' || kind === 'fibonacci-channel'
 }
 
 export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
@@ -170,9 +174,13 @@ export function validatePolyline(points: readonly DrawingEndpoint[]): void {
     throw Error('Consecutive polyline points must differ.')
 }
 
-export function validateThreePoints(points: DrawingEndpoint[], kind: 'triangle' | 'pitchfork' | 'fibonacci-extension'): asserts points is TrianglePoints {
+export function validateThreePoints(points: DrawingEndpoint[], kind: ThreePointKind, core: MarketCore): asserts points is TrianglePoints {
   if (points.length !== 3) throw Error('A ' + kind.replace('-', ' ') + ' needs exactly three points.')
   const [origin, second, third] = points
+  if (kind === 'fibonacci-channel') {
+    core.fibonacciChannelLevels([origin, second, third])
+    return
+  }
   if (kind === 'fibonacci-extension') {
     if (origin.time >= second.time || second.time >= third.time)
       throw Error('Fibonacci price extension times must run from earliest to latest.')

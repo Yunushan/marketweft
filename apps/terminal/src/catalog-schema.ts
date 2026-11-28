@@ -1,5 +1,5 @@
 import type { DrawingEndpoint, MarketCore, MeasuredDrawing } from './market-core'
-import { hasRange, rangeBounds, validAnnotationAnchor, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints } from './chart-annotations'
+import { hasPointList, hasRange, rangeBounds, validAnnotationAnchor, validateAnnotationGeometry, validateNoteText, validatePolyline, validateThreePoints } from './chart-annotations'
 import type { ChartAnnotation } from './chart-annotations'
 import { MAX_CHART_PRICE_TICKS } from './fixed-point'
 import { validIndicatorPeriod, validRsiPeriod } from './market-core'
@@ -215,6 +215,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           rectangle: ['start', 'end'], channel: ['start', 'end', 'offsetTicks'],
           polyline: ['points'], fibonacci: ['start', 'end'], ellipse: ['start', 'end'], triangle: ['points'], pitchfork: ['points'], note: ['start', 'text'], arrow: ['start', 'end'],
           'fibonacci-extension': ['points'], 'fibonacci-fan': ['start', 'end'], 'gann-fan': ['start', 'end'],
+          'fibonacci-channel': ['points'],
           'gann-box': ['start', 'end', 'divisions'],
           'risk-reward': ['side', 'start', 'end', 'stopTicks'],
           'price-range': ['lower', 'upper'], 'time-range': ['lower', 'upper'], 'regression-channel': ['lower', 'upper'], 'fibonacci-time-zones': ['lower', 'upper'],
@@ -236,11 +237,11 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           if (!validAnnotationAnchor('time', entry.time)) throw Error('Invalid chart annotation time.')
           return { id, kind: type, time: entry.time }
         }
-        if (type === 'polyline' || type === 'triangle' || type === 'pitchfork' || type === 'fibonacci-extension') {
+        if (hasPointList(type)) {
           if (!Array.isArray(entry.points)) throw Error('Invalid chart annotation points.')
           const points = Array.from(entry.points, annotationEndpoint)
           if (type !== 'polyline') {
-            validateThreePoints(points, type)
+            validateThreePoints(points, type, core)
             return { id, kind: type, points }
           }
           validatePolyline(points)

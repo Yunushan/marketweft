@@ -1191,6 +1191,7 @@ export type AnchoredVwapPoint = { price: bigint; cumulativeVolume: bigint };
 
 export type RiskRewardSide = 'long' | 'short';
 export type GannFanLevel = { priceUnits: number; timeUnits: number; ticks: bigint };
+export type FibonacciChannelLevel = { ratioThousandths: number; offsetTicks: bigint };
 export type VortexValue = { positive: bigint; negative: bigint };
 export type ElderRayValue = { bull: bigint; bear: bigint };
 export type FloorPivotLevels = { priorCloseAt: number; pivot: bigint; supportOne: bigint; supportTwo: bigint;
@@ -1228,6 +1229,7 @@ export interface MarketCore {
   measureDrawing(drawing: MeasuredDrawing): DrawingMeasurement;
   gannFanLevels(drawing: MeasuredDrawing): GannFanLevel[];
   gannBoxLevels(drawing: MeasuredDrawing & { divisions: number }): DrawingEndpoint[];
+  fibonacciChannelLevels(points: readonly [DrawingEndpoint, DrawingEndpoint, DrawingEndpoint]): FibonacciChannelLevel[];
   measureRiskReward(side: RiskRewardSide, entry: number, stop: number, target: number): RiskRewardMeasurement;
   indicator(kind: 'sma' | 'ema' | 'rsi' | 'atr', period: number, bars: readonly Bar[]): (number | null)[];
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
@@ -1385,6 +1387,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
   mw_gann_fan_levels(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
   mw_gann_box_levels(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint, divisions: number): number;
+  mw_fibonacci_channel_levels(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint, widthTime: bigint, widthTicks: bigint): number;
   mw_vortex_indicator(period: number): number;
   mw_balance_of_power(): number;
   mw_elder_force_index(period: number): number;
@@ -2158,6 +2161,19 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return Array.from({ length: divisions + 1 }, (_, index) => {
         const offset = index * 16;
         return { time: Number(data.getBigInt64(offset, true)), ticks: Number(data.getBigInt64(offset + 8, true)) };
+      });
+    },
+    fibonacciChannelLevels(points) {
+      if (!points.every(point => Number.isSafeInteger(point.time) && Number.isSafeInteger(point.ticks))) {
+        throw new Error('Drawing endpoints require whole UTC seconds and whole price ticks.');
+      }
+      const [start, end, width] = points;
+      const data = output(api.mw_fibonacci_channel_levels(BigInt(start.time), BigInt(start.ticks),
+        BigInt(end.time), BigInt(end.ticks), BigInt(width.time), BigInt(width.ticks)));
+      if (data.byteLength !== 60) throw new Error('Invalid Fibonacci channel response size.');
+      return Array.from({ length: 6 }, (_, index) => {
+        const offset = index * 10;
+        return { ratioThousandths: data.getUint16(offset, true), offsetTicks: data.getBigInt64(offset + 2, true) };
       });
     },
     instrument(venue, symbol) {

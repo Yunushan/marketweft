@@ -194,6 +194,14 @@ At the end time, the three rays cross the prices reached at 38.2%, 50%, and 61.8
 
 Edit either anchor from the drawing list. The same instrument's drawings project through each pane's timeframe and viewport. A version 53 backup preserves the exact anchors and restores earlier formats. [Backup format](workspace-backup.md).
 
+## Fibonacci channel
+
+Choose **New Fibonacci channel** and enter or pick the baseline start, baseline end, and width anchor. The baseline end must be later than its start. The width anchor can use any UTC second between the baseline endpoints, including either endpoint. Its price must differ from the baseline price interpolated at that UTC second. Both positive and negative widths are supported. [Fibonacci channel convention](https://www.metatrader5.com/en/terminal/help/objects/fibo/fibo_channel).
+
+The channel plots parallel rails at 0×, 0.618×, 1×, 1.618×, 2.618× and 4.236× the signed width. MarketWeft rounds each offset once to the nearest price millionth, with ties away from zero. **Fibonacci channel levels** lists the exact offsets and the price of each rail at both baseline times.
+
+Each pane maps the two baseline anchors into its own horizontal scale. The parallel rails extend rightward from the first anchor and clip at the visible price plot. Gaps and variable-width charts can change the displayed slope across panes. Workspace backup version 65 preserves the three anchors. [Backup format](workspace-backup.md).
+
 ## Gann fan
 
 Choose **New Gann fan** and enter or pick a start and a later reference point at a different price. The signed move between those anchors defines the 1×1 ray. The other rays use the 1×8, 1×4, 1×3, 1×2, 2×1, 3×1, 4×1 and 8×1 slope ratios relative to that baseline. [Gann fan convention](https://www.tradingview.com/support/solutions/43000518151-gann-fan-drawing-tool/).

@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.231.0 · 0BSD**
+**0.232.0 · 0BSD**
 
 **Idiomas da documentação**
 
@@ -15,14 +15,14 @@
 
 MarketWeft é um terminal de pesquisa local para analistas, desenvolvedores e operadores. Abre arquivos OHLCV autorizados, exibe velas e volume, calcula SMA e EMA em ponto fixo e guarda a lista, o instrumento selecionado e os indicadores em IndexedDB. Após armazenar os recursos em cache, funciona sem conexão. As cotações e volumes fornecidos são sintéticos e dispensam conta.
 
-MarketWeft 0.231.0 adiciona gráficos EquiVolume com retângulos adjacentes que mostram a faixa de preço e têm largura proporcional ao volume observado. MarketWeft 0.7.0 acrescenta a triagem do universo por retorno de preço com os dados conhecidos no instante da consulta. A reprodução por sessões inclui desdobramentos, dividendos em dinheiro, composição do universo e cancelamentos de listagem. O repositório traz um observador TypeScript somente leitura para o serviço independente trading-bot e um invólucro experimental Tauri. Feeds de fornecedores, ordens, instaladores assinados e hospedagem multiusuário permanecem no roteiro.
+MarketWeft 0.232.0 adiciona canais de Fibonacci editáveis com seis níveis paralelos e deslocamentos exatos de preço. MarketWeft 0.7.0 acrescenta a triagem do universo por retorno de preço com os dados conhecidos no instante da consulta. A reprodução por sessões inclui desdobramentos, dividendos em dinheiro, composição do universo e cancelamentos de listagem. O repositório traz um observador TypeScript somente leitura para o serviço independente trading-bot e um invólucro experimental Tauri. Feeds de fornecedores, ordens, instaladores assinados e hospedagem multiusuário permanecem no roteiro.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [EquiVolume charts](../chart-workspace.md#equivolume)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Fibonacci channels](../chart-workspace.md#fibonacci-channel)
 
 <!-- section:02 -->
 ## Iniciar o terminal portátil
 
-Baixe browser-terminal-attempt-N de uma verificação bem-sucedida no GitHub. Extraia MarketWeft-browser-0.231.0.zip, mantenha dist/ junto de serve-terminal.mjs e execute o comando na pasta. Acesse http://127.0.0.1:4173/ em navegador atual com WebAssembly, Canvas, BigInt e IndexedDB. Use Node.js 22.12 ou superior. O pacote dispensa instalação npm. Espere Offline ready para desconectar.
+Baixe browser-terminal-attempt-N de uma verificação bem-sucedida no GitHub. Extraia MarketWeft-browser-0.232.0.zip, mantenha dist/ junto de serve-terminal.mjs e execute o comando na pasta. Acesse http://127.0.0.1:4173/ em navegador atual com WebAssembly, Canvas, BigInt e IndexedDB. Use Node.js 22.12 ou superior. O pacote dispensa instalação npm. Espere Offline ready para desconectar.
 
 ```sh
 node serve-terminal.mjs

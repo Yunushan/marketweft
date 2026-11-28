@@ -83,6 +83,18 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('Fibonacci channel preserves signed rational offsets and exact wide price ticks in Wasm', () => {
+  const levels = (time, ticks) => ({ time, ticks });
+  assert.deepEqual(core.fibonacciChannelLevels([levels(0, 0), levels(2, 1), levels(1, 0)])
+    .map(row => [row.ratioThousandths, row.offsetTicks]), [
+    [0, 0n], [618, 0n], [1000, -1n], [1618, -1n], [2618, -1n], [4236, -2n],
+  ]);
+  assert.equal(core.fibonacciChannelLevels([levels(0, -2e15), levels(2, -2e15), levels(1, 2e15)]).at(-1).offsetTicks,
+    16944000000000000n);
+  assert.throws(() => core.fibonacciChannelLevels([levels(0, 0), levels(2, 2), levels(1, 1)]), /away from the baseline/);
+  assert.throws(() => core.fibonacciChannelLevels([levels(0, 0), levels(2, 2), levels(3, 4)]), /increasing baseline/);
+});
+
 test('Elder-Ray and Coppock preserve signed, wide and undefined results in Wasm', () => {
   const bars = [-4, -2, 0, -2, 4, 2, 1, 3, 4, 8].map((close, index) => ({
     time: index * 60 + (index >= 6 ? 180 : 0), open: close, high: close + 1, low: close - 1, close, volume: 1,

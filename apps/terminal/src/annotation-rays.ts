@@ -1,6 +1,6 @@
 import { markerColumn } from './chart-annotations'
 import type { TimeColumn } from './chart-annotations'
-import type { DrawingEndpoint } from './market-core'
+import type { DrawingEndpoint, FibonacciChannelLevel } from './market-core'
 
 type Point = [number, number]
 type Bounds = { left: number; right: number; top: number; bottom: number }
@@ -50,4 +50,17 @@ export function fanRays(start: DrawingEndpoint, end: DrawingEndpoint, crossings:
   const width = x(to) - origin[0]
   return crossings.map(({ ticks }) =>
     visibleRay(origin, [width, y(Number(ticks) / 1e6) - origin[1]], bounds))
+}
+
+export function fibonacciChannelRays(start: DrawingEndpoint, end: DrawingEndpoint, levels: readonly FibonacciChannelLevel[],
+  timeline: readonly TimeColumn[], x: (column: number) => number, y: (price: number) => number, bounds: Bounds) {
+  const from = markerColumn(timeline, start.time)
+  const to = markerColumn(timeline, end.time)
+  if (from === null || to === null) return []
+  const axis = x(from)
+  const width = x(to) - axis
+  if (width <= 0) return []
+  const direction: Point = [width, y(end.ticks / 1e6) - y(start.ticks / 1e6)]
+  return levels.map(({ offsetTicks }) =>
+    visibleRay([axis, y(Number(BigInt(start.ticks) + offsetTicks) / 1e6)], direction, bounds))
 }

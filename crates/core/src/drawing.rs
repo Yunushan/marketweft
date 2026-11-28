@@ -115,6 +115,43 @@ pub fn gann_box_levels(
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FibonacciChannelLevel {
+    pub ratio_thousandths: u16,
+    /// Signed vertical distance from the baseline in price millionths.
+    pub offset_ticks: i64,
+}
+
+/// Project the Fibonacci multiples of the width measured at the third anchor's UTC time.
+pub fn fibonacci_channel_levels(
+    start: DrawingEndpoint,
+    end: DrawingEndpoint,
+    width_anchor: DrawingEndpoint,
+) -> Result<[FibonacciChannelLevel; 6], String> {
+    let baseline = measure_drawing(start, end)?;
+    let width = measure_drawing(start, width_anchor)?;
+    if baseline.elapsed_seconds <= 0
+        || !(0..=baseline.elapsed_seconds).contains(&width.elapsed_seconds)
+    {
+        return Err(
+            "The Fibonacci channel width time must fall within an increasing baseline.".into(),
+        );
+    }
+    let duration = i128::from(baseline.elapsed_seconds);
+    let offset = i128::from(width.price_ticks) * duration
+        - i128::from(baseline.price_ticks) * i128::from(width.elapsed_seconds);
+    if offset == 0 {
+        return Err("Set the Fibonacci channel width away from the baseline.".into());
+    }
+    Ok(
+        [0, 618, 1000, 1618, 2618, 4236].map(|ratio_thousandths| FibonacciChannelLevel {
+            ratio_thousandths,
+            offset_ticks: rounded_div(offset * i128::from(ratio_thousandths), duration * 1000)
+                as i64,
+        }),
+    )
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RiskRewardSide {
     Long,
     Short,

@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.232.0 · Fibonacci channels
+
+- Rust and Wasm check signed offsets at all six ratios, a fractional tick at the width time, a wide price offset and rejection of out-of-range or collinear anchors.
+- Offline Chromium measures six parallel clipped rails in a recorded pane and an EquiVolume pane, edits the width from positive to negative, and restores versions 64 and 65.
+
+[Fibonacci channels](chart-workspace.md#fibonacci-channel)
+
 ## 0.231.0 · EquiVolume charts
 
 - Offline Chromium measures adjacent widths in the ratio 1:6:3, high-low box heights, direction colors and the exact crosshair UTC time picked from a wide box. The comparison pane follows the linked timestamp.

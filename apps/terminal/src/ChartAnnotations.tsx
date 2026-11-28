@@ -35,7 +35,7 @@ function draftAnnotation(draft: Draft, id: string, core: MarketCore): ChartAnnot
   if (hasPointList(kind)) {
     const anchors = points.map(pointValue)
     if (kind !== 'polyline') {
-      validateThreePoints(anchors, kind)
+      validateThreePoints(anchors, kind, core)
       return { id, kind, points: anchors }
     }
     validatePolyline(anchors)
@@ -99,6 +99,7 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'triangle':
     case 'pitchfork':
     case 'fibonacci-extension':
+    case 'fibonacci-channel':
       return name + entry.points.map(describePoint).join(', ')
     case 'trend':
     case 'rectangle':
@@ -145,8 +146,11 @@ export function ChartAnnotations({
   function edit(kind: AnnotationKind, original?: ChartAnnotation) {
     setPicker(null)
     setError('')
+    const defaultsForPointList = kind === 'fibonacci-channel'
+      ? [defaults.prior, defaults.end, defaults.start]
+      : [defaults.prior, defaults.start, defaults.end]
     const points = hasPointList(kind) ?
-      (original && 'points' in original ? original.points : [defaults.prior, defaults.start, defaults.end]).map(pointFields) :
+      (original && 'points' in original ? original.points : defaultsForPointList).map(pointFields) :
       hasTwoPoints(kind) || hasRange(kind) ?
         [pointFields(defaults.start), pointFields(defaults.end)] : [pointFields(defaults.end)]
     if (kind === 'risk-reward') {
@@ -216,6 +220,7 @@ export function ChartAnnotations({
     const plan = kind === 'risk-reward'
     const label = plan ? ['Entry', 'Target', 'Stop'][point] :
       kind === 'fibonacci-extension' ? ['Move start', 'Move end', 'Projection anchor'][point] :
+      kind === 'fibonacci-channel' ? ['Baseline start', 'Baseline end', 'Width anchor'][point] :
       vertex ? 'Point ' + (point + 1) :
       twoPoints ? point === 0 ? 'Start' : 'End' : ANNOTATION_NAMES[kind]
     const pickLabel = plan || vertex || twoPoints ? 'Pick ' + label.toLowerCase() + ' on chart' : 'Pick on chart'
@@ -320,6 +325,22 @@ export function ChartAnnotations({
                 <div className="ohlc chart-overlay-values" role="group" aria-label="Fibonacci fan prices at the end time">
                   {fibonacciFanLevels(entry.start.ticks, entry.end.ticks).map(level =>
                     <span key={level.label}><small>{level.label}</small> {fixed(level.ticks, 6)}</span>)}
+                </div>
+              </details>}
+              {entry.kind === 'fibonacci-channel' && <details className="research-details">
+                <summary>Fibonacci channel levels</summary>
+                <div className="replay-results replay-table-scroll">
+                  <table aria-label="Fibonacci channel price levels">
+                    <thead><tr><th scope="col">Level</th><th scope="col">Offset</th>
+                      <th scope="col">At start</th><th scope="col">At end</th></tr></thead>
+                    <tbody>{core.fibonacciChannelLevels(entry.points).map(({ ratioThousandths, offsetTicks }) =>
+                      <tr key={ratioThousandths}>
+                        <th scope="row">{ratioThousandths / 1000}×</th>
+                        <td>{fixed(offsetTicks, 6)}</td>
+                        <td>{fixed(BigInt(entry.points[0].ticks) + offsetTicks, 6)}</td>
+                        <td>{fixed(BigInt(entry.points[1].ticks) + offsetTicks, 6)}</td>
+                      </tr>)}</tbody>
+                  </table>
                 </div>
               </details>}
               {entry.kind === 'gann-fan' && <details className="research-details">
