@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.286.0 · Point-in-time downside deviation
+
+- Rust and Wasm verify loss counts, true zeros, unavailable returns and the effect of volatility scaling. They confirm the original rolling risk results are identical through the two Wasm layouts.
+- Offline Chromium exercises the late B close, A’s removal and a window with no returns. It verifies both CSV layouts, including byte-identical output after rewind.
+
 ## 0.285.0 · Acceleration Bands
 
 - Rust and Wasm verify signed lower bands, exact zero and wide price projections, missing windows, fixed-point rounding and identical outputs for observed prefixes.

@@ -26,6 +26,16 @@ pub struct ListingRiskPoint {
     pub correlation: Option<f64>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ListingDownsideRiskPoint {
+    pub risk: ListingRiskPoint,
+    pub left_loss_returns: u32,
+    pub right_loss_returns: u32,
+    /// Scaled root mean square of the negative portion of available returns.
+    pub left_downside: Option<f64>,
+    pub right_downside: Option<f64>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PortfolioVarianceQuery {
     pub from_at: i64,
@@ -112,10 +122,40 @@ impl Moments {
 }
 
 #[derive(Clone, Copy, Default)]
+struct DownsideMoments {
+    losses: u32,
+    squared_loss: f64,
+}
+
+impl DownsideMoments {
+    fn new(value: Option<f64>) -> Self {
+        value
+            .filter(|value| *value < 0.0)
+            .map_or_else(Self::default, |value| Self {
+                losses: 1,
+                squared_loss: value * value,
+            })
+    }
+
+    fn merge(self, next: Self) -> Self {
+        Self {
+            losses: self.losses + next.losses,
+            squared_loss: self.squared_loss + next.squared_loss,
+        }
+    }
+
+    fn deviation(self, count: u32, scale: f64) -> Option<f64> {
+        (count != 0).then(|| (self.squared_loss / f64::from(count)).sqrt() * scale)
+    }
+}
+
+#[derive(Clone, Copy, Default)]
 struct RiskMoments {
     left: Moments,
     right: Moments,
     paired: Moments,
+    left_downside: DownsideMoments,
+    right_downside: DownsideMoments,
 }
 
 impl RiskMoments {
@@ -126,6 +166,8 @@ impl RiskMoments {
             paired: left
                 .zip(right)
                 .map_or_else(Moments::default, |(x, y)| Moments::sample(x, y)),
+            left_downside: DownsideMoments::new(left),
+            right_downside: DownsideMoments::new(right),
         }
     }
 
@@ -134,6 +176,8 @@ impl RiskMoments {
             left: self.left.merge(next.left),
             right: self.right.merge(next.right),
             paired: self.paired.merge(next.paired),
+            left_downside: self.left_downside.merge(next.left_downside),
+            right_downside: self.right_downside.merge(next.right_downside),
         }
     }
 }
@@ -179,6 +223,35 @@ impl PriceBook<'_> {
         right_id: &str,
         query: ListingRiskQuery,
     ) -> Result<Vec<ListingRiskPoint>, String> {
+        self.listing_risk_rows(left_id, right_id, query, |point, _, _| point)
+    }
+
+    /// Include downside deviations and loss counts for the same observation windows.
+    /// An available nonnegative return contributes zero. Missing returns are excluded.
+    pub fn listing_downside_risk(
+        &self,
+        left_id: &str,
+        right_id: &str,
+        query: ListingRiskQuery,
+    ) -> Result<Vec<ListingDownsideRiskPoint>, String> {
+        self.listing_risk_rows(left_id, right_id, query, |risk, stats, scale| {
+            ListingDownsideRiskPoint {
+                risk,
+                left_loss_returns: stats.left_downside.losses,
+                right_loss_returns: stats.right_downside.losses,
+                left_downside: stats.left_downside.deviation(stats.left.count, scale),
+                right_downside: stats.right_downside.deviation(stats.right.count, scale),
+            }
+        })
+    }
+
+    fn listing_risk_rows<T>(
+        &self,
+        left_id: &str,
+        right_id: &str,
+        query: ListingRiskQuery,
+        finish: impl Fn(ListingRiskPoint, RiskMoments, f64) -> T,
+    ) -> Result<Vec<T>, String> {
         let ListingRiskQuery {
             from_at,
             through_at,
@@ -224,7 +297,7 @@ impl PriceBook<'_> {
             }
             if slot >= window {
                 let stats = moments.aggregate();
-                output.push(ListingRiskPoint {
+                let point = ListingRiskPoint {
                     from_at: through_at - window * interval,
                     through_at,
                     expected_returns: window_periods,
@@ -234,7 +307,8 @@ impl PriceBook<'_> {
                     left_volatility: stats.left.volatility(scale),
                     right_volatility: stats.right.volatility(scale),
                     correlation: stats.paired.correlation(),
-                });
+                };
+                output.push(finish(point, stats, scale));
             }
         }
         Ok(output)

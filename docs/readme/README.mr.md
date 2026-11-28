@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.285.0 · 0BSD**
+**0.286.0 · 0BSD**
 
 **दस्तऐवजाच्या भाषा**
 
@@ -15,14 +15,14 @@
 
 MarketWeft विश्लेषक, विकासक आणि संचालकांसाठी स्थानिक संशोधन टर्मिनल आहे. ते परवानगीचे OHLCV उघडते, कँडल व व्यवहाराचे प्रमाण दाखवते, स्थिर दशांश एककांत SMA व EMA मोजते आणि निरीक्षण यादी, निवड व निर्देशक IndexedDB मध्ये ठेवते. संसाधने कॅश झाल्यावर ऑफलाइन चालते. सोबतचे भाव व प्रमाण कृत्रिम आहेत आणि खाते लागत नाही.
 
-MarketWeft 0.285.0 प्रत्येक चार्टसाठी स्वतंत्र कालावधी आणि अचूक संशोधन निर्यातीसह Acceleration Bands जोडते. MarketWeft 0.7.0 ठरावीक वेळी माहीत असलेल्या भावांवरून किंमत परताव्यानुसार युनिव्हर्सची क्रमवारी लावते. सत्रनिहाय रीप्लेमध्ये शेअर विभाजन, रोख लाभांश, सदस्यत्व आणि सूचीमधून वगळणे समाविष्ट आहे. स्वतंत्र trading-bot सेवेसाठी केवळ-वाचन TypeScript निरीक्षक आणि प्रायोगिक Tauri आवरणही आहे. डेटा फीड, ऑर्डर, स्वाक्षरी केलेले इन्स्टॉलर आणि बहुवापरकर्ता होस्टिंग पुढील योजनेत आहेत.
+MarketWeft 0.286.0 सूचीबद्ध साधनांच्या चल जोखमीसाठी निवडलेल्या वेळेपर्यंतचे अधोमुखी विचलन आणि नोंदलेल्या तोट्यांची संख्या जोडते. MarketWeft 0.7.0 ठरावीक वेळी माहीत असलेल्या भावांवरून किंमत परताव्यानुसार युनिव्हर्सची क्रमवारी लावते. सत्रनिहाय रीप्लेमध्ये शेअर विभाजन, रोख लाभांश, सदस्यत्व आणि सूचीमधून वगळणे समाविष्ट आहे. स्वतंत्र trading-bot सेवेसाठी केवळ-वाचन TypeScript निरीक्षक आणि प्रायोगिक Tauri आवरणही आहे. डेटा फीड, ऑर्डर, स्वाक्षरी केलेले इन्स्टॉलर आणि बहुवापरकर्ता होस्टिंग पुढील योजनेत आहेत.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Acceleration Bands](../chart-workspace.md#acceleration-bands) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Downside deviation](../listing-risk.md#downside-deviation) · [Equity target research SDKs](../portfolio-replay.md#equity-target-research-sdks)
 
 <!-- section:02 -->
 ## वाहून नेता येणारे टर्मिनल सुरू करा
 
-यशस्वी GitHub पडताळणीतून browser-terminal-attempt-N घ्या आणि MarketWeft-browser-0.285.0.zip उघडा. dist/ आणि serve-terminal.mjs शेजारी ठेवून आदेश त्याच संचिकेत चालवा. WebAssembly, Canvas, BigInt व IndexedDB असलेल्या ब्राउझरमध्ये http://127.0.0.1:4173/ उघडा. Node.js 22.12 किंवा नवे आवश्यक आहे. npm स्थापना लागत नाही. जाळे बंद करण्याआधी Offline ready दिसू द्या.
+यशस्वी GitHub पडताळणीतून browser-terminal-attempt-N घ्या आणि MarketWeft-browser-0.286.0.zip उघडा. dist/ आणि serve-terminal.mjs शेजारी ठेवून आदेश त्याच संचिकेत चालवा. WebAssembly, Canvas, BigInt व IndexedDB असलेल्या ब्राउझरमध्ये http://127.0.0.1:4173/ उघडा. Node.js 22.12 किंवा नवे आवश्यक आहे. npm स्थापना लागत नाही. जाळे बंद करण्याआधी Offline ready दिसू द्या.
 
 ```sh
 node serve-terminal.mjs

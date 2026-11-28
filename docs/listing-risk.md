@@ -10,6 +10,14 @@ Choose an effective end and a knowledge cutoff in Universe replay. Expand **Rela
 
 Choose **Calculate risk**. The table shows all possible intervals per window, returns for each listing and returns available for both. **Download rolling risk** includes every window, both input source labels, the cutoffs, grid settings, sample counts and statistics. Volatility is displayed as a percentage and written to CSV as a fractional return.
 
+## Downside deviation
+
+Enable **Show downside deviation** to see the number of losses and the downside deviation for each listing. Each available negative return contributes its square, and each available flat or positive return contributes zero. Divide the sum by the number of available returns, take the square root and multiply by the square root of the chosen scaling periods.
+
+An unavailable return contributes neither a square nor an interval to the denominator. One available interval is enough to compute downside deviation. A window with only flat or positive returns shows zero. A window with no available returns is blank. With the option enabled, the CSV appends both loss counts and both fractional deviations.
+
+At the demo’s 14:06 UTC knowledge cutoff the first window has one available return for B, a 10% loss, so B’s downside deviation is 10%. At 14:07 UTC three returns are available, including two losses and one flat interval. B’s downside deviation becomes 8.164966%. A’s first window has zero downside deviation at both cutoffs.
+
 ## Returns and comparability
 
 Each return uses the two adjacent exact closes in its interval. Both closes must be known by the shared observation cutoff, and the listing must be an effective member at each endpoint based on those reports. A missing close leaves both adjacent returns unavailable for that listing. Later close or membership reports can change the result at a later cutoff.

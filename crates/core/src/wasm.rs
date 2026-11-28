@@ -1574,6 +1574,59 @@ pub extern "C" fn mw_listing_risk(
     window_periods: u32,
     volatility_periods: u32,
 ) -> u32 {
+    listing_risk(
+        membership_bytes,
+        interval_seconds,
+        window_periods,
+        volatility_periods,
+        false,
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn mw_listing_risk_v2(
+    membership_bytes: usize,
+    interval_seconds: u32,
+    window_periods: u32,
+    volatility_periods: u32,
+) -> u32 {
+    listing_risk(
+        membership_bytes,
+        interval_seconds,
+        window_periods,
+        volatility_periods,
+        true,
+    )
+}
+
+fn encode_listing_risk_point(bytes: &mut Vec<u8>, point: crate::ListingRiskPoint) {
+    for time in [point.from_at, point.through_at] {
+        bytes.extend_from_slice(&time.to_le_bytes());
+    }
+    for count in [
+        point.expected_returns,
+        point.left_returns,
+        point.right_returns,
+        point.paired_returns,
+    ] {
+        bytes.extend_from_slice(&count.to_le_bytes());
+    }
+    for value in [
+        point.left_volatility,
+        point.right_volatility,
+        point.correlation,
+    ] {
+        bytes.extend_from_slice(&value.unwrap_or(f64::NAN).to_le_bytes());
+    }
+}
+
+fn listing_risk(
+    membership_bytes: usize,
+    interval_seconds: u32,
+    window_periods: u32,
+    volatility_periods: u32,
+    include_downside: bool,
+) -> u32 {
     process(|input| {
         let PairInputs {
             times: [from_at, through_at, known_at],
@@ -1591,27 +1644,24 @@ pub extern "C" fn mw_listing_risk(
             window_periods,
             volatility_periods,
         };
+        if include_downside {
+            let points = prices.listing_downside_risk(left, right, query)?;
+            let mut bytes = Vec::with_capacity(80 * points.len());
+            for point in points {
+                encode_listing_risk_point(&mut bytes, point.risk);
+                for count in [point.left_loss_returns, point.right_loss_returns] {
+                    bytes.extend_from_slice(&count.to_le_bytes());
+                }
+                for value in [point.left_downside, point.right_downside] {
+                    bytes.extend_from_slice(&value.unwrap_or(f64::NAN).to_le_bytes());
+                }
+            }
+            return Ok(bytes);
+        }
         let points = prices.listing_risk(left, right, query)?;
         let mut bytes = Vec::with_capacity(56 * points.len());
         for point in points {
-            for time in [point.from_at, point.through_at] {
-                bytes.extend_from_slice(&time.to_le_bytes());
-            }
-            for count in [
-                point.expected_returns,
-                point.left_returns,
-                point.right_returns,
-                point.paired_returns,
-            ] {
-                bytes.extend_from_slice(&count.to_le_bytes());
-            }
-            for value in [
-                point.left_volatility,
-                point.right_volatility,
-                point.correlation,
-            ] {
-                bytes.extend_from_slice(&value.unwrap_or(f64::NAN).to_le_bytes());
-            }
+            encode_listing_risk_point(&mut bytes, point);
         }
         Ok(bytes)
     })

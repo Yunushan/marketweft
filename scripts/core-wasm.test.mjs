@@ -1531,6 +1531,27 @@ test('listing risk pairs exact adjacent intervals and preserves missing and zero
   assert.ok(at(7, constant).every(row => row.leftVolatility === 0 && row.correlation === null));
 });
 
+test('rolling downside risk preserves its available denominator and earlier risk rows', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, prices] = await Promise.all([fixture('membership'), fixture('prices')]);
+  const utc = minute => '2025-06-02T14:0' + minute + ':00Z';
+  const query = minute => ({
+    from: utc(0), through: utc(6), known: utc(minute), intervalSeconds: 60, windowPeriods: 3, volatilityPeriods: 1,
+  });
+  const at = minute => core.listingDownsideRisk(membership, prices, 'A', 'B', query(minute));
+  assert.ok(at(0).every(row => row.leftDownside === null && row.rightDownside === null));
+  const early = at(6);
+  assert.deepEqual([early[0].leftDownside, early[0].leftLossReturns, early[0].rightReturns, early[0].rightLossReturns], [0, 0, 1, 1]);
+  assert.ok(Math.abs(early[0].rightDownside - 0.1) < 1e-14);
+  const revised = at(7);
+  assert.deepEqual([revised[0].rightReturns, revised[0].rightLossReturns], [3, 2]);
+  assert.ok(Math.abs(revised[0].rightDownside - 0.1 * Math.sqrt(2 / 3)) < 1e-14);
+  assert.deepEqual([at(8).at(-1).leftReturns, at(8).at(-1).leftDownside], [1, 0]);
+  assert.deepEqual(at(6), early);
+  const legacy = core.listingRisk(membership, prices, 'A', 'B', query(7));
+  assert.deepEqual(revised.map(({ leftLossReturns, rightLossReturns, leftDownside, rightDownside, ...risk }) => risk), legacy);
+});
+
 test('observed price profiles preserve distinct TPO brackets and exact volume value areas', async () => {
   const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-footprint.csv', import.meta.url), 'utf8');
   const instrument = 'NASDAQ:NVDA';

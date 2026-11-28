@@ -115,3 +115,55 @@ test('listing risk pairs exact intervals, updates at observed cutoffs and rewind
   await page.getByRole('button', { name: 'Return to workspace' }).click()
   expect(await catalogContents(page)).toEqual(before)
 })
+
+test('downside deviation responds to known losses and reproduces its CSV after rewind', async ({ page, context }) => {
+  await page.goto('/')
+  await expect(page.getByText('Offline ready', { exact: true })).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Historical replay' }).click()
+  await page.getByRole('button', { name: 'Open universe replay' }).click()
+  await page.getByRole('button', { name: 'Start listing risk demo' }).click()
+  const relative = page.getByRole('region', { name: 'Relative returns', exact: true })
+  const cutoff = async minute => {
+    await page.getByLabel('Effective time (UTC)', { exact: true }).fill(utc(6))
+    await page.getByLabel('Known time (UTC)', { exact: true }).fill(utc(minute))
+    await page.getByRole('button', { name: 'Run as-of query', exact: true }).click()
+  }
+  await cutoff(6)
+  await page.getByText('Relative returns', { exact: true }).click()
+  await relative.getByLabel('Left listing').selectOption('A')
+  await relative.getByLabel('Right listing').selectOption('B')
+  await relative.getByRole('button', { name: 'Compare returns' }).click()
+  await relative.getByText('Rolling risk', { exact: true }).click()
+  const view = relative.getByRole('region', { name: 'Rolling risk', exact: true })
+  await view.getByRole('button', { name: 'Calculate risk', exact: true }).click()
+  const table = view.getByRole('table', { name: 'Rolling listing risk', exact: true })
+  const rowAt = minute => table.locator('tbody tr').filter({
+    has: page.getByRole('rowheader', { name: utc(minute), exact: true }),
+  })
+  await view.getByRole('checkbox', { name: 'Show downside deviation', exact: true }).check()
+  await expect(rowAt(3).getByRole('cell').nth(8)).toHaveText('1 / 1')
+  await expect(rowAt(3).getByRole('cell').nth(9)).toHaveText('0.000000%')
+  await expect(rowAt(3).getByRole('cell').nth(10)).toHaveText('10.000000%')
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await view.getByRole('button', { name: 'Download rolling risk', exact: true }).click()
+    return readFile(await (await pending).path(), 'utf8')
+  }
+  const earlier = await download()
+  expect(earlier.split('\r\n')[0].split(',').slice(-4)).toEqual([
+    'left_loss_returns', 'right_loss_returns', 'left_downside_fraction', 'right_downside_fraction',
+  ])
+  await cutoff(7)
+  await expect(rowAt(3).getByRole('cell').nth(8)).toHaveText('2 / 3')
+  await expect(rowAt(3).getByRole('cell').nth(10)).toHaveText('8.164966%')
+  await cutoff(8)
+  await expect(rowAt(6).getByRole('cell').nth(7)).toHaveText('0 / 1')
+  await cutoff(0)
+  await expect(rowAt(3).getByRole('cell').nth(9)).toHaveText('—')
+  await expect(rowAt(3).getByRole('cell').nth(10)).toHaveText('—')
+  expect((await download()).split('\r\n')[1].split(',').slice(-4)).toEqual(['0', '0', '', ''])
+  await cutoff(6)
+  expect(await download()).toBe(earlier)
+})

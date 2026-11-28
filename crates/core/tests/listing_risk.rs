@@ -124,6 +124,64 @@ fn constant_returns_have_zero_volatility_and_undefined_correlation() {
 }
 
 #[test]
+fn downside_counts_only_observed_losses_and_rewinds_at_knowledge_cutoffs() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let prices = PriceBook::parse(&universe, PRICES).unwrap();
+    let start = universe.checkpoints()[0];
+    let query = |minute: i64, volatility_periods| ListingRiskQuery {
+        from_at: start,
+        through_at: start + 360,
+        known_at: start + minute * 60,
+        interval_seconds: 60,
+        window_periods: 3,
+        volatility_periods,
+    };
+    let run = |minute, scale| {
+        prices
+            .listing_downside_risk("A", "B", query(minute, scale))
+            .unwrap()
+    };
+
+    let missing = run(0, 1);
+    assert!(missing.iter().all(|row| {
+        row.left_loss_returns == 0
+            && row.right_loss_returns == 0
+            && row.left_downside.is_none()
+            && row.right_downside.is_none()
+    }));
+    let early = run(6, 1);
+    assert_eq!(
+        (early[0].risk.left_returns, early[0].risk.right_returns),
+        (3, 1)
+    );
+    assert_eq!(
+        (early[0].left_loss_returns, early[0].right_loss_returns),
+        (0, 1)
+    );
+    assert_eq!(early[0].left_downside, Some(0.0));
+    assert!((early[0].right_downside.unwrap() - 0.1).abs() < 1e-14);
+    let observed = run(7, 1);
+    assert_eq!(
+        (
+            observed[0].risk.right_returns,
+            observed[0].right_loss_returns
+        ),
+        (3, 2)
+    );
+    let expected = 0.1 * (2.0_f64 / 3.0).sqrt();
+    assert!((observed[0].right_downside.unwrap() - expected).abs() < 1e-14);
+    assert!((run(7, 4)[0].right_downside.unwrap() - 2.0 * expected).abs() < 1e-14);
+    let removed = run(8, 1);
+    assert_eq!(removed[3].risk.left_returns, 1);
+    assert_eq!(removed[3].left_downside, Some(0.0));
+    assert_eq!(run(6, 1), early);
+    assert_eq!(
+        observed.iter().map(|row| row.risk).collect::<Vec<_>>(),
+        prices.listing_risk("A", "B", query(7, 1)).unwrap()
+    );
+}
+
+#[test]
 fn portfolio_variance_uses_common_return_coverage_and_never_fills_an_unseen_price() {
     let universe = parse_universe(MEMBERSHIP).unwrap();
     let prices = PriceBook::parse(&universe, PRICES).unwrap();

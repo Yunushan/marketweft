@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { quoteText } from './chart-export'
 import { downloadFile } from './download'
-import type { ListingRiskPoint, ListingRiskQuery, MarketCore } from './market-core'
+import type { ListingDownsideRiskPoint, ListingRiskPoint, ListingRiskQuery, MarketCore } from './market-core'
 import { utc } from './workspace'
 
 type WindowSettings = Pick<ListingRiskQuery, 'intervalSeconds' | 'windowPeriods' | 'volatilityPeriods'>
@@ -10,9 +10,11 @@ type Pair = { left: string; right: string; baseline: string }
 const PAGE_SIZE = 50
 
 function riskCsv(
-  rows: ListingRiskPoint[], query: ListingRiskQuery, pair: Pair, membershipSource: string, priceSource: string,
+  rows: ListingDownsideRiskPoint[], query: ListingRiskQuery, pair: Pair, membershipSource: string, priceSource: string,
+  showDownside: boolean,
 ) {
-  const header = 'left_listing_id,right_listing_id,query_from_utc,query_through_utc,known_utc,interval_seconds,window_periods,volatility_scale_periods,membership_source,price_source,window_from_utc,window_through_utc,expected_returns,left_returns,right_returns,paired_returns,left_volatility_fraction,right_volatility_fraction,correlation'
+  const standardHeader = 'left_listing_id,right_listing_id,query_from_utc,query_through_utc,known_utc,interval_seconds,window_periods,volatility_scale_periods,membership_source,price_source,window_from_utc,window_through_utc,expected_returns,left_returns,right_returns,paired_returns,left_volatility_fraction,right_volatility_fraction,correlation'
+  const header = standardHeader + (showDownside ? ',left_loss_returns,right_loss_returns,left_downside_fraction,right_downside_fraction' : '')
   const prefix = [
     ...[pair.left, pair.right, query.from, query.through, query.known].map(quoteText),
     query.intervalSeconds, query.windowPeriods, query.volatilityPeriods, quoteText(membershipSource), quoteText(priceSource),
@@ -20,6 +22,7 @@ function riskCsv(
   const records = rows.map(row => [
     ...prefix, utc(row.fromAt), utc(row.throughAt), row.expectedReturns, row.leftReturns,
     row.rightReturns, row.pairedReturns, row.leftVolatility ?? '', row.rightVolatility ?? '', row.correlation ?? '',
+    ...(showDownside ? [row.leftLossReturns, row.rightLossReturns, row.leftDownside ?? '', row.rightDownside ?? ''] : []),
   ].join(','))
   return [header, ...records].join('\r\n') + '\r\n'
 }
@@ -63,7 +66,7 @@ function CorrelationPlot({ rows }: { rows: ListingRiskPoint[] }) {
   return <canvas ref={canvas} className="flow-chart" role="img" aria-label="Rolling correlation over UTC. Missing windows are blank." />
 }
 
-function RiskRows({ rows, pair }: { rows: ListingRiskPoint[]; pair: Pair }) {
+function RiskRows({ rows, pair, showDownside }: { rows: ListingDownsideRiskPoint[]; pair: Pair; showDownside: boolean }) {
   const [requestedPage, setPage] = useState(0)
   const lastPage = Math.ceil(rows.length / PAGE_SIZE) - 1
   const page = Math.min(requestedPage, lastPage)
@@ -76,6 +79,10 @@ function RiskRows({ rows, pair }: { rows: ListingRiskPoint[]; pair: Pair }) {
             <th scope="col">Window from (UTC)</th><th scope="col">Window through (UTC)</th>
             <th scope="col">{pair.left} returns</th><th scope="col">{pair.right} returns</th><th scope="col">Paired returns</th>
             <th scope="col">{pair.left} volatility</th><th scope="col">{pair.right} volatility</th><th scope="col">Correlation</th>
+            {showDownside && <>
+              <th scope="col">{pair.left} loss returns</th><th scope="col">{pair.right} loss returns</th>
+              <th scope="col">{pair.left} downside deviation</th><th scope="col">{pair.right} downside deviation</th>
+            </>}
           </tr></thead>
           <tbody>{rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map(row => (
             <tr key={row.throughAt}>
@@ -85,6 +92,10 @@ function RiskRows({ rows, pair }: { rows: ListingRiskPoint[]; pair: Pair }) {
               <td>{row.pairedReturns} / {row.expectedReturns}</td>
               <td>{volatility(row.leftVolatility)}</td><td>{volatility(row.rightVolatility)}</td>
               <td>{row.correlation === null ? '—' : row.correlation.toFixed(6)}</td>
+              {showDownside && <>
+                <td>{row.leftLossReturns} / {row.leftReturns}</td><td>{row.rightLossReturns} / {row.rightReturns}</td>
+                <td>{volatility(row.leftDownside)}</td><td>{volatility(row.rightDownside)}</td>
+              </>}
             </tr>
           ))}</tbody>
         </table>
@@ -112,12 +123,13 @@ export function ListingRisk({
 }) {
   const [draft, setDraft] = useState({ intervalSeconds: '60', windowPeriods: '3', volatilityPeriods: '1' })
   const [settings, setSettings] = useState<WindowSettings | null>(null)
+  const [showDownside, setShowDownside] = useState(false)
   const [error, setError] = useState('')
   const result = useMemo(() => {
     if (!settings) return null
     const query = { from: pair.baseline, through: effective, known, ...settings }
     try {
-      return { query, rows: core.listingRisk(membership, prices, pair.left, pair.right, query) }
+      return { query, rows: core.listingDownsideRisk(membership, prices, pair.left, pair.right, query) }
     } catch (cause) {
       return { error: cause instanceof Error ? cause.message : 'Could not calculate rolling risk.' }
     }
@@ -159,13 +171,16 @@ export function ListingRisk({
           <button className="outline" type="submit">Calculate risk</button>
         </form>
         <p>Use 1 for per-interval volatility. Correlation uses returns available for both listings on the same interval.</p>
+        <label><input type="checkbox" checked={showDownside}
+          onChange={event => setShowDownside(event.target.checked)} /> Show downside deviation</label>
+        {showDownside && <p>Downside deviation measures returns below zero. Loss counts use the available returns for each listing.</p>}
         {(error || result?.error) && <p className="warning" role="alert">{error || result?.error}</p>}
         {result?.rows && (result.rows.length ? (
           <>
             {result.rows.some(row => row.correlation !== null) && <CorrelationPlot rows={result.rows} />}
-            <RiskRows key={JSON.stringify([pair, result.query])} rows={result.rows} pair={pair} />
+            <RiskRows key={JSON.stringify([pair, result.query])} rows={result.rows} pair={pair} showDownside={showDownside} />
             <button className="outline" type="button" onClick={() => {
-              const csv = riskCsv(result.rows, result.query, pair, membershipSource, priceSource)
+              const csv = riskCsv(result.rows, result.query, pair, membershipSource, priceSource, showDownside)
               downloadFile('rolling-listing-risk.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }))
             }}>Download rolling risk</button>
           </>

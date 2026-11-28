@@ -506,6 +506,13 @@ export interface ListingRiskPoint {
   correlation: number | null;
 }
 
+export interface ListingDownsideRiskPoint extends ListingRiskPoint {
+  leftLossReturns: number;
+  rightLossReturns: number;
+  leftDownside: number | null;
+  rightDownside: number | null;
+}
+
 export interface RelativeLegPoint {
   membership: UniverseListing['status'] | null;
   close: ScreenPrice | null;
@@ -1490,6 +1497,7 @@ export interface MarketCore {
   portfolioVariance(membership: string, prices: string, leftId: string, rightId: string,
     query: PortfolioVarianceQuery): PortfolioVarianceReport;
   listingRisk(membership: string, prices: string, leftId: string, rightId: string, query: ListingRiskQuery): ListingRiskPoint[];
+  listingDownsideRisk(membership: string, prices: string, leftId: string, rightId: string, query: ListingRiskQuery): ListingDownsideRiskPoint[];
   crossSectionReplay(membership: string, prices: string, liquidity: string, from: string,
     through: string, known: string, config: CrossSectionConfig, actions?: CrossSectionActions): CrossSectionReport;
   crossSectionSuccessorDeliveryJournal(membership: string, prices: string, liquidity: string, from: string,
@@ -1685,6 +1693,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_portfolio_allocation_with_limit(membershipBytes: number, intervalSeconds: number, maximumWeight: number): number;
   mw_portfolio_variance(membershipBytes: number, intervalSeconds: number): number;
   mw_listing_risk(membershipBytes: number, intervalSeconds: number, windowPeriods: number, volatilityPeriods: number): number;
+  mw_listing_risk_v2(membershipBytes: number, intervalSeconds: number, windowPeriods: number, volatilityPeriods: number): number;
   mw_portfolio_scenarios(membershipBytes: number): number;
   mw_portfolio_fx_as_of(): number;
   mw_sector_heatmap(membershipBytes: number, priceBytes: number): number;
@@ -1739,6 +1748,21 @@ const WIDE_MISSING = -(1n << 127n);
 function validateIndicatorHistory(period: number, length: number, minimum = 1): void {
   if (!validIndicatorPeriod(period) || period < minimum || length > MAX_INDICATOR_PERIOD)
     throw new Error('Series and indicator period must fit within 100,000 bars.');
+}
+
+function listingRiskMetric(out: DataView, offset: number): number | null {
+  const value = out.getFloat64(offset, true);
+  return Number.isFinite(value) ? value : null;
+}
+
+function readListingRiskPoint(out: DataView, start: number): ListingRiskPoint {
+  return {
+    fromAt: Number(out.getBigInt64(start, true)), throughAt: Number(out.getBigInt64(start + 8, true)),
+    expectedReturns: out.getUint32(start + 16, true), leftReturns: out.getUint32(start + 20, true),
+    rightReturns: out.getUint32(start + 24, true), pairedReturns: out.getUint32(start + 28, true),
+    leftVolatility: listingRiskMetric(out, start + 32), rightVolatility: listingRiskMetric(out, start + 40),
+    correlation: listingRiskMetric(out, start + 48),
+  };
 }
 
 function readWideIndicator(out: DataView, length: number): (bigint | null)[] {
@@ -2104,6 +2128,18 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       throw new Error('Use two valid listing IDs.');
     }
     screenInput(times, leftId, '\n', rightId, '\n', membership, prices);
+  }
+
+  function putListingRiskInput(
+    membership: string, prices: string, leftId: string, rightId: string,
+    { from, through, known, intervalSeconds, windowPeriods, volatilityPeriods }: ListingRiskQuery,
+  ) {
+    if ([intervalSeconds, windowPeriods, volatilityPeriods].some(value =>
+      !Number.isInteger(value) || value < 1 || value > 0xffffffff)) {
+      throw new Error('Use positive whole numbers for the risk window, interval and volatility scale.');
+    }
+    putPairInput(membership, prices, leftId, rightId, [from, through, known]);
+    return [encoder.encode(membership).length, intervalSeconds, windowPeriods, volatilityPeriods] as const;
   }
 
   function putFootprintInput(instrument: string, csv: string, { bucketSeconds, priceWidth, from, through, known }: FootprintQuery) {
@@ -3788,24 +3824,18 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         },
       };
     },
-    listingRisk(membership, prices, leftId, rightId, { from, through, known, intervalSeconds, windowPeriods, volatilityPeriods }) {
-      if ([intervalSeconds, windowPeriods, volatilityPeriods].some(value =>
-        !Number.isInteger(value) || value < 1 || value > 0xffffffff)) {
-        throw new Error('Use positive whole numbers for the risk window, interval and volatility scale.');
-      }
-      putPairInput(membership, prices, leftId, rightId, [from, through, known]);
-      const out = output(api.mw_listing_risk(encoder.encode(membership).length, intervalSeconds, windowPeriods, volatilityPeriods));
-      return Array.from({ length: out.byteLength / 56 }, (_, index) => {
-        const start = index * 56;
-        const metric = (offset: number) => {
-          const value = out.getFloat64(start + offset, true);
-          return Number.isFinite(value) ? value : null;
-        };
+    listingRisk(membership, prices, leftId, rightId, query) {
+      const out = output(api.mw_listing_risk(...putListingRiskInput(membership, prices, leftId, rightId, query)));
+      return Array.from({ length: out.byteLength / 56 }, (_, index) => readListingRiskPoint(out, index * 56));
+    },
+    listingDownsideRisk(membership, prices, leftId, rightId, query) {
+      const out = output(api.mw_listing_risk_v2(...putListingRiskInput(membership, prices, leftId, rightId, query)));
+      return Array.from({ length: out.byteLength / 80 }, (_, index) => {
+        const start = index * 80;
         return {
-          fromAt: Number(out.getBigInt64(start, true)), throughAt: Number(out.getBigInt64(start + 8, true)),
-          expectedReturns: out.getUint32(start + 16, true), leftReturns: out.getUint32(start + 20, true),
-          rightReturns: out.getUint32(start + 24, true), pairedReturns: out.getUint32(start + 28, true),
-          leftVolatility: metric(32), rightVolatility: metric(40), correlation: metric(48),
+          ...readListingRiskPoint(out, start),
+          leftLossReturns: out.getUint32(start + 56, true), rightLossReturns: out.getUint32(start + 60, true),
+          leftDownside: listingRiskMetric(out, start + 64), rightDownside: listingRiskMetric(out, start + 72),
         };
       });
     },

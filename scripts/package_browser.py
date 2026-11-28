@@ -99,6 +99,8 @@ Start listing risk demo under Universe replay, or open the matching
 listing-risk-membership.csv and listing-risk-prices.csv files. Compare A
 and B, then expand Rolling risk. Use an effective time of 14:06 UTC and
 compare knowledge at 14:06, 14:07 and 14:08 to inspect paired coverage.
+Enable Show downside deviation to compare loss counts and downside risk
+as the late close and removal become known.
 Expand Two-listing minimum variance after comparing A and B. Use a
 60-second interval to estimate and export the allocation for those cutoffs.
 Use Portfolio minimum variance under Universe screen to estimate weights
