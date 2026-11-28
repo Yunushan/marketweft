@@ -60,3 +60,9 @@ ABI version 1 calls the named export `marketweft_scalar_v1` with one `i64` param
 Each run starts a fresh integer-only instance with empty imports and one explicit scalar input. The interpreter validates the binary and accepts up to 64 KiB, one linear memory capped at 2 MiB and one table capped at 64 elements. A 64-call recursion limit, 64 KiB value stack and 100,000 units of interpreter fuel bound execution. Start functions, floating-point instructions and imported host functions and resources are rejected. A trap reports an error and clears the result.
 
 Rust callers use `evaluate_scalar_plugin(module, ticks)`. The TypeScript research SDK accepts the module bytes and a signed 64-bit `bigint` through `evaluateScalarPlugin`. The ABI uses standard Wasm signed integer semantics for operations, including wraparound. [TypeScript research SDK](../packages/research/README.md)
+
+### Python and native scalar plugins
+
+Use `ResearchEngine.evaluate_scalar_plugin(module, ticks)` with the local `marketweft-research` executable. It accepts the compiled module as `bytes` and the input as a signed 64-bit Python integer in millionths. With the packaged increment plugin, an input of `-123456789` returns `-123456788` exactly. [Python research SDK](../packages/python-research/README.md)
+
+The `marketweft-research scalar-plugin` command reads an ASCII header followed immediately by the raw module on stdin. Its version 1 header is `marketweft-scalar-plugin<TAB>1<TAB><input><LF>`. The response contains the same header with the output integer and ends after the line feed. A rejected invocation exits unsuccessfully and reports the error on stderr. The CLI and Python SDK use the same interpreter and budgets as the browser.

@@ -588,6 +588,20 @@ class ResearchEngine:
         header = f"marketweft-research\t1\t{len(source)}\t{len(library)}\t{cutoff}\n".encode("ascii")
         return _result(self._invoke(header + source + library + history))
 
+    def evaluate_scalar_plugin(self, module: bytes, ticks: int) -> int:
+        """Run a binary Wasm module on one signed millionth value."""
+        if not isinstance(module, bytes):
+            raise TypeError("Provide the scalar plugin as bytes.")
+        if len(module) > 64 * 1024:
+            raise ValueError("Scalar plugin exceeds 64 KiB.")
+        if type(ticks) is not int or not _MIN_I64 <= ticks <= _MAX_I64:
+            raise ValueError("Scalar plugin input must fit a signed 64-bit integer.")
+        header = f"marketweft-scalar-plugin\t1\t{ticks}\n".encode("ascii")
+        value, rows = _response(self._invoke(header + module, "scalar-plugin"), "marketweft-scalar-plugin")
+        if rows:
+            raise ResearchError("Unexpected rows in the scalar plugin response.")
+        return _whole(value)
+
     def screen_universe(
         self,
         membership_csv: str,

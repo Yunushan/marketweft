@@ -41,6 +41,42 @@ class ResearchTest(unittest.TestCase):
             self.engine.evaluate_formula("gap(close)", CSV, functions=(FormulaFunction("gap", ("x",), "x + high"),))
         self.assertEqual(self.engine.evaluate_formula("smooth(close)", CSV, functions=functions), scoped)
 
+    def test_scalar_plugins_match_the_rust_and_wasm_fixture(self):
+        fixture = (FIXTURE.parent / "scalar-plugins.txt").read_text(encoding="utf-8")
+        binaries = dict(line.split() for line in fixture.splitlines() if not line.startswith("#"))
+        modules = {name: bytes.fromhex(value) for name, value in binaries.items()}
+        evaluate = self.engine.evaluate_scalar_plugin
+        self.assertEqual(evaluate(modules["increment"], -123456789), -123456788)
+        self.assertEqual(evaluate(modules["increment"], -(1 << 63)), -(1 << 63) + 1)
+        self.assertEqual(evaluate(modules["state"], 80), 1)
+        self.assertEqual(evaluate(modules["state"], 80), 1)
+        with self.assertRaisesRegex(ResearchError, "cannot import"):
+            evaluate(modules["import"], 0)
+        with self.assertRaisesRegex(ResearchError, "exhausted its execution budget"):
+            evaluate(modules["fuel"], 0)
+        self.assertEqual(evaluate(modules["increment"], 0), 1)
+
+    def test_scalar_plugin_wire_and_input_limits(self):
+        evaluate = self.engine.evaluate_scalar_plugin
+        with self.assertRaisesRegex(TypeError, "bytes"):
+            evaluate("module.wasm", 0)
+        with self.assertRaisesRegex(ValueError, "64 KiB"):
+            evaluate(bytes(65537), 0)
+        for ticks in (True, 1.5, 1 << 63, -(1 << 63) - 1):
+            with self.subTest(ticks=ticks), self.assertRaisesRegex(ValueError, "signed 64-bit"):
+                evaluate(b"", ticks)
+        for frame, message in (
+            (b"marketweft-scalar-plugin\t2\t0\nmodule", b"protocol version"),
+            (b"marketweft-scalar-plugin\t1\t9223372036854775808\nmodule", b"signed 64-bit"),
+            (b"unsplit", b"Missing scalar plugin request header"),
+            (b"marketweft-scalar-plugin\t1\t0\nmodule", b"Invalid scalar plugin"),
+        ):
+            with self.subTest(frame=frame):
+                result = subprocess.run([EXECUTABLE, "scalar-plugin"], input=frame, capture_output=True, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, b"")
+                self.assertIn(message, result.stderr)
+
     def test_rejects_lookahead_and_invalid_protocol_frames(self):
         with self.assertRaisesRegex(ResearchError, "literal window or lag"):
             self.engine.evaluate_formula("lag(close, -1)", CSV)

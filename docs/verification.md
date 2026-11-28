@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.210.0 · Native and Python scalar plugin conformance
+
+- The local Rust research executable and Python SDK share the same scalar-module fixtures as the browser and TypeScript SDK. The tests preserve the signed 64-bit boundary and exact negative millionth output, isolate module state across calls and recover after rejected imports and exhausted fuel.
+- Native process tests reject incompatible protocol versions, an out-of-range input, a missing header and an invalid module without writing a partial result. The 27 installed-wheel tests pass with Python 3.10 and 3.12 against the same Linux x64 release executable.
+
+[Python and native scalar plugins](time-series-language.md#python-and-native-scalar-plugins)
+
 ## 0.209.0 · Scalar Wasm plugins
 
 - Native Rust and the browser-facing Wasm bridge use the same fixtures for signed millionths, fresh instance state, denied imports, start sections, floating point, memory growth and fuel exhaustion.

@@ -26,6 +26,34 @@ pub const MAX_FINANCIAL_REQUEST_BYTES: usize = 2 * MAX_FINANCIAL_CSV_BYTES + 128
 pub const MAX_OPTION_REQUEST_BYTES: usize = 2 * MAX_OPTION_CSV_BYTES + 128;
 pub const MAX_AMERICAN_OPTION_REQUEST_BYTES: usize =
     2 * MAX_OPTION_CSV_BYTES + MAX_CASH_DIVIDEND_CSV_BYTES + 256;
+pub const MAX_SCALAR_PLUGIN_REQUEST_BYTES: usize = crate::MAX_SCALAR_PLUGIN_BYTES + 128;
+
+/// Run a binary scalar module in the same bounded interpreter as the browser.
+pub fn evaluate_scalar_plugin_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_SCALAR_PLUGIN_REQUEST_BYTES {
+        return Err("Scalar plugin request exceeds its byte limit.".into());
+    }
+    let newline = bytes
+        .iter()
+        .take(128)
+        .position(|byte| *byte == b'\n')
+        .ok_or("Missing scalar plugin request header.")?;
+    let header = std::str::from_utf8(&bytes[..newline])
+        .map_err(|_| "Use an ASCII scalar plugin request header.")?;
+    let mut fields = header.split('\t');
+    let (Some("marketweft-scalar-plugin"), Some("1"), Some(ticks), None) =
+        (fields.next(), fields.next(), fields.next(), fields.next())
+    else {
+        return Err("Invalid scalar plugin request or protocol version.".into());
+    };
+    let ticks = ticks
+        .parse::<i64>()
+        .map_err(|_| "Scalar plugin input must fit a signed 64-bit integer.")?;
+    let output = crate::evaluate_scalar_plugin(&bytes[newline + 1..], ticks)?;
+    Ok(format!(
+        "marketweft-scalar-plugin\t{PROTOCOL_VERSION}\t{output}\n"
+    ))
+}
 
 /// Return annual and quarterly financial evidence for independently dated cutoffs.
 pub fn financial_snapshot_request(bytes: &[u8]) -> Result<String, String> {
