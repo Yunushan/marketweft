@@ -12,6 +12,12 @@ The time-price opportunity profile counts each execution bracket in which a pric
 
 Both metrics use the inclusive execution window and observation cutoff. A late trade may change volume, occupancy or both. The calculation uses source event and observation times even when a file contains trades reported later.
 
+## Time-price bracket chart
+
+Open **Time-price bracket chart** beneath the applied footprint. The chart places price bins on rows and UTC execution brackets on columns. An occupied cell represents one opportunity regardless of how many eligible trades it contains. A labeled gap groups consecutive brackets without an observed trade. Rows include the exact lower and exclusive upper price boundaries and show the number of opportunities on the current time page. Page through the price and time axes independently.
+
+Advance or rewind **Footprint known time (UTC)** to see when late trades fill a gap or mark an additional price bin. **Download time-price brackets** writes every occupied pair across all pages, the bracket bounds, the exact price bounds, the contributing trade count and the applied query. An occupied pair always contributes one opportunity, so totaling those rows for each price bin reconciles to the time-price profile. [Time-price chart convention](https://www.sierrachart.com/index.php?page=doc%2FStudiesReference%2FTimePriceOpportunityCharts.html).
+
 ## Point of control and value area
 
 Choose a target from 0.01% to 100%, with 70% as the default. The point of control is the populated bin with the greatest weight. The lower price breaks ties.

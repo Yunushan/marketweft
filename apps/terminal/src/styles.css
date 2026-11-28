@@ -349,8 +349,16 @@ main {
 .universe-table td {
   white-space: nowrap;
 }
-.monthly-returns td {
+.monthly-returns td,
+.time-price-chart td {
   text-align: center;
+}
+.time-price-chart td.opportunity-present {
+  background: #153a31;
+  color: #b7f2d7;
+}
+.time-price-chart th small {
+  display: block;
 }
 .monthly-returns td[data-return='positive'] {
   background: #153a31;

@@ -5,6 +5,7 @@ import { downloadFile } from './download'
 import { fixed } from './fixed-point'
 import { Mark } from './Icons'
 import { PriceProfiles } from './PriceProfiles'
+import { TimePriceChart } from './TimePriceChart'
 import { TradeClassificationResearch } from './TradeClassificationResearch'
 import type { FootprintBar, FootprintQuery, MarketCore, TradeFlowVolume } from './market-core'
 import { utc } from './workspace'
@@ -139,6 +140,7 @@ export function FootprintResearch({ core, asset, close }: { core: MarketCore; as
   })
   const [report, setReport] = useState<Report | null>(null)
   const [bucket, setBucket] = useState(0)
+  const [showTimePrice, setShowTimePrice] = useState(false)
   const [problem, setProblem] = useState('')
   const title = useRef<HTMLHeadingElement>(null)
   useEffect(() => title.current?.focus(), [])
@@ -269,6 +271,12 @@ export function FootprintResearch({ core, asset, close }: { core: MarketCore; as
                 <FootprintRows key={JSON.stringify([bar.startsAt, report.query])} bar={bar} />
               </>
             ) : <p role="status">No trades match these execution and observation cutoffs.</p>}
+            {bar && <details className="research-details" open={showTimePrice}
+              onToggle={event => setShowTimePrice(event.currentTarget.open)}>
+              <summary>Time-price bracket chart</summary>
+              {showTimePrice && <TimePriceChart key={JSON.stringify([report.source.name, report.query])}
+                bars={report.bars} instrument={asset.id} query={report.query} source={report.source.name} />}
+            </details>}
             <PriceProfiles core={core} instrument={asset.id} source={report.source} query={report.query} />
           </section>
         )}

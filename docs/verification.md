@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.216.0 · Time-price bracket chart
+
+- Chromium verifies signed bins, duplicate executions contributing one opportunity, grouped gaps, late observations, execution bounds and byte-identical CSV after offline rewind. The plotted opportunities reconcile to the profile built by the same Rust footprint engine.
+- A dense fixture checks independent price and time paging. The source remains local, and the chart fits a narrow viewport with an accessible scrollable table.
+
+[Time-price bracket chart](price-profiles.md#time-price-bracket-chart)
+
 ## 0.215.0 · UTC monthly returns calendar
 
 - The same synthetic price history drives Rust, Wasm and offline Chromium. It crosses December into January and includes a leap-day close, an empty month, a zero prior close, a flat return and both signs. Rust and Wasm also check ordered input, wide exact returns and bounded calendar ranges.
