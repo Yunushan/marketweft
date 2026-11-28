@@ -83,6 +83,23 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('DeMarker and Relative Vigor preserve exact flat gaps, signed values and signal recovery in Wasm', async () => {
+  const input = await readFile(new URL('../crates/core/tests/fixtures/synthetic-demarker-vigor.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(input);
+  const range = core.demarker(2, bars);
+  assert.deepEqual(range.slice(6, 16), [66666667n, 100000000n, null, null, null, null, null, 66666667n, 66666667n, 0n]);
+  const vigor = core.relativeVigor(2, bars);
+  assert.deepEqual(vigor.slice(10, 17), [
+    { vigor: -40000000n, signal: -9381788n }, { vigor: null, signal: null },
+    { vigor: null, signal: null }, { vigor: 50000000n, signal: null },
+    { vigor: 20833333n, signal: null }, { vigor: 6250000n, signal: null },
+    { vigor: 4545455n, signal: 18118687n },
+  ]);
+  for (let end = 0; end <= bars.length; end++)
+    assert.deepEqual(core.relativeVigor(2, bars.slice(0, end)), vigor.slice(0, end));
+  assert.throws(() => core.demarker(0, bars), /indicator period/);
+});
+
 test('Fibonacci channel preserves signed rational offsets and exact wide price ticks in Wasm', () => {
   const levels = (time, ticks) => ({ time, ticks });
   assert.deepEqual(core.fibonacciChannelLevels([levels(0, 0), levels(2, 1), levels(1, 0)])

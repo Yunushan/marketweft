@@ -48,6 +48,8 @@ const FIXED_STUDY_SCALES: Partial<Record<PanelStudy['kind'], FixedStudyScale>> =
   aroon_oscillator: SIGNED_OSCILLATOR_SCALE,
   bop: { ticks: [-1, -0.5, 0, 0.5, 1], guides: [0], format: String },
   cmo: SIGNED_OSCILLATOR_SCALE,
+  demarker: { ticks: [0, 30, 70, 100], guides: [30, 70], format: asPercent },
+  relative_vigor: SIGNED_OSCILLATOR_SCALE,
   williams_r: { ticks: [-100, -80, -20, 0], guides: [-80, -20], format: asPercent },
 }
 

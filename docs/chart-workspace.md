@@ -434,6 +434,14 @@ Each pane uses the bars available to its selected history and timeframe. Both st
 
 Both studies use observed bars and preserve separate pane settings. Research CSV names include the configured periods, such as `elder_force_13` and `chaikin_volatility_10_10`. Their settings use workspace backup version 59.
 
+### DeMarker and Relative Vigor Index
+
+**DeMarker** uses the sum of positive changes in highs divided by that sum plus the sum of falls in lows. It starts after a full window of observed pairs. The default period is 14. An unchanged window with a zero denominator leaves the value empty. A window with falling lows and zero rise in highs produces 0%. The panel spans 0–100% with guides at 30% and 70%. [DeMarker formula](https://www.metatrader5.com/en/terminal/help/indicators/oscillators/demarker).
+
+**Relative Vigor Index** uses weights of 1, 2, 2 and 1 on four consecutive observed candle bodies and on their high-low ranges. It divides the rolling sum of the weighted bodies by the rolling sum of the weighted ranges, expressed as a percentage. The default rolling period is 10. A zero range sum leaves the value empty. The signal line uses those four weights over four consecutive defined vigor values. Each calculated line rounds to six decimal places and uses the signed −100% to 100% scale. [Relative Vigor calculation](https://www.metatrader5.com/en/mobile-trading/iphone/help/chart/indicators/oscillators/relative_vigor_index).
+
+Both studies use consecutive observed bars across timestamp gaps and keep separate lookbacks in each pane. The default research CSV fields are `demarker_14`, `relative_vigor_value_10` and `relative_vigor_signal_10`. Workspace backup version 66 saves the settings.
+
 ### Elder-Ray Index and Coppock Curve
 
 Enable **Elder-Ray Index** to plot Bull Power and Bear Power in price units around zero. Bull Power subtracts the close EMA from the observed high. Bear Power subtracts the same EMA from the observed low. The EMA starts with the first full close window, defaults to 13 bars, and uses the same rounding as the chart EMA. A rising or falling market can put both lines on one side of zero. [Elder-Ray formula](https://ta-lib.org/functions/eri.html).

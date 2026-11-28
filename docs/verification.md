@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.233.0 · DeMarker and Relative Vigor
+
+- Rust and Wasm check the exact signed series, observed-time gaps, zero denominators, genuine zeros and recovery of the four-value signal after flat bars. Rust also tests candles spanning the fixed-point price bounds.
+- Offline Chromium checks exact CSV, per-pane periods and version 66 restore with a version 65 Fibonacci channel preserved.
+
+[DeMarker and Relative Vigor](chart-workspace.md#demarker-and-relative-vigor-index)
+
 ## 0.232.0 · Fibonacci channels
 
 - Rust and Wasm check signed offsets at all six ratios, a fractional tick at the width time, a wide price offset and rejection of out-of-range or collinear anchors.

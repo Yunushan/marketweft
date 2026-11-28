@@ -4429,6 +4429,24 @@ pub extern "C" fn mw_elder_ray_index(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_demarker(period: usize) -> u32 {
+    process(|input| crate::demarker(period, &decode_bars(input)?).map(encode_indicator_values))
+}
+
+#[no_mangle]
+pub extern "C" fn mw_relative_vigor(period: usize) -> u32 {
+    process(|input| {
+        let rows = crate::relative_vigor(period, &decode_bars(input)?)?;
+        let mut bytes = Vec::with_capacity(rows.len() * 16);
+        for row in rows {
+            bytes.extend_from_slice(&row.vigor.unwrap_or(i64::MIN).to_le_bytes());
+            bytes.extend_from_slice(&row.signal.unwrap_or(i64::MIN).to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_chaikin_volatility(smoothing: usize, comparison: usize) -> u32 {
     process(|input| {
         crate::chaikin_volatility(smoothing, comparison, &decode_bars(input)?)

@@ -1194,6 +1194,7 @@ export type GannFanLevel = { priceUnits: number; timeUnits: number; ticks: bigin
 export type FibonacciChannelLevel = { ratioThousandths: number; offsetTicks: bigint };
 export type VortexValue = { positive: bigint; negative: bigint };
 export type ElderRayValue = { bull: bigint; bear: bigint };
+export type RelativeVigorValue = { vigor: bigint | null; signal: bigint | null };
 export type FloorPivotLevels = { priorCloseAt: number; pivot: bigint; supportOne: bigint; supportTwo: bigint;
   resistanceOne: bigint; resistanceTwo: bigint };
 export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; rewardPerRiskMicros: bigint };
@@ -1254,6 +1255,8 @@ export interface MarketCore {
   balanceOfPower(bars: readonly Bar[]): (bigint | null)[];
   elderForceIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   elderRayIndex(period: number, bars: readonly Bar[]): (ElderRayValue | null)[];
+  demarker(period: number, bars: readonly Bar[]): (bigint | null)[];
+  relativeVigor(period: number, bars: readonly Bar[]): RelativeVigorValue[];
   chaikinVolatility(smoothing: number, comparison: number, bars: readonly Bar[]): (bigint | null)[];
   dailyFloorPivots(bars: readonly Bar[], queryTimes: readonly number[]): (FloorPivotLevels | null)[];
   linearlyWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1392,6 +1395,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_balance_of_power(): number;
   mw_elder_force_index(period: number): number;
   mw_elder_ray_index(period: number): number;
+  mw_demarker(period: number): number;
+  mw_relative_vigor(period: number): number;
   mw_chaikin_volatility(smoothing: number, comparison: number): number;
   mw_daily_floor_pivots(sourceCount: number): number;
   mw_measure_risk_reward(side: number, entry: bigint, stop: bigint, target: bigint): number;
@@ -2680,6 +2685,27 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         const bull = data.getBigInt64(start, true);
         return bull === MISSING ? null : { bull, bear: data.getBigInt64(start + 8, true) };
       });
+    },
+    demarker(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'DeMarker');
+      const data = output(api.mw_demarker(period));
+      if (data.byteLength !== bars.length * 8) throw new Error('Invalid DeMarker response size.');
+      return Array.from({ length: bars.length }, (_, index) => {
+        const value = data.getBigInt64(index * 8, true);
+        return value === MISSING ? null : value;
+      });
+    },
+    relativeVigor(period, bars) {
+      validateIndicatorHistory(period, bars.length);
+      putIndicatorBars(bars, 'Relative Vigor Index');
+      const data = output(api.mw_relative_vigor(period));
+      if (data.byteLength !== bars.length * 16) throw new Error('Invalid Relative Vigor response size.');
+      function at(offset: number) {
+        const value = data.getBigInt64(offset, true);
+        return value === MISSING ? null : value;
+      }
+      return Array.from({ length: bars.length }, (_, index) => ({ vigor: at(index * 16), signal: at(index * 16 + 8) }));
     },
     chaikinVolatility(smoothing, comparison, bars) {
       validateIndicatorHistory(smoothing, bars.length);

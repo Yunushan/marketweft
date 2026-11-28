@@ -65,6 +65,7 @@ mod stochastic;
 mod tick_bars;
 mod timeframe;
 mod universe;
+mod vigor_and_demarker;
 mod volume_bars;
 mod walk_forward;
 #[cfg(target_arch = "wasm32")]
@@ -224,6 +225,7 @@ pub use timeframe::{
     aggregate_session_timeframe, aggregate_timeframe, SessionTimeframeBar, TimeframeBar,
 };
 pub use universe::{parse_universe, UniverseAction, UniverseBook, UniverseChange};
+pub use vigor_and_demarker::{demarker, relative_vigor, RelativeVigorValue};
 pub use volume_bars::VolumeBar;
 pub use walk_forward::{
     walk_forward, CandidateScore, SmaCandidate, WalkForwardConfig, WalkForwardFold,

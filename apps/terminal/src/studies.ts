@@ -39,6 +39,8 @@ export const STUDIES = {
   daily_pivots: { name: 'Daily Floor Pivots', label: 'Daily Floor Pivots' },
   elder_force: { name: 'Elder Force Index', label: 'Elder Force Index', minPeriod: 1, defaultPeriod: 13, color: '#e5b57f' },
   elder_ray: { name: 'Elder-Ray Index', label: 'Elder-Ray Index', minPeriod: 1, defaultPeriod: 13 },
+  demarker: { name: 'DeMarker', label: 'DeMarker', minPeriod: 1, defaultPeriod: 14, color: '#87cbe0' },
+  relative_vigor: { name: 'Relative Vigor Index', label: 'Relative Vigor Index', minPeriod: 1, defaultPeriod: 10, color: '#88d6b5' },
   chaikin_volatility: { name: 'Chaikin Volatility', label: 'Chaikin Volatility', minPeriod: 1, defaultPeriod: 10,
     periodLabel: 'Chaikin Volatility smoothing', color: '#a2cee5' },
   aroon: { name: 'Aroon', label: 'Aroon', minPeriod: 1, defaultPeriod: 25 },
@@ -246,6 +248,16 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       return [{ kind, periods: [period], unit: 'price', zeroLine: true, lines: [
         { key: 'bull', label: 'Bull Power', color: '#77cba5', series: rows.map(row => row?.bull ?? null) },
         { key: 'bear', label: 'Bear Power', color: '#e397a2', series: rows.map(row => row?.bear ?? null) },
+      ] }]
+    }
+    if (kind === 'demarker') return [{ kind, periods: [period], lines: [
+      { color: STUDIES[kind].color, series: core.demarker(period, bars) },
+    ] }]
+    if (kind === 'relative_vigor') {
+      const rows = core.relativeVigor(period, bars)
+      return [{ kind, periods: [period], lines: [
+        { key: 'value', label: 'Vigor', color: STUDIES[kind].color, series: rows.map(row => row.vigor) },
+        { key: 'signal', label: 'Signal', color: '#e9b879', series: rows.map(row => row.signal) },
       ] }]
     }
     if (kind === 'chaikin_volatility') {
