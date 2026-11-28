@@ -68,10 +68,12 @@ export interface StochasticValue {
   percentD: bigint | null;
 }
 
-export interface StochasticMomentumValue {
+export interface OscillatorSignal {
   line: bigint | null;
   signal: bigint | null;
 }
+
+export type StochasticMomentumValue = OscillatorSignal;
 
 export interface BollingerMeasures {
   percentB: bigint | null;
@@ -1400,6 +1402,8 @@ export interface MarketCore {
   chaikinMoneyFlow(period: number, bars: readonly Bar[]): (bigint | null)[];
   chaikinOscillator(fast: number, slow: number, bars: readonly Bar[]): (bigint | null)[];
   macd(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
+  trueStrengthIndex(fast: number, slow: number, signal: number, bars: readonly Bar[]): OscillatorSignal[];
+  klingerOscillator(fast: number, slow: number, signal: number, bars: readonly Bar[]): OscillatorSignal[];
   percentagePriceOscillator(fast: number, slow: number, signal: number, bars: readonly Bar[]): MacdValue[];
   normalizedAverageTrueRange(period: number, bars: readonly Bar[]): (bigint | null)[];
   supertrend(period: number, bars: readonly Bar[]): { up: bigint | null; down: bigint | null }[];
@@ -1593,6 +1597,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_chaikin_money_flow(period: number): number;
   mw_chaikin_oscillator(fast: number, slow: number): number;
   mw_macd(fast: number, slow: number, signal: number): number;
+  mw_true_strength_index(fast: number, slow: number, signal: number): number;
+  mw_klinger_oscillator(fast: number, slow: number, signal: number): number;
   mw_percentage_price_oscillator(fast: number, slow: number, signal: number): number;
   mw_normalized_average_true_range(period: number): number;
   mw_supertrend(period: number): number;
@@ -3064,6 +3070,22 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       return Array.from({ length: bars.length }, (_, index) => ({
         line: value(index * 24), signal: value(index * 24 + 8), histogram: value(index * 24 + 16),
       }));
+    },
+    trueStrengthIndex(fast, slow, signal, bars) {
+      if (![fast, slow, signal].every(validIndicatorPeriod) || fast >= slow)
+        throw new Error('True Strength Index requires a fast period shorter than the slow period.');
+      validateIndicatorHistory(slow, bars.length);
+      putIndicatorCloses(bars);
+      return readIndicatorPairs(output(api.mw_true_strength_index(fast, slow, signal)),
+        bars.length, (line, signal) => ({ line, signal }));
+    },
+    klingerOscillator(fast, slow, signal, bars) {
+      if (![fast, slow, signal].every(validIndicatorPeriod) || fast >= slow)
+        throw new Error('Klinger Oscillator requires a fast period shorter than the slow period.');
+      validateIndicatorHistory(slow, bars.length);
+      putIndicatorBars(bars, 'Klinger Oscillator');
+      return readIndicatorPairs(output(api.mw_klinger_oscillator(fast, slow, signal)),
+        bars.length, (line, signal) => ({ line, signal }));
     },
     percentagePriceOscillator(fast, slow, signal, bars) {
       if (![fast, slow, signal].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD || fast >= slow)

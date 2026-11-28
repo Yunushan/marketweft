@@ -10,6 +10,29 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('TSI and Klinger preserve warm-up, swing direction and exact signal values', () => {
+  const bar = (close, index) => ({
+    time: 1748872800 + index * 60, open: close,
+    high: close + 1, low: close - 1, close, volume: 10,
+  });
+  const tsi = [0, 0, 0, 0, 2, 0, 2, 0, -2].map(bar);
+  const strength = core.trueStrengthIndex(2, 3, 2, tsi);
+  assert.deepEqual(strength.slice(0, 4), Array.from({ length: 4 }, () => ({ line: null, signal: null })));
+  assert.deepEqual(strength[4], { line: 100000000n, signal: null });
+  assert.deepEqual(strength[5], { line: -14285714n, signal: 42857143n });
+  const bars = [10, 11, 12, 12, 11, 10].map(bar);
+  const volume = core.klingerOscillator(1, 2, 2, bars);
+  assert.deepEqual(volume[2], { line: 166666666n, signal: null });
+  assert.deepEqual(volume[3], { line: 111111111n, signal: 138888889n });
+  assert.deepEqual(volume[5], { line: -154320988n, signal: -116255144n });
+  for (let length = 0; length <= bars.length; length++) {
+    assert.deepEqual(core.klingerOscillator(1, 2, 2, bars.slice(0, length)), volume.slice(0, length));
+  }
+  const flatRange = bars.map(bar => ({ ...bar, high: bar.close, low: bar.close }));
+  assert.deepEqual(core.klingerOscillator(1, 2, 2, flatRange)[4], { line: 0n, signal: 0n });
+  assert.throws(() => core.trueStrengthIndex(3, 2, 2, tsi), /fast period/);
+});
+
 test('scalar plugins preserve exact signed values and enforce instance isolation and fuel in Wasm', async () => {
   const source = await readFile(new URL('../crates/core/tests/fixtures/scalar-plugins.txt', import.meta.url), 'utf8');
   const modules = new Map(source.trim().split(/\r?\n/).filter(line => !line.startsWith('#')).map(line => {

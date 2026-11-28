@@ -72,6 +72,7 @@ mod scenarios;
 mod screen;
 mod sector;
 mod stochastic;
+mod strength_and_volume;
 mod tick_bars;
 mod timeframe;
 mod ultimate;
@@ -246,6 +247,7 @@ pub use screen::{
 };
 pub use sector::{Classification, Heatmap, HeatmapComparison, HeatmapListing, SectorGroup};
 pub use stochastic::{stochastic_oscillator, stochastic_rsi, StochasticValue};
+pub use strength_and_volume::{klinger_oscillator, true_strength_index, OscillatorSignal};
 pub use tick_bars::{
     AggressorSide, FlowVolume, FootprintBar, FootprintLevel, PriceProfile, ProfileArea,
     ProfileLevel, TickBar, TradeClassification, TradeClassificationConfig, TradeSideBasis,

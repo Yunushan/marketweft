@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.274.0 · True Strength Index and Klinger Oscillator
+
+- Rust and Wasm verify two-stage warm-up, exact signed momentum, flat denominators, tied direction, reversals and a wide volume input. Replaying observed prefixes keeps all earlier values.
+- Offline Chromium verifies Klinger’s separate periods in the primary and comparison panes, exact signed CSV columns, and recovery of both studies from backup version 82 after restoring version 81.
+
 ## 0.273.0 · Portfolio allocation research transports
 
 - The release Linux service verifies screen credentials and matching REST, WebSocket and gRPC results, rejects unknown fields and malformed data, and sends one report across the socket before closing.

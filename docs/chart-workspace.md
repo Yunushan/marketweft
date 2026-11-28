@@ -636,3 +636,13 @@ Hover a bar to inspect its volume, status, date and capture sequences. The CSV a
 ## Recorded trades
 
 The **Recorded tick bars** tool builds an independent chart from captured trades using an observation cutoff and trade count. [Recorded tick bars](recorded-tick-bars.md)
+
+## True Strength Index and Klinger Oscillator
+
+Choose **True Strength Index** or **Klinger Oscillator** in **Indicators**. Each chart pane saves its own fast, slow and signal periods. The fast period must be shorter than the slow period. Both studies provide their oscillator and signal lines in the analysis CSV.
+
+True Strength Index applies the slow and then fast EMA to both the one-bar close change and its absolute size. The ratio is expressed as a percentage, with guides at −100, 0 and 100. Defaults are fast 13, slow 25 and signal 7. A zero smoothed size leaves the line unavailable. The signal EMA starts after a full window of available line values. [TradingView, True Strength Index](https://www.tradingview.com/support/solutions/43000592290-true-strength-index/)
+
+Klinger Oscillator subtracts the slow volume-force EMA from the fast EMA, using defaults of 34 and 55 and a 13-bar signal. Direction follows changes in high plus low plus close and stays unchanged on a tie. After the first direction is established, each reversal restarts the cumulative range with the previous and current bar ranges. Volume force is signed volume times 100 times `abs(2 × current range / cumulative range − 1)`. A zero cumulative range gives zero force. MarketWeft seeds each EMA with its first full-window average and starts the signal from available oscillator values. [TA-Lib, Klinger Volume Oscillator formula](https://ta-lib.org/functions/kvo.html)
+
+The two studies use workspace backup version 82. Older backups restore the indicators and settings they contain. Analysis exports retain empty cells during warm-up and record valid zeros explicitly.

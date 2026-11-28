@@ -4721,6 +4721,32 @@ pub extern "C" fn mw_percentage_price_oscillator(fast: usize, slow: usize, signa
 }
 
 #[no_mangle]
+pub extern "C" fn mw_true_strength_index(fast: usize, slow: usize, signal: usize) -> u32 {
+    process(|input| {
+        crate::true_strength_index(fast, slow, signal, &indicator_closes(input)?)
+            .map(encode_oscillator_signals)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_klinger_oscillator(fast: usize, slow: usize, signal: usize) -> u32 {
+    process(|input| {
+        crate::klinger_oscillator(fast, slow, signal, &decode_bars(input)?)
+            .map(encode_oscillator_signals)
+    })
+}
+
+fn encode_oscillator_signals(values: Vec<crate::OscillatorSignal>) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(values.len() * 16);
+    for value in values {
+        for ticks in [value.line, value.signal] {
+            bytes.extend_from_slice(&ticks.unwrap_or(i64::MIN).to_le_bytes());
+        }
+    }
+    bytes
+}
+
+#[no_mangle]
 pub extern "C" fn mw_williams_percent_r(period: usize) -> u32 {
     process(|input| {
         crate::williams_percent_r(period, &decode_bars(input)?).map(encode_indicator_values)

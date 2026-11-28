@@ -25,6 +25,10 @@ export const STUDIES = {
   ultimate: { name: 'Ultimate Oscillator', label: 'Ultimate Oscillator', minPeriod: 1, defaultPeriod: 7, periodLabel: 'Ultimate Oscillator short', color: '#79cdb5' },
   williams_r: { name: 'Williams %R', label: 'Williams %R', minPeriod: 1, defaultPeriod: 14, color: '#ceaeec' },
   macd: { name: 'MACD', label: 'Moving Average Convergence Divergence', minPeriod: 1, defaultPeriod: 12, periodLabel: 'MACD fast', color: '#9abdfd' },
+  tsi: { name: 'True Strength Index', label: 'True Strength Index',
+    minPeriod: 1, defaultPeriod: 13, periodLabel: 'TSI fast', color: '#a4bdf5' },
+  klinger: { name: 'Klinger Oscillator', label: 'Klinger Oscillator',
+    minPeriod: 1, defaultPeriod: 34, periodLabel: 'Klinger fast', color: '#84c8bc' },
   ppo: { name: 'PPO', label: 'Percentage Price Oscillator', minPeriod: 1, defaultPeriod: 12, periodLabel: 'PPO fast', color: '#a1e4c5' },
   obv: { name: 'On-Balance Volume', label: 'On-Balance Volume', color: '#79c9b2' },
   adl: { name: 'Accumulation/Distribution Line', label: 'Accumulation/Distribution Line', color: '#e4ac7f' },
@@ -91,6 +95,10 @@ export const EXTRA_STUDY_PERIODS = {
   macdSignalPeriod: { label: 'MACD signal', defaultPeriod: 9 },
   ppoSlowPeriod: { label: 'PPO slow', defaultPeriod: 26 },
   ppoSignalPeriod: { label: 'PPO signal', defaultPeriod: 9 },
+  tsiSlowPeriod: { label: 'TSI slow', defaultPeriod: 25 },
+  tsiSignalPeriod: { label: 'TSI signal', defaultPeriod: 7 },
+  klingerSlowPeriod: { label: 'Klinger slow', defaultPeriod: 55 },
+  klingerSignalPeriod: { label: 'Klinger signal', defaultPeriod: 13 },
   chaikinSlowPeriod: { label: 'Chaikin slow', defaultPeriod: 10 },
   volatilityLookback: { label: 'Chaikin Volatility comparison', defaultPeriod: 10 },
   volumeOscillatorSlowPeriod: { label: 'Volume Oscillator slow', defaultPeriod: 10 },
@@ -108,6 +116,8 @@ const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPerio
   ultimate: ['ultimateMiddlePeriod', 'ultimateLongPeriod'],
   macd: ['slowPeriod', 'macdSignalPeriod'],
   ppo: ['ppoSlowPeriod', 'ppoSignalPeriod'],
+  tsi: ['tsiSlowPeriod', 'tsiSignalPeriod'],
+  klinger: ['klingerSlowPeriod', 'klingerSignalPeriod'],
   chaikin_oscillator: ['chaikinSlowPeriod'],
   chaikin_volatility: ['volatilityLookback'],
   volume_oscillator: ['volumeOscillatorSlowPeriod'],
@@ -290,6 +300,15 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
         { key: 'signal', label: 'Signal', color: '#f4ba85', series: values.map(row => row.signal) },
       ] }]
     }
+    if (kind === 'tsi' || kind === 'klinger') {
+      const [slow, signal] = extraStudyPeriods(kind).map(key => study[key] ?? EXTRA_STUDY_PERIODS[key].defaultPeriod)
+      const rows = kind === 'tsi' ? core.trueStrengthIndex(period, slow, signal, bars) : core.klingerOscillator(period, slow, signal, bars)
+      return [{ kind, periods: [period, slow, signal], unit: kind === 'klinger' ? 'volume' : undefined,
+        guides: kind === 'tsi' ? [-100, 0, 100] : undefined, zeroLine: kind === 'klinger', lines: [
+          { key: 'line', label: 'Line', color: STUDIES[kind].color, series: rows.map(row => row.line) },
+          { key: 'signal', label: 'Signal', color: '#efbc84', series: rows.map(row => row.signal) },
+        ] }]
+    }
     if (kind === 'macd' || kind === 'ppo') {
       const [slow, signal] = extraStudyPeriods(kind).map(key => study[key] ?? EXTRA_STUDY_PERIODS[key].defaultPeriod)
       const rows = kind === 'macd' ? core.macd(period, slow, signal, bars) : core.percentagePriceOscillator(period, slow, signal, bars)
@@ -467,6 +486,8 @@ export function isStudyKind(key: string): key is StudyKind {
 const ORDERED_SLOW_PERIODS: Partial<Record<StudyKind, ExtraStudyPeriod>> = {
   macd: 'slowPeriod',
   ppo: 'ppoSlowPeriod',
+  tsi: 'tsiSlowPeriod',
+  klinger: 'klingerSlowPeriod',
   chaikin_oscillator: 'chaikinSlowPeriod',
   volume_oscillator: 'volumeOscillatorSlowPeriod',
 }
