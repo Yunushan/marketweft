@@ -69,6 +69,7 @@ def build(binary, output):
         put(ROOT / "LICENSE", doc / "copyright")
         put(ROOT / "THIRD_PARTY_NOTICES", doc / "third-party-notices.txt")
         put(ROOT / "apps/terminal/public/THIRD-PARTY.txt", doc / "web-notices.txt")
+        put(ROOT / "apps/terminal/public/WASM-THIRD-PARTY.txt", doc / "wasm-notices.txt")
         put(ROOT / "apps/terminal/public/rust-library-notices.html", doc / "rust-library-notices.html")
         put(ROOT / "docs/dependencies.cdx.json", doc / "dependencies.cdx.json")
         copy_rust_notices(doc, TARGETS[architecture][1], revision)

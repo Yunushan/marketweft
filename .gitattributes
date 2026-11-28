@@ -3,3 +3,5 @@
 *.ico binary
 *.png binary
 apps/desktop/vendor/** -text
+licenses/** -text
+licenses/wasmparser-0.228.0/LICENSE-Apache-2.0_WITH_LLVM-exception whitespace=-blank-at-eof

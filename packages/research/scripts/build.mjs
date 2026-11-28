@@ -12,7 +12,9 @@ const build = spawnSync(process.execPath, [compiler, '-p', config], { stdio: 'in
 if (build.error) throw build.error
 if (build.status !== 0) process.exit(build.status ?? 1)
 
-await copyFile(
-  new URL('../../../apps/terminal/public/marketweft_core.wasm', import.meta.url),
-  new URL('../dist/marketweft_core.wasm', import.meta.url),
-)
+for (const name of ['marketweft_core.wasm', 'WASM-THIRD-PARTY.txt', 'rust-library-notices.html']) {
+  await copyFile(
+    new URL('../../../apps/terminal/public/' + name, import.meta.url),
+    new URL('../dist/' + name, import.meta.url),
+  )
+}

@@ -1180,6 +1180,7 @@ export type RegressionChannel = { observations: number; startTicks: bigint; endT
 
 export interface MarketCore {
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult;
+  evaluateScalarPlugin(module: Uint8Array, ticks: bigint): bigint;
   instrument(venue: string, symbol: string): string;
   parseCsv(csv: string): Bar[];
   heikinAshi(bars: readonly Bar[]): Bar[];
@@ -1369,6 +1370,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_stochastic_oscillator(lookback: number, smoothing: number, signal: number): number;
   mw_bollinger_measures(period: number): number;
   mw_formula_version(): number;
+  mw_evaluate_scalar_plugin(ticks: bigint): number;
   mw_evaluate_formula(sourceBytes: number): number;
   mw_evaluate_formula_library(sourceBytes: number, libraryBytes: number): number;
   mw_replay(calendarBytes: number, intervalSeconds: number): number;
@@ -1994,6 +1996,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
   }
 
   return {
+    evaluateScalarPlugin(module, ticks) {
+      if (typeof api.mw_evaluate_scalar_plugin !== 'function')
+        throw new Error('Scalar plugins require a compatible MarketWeft calculation engine.');
+      if (module.byteLength > 64 * 1024) throw new Error('Scalar plugin exceeds 64 KiB.');
+      if (typeof ticks !== 'bigint' || BigInt.asIntN(64, ticks) !== ticks)
+        throw new Error('Scalar plugin input must fit a signed 64-bit integer.');
+      const dest = input(module.byteLength);
+      new Uint8Array(dest.buffer, dest.byteOffset, dest.byteLength).set(module);
+      return output(api.mw_evaluate_scalar_plugin(ticks)).getBigInt64(0, true);
+    },
     evaluateFormula(source, bars, functions) {
       const sourceBytes = encoder.encode(source);
       if (sourceBytes.length > 2048) throw new Error('Formula exceeds 2,048 source bytes.');

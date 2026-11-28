@@ -39,6 +39,7 @@ jobs:
       - run: cargo test --manifest-path apps/research-service/Cargo.toml --locked
       - run: python3 -B scripts/test_supply_chain.py
       - run: python3 -B scripts/supply_chain.py --check
+      - run: python3 -B scripts/core_notices.py --check
       - run: python3 -B scripts/check_readmes.py
       - name: Build and test the standalone localhost research service
         run: |

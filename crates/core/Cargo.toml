@@ -7,6 +7,9 @@ license.workspace = true
 [lib]
 crate-type = ["rlib", "cdylib"]
 
+[dependencies]
+wasmi = { version = "=2.0.3", default-features = false, features = ["portable-dispatch", "stable", "validate"] }
+
 [[bench]]
 name = "history"
 harness = false

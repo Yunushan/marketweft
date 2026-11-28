@@ -22,6 +22,16 @@ test('the TypeScript SDK uses the shipped Wasm and preserves exact formula prefi
   }
 })
 
+test('the packaged SDK evaluates a bounded scalar plugin with exact bigint input', async () => {
+  const file = new URL('../../../crates/core/tests/fixtures/scalar-plugins.txt', import.meta.url)
+  const [source, research] = await Promise.all([readFile(file, 'utf8'), createResearchEngine(wasm)])
+  const module = name => Buffer.from(source.match(new RegExp('^' + name + ' ([a-f0-9]+)$', 'm'))[1], 'hex')
+  assert.equal(research.evaluateScalarPlugin(module('increment'), -123456789n), -123456788n)
+  assert.throws(() => research.evaluateScalarPlugin(module('fuel'), 0n), /execution budget/)
+  assert.equal(research.evaluateScalarPlugin(module('increment'), 0n), 1n)
+  assert.match(await readFile(new URL('../dist/WASM-THIRD-PARTY.txt', import.meta.url), 'utf8'), /wasmi 2\.0\.3/)
+})
+
 test('the packaged SDK reports depth sweep cutoffs and exact fixed-point execution', async () => {
   const depth = new URL('../../../crates/core/tests/fixtures/synthetic-depth.csv', import.meta.url)
   const [reports, research] = await Promise.all([readFile(depth, 'utf8'), createResearchEngine(wasm)])

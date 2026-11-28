@@ -48,6 +48,7 @@ def stage(binary, staging, revision, architecture):
     put(ROOT / "LICENSE", notices / "marketweft-0bsd.txt")
     put(ROOT / "THIRD_PARTY_NOTICES", notices / "third-party-notices.txt")
     put(ROOT / "apps/terminal/public/THIRD-PARTY.txt", notices / "web-notices.txt")
+    put(ROOT / "apps/terminal/public/WASM-THIRD-PARTY.txt", notices / "wasm-notices.txt")
     put(ROOT / "apps/terminal/public/rust-library-notices.html", notices / "rust-library-notices.html")
     put(ROOT / "docs/dependencies.cdx.json", notices / "dependencies.cdx.json")
     copy_rust_notices(notices, RUST_TARGETS[architecture], revision)

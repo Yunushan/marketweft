@@ -61,7 +61,7 @@ function Test-InstalledPackage([string]$Setup, [string]$SourceBinary, [string]$D
             throw 'The installed binary or recorded source revision differs from the verified build.'
         }
         $licenses = Join-Path $installDirectory 'licenses'
-        foreach ($notice in @('marketweft-0bsd.txt', 'third-party-notices.txt', 'web-notices.txt', 'rust-library-notices.html', 'dependencies.cdx.json', 'cargo-sources.json')) {
+        foreach ($notice in @('marketweft-0bsd.txt', 'third-party-notices.txt', 'web-notices.txt', 'wasm-notices.txt', 'rust-library-notices.html', 'dependencies.cdx.json', 'cargo-sources.json')) {
             if (!(Test-Path -LiteralPath (Join-Path $licenses $notice) -PathType Leaf)) { throw "Missing installed notice $notice." }
         }
         $crates = Get-Content -LiteralPath (Join-Path $licenses 'cargo-sources.json') -Raw | ConvertFrom-Json

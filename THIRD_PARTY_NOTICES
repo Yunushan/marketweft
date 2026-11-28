@@ -4,10 +4,11 @@ an OR must be available. Every license in an AND must be satisfied.
 
 Browser distribution
 --------------------
-Preserve THIRD-PARTY.txt and rust-library-notices.html alongside the compiled
-browser assets. The first file contains the installed production npm package
-notices. The second is the Rust toolchain's standard-library copyright and
-license inventory. OS-provided fonts and WebViews are system components.
+Preserve THIRD-PARTY.txt, WASM-THIRD-PARTY.txt and rust-library-notices.html
+alongside the compiled browser assets. They contain the production npm notices,
+the Rust crate notices linked into the Wasm core and the toolchain's
+standard-library copyright and license inventory. OS-provided fonts and WebViews
+are system components.
 
 Native desktop and development tools
 ------------------------------------
@@ -59,4 +60,6 @@ signing evidence for that target. This milestone ships a source wrapper.
 To check the inventory, install the locked npm tree, fetch all Cargo
 workspaces with cargo fetch --locked, and run python scripts/supply_chain.py
 --check from the repository root. Omit --check to regenerate after reviewing a
-lockfile change. License gates fail closed for unknown required terms.
+lockfile change. Run python -B scripts/core_notices.py to regenerate the
+Wasm crate notices after reviewing a core dependency change. License gates
+fail closed for unknown required terms.

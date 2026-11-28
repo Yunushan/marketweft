@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.209.0 · Scalar Wasm plugins
+
+- Native Rust and the browser-facing Wasm bridge use the same fixtures for signed millionths, fresh instance state, denied imports, start sections, floating point, memory growth and fuel exhaustion.
+- Offline Chromium checks a local module plus its SHA-256, the full signed input boundary, rejection of host imports, and formula evaluation after a plugin exceeds its fuel budget.
+
+[Scalar Wasm plugins](time-series-language.md#scalar-wasm-plugins)
+
 ## 0.208.0 · Close distribution chart
 
 - Rust and Wasm test signed quartile rounding, exact observation times and stable results through all observed prefixes.

@@ -9,6 +9,7 @@ import { quoteText } from './chart-export'
 import { downloadFile } from './download'
 import { MAX_FORMULA_LIBRARY_BYTES, parseFormulaLibrary } from './formula-library'
 import { utc } from './workspace'
+import { ScalarPlugin } from './ScalarPlugin'
 
 type Library = { name: string; bytes: ArrayBuffer; digest: string; manifest: ReturnType<typeof parseFormulaLibrary> }
 type Report = FormulaResult & {
@@ -181,6 +182,7 @@ export function FormulaResearch({ core, asset, sourceLabel, sourceRights, close 
           {library && <p className="formula-source">{library.name} · {library.manifest.functions.map(item =>
             item.name + '(' + item.parameters.join(', ') + ')').join(', ')}</p>}
         </details>
+        <ScalarPlugin core={core} />
         <form className="formula-form" onSubmit={run}>
           <label>Formula
             <textarea value={source} maxLength={2048} rows={4} required spellCheck={false}

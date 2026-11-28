@@ -205,6 +205,8 @@ evaluate smooth(close) for exact values and an exportable library checksum.
 To use that library for paper signals, load it under Backtest formula
 functions and evaluate gap(close) >= 13 as the entry. Download the
 strategy package to carry the definitions into another workspace.
+Under Scalar Wasm plugin, load scalar-increment.wasm and enter -123.456789.
+The result is -123.456788 and includes the module SHA-256.
 Expand Recorded trade execution and load backtest-trades.csv or use the
 sample execution trades. Set effective time to 2025-04-03T14:11:00Z.
 Compare knowledge at 14:05:29, 14:05:30 and 14:11:10 UTC, then export the
@@ -226,7 +228,8 @@ launcher's terminal to stop serving the application.
 
 def main():
     required = ["index.html", "marketweft_core.wasm", "manifest.webmanifest", "sw.js",
-                "icon-192.png", "icon-512.png", "THIRD-PARTY.txt", "rust-library-notices.html"]
+                "icon-192.png", "icon-512.png", "THIRD-PARTY.txt", "WASM-THIRD-PARTY.txt",
+                "rust-library-notices.html"]
     for filename in required:
         if not (DIST / filename).is_file():
             raise SystemExit(f"Missing {filename}. Run npm run build before packaging.")
@@ -244,6 +247,9 @@ def main():
     files["formula-bars.csv"] = (fixture / "synthetic-formula-bars.csv").read_bytes()
     files["formula-strategy.mwstrategy.json"] = (fixture / "synthetic-formula-strategy.mwstrategy.json").read_bytes()
     files["formula-library.mwformula.json"] = (fixture / "synthetic-formula-library.mwformula.json").read_bytes()
+    increment = next(line.split()[1] for line in (fixture / "scalar-plugins.txt").read_text(encoding="utf-8").splitlines()
+                     if line.startswith("increment "))
+    files["scalar-increment.wasm"] = bytes.fromhex(increment)
     files["depth.csv"] = (fixture / "synthetic-depth.csv").read_bytes()
     files["footprint-trades.csv"] = (fixture / "synthetic-footprint.csv").read_bytes()
     files["trade-classification.csv"] = (fixture / "synthetic-trade-classification.csv").read_bytes()
@@ -300,14 +306,15 @@ def main():
         files[f"backtest-{kind}.csv"] = (fixture / f"synthetic-backtest-{kind}.csv").read_bytes()
     inventory = json.loads((ROOT / "docs/dependencies.cdx.json").read_text(encoding="utf-8"))
     inventory["components"] = [item for item in inventory["components"]
-                               if any(p["value"] == "web-runtime" for p in item["properties"])]
+                               if any(p["value"] in {"web-runtime", "core"} for p in item["properties"])]
     toolchain = tomllib.loads((ROOT / "rust-toolchain.toml").read_text(encoding="utf-8"))
     core = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]
     inventory["components"].append({
         "type": "library", "name": "marketweft_core.wasm", "version": core["version"],
         "hashes": [{"alg": "SHA-256", "content": hashlib.sha256(files["dist/marketweft_core.wasm"]).hexdigest()}],
         "properties": [{"name": "marketweft:rust-toolchain", "value": toolchain["toolchain"]["channel"]},
-                       {"name": "marketweft:standard-library-notices", "value": "dist/rust-library-notices.html"}],
+                       {"name": "marketweft:standard-library-notices", "value": "dist/rust-library-notices.html"},
+                       {"name": "marketweft:dependency-notices", "value": "dist/WASM-THIRD-PARTY.txt"}],
     })
     files["SBOM.cdx.json"] = (json.dumps(inventory, indent=2) + "\n").encode("utf-8")
     OUTPUT.parent.mkdir(exist_ok=True)

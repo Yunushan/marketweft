@@ -10,6 +10,26 @@ const [wasm, csv] = await Promise.all([
 ]);
 const core = await instantiateMarketCore(Uint8Array.from(wasm).buffer);
 
+test('scalar plugins preserve exact signed values and enforce instance isolation and fuel in Wasm', async () => {
+  const source = await readFile(new URL('../crates/core/tests/fixtures/scalar-plugins.txt', import.meta.url), 'utf8');
+  const modules = new Map(source.trim().split(/\r?\n/).filter(line => !line.startsWith('#')).map(line => {
+    const [name, hex] = line.split(' ');
+    return [name, Buffer.from(hex, 'hex')];
+  }));
+  const run = (name, value = 0n) => core.evaluateScalarPlugin(modules.get(name), value);
+  assert.equal(run('increment', -(1n << 63n)), -(1n << 63n) + 1n);
+  assert.equal(run('state', 80n), 1n);
+  assert.equal(run('state', 80n), 1n);
+  assert.throws(() => run('increment', 1n << 63n), /signed 64-bit/);
+  assert.throws(() => run('import'), /cannot import/);
+  assert.throws(() => run('start'), /Invalid scalar plugin/);
+  assert.throws(() => run('float'), /unsupported WebAssembly instructions/);
+  assert.throws(() => run('memory'), /resource limits/);
+  assert.throws(() => run('memory_grow'), /WebAssembly trap/);
+  assert.throws(() => run('fuel'), /exhausted its execution budget/);
+  assert.equal(run('increment', -123456789n), -123456788n);
+});
+
 test('subscription rights keep the fractional entitlement, whole exercise and exact cash requirement in Wasm', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name, import.meta.url), 'utf8');
   const [membership, holdings, reports] = await Promise.all([

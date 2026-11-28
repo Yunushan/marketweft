@@ -6,7 +6,7 @@
     "component": {
       "type": "application",
       "name": "MarketWeft",
-      "version": "0.208.0"
+      "version": "0.209.0"
     }
   },
   "components": [
@@ -696,6 +696,10 @@
         }
       ],
       "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "core"
+        },
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
@@ -5168,6 +5172,34 @@
     },
     {
       "type": "library",
+      "name": "libm",
+      "version": "0.2.16",
+      "bom-ref": "pkg:cargo/libm@0.2.16",
+      "purl": "pkg:cargo/libm@0.2.16",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "core"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "libredox",
       "version": "0.1.25",
       "bom-ref": "pkg:cargo/libredox@0.1.25",
@@ -9284,6 +9316,34 @@
     },
     {
       "type": "library",
+      "name": "spin",
+      "version": "0.9.9",
+      "bom-ref": "pkg:cargo/spin@0.9.9",
+      "purl": "pkg:cargo/spin@0.9.9",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "core"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "sqlite-wasm-rs",
       "version": "0.6.3",
       "bom-ref": "pkg:cargo/sqlite-wasm-rs@0.6.3",
@@ -11671,6 +11731,146 @@
         {
           "name": "marketweft:dependency-group",
           "value": "desktop"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "wasmi",
+      "version": "2.0.3",
+      "bom-ref": "pkg:cargo/wasmi@2.0.3",
+      "purl": "pkg:cargo/wasmi@2.0.3",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "36dcb6cbd722c1575daf8c3063dd7ba1883fcd35b51fcbd377ae4f3371ac4dba"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "core"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "wasmi_collections",
+      "version": "2.0.3",
+      "bom-ref": "pkg:cargo/wasmi_collections@2.0.3",
+      "purl": "pkg:cargo/wasmi_collections@2.0.3",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b62dc4c1a17f3294aa2b23ac39979e3b38f3ee6afe5673eea76b76902d11103b"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "core"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "wasmi_core",
+      "version": "2.0.3",
+      "bom-ref": "pkg:cargo/wasmi_core@2.0.3",
+      "purl": "pkg:cargo/wasmi_core@2.0.3",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c19f6f7fcf32b9e12cebc8fec606fefac71af3d386bae1472e35d620b5471754"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "core"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "wasmi_ir",
+      "version": "2.0.3",
+      "bom-ref": "pkg:cargo/wasmi_ir@2.0.3",
+      "purl": "pkg:cargo/wasmi_ir@2.0.3",
+      "licenses": [
+        {
+          "expression": "MIT OR Apache-2.0"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "14f9c115dfd2397700880a64d14161db3a4da0a11059fac39c6a7935eb8f6b36"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "core"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "wasmparser",
+      "version": "0.228.0",
+      "bom-ref": "pkg:cargo/wasmparser@0.228.0",
+      "purl": "pkg:cargo/wasmparser@0.228.0",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4abf1132c1fdf747d56bbc1bb52152400c70f336870f968b85e89ea422198ae3"
+        }
+      ],
+      "properties": [
+        {
+          "name": "marketweft:dependency-group",
+          "value": "core"
+        },
+        {
+          "name": "marketweft:dependency-group",
+          "value": "research-service"
         }
       ]
     },

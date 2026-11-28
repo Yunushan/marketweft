@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tarfile
+from core_notices import cargo_notice_paths
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,11 +68,7 @@ def create_archive(binary, directory):
     packages = release_packages(metadata)
     for package in packages.values():
         name = f'{package["name"]}-{package["version"]}'
-        source = Path(package["manifest_path"]).parent
-        licenses = sorted(
-            path for path in source.iterdir()
-            if path.is_file() and path.name.upper().startswith(("LICENSE", "COPYRIGHT", "NOTICE", "UNLICENSE"))
-        )
+        licenses = cargo_notice_paths(package)
         licenses = licenses or tonic_workspace_license(package, packages)
         if not licenses:
             raise ValueError(f"Missing upstream notices for {name}")

@@ -4290,6 +4290,15 @@ pub extern "C" fn mw_bollinger_measures(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_evaluate_scalar_plugin(ticks: i64) -> u32 {
+    process(|input| {
+        Ok(crate::evaluate_scalar_plugin(input, ticks)?
+            .to_le_bytes()
+            .to_vec())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_formula_version() -> u32 {
     crate::FORMULA_VERSION
 }

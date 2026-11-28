@@ -42,3 +42,21 @@ Select a chart, open **Time-series formulas**, and set the observed cutoff. The 
 With the packaged `formula-bars.csv`, evaluate `ema(if(close == 11, close / 0, close), 2)`. Its six values are unavailable, 11, unavailable, unavailable, 14.5 and 16.833333. At 14:04 UTC the result ends at 14.5. Rewinding to that cutoff reproduces its CSV byte for byte. The first result of `coalesce(lag(volume, 1), 0)` is zero, and the row after the 150.125 observation retains that exact fractional volume.
 
 The [formula paper backtest](formula-paper-backtest.md) uses the same grammar for entry and exit signals. In the research view, [custom formula functions](formula-functions.md) add an explicit library of pure expressions over named parameters.
+
+## Scalar Wasm plugins
+
+In **Time-series formulas**, expand **Scalar Wasm plugin**, choose a local binary `.wasm` file, and enter a signed decimal with up to six places. MarketWeft sends the value as signed millionths. The result shows the input, exact output and SHA-256 of the selected module. A portable checkout includes `scalar-increment.wasm`, which turns `-123.456789` into `-123.456788`.
+
+ABI version 1 calls the named export `marketweft_scalar_v1` with one `i64` parameter and one `i64` result. For example, the bundled module adds one millionth.
+
+```wat
+(module
+  (func (export "marketweft_scalar_v1") (param i64) (result i64)
+    local.get 0
+    i64.const 1
+    i64.add))
+```
+
+Each run starts a fresh integer-only instance with empty imports and one explicit scalar input. The interpreter validates the binary and accepts up to 64 KiB, one linear memory capped at 2 MiB and one table capped at 64 elements. A 64-call recursion limit, 64 KiB value stack and 100,000 units of interpreter fuel bound execution. Start functions, floating-point instructions and imported host functions and resources are rejected. A trap reports an error and clears the result.
+
+Rust callers use `evaluate_scalar_plugin(module, ticks)`. The TypeScript research SDK accepts the module bytes and a signed 64-bit `bigint` through `evaluateScalarPlugin`. The ABI uses standard Wasm signed integer semantics for operations, including wraparound. [TypeScript research SDK](../packages/research/README.md)

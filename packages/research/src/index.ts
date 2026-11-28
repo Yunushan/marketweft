@@ -17,6 +17,7 @@ export interface MarketResearch {
   readonly version: typeof RESEARCH_SDK_VERSION
   parseBars(csv: string): Bar[]
   evaluateFormula(source: string, bars: readonly Bar[], functions?: readonly FormulaFunction[]): FormulaResult
+  evaluateScalarPlugin: MarketCore['evaluateScalarPlugin']
   universeScreen: MarketCore['universeScreen']
   compareUniverseRanks: MarketCore['compareUniverseRanks']
   recordedDepthSweep: MarketCore['recordedDepthSweep']
@@ -40,6 +41,7 @@ export async function createResearchEngine(wasm: ArrayBuffer | Uint8Array): Prom
     version: RESEARCH_SDK_VERSION,
     parseBars: core.parseCsv,
     evaluateFormula: core.evaluateFormula,
+    evaluateScalarPlugin: core.evaluateScalarPlugin,
     universeScreen: core.universeScreen,
     compareUniverseRanks: core.compareUniverseRanks,
     recordedDepthSweep: core.recordedDepthSweep,

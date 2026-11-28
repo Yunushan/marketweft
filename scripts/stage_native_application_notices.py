@@ -11,6 +11,7 @@ def stage_notices(assets, target):
         "marketweft-0bsd.txt": "LICENSE",
         "third-party-notices.txt": "THIRD_PARTY_NOTICES",
         "web-notices.txt": "apps/terminal/public/THIRD-PARTY.txt",
+        "wasm-notices.txt": "apps/terminal/public/WASM-THIRD-PARTY.txt",
         "rust-library-notices.html": "apps/terminal/public/rust-library-notices.html",
         "dependencies.cdx.json": "docs/dependencies.cdx.json",
     }
