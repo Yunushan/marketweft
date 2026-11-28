@@ -1,4 +1,4 @@
-import { fibonacciFanLevels, markerColumn } from './chart-annotations'
+import { markerColumn } from './chart-annotations'
 import type { TimeColumn } from './chart-annotations'
 import type { DrawingEndpoint } from './market-core'
 
@@ -40,7 +40,7 @@ export function pitchforkRays(points: readonly [DrawingEndpoint, DrawingEndpoint
   })
 }
 
-export function fibonacciFanRays(start: DrawingEndpoint, end: DrawingEndpoint,
+export function fanRays(start: DrawingEndpoint, end: DrawingEndpoint, crossings: readonly { ticks: bigint }[],
   timeline: readonly TimeColumn[], x: (column: number) => number, y: (price: number) => number, bounds: Bounds) {
   const from = markerColumn(timeline, start.time)
   const to = markerColumn(timeline, end.time)
@@ -48,6 +48,6 @@ export function fibonacciFanRays(start: DrawingEndpoint, end: DrawingEndpoint,
 
   const origin: Point = [x(from), y(start.ticks / 1e6)]
   const width = x(to) - origin[0]
-  return fibonacciFanLevels(start.ticks, end.ticks).map(({ ticks }) =>
+  return crossings.map(({ ticks }) =>
     visibleRay(origin, [width, y(Number(ticks) / 1e6) - origin[1]], bounds))
 }

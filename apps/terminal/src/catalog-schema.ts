@@ -214,7 +214,7 @@ export function preferences(core: MarketCore, value: unknown, ids: Set<string>):
           price: ['ticks'], time: ['time'], 'anchored-vwap': ['time'], ray: ['start'], trend: ['start', 'end'],
           rectangle: ['start', 'end'], channel: ['start', 'end', 'offsetTicks'],
           polyline: ['points'], fibonacci: ['start', 'end'], ellipse: ['start', 'end'], triangle: ['points'], pitchfork: ['points'], note: ['start', 'text'], arrow: ['start', 'end'],
-          'fibonacci-extension': ['points'], 'fibonacci-fan': ['start', 'end'],
+          'fibonacci-extension': ['points'], 'fibonacci-fan': ['start', 'end'], 'gann-fan': ['start', 'end'],
           'risk-reward': ['side', 'start', 'end', 'stopTicks'],
           'price-range': ['lower', 'upper'], 'time-range': ['lower', 'upper'], 'regression-channel': ['lower', 'upper'], 'fibonacci-time-zones': ['lower', 'upper'],
         }

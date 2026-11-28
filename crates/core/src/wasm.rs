@@ -181,6 +181,34 @@ pub extern "C" fn mw_measure_drawing(
 }
 
 #[no_mangle]
+pub extern "C" fn mw_gann_fan_levels(
+    start_time: i64,
+    start_ticks: i64,
+    end_time: i64,
+    end_ticks: i64,
+) -> u32 {
+    process(|_| {
+        let rays = crate::gann_fan_levels(
+            DrawingEndpoint {
+                time: start_time,
+                ticks: start_ticks,
+            },
+            DrawingEndpoint {
+                time: end_time,
+                ticks: end_ticks,
+            },
+        )?;
+        let mut bytes = Vec::with_capacity(rays.len() * 10);
+        for level in rays {
+            bytes.push(level.price_units);
+            bytes.push(level.time_units);
+            bytes.extend_from_slice(&level.ticks.to_le_bytes());
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_measure_risk_reward(side: u32, entry: i64, stop: i64, target: i64) -> u32 {
     process(|_| {
         let side = match side {

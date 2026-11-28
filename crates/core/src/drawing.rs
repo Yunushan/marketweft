@@ -44,6 +44,46 @@ pub fn measure_drawing(
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GannFanLevel {
+    pub price_units: u8,
+    pub time_units: u8,
+    /// Exact price at the second anchor's time, rounded to signed millionths.
+    pub ticks: i64,
+}
+
+/// Project the nine slope ratios around the signed slope between the two anchors.
+pub fn gann_fan_levels(
+    start: DrawingEndpoint,
+    end: DrawingEndpoint,
+) -> Result<[GannFanLevel; 9], String> {
+    let baseline = measure_drawing(start, end)?;
+    if baseline.elapsed_seconds <= 0 || baseline.price_ticks == 0 {
+        return Err("A Gann fan needs a later end time and two different prices.".into());
+    }
+    Ok([
+        (1, 8),
+        (1, 4),
+        (1, 3),
+        (1, 2),
+        (1, 1),
+        (2, 1),
+        (3, 1),
+        (4, 1),
+        (8, 1),
+    ]
+    .map(|(price_units, time_units)| {
+        let divisor = i128::from(time_units);
+        let crossing = i128::from(start.ticks) * divisor
+            + i128::from(baseline.price_ticks) * i128::from(price_units);
+        GannFanLevel {
+            price_units,
+            time_units,
+            ticks: rounded_div(crossing, divisor) as i64,
+        }
+    }))
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RiskRewardSide {
     Long,
     Short,

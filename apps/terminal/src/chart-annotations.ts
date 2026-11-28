@@ -14,6 +14,7 @@ export type ChartAnnotation = { id: string } & (
   { kind: 'polyline'; points: DrawingEndpoint[] } |
   { kind: 'fibonacci'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'fibonacci-fan'; start: DrawingEndpoint; end: DrawingEndpoint } |
+  { kind: 'gann-fan'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'fibonacci-extension'; points: TrianglePoints } |
   { kind: 'ellipse'; start: DrawingEndpoint; end: DrawingEndpoint } |
   { kind: 'triangle'; points: TrianglePoints } |
@@ -43,6 +44,7 @@ export const ANNOTATION_NAMES = {
   polyline: 'Polyline',
   fibonacci: 'Fibonacci retracement',
   'fibonacci-fan': 'Fibonacci fan',
+  'gann-fan': 'Gann fan',
   'fibonacci-extension': 'Fibonacci price extension',
   'fibonacci-time-zones': 'Fibonacci time zones',
   ellipse: 'Ellipse',
@@ -77,6 +79,7 @@ export function sameAnnotation(first: ChartAnnotation, second: ChartAnnotation):
     case 'ellipse':
     case 'fibonacci':
     case 'fibonacci-fan':
+    case 'gann-fan':
     case 'arrow':
       return second.kind === first.kind && sameEndpoint(first.start, second.start) && sameEndpoint(first.end, second.end)
     case 'note':
@@ -102,7 +105,7 @@ export function hasPointList(kind: AnnotationKind): kind is 'polyline' | 'triang
 
 export function hasTwoPoints(kind: AnnotationKind): kind is TwoPointAnnotation['kind'] {
   return kind === 'trend' || kind === 'rectangle' || kind === 'channel' || kind === 'fibonacci' ||
-    kind === 'fibonacci-fan' || kind === 'ellipse' || kind === 'arrow' || kind === 'risk-reward'
+    kind === 'fibonacci-fan' || kind === 'gann-fan' || kind === 'ellipse' || kind === 'arrow' || kind === 'risk-reward'
 }
 
 export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void {
@@ -121,6 +124,8 @@ export function validateAnnotationGeometry(annotation: TwoPointAnnotation): void
     throw Error('A Fibonacci retracement needs two different times and two different prices.')
   if (kind === 'fibonacci-fan' && (end.time <= start.time || start.ticks === end.ticks))
     throw Error('A Fibonacci fan needs a later end time and two different prices.')
+  if (kind === 'gann-fan' && (end.time <= start.time || start.ticks === end.ticks))
+    throw Error('A Gann fan needs a later end time and two different prices.')
   if (kind === 'channel') {
     const offset = annotation.offsetTicks
     if (start.time === end.time || offset === 0)

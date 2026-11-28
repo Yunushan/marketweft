@@ -1190,6 +1190,7 @@ export type ConfirmedSwing = { pivotAt: number; confirmedAt: number; close: bigi
 export type AnchoredVwapPoint = { price: bigint; cumulativeVolume: bigint };
 
 export type RiskRewardSide = 'long' | 'short';
+export type GannFanLevel = { priceUnits: number; timeUnits: number; ticks: bigint };
 export type RiskRewardMeasurement = { riskTicks: bigint; rewardTicks: bigint; rewardPerRiskMicros: bigint };
 
 export type RegressionChannel = { observations: number; startTicks: bigint; endTicks: bigint; residualTicks: bigint };
@@ -1221,6 +1222,7 @@ export interface MarketCore {
   aggregateSessionTimeframe(calendar: string, bars: readonly Bar[], sourceSeconds: number,
     targetSeconds: number): SessionTimeframeBar[];
   measureDrawing(drawing: MeasuredDrawing): DrawingMeasurement;
+  gannFanLevels(drawing: MeasuredDrawing): GannFanLevel[];
   measureRiskReward(side: RiskRewardSide, entry: number, stop: number, target: number): RiskRewardMeasurement;
   indicator(kind: 'sma' | 'ema' | 'rsi' | 'atr', period: number, bars: readonly Bar[]): (number | null)[];
   bollingerBands(period: number, bars: readonly Bar[]): (BollingerBand | null)[];
@@ -1367,6 +1369,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_aggregate_timeframe(sourceSeconds: number, targetSeconds: number): number;
   mw_aggregate_session_timeframe(calendarBytes: number, sourceSeconds: number, targetSeconds: number): number;
   mw_measure_drawing(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
+  mw_gann_fan_levels(startTime: bigint, startTicks: bigint, endTime: bigint, endTicks: bigint): number;
   mw_measure_risk_reward(side: number, entry: bigint, stop: bigint, target: bigint): number;
   mw_indicator(kind: number, period: number): number;
   mw_atr(period: number): number;
@@ -2107,6 +2110,17 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       ))).split('\t');
       return { elapsedSeconds: Number(elapsed), priceTicks: BigInt(price),
         returnPctMicros: pct === '' ? null : BigInt(pct) };
+    },
+    gannFanLevels({ start, end }) {
+      if (![start.time, start.ticks, end.time, end.ticks].every(Number.isSafeInteger)) {
+        throw new Error('Drawing endpoints require whole UTC seconds and whole price ticks.');
+      }
+      const data = output(api.mw_gann_fan_levels(BigInt(start.time), BigInt(start.ticks), BigInt(end.time), BigInt(end.ticks)));
+      if (data.byteLength !== 90) throw new Error('Invalid Gann fan response size.');
+      return Array.from({ length: 9 }, (_, index) => {
+        const offset = index * 10;
+        return { priceUnits: data.getUint8(offset), timeUnits: data.getUint8(offset + 1), ticks: data.getBigInt64(offset + 2, true) };
+      });
     },
     instrument(venue, symbol) {
       textInput(venue + '\n' + symbol);

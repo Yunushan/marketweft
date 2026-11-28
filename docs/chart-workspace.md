@@ -188,6 +188,14 @@ At the end time, the three rays cross the prices reached at 38.2%, 50%, and 61.8
 
 Edit either anchor from the drawing list. The same instrument's drawings project through each pane's timeframe and viewport. A version 53 backup preserves the exact anchors and restores earlier formats. [Backup format](workspace-backup.md).
 
+## Gann fan
+
+Choose **New Gann fan** and enter or pick a start and a later reference point at a different price. The signed move between those anchors defines the 1×1 ray. The other rays use the 1×8, 1×4, 1×3, 1×2, 2×1, 3×1, 4×1 and 8×1 slope ratios relative to that baseline. [Gann fan convention](https://www.tradingview.com/support/solutions/43000518151-gann-fan-drawing-tool/).
+
+**Gann fan levels** lists each exact reference-time price, rounded to the nearest millionth with ties away from zero. Between observed bars, the chart interpolates each UTC anchor into its display column. It extends the nine rays forward using that pane's column spacing and clips them to the visible price plot. A pane that places both anchors in the same column keeps the saved drawing and its reference prices available.
+
+Edit the anchors in the drawing list. Each pane projects the selected instrument's drawing through its own timeframe and viewport. A saved Gann fan uses workspace backup version 57. [Backup format](workspace-backup.md).
+
 ## Ellipses and triangles
 
 Choose **New ellipse** and enter or pick two opposite corners of its bounding box. The ellipse accepts either corner first and requires different UTC times and prices.

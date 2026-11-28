@@ -83,6 +83,17 @@ test('weighted, double, triple and Hull moving averages keep exact signed prefix
   }
 });
 
+test('Gann fan bridge retains nine signed crossings and full exact tick precision', () => {
+  const endpoints = (start, end) => ({ start: { time: 0, ticks: start }, end: { time: 120, ticks: end } });
+  const fan = core.gannFanLevels(endpoints(-1000000, 1000000));
+  assert.deepEqual(fan.map(({ priceUnits, timeUnits }) => [priceUnits, timeUnits]),
+    [[1, 8], [1, 4], [1, 3], [1, 2], [1, 1], [2, 1], [3, 1], [4, 1], [8, 1]]);
+  assert.deepEqual(fan.map(row => row.ticks), [-750000n, -500000n, -333333n, 0n, 1000000n, 3000000n, 5000000n, 7000000n, 15000000n]);
+  assert.equal(core.gannFanLevels(endpoints(-1, -2))[3].ticks, -2n);
+  assert.equal(core.gannFanLevels(endpoints(-2e15, 2e15))[8].ticks, 30000000000000000n);
+  assert.throws(() => core.gannFanLevels(endpoints(0, 0)), /two different prices/);
+});
+
 test('monthly returns bridge preserves UTC windows, exact closes and wide signed returns', async () => {
   const source = await readFile(new URL('../crates/core/tests/fixtures/synthetic-monthly-returns.csv', import.meta.url), 'utf8');
   const bars = core.parseCsv(source);

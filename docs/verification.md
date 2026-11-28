@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.217.0 · Gann fan
+
+- Native Rust and Wasm verify all nine ratios, signed reference prices, exact half rounding, wide projection prices and rejected degenerate anchors.
+- Offline Chromium measures the plotted rays at an interpolated UTC reference point. It checks falling edits, projection in both panes and exact version 57 restore alongside saved version 56 studies.
+
+[Gann fan](chart-workspace.md#gann-fan)
+
 ## 0.216.0 · Time-price bracket chart
 
 - Chromium verifies signed bins, duplicate executions contributing one opportunity, grouped gaps, late observations, execution bounds and byte-identical CSV after offline rewind. The plotted opportunities reconcile to the profile built by the same Rust footprint engine.

@@ -99,6 +99,7 @@ function describeAnnotation(entry: ChartAnnotation): string {
     case 'ellipse':
     case 'fibonacci':
     case 'fibonacci-fan':
+    case 'gann-fan':
     case 'arrow':
       return name + describePoint(entry.start) + ' to ' + describePoint(entry.end)
     case 'risk-reward':
@@ -302,6 +303,15 @@ export function ChartAnnotations({
                 <div className="ohlc chart-overlay-values" role="group" aria-label="Fibonacci fan prices at the end time">
                   {fibonacciFanLevels(entry.start.ticks, entry.end.ticks).map(level =>
                     <span key={level.label}><small>{level.label}</small> {fixed(level.ticks, 6)}</span>)}
+                </div>
+              </details>}
+              {entry.kind === 'gann-fan' && <details className="research-details">
+                <summary>Gann fan levels</summary>
+                <div className="ohlc chart-overlay-values" role="group" aria-label="Gann fan prices at the end time">
+                  {core.gannFanLevels(entry).map(level =>
+                    <span key={`${level.priceUnits}:${level.timeUnits}`}>
+                      <small>{level.priceUnits}×{level.timeUnits}</small> {fixed(level.ticks, 6)}
+                    </span>)}
                 </div>
               </details>}
               <div className="drawing-buttons">

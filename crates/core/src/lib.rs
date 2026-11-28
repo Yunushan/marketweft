@@ -118,8 +118,8 @@ pub use dividend::{
 };
 pub use donchian::donchian_channels;
 pub use drawing::{
-    measure_drawing, measure_risk_reward, DrawingEndpoint, DrawingMeasurement,
-    RiskRewardMeasurement, RiskRewardSide,
+    gann_fan_levels, measure_drawing, measure_risk_reward, DrawingEndpoint, DrawingMeasurement,
+    GannFanLevel, RiskRewardMeasurement, RiskRewardSide,
 };
 pub use formula::{Formula, FormulaFunctionDefinition, FormulaLibrary, FORMULA_VERSION};
 pub use formula_walk::{
