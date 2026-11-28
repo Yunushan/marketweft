@@ -464,6 +464,14 @@ Both studies use observed bars and preserve separate pane settings. Research CSV
 
 The studies save independent periods for each pane. Research CSV columns use exact signed values with up to six decimal places, including `ppo_line_12_26_9`, `ppo_signal_12_26_9`, `ppo_histogram_12_26_9` and `natr_14` with the defaults. Workspace backup version 69 stores these settings and reads earlier formats.
 
+### Mass Index and Detrended Price Oscillator
+
+**Mass Index** smooths each observed high–low range with an EMA and smooths that series again with the same period. Both averages start with a full-window simple average. The index sums the first EMA divided by the second across a complete trailing window. The defaults are 9 bars for both averages and 25 ratios for the sum. A zero second EMA leaves a gap and restarts the sum. Range averages use up to 16 decimal places in price units, and each ratio rounds to 12 decimal places before summation. The chart shows 26.5 and 27 guides for the default periods. [TA-Lib Mass Index](https://ta-lib.org/functions/massi.html)
+
+**Detrended Price Oscillator** subtracts the trailing simple mean from the close observed at a lag of half the period rounded down, plus one bar. The terminal assigns the difference to the bar at which that mean is available. The default is 20 observed bars. The result is a signed price difference rounded to millionths. A window or displaced close that is still warming up leaves a gap. [StockCharts Detrended Price Oscillator](https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/detrended-price-oscillator-dpo)
+
+Both studies count observed bars across timestamp gaps. Research CSV includes `mass_index_9_25` and `detrended_price_20` at the default periods. Workspace backup version 73 preserves the settings independently by pane.
+
 ### Choppiness Index and Stochastic Momentum Index
 
 The **Choppiness Index** compares the sum of true ranges over a complete window with the difference between its highest high and lowest low. Each true range can include the preceding observed close. The index is 100 times the base-10 logarithm of that ratio divided by the base-10 logarithm of the window size. The default is 14 bars. A flat high–low window leaves a gap, while a ratio of one gives zero. A gap into a narrow window can produce a value above 100. The readout and export retain it. [Choppiness Index formula](https://www.tradingview.com/support/solutions/43000501980-choppiness-index-chop/).

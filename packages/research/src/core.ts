@@ -1313,6 +1313,8 @@ export interface MarketCore {
   stochasticRsi(rsi: number, lookback: number, smoothing: number, signal: number, bars: readonly Bar[]): StochasticValue[];
   ultimateOscillator(short: number, medium: number, long: number, bars: readonly Bar[]): (bigint | null)[];
   choppinessIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
+  detrendedPriceOscillator(period: number, bars: readonly Bar[]): (bigint | null)[];
+  massIndex(smoothing: number, sum: number, bars: readonly Bar[]): (bigint | null)[];
   stochasticMomentumIndex(lookback: number, first: number, second: number, signal: number, bars: readonly Bar[]): StochasticMomentumValue[];
   bollingerMeasures(period: number, bars: readonly Bar[]): BollingerMeasures[];
   replay(calendar: string, intervalSeconds: number, bars: readonly Bar[]): ReplayEvent[];
@@ -1484,6 +1486,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_stochastic_rsi(rsi: number, lookback: number, smoothing: number, signal: number): number;
   mw_ultimate_oscillator(short: number, medium: number, long: number): number;
   mw_choppiness_index(period: number): number;
+  mw_detrended_price_oscillator(period: number): number;
+  mw_mass_index(smoothing: number, sum: number): number;
   mw_stochastic_momentum_index(lookback: number, first: number, second: number, signal: number): number;
   mw_bollinger_measures(period: number): number;
   mw_formula_version(): number;
@@ -2924,6 +2928,16 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     choppinessIndex(period, bars) {
       if (period < 2) throw new Error('Choppiness Index needs at least two bars per window.');
       return observedIndicator(api.mw_choppiness_index, period, bars, 'Choppiness Index');
+    },
+    detrendedPriceOscillator(period, bars) {
+      if (period < 2) throw new Error('Detrended Price Oscillator needs at least two bars per window.');
+      return observedIndicator(api.mw_detrended_price_oscillator, period, bars, 'Detrended Price Oscillator');
+    },
+    massIndex(smoothing, sum, bars) {
+      if (![smoothing, sum].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Mass Index periods and histories must fit within 100,000 bars.');
+      putIndicatorBars(bars, 'Mass Index');
+      return readIndicatorTicks(output(api.mw_mass_index(smoothing, sum)), bars.length);
     },
     stochasticMomentumIndex(lookback, first, second, signal, bars) {
       if (![lookback, first, second, signal].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)

@@ -2,7 +2,7 @@ use crate::{
     atr::true_range,
     donchian::{rolling_extrema, RollingExtrema},
     history::{validate_bar_time, validate_ohlcv},
-    indicator::advance_ema,
+    indicator::WindowEma,
     screen::rounded_div,
     wilder::PRECISION,
     Bar, MAX_BARS, SCALE,
@@ -59,29 +59,6 @@ pub fn choppiness_index(period: usize, bars: &[Bar]) -> Result<Vec<Option<i64>>,
 pub struct StochasticMomentumValue {
     pub line: Option<i64>,
     pub signal: Option<i64>,
-}
-
-#[derive(Default)]
-struct WindowEma {
-    count: usize,
-    seed: i128,
-    average: Option<i128>,
-}
-
-impl WindowEma {
-    fn push(&mut self, value: i128, period: usize) -> Option<i128> {
-        let weight = period as i128;
-        if let Some(previous) = self.average {
-            self.average = Some(advance_ema(previous, value, weight));
-        } else {
-            self.seed += value;
-            self.count += 1;
-            if self.count == period {
-                self.average = Some(rounded_div(self.seed, weight));
-            }
-        }
-        self.average
-    }
 }
 
 /// Double-smoothed distance from the midpoint as a percentage of half the

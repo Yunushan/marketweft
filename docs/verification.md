@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.251.0 · Mass Index and Detrended Price Oscillator
+
+- Rust and Wasm reproduce a Mass Index of 2.863636 on an expanding range, keep undefined flat windows empty, and reconstruct the rolling sum when valid ranges resume. Maximum supported price ranges fit the fixed-point calculation.
+- Detrended Price Oscillator emits signed values and an exact zero at the bar where the mean is available. Every observed prefix agrees with the corresponding prefix of the full series.
+- The offline browser checks exact CSV values, independent pane periods and restoration of workspace versions 72 and 73 across reload.
+
+[Mass Index and Detrended Price Oscillator](chart-workspace.md#mass-index-and-detrended-price-oscillator)
+
 ## 0.250.0 · Read-only portfolio FX over MCP
 
 - The installed local MCP server returns two bounded currency pages and identifies a missing EUR conversion and USD identity conversion at 14:45 UTC. Earlier and revised observations produce exact known totals of 70, 340 and 362.5 USD, and rewinding restores the first page.

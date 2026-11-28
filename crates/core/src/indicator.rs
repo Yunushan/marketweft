@@ -15,6 +15,30 @@ pub(crate) fn advance_ema(previous: i128, current: i128, weight: i128) -> i128 {
     rounded_ratio(2 * current + (weight - 1) * previous, weight + 1)
 }
 
+/// EMA for a stream that starts with a full-window simple average.
+#[derive(Default)]
+pub(crate) struct WindowEma {
+    count: usize,
+    seed: i128,
+    average: Option<i128>,
+}
+
+impl WindowEma {
+    pub(crate) fn push(&mut self, value: i128, period: usize) -> Option<i128> {
+        let weight = period as i128;
+        if let Some(previous) = self.average {
+            self.average = Some(advance_ema(previous, value, weight));
+        } else {
+            self.seed += value;
+            self.count += 1;
+            if self.count == period {
+                self.average = Some(rounded_ratio(self.seed, weight));
+            }
+        }
+        self.average
+    }
+}
+
 /// SMA uses an exact rolling sum. EMA starts at the first full-window SMA and
 /// uses alpha=2/(period+1), rounding to one millionth after each new close.
 pub fn indicator(kind: Average, period: usize, closes: &[i64]) -> Result<Vec<Option<i64>>, String> {

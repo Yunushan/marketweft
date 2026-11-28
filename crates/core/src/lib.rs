@@ -22,6 +22,7 @@ mod cumulative_volume;
 mod delisting;
 mod depth;
 mod directional;
+mod displaced_price_and_mass;
 mod dividend;
 mod donchian;
 mod drawing;
@@ -128,6 +129,7 @@ pub use depth::{
     DepthView, PaperDepthReplay, PaperDepthReport, StampedDepthLevel,
 };
 pub use directional::{directional_movement, DirectionalMovement};
+pub use displaced_price_and_mass::{detrended_price_oscillator, mass_index};
 pub use dividend::{
     parse_dividend_positions, parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind,
     DividendMovement, DividendPositions, PositionObservation,

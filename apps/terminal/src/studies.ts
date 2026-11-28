@@ -7,6 +7,10 @@ export const STUDIES = {
   atr: { name: 'ATR', label: 'Average True Range', minPeriod: 1, defaultPeriod: 14, color: '#e6ab66' },
   natr: { name: 'Normalized ATR', label: 'Normalized Average True Range', minPeriod: 1, defaultPeriod: 14, color: '#bdb1ef' },
   choppiness: { name: 'Choppiness Index', label: 'Choppiness Index', minPeriod: 2, defaultPeriod: 14, color: '#a2b4e7' },
+  mass_index: { name: 'Mass Index', label: 'Mass Index', minPeriod: 1, defaultPeriod: 9,
+    periodLabel: 'Mass Index EMA', color: '#dfbb91' },
+  detrended_price: { name: 'Detrended Price Oscillator', label: 'Detrended Price Oscillator',
+    minPeriod: 2, defaultPeriod: 20, color: '#8ccfa9' },
   bb: { name: 'Bollinger Bands', label: 'Bollinger Bands', minPeriod: 1, defaultPeriod: 20 },
   bb_percent_b: { name: 'Bollinger %B', label: 'Bollinger %B', minPeriod: 1, defaultPeriod: 20, color: '#e797c7' },
   bb_bandwidth: { name: 'BandWidth', label: 'Bollinger BandWidth', minPeriod: 1, defaultPeriod: 20, color: '#6acec6' },
@@ -65,6 +69,7 @@ export const EXTRA_STUDY_PERIODS = {
   smiFirstPeriod: { label: 'SMI first EMA', defaultPeriod: 25 },
   smiSecondPeriod: { label: 'SMI second EMA', defaultPeriod: 2 },
   smiSignalPeriod: { label: 'SMI signal EMA', defaultPeriod: 9 },
+  massSumPeriod: { label: 'Mass Index sum', defaultPeriod: 25 },
   ultimateMiddlePeriod: { label: 'Ultimate Oscillator medium', defaultPeriod: 14 },
   ultimateLongPeriod: { label: 'Ultimate Oscillator long', defaultPeriod: 28 },
   slowPeriod: { label: 'MACD slow', defaultPeriod: 26 },
@@ -83,6 +88,7 @@ const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPerio
   stochastic: ['smoothPeriod', 'signalPeriod'],
   stochastic_rsi: ['stochRsiLookback', 'stochRsiSmoothing', 'stochRsiSignal'],
   stochastic_momentum: ['smiFirstPeriod', 'smiSecondPeriod', 'smiSignalPeriod'],
+  mass_index: ['massSumPeriod'],
   ultimate: ['ultimateMiddlePeriod', 'ultimateLongPeriod'],
   macd: ['slowPeriod', 'macdSignalPeriod'],
   ppo: ['ppoSlowPeriod', 'ppoSignalPeriod'],
@@ -270,6 +276,15 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
     ] }]
     if (kind === 'choppiness') return [{ kind, periods: [period], unit: 'index', guides: [0, 100], lines: [
       { color: STUDIES[kind].color, series: core.choppinessIndex(period, bars) },
+    ] }]
+    if (kind === 'mass_index') {
+      const sum = study.massSumPeriod ?? EXTRA_STUDY_PERIODS.massSumPeriod.defaultPeriod
+      return [{ kind, periods: [period, sum], unit: 'index',
+        guides: period === STUDIES[kind].defaultPeriod && sum === EXTRA_STUDY_PERIODS.massSumPeriod.defaultPeriod ? [26.5, 27] : undefined,
+        lines: [{ color: STUDIES[kind].color, series: core.massIndex(period, sum, bars) }] }]
+    }
+    if (kind === 'detrended_price') return [{ kind, periods: [period], unit: 'price', zeroLine: true, lines: [
+      { color: STUDIES[kind].color, series: core.detrendedPriceOscillator(period, bars) },
     ] }]
     if (kind === 'chaikin_oscillator') {
       const slow = study.chaikinSlowPeriod ?? EXTRA_STUDY_PERIODS.chaikinSlowPeriod.defaultPeriod

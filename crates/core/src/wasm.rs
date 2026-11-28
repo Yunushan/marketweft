@@ -4516,6 +4516,20 @@ pub extern "C" fn mw_ultimate_oscillator(short: usize, medium: usize, long: usiz
 }
 
 #[no_mangle]
+pub extern "C" fn mw_detrended_price_oscillator(period: usize) -> u32 {
+    process(|input| {
+        crate::detrended_price_oscillator(period, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_mass_index(smoothing: usize, sum: usize) -> u32 {
+    process(|input| {
+        crate::mass_index(smoothing, sum, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_choppiness_index(period: usize) -> u32 {
     process(|input| {
         crate::choppiness_index(period, &decode_bars(input)?).map(encode_indicator_values)

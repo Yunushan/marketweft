@@ -98,6 +98,25 @@ test('anchored TWAP retains signed prices, exact elapsed time and prefix behavio
   assert.throws(() => core.anchoredTwap(0.5, bars), /whole UTC second/);
 });
 
+test('Mass Index and Detrended Price Oscillator keep exact observed prefixes and signed values', async () => {
+  const bars = core.parseCsv(await readFile(new URL(
+    '../crates/core/tests/fixtures/synthetic-mass-index-dpo.csv', import.meta.url,
+  ), 'utf8'));
+  const dpo = [null, null, -2000000n, -2000000n, -2000000n, -333333n, 2000000n, 0n];
+  assert.deepEqual(core.detrendedPriceOscillator(3, bars), dpo);
+  const mass = core.massIndex(2, 2, bars);
+  assert.deepEqual(mass.slice(0, 5), [null, null, null, null, 2863636n]);
+  assert.deepEqual(core.massIndex(1, 2, bars), [null, null, null, null, 2000000n, 2000000n, 2000000n, 2000000n]);
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.detrendedPriceOscillator(3, bars.slice(0, end)), dpo.slice(0, end));
+    assert.deepEqual(core.massIndex(2, 2, bars.slice(0, end)), mass.slice(0, end));
+  }
+  const wide = bars.map(row => ({ ...row, high: 2_000_000_000, low: -2_000_000_000 }));
+  assert.equal(core.massIndex(2, 2, wide)[3], 2000000n);
+  assert.throws(() => core.detrendedPriceOscillator(1, bars), /at least two bars/);
+  assert.throws(() => core.massIndex(2, 0, bars), /100,000 bars/);
+});
+
 test('Choppiness and stochastic momentum keep exact observed gaps, wide ranges and signed values', async () => {
   const bars = core.parseCsv(await readFile(new URL(
     '../crates/core/tests/fixtures/synthetic-choppiness-and-smi.csv', import.meta.url,
