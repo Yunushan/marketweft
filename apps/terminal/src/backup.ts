@@ -80,10 +80,12 @@ const ANCHORED_TWAP_BACKUP_VERSION = 71
 const CHOPPINESS_AND_SMI_BACKUP_VERSION = 72
 const MASS_AND_DETRENDED_PRICE_BACKUP_VERSION = 73
 const FIBONACCI_CIRCLES_BACKUP_VERSION = 74
+const PVT_AND_ADXR_BACKUP_VERSION = 75
 const SAMPLE_VERSION = 1
 
 function backupVersion({ preferences, series }: CatalogData) {
   const studies = Object.values(preferences.studies ?? {})
+  if (studies.some(pane => pane?.pvt || pane?.adxr)) return PVT_AND_ADXR_BACKUP_VERSION
   if (Object.values(preferences.annotations ?? {}).some(entries => entries.some(entry => entry.kind === 'fibonacci-circles')))
     return FIBONACCI_CIRCLES_BACKUP_VERSION
   if (studies.some(pane => pane?.mass_index || pane?.detrended_price)) return MASS_AND_DETRENDED_PRICE_BACKUP_VERSION
@@ -280,6 +282,7 @@ export async function verifyWorkspaceBackup(
     CHOPPINESS_AND_SMI_BACKUP_VERSION,
     MASS_AND_DETRENDED_PRICE_BACKUP_VERSION,
     FIBONACCI_CIRCLES_BACKUP_VERSION,
+    PVT_AND_ADXR_BACKUP_VERSION,
     PRICE_VOLUME_SCATTER_BACKUP_VERSION,
     NORMALIZED_PRICE_AND_RANGE_BACKUP_VERSION,
     STOCHASTIC_RSI_AND_ULTIMATE_BACKUP_VERSION,

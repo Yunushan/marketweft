@@ -1,5 +1,13 @@
 # MarketWeft verification
 
+## 0.254.0 · Price Volume Trend and ADX Rating
+
+- Native and Wasm fixtures verify exact signed volumes and a contribution wider than a signed 64-bit integer. A zero prior close leaves a gap, and the next available contribution resumes the prior subtotal.
+- ADX Rating waits for two available ADX values. Rust and Wasm reproduce 32.8125% on the signed fixture and preserve a true zero on flat observations.
+- The offline browser verifies independent settings, signed CSV values, and version 74 and 75 restoration with both Fibonacci anchors retained.
+
+[Price Volume Trend and ADX Rating](chart-workspace.md#price-volume-trend-and-adx-rating)
+
 ## 0.253.0 · Fibonacci circles
 
 - Native and Wasm fixtures verify nine ratios and signed backwards time, including an elapsed offset of −21 seconds and a price of −1.876 at 0.236×. Coincident anchors are rejected, and pure horizontal and vertical projections keep exact amounts.

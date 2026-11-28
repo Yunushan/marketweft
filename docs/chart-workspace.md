@@ -472,6 +472,14 @@ Both studies use observed bars and preserve separate pane settings. Research CSV
 
 The studies save independent periods for each pane. Research CSV columns use exact signed values with up to six decimal places, including `ppo_line_12_26_9`, `ppo_signal_12_26_9`, `ppo_histogram_12_26_9` and `natr_14` with the defaults. Workspace backup version 69 stores these settings and reads earlier formats.
 
+### Price Volume Trend and ADX Rating
+
+**Price Volume Trend** starts at zero and adds each bar’s volume multiplied by its signed close-to-close return. Each contribution rounds to millionths of volume before being added. A zero previous close leaves a gap for that bar and preserves the running subtotal of previously calculated contributions. An unchanged nonzero close gives an exact zero contribution. [cTrader Price Volume Trend](https://help.ctrader.com/indicators/built-in/volume/price-volume-trend/)
+
+**ADX Rating** uses the same Wilder smoothing as the Directional Movement System. It averages the current ADX with the ADX from one less than its smoothing period earlier. Both ADX values must be available. The DI and ADX periods independently default to 14 observed bars. Results use millionths of a percentage point. [TA-Lib ADXR formula](https://ta-lib.org/functions/adxr.html)
+
+Both studies use observed bars across timestamp gaps. Research CSV includes `pvt` and `adxr_14_14` at the default settings. Workspace backup version 75 preserves both studies and independent pane settings.
+
 ### Mass Index and Detrended Price Oscillator
 
 **Mass Index** smooths each observed high–low range with an EMA and smooths that series again with the same period. Both averages start with a full-window simple average. The index sums the first EMA divided by the second across a complete trailing window. The defaults are 9 bars for both averages and 25 ratios for the sum. A zero second EMA leaves a gap and restarts the sum. Range averages use up to 16 decimal places in price units, and each ratio rounds to 12 decimal places before summation. The chart shows 26.5 and 27 guides for the default periods. [TA-Lib Mass Index](https://ta-lib.org/functions/massi.html)

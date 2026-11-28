@@ -26,6 +26,7 @@ export const STUDIES = {
   ppo: { name: 'PPO', label: 'Percentage Price Oscillator', minPeriod: 1, defaultPeriod: 12, periodLabel: 'PPO fast', color: '#a1e4c5' },
   obv: { name: 'On-Balance Volume', label: 'On-Balance Volume', color: '#79c9b2' },
   adl: { name: 'Accumulation/Distribution Line', label: 'Accumulation/Distribution Line', color: '#e4ac7f' },
+  pvt: { name: 'Price Volume Trend', label: 'Price Volume Trend', color: '#c4ac78' },
   chaikin_money_flow: { name: 'Chaikin Money Flow', label: 'Chaikin Money Flow', minPeriod: 1, defaultPeriod: 20, color: '#7ed2ca' },
   chaikin_oscillator: { name: 'Chaikin Oscillator', label: 'Chaikin Oscillator', minPeriod: 1, defaultPeriod: 3,
     periodLabel: 'Chaikin fast', color: '#d39ce1' },
@@ -39,6 +40,8 @@ export const STUDIES = {
   kaufman_efficiency: { name: 'Kaufman Efficiency Ratio', label: 'Kaufman Efficiency Ratio',
     minPeriod: 1, defaultPeriod: 10, color: '#81d2c0' },
   dmi: { name: 'DMI', label: 'Directional Movement System', minPeriod: 1, defaultPeriod: 14, periodLabel: 'DI', color: '#aaa3f0' },
+  adxr: { name: 'ADX Rating', label: 'Average Directional Movement Index Rating',
+    minPeriod: 1, defaultPeriod: 14, periodLabel: 'ADXR DI', color: '#9bc9a7' },
   cci: { name: 'CCI', label: 'Commodity Channel Index', minPeriod: 1, defaultPeriod: 20, color: '#c5adf1' },
   roc: { name: 'ROC', label: 'Rate of Change', minPeriod: 1, defaultPeriod: 12, color: '#73c3e4' },
   coppock: { name: 'Coppock Curve', label: 'Coppock Curve', minPeriod: 1, defaultPeriod: 10,
@@ -96,6 +99,7 @@ const EXTRA_PERIODS_BY_STUDY: Partial<Record<StudyKind, readonly ExtraStudyPerio
   chaikin_volatility: ['volatilityLookback'],
   coppock: ['coppockFirstPeriod', 'coppockSecondPeriod'],
   dmi: ['adxPeriod'],
+  adxr: ['adxPeriod'],
 }
 export function extraStudyPeriods(kind: StudyKind): readonly ExtraStudyPeriod[] {
   return EXTRA_PERIODS_BY_STUDY[kind] ?? []
@@ -197,6 +201,9 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
         { color: STUDIES[kind].color, series: cumulative.map(row => row[key]) },
       ] }]
     }
+    if (kind === 'pvt') return [{ kind, periods: [], unit: 'volume', zeroLine: true, lines: [
+      { color: STUDIES.pvt.color, series: core.priceVolumeTrend(bars) },
+    ] }]
     if (kind === 'bop') return [{ kind, periods: [], unit: 'index', lines: [
       { color: STUDIES.bop.color, series: core.balanceOfPower(bars) },
     ] }]
@@ -227,6 +234,12 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
         { key: 'plus_di', label: '+DI', color: '#6ecb99', series: rows.map(row => row.plusDi) },
         { key: 'minus_di', label: '−DI', color: '#e68a88', series: rows.map(row => row.minusDi) },
         { key: 'adx', label: 'ADX', color: STUDIES.dmi.color, series: rows.map(row => row.adx) },
+      ] }]
+    }
+    if (kind === 'adxr') {
+      const adx = study.adxPeriod ?? EXTRA_STUDY_PERIODS.adxPeriod.defaultPeriod
+      return [{ kind, periods: [period, adx], guides: [0, 25, 100], lines: [
+        { color: STUDIES.adxr.color, series: core.adxRating(period, adx, bars) },
       ] }]
     }
     if (kind === 'vortex') {

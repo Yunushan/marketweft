@@ -119,7 +119,7 @@ pub use cross_section::{
     CrossSectionSuccessorPosting, CrossSectionWalkConfig, RankingDecision,
 };
 pub use cross_section_liquidity::{LiquidityTape, ReplayLiquidity};
-pub use cumulative_volume::{cumulative_volume, CumulativeVolume};
+pub use cumulative_volume::{cumulative_volume, price_volume_trend, CumulativeVolume};
 pub use delisting::{
     parse_delistings, CashOffer, DelistingBook, DelistingCashPosting, DelistingState,
     DelistingTerms, DelistingValuation, ReferenceClose,
@@ -128,7 +128,7 @@ pub use depth::{
     BestQuote, DepthExecution, DepthLevel, DepthStamp, DepthStatus, DepthSweep, DepthTape,
     DepthView, PaperDepthReplay, PaperDepthReport, StampedDepthLevel,
 };
-pub use directional::{directional_movement, DirectionalMovement};
+pub use directional::{adx_rating, directional_movement, DirectionalMovement};
 pub use displaced_price_and_mass::{detrended_price_oscillator, mass_index};
 pub use dividend::{
     parse_dividend_positions, parse_dividends, Dividend, DividendBook, DividendEvent, DividendKind,

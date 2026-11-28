@@ -1272,6 +1272,7 @@ export interface MarketCore {
   donchianChannels(period: number, bars: readonly Bar[]): (PriceBand | null)[];
   keltnerChannels(emaPeriod: number, atrPeriod: number, bars: readonly Bar[]): (PriceBand | null)[];
   cumulativeVolume(bars: readonly Bar[]): CumulativeVolume[];
+  priceVolumeTrend(bars: readonly Bar[]): (bigint | null)[];
   aroon(period: number, bars: readonly Bar[]): (AroonValue | null)[];
   commodityChannelIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   closeChanges(intervalSeconds: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1303,6 +1304,7 @@ export interface MarketCore {
   tripleExponentialMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   hullMovingAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   directionalMovement(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): DirectionalMovement[];
+  adxRating(diPeriod: number, adxPeriod: number, bars: readonly Bar[]): (bigint | null)[];
   moneyFlowIndex(period: number, bars: readonly Bar[]): (bigint | null)[];
   volumeWeightedAverage(period: number, bars: readonly Bar[]): (bigint | null)[];
   chaikinMoneyFlow(period: number, bars: readonly Bar[]): (bigint | null)[];
@@ -1454,6 +1456,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_donchian_channels(period: number): number;
   mw_keltner_channels(emaPeriod: number, atrPeriod: number): number;
   mw_cumulative_volume(): number;
+  mw_price_volume_trend(): number;
   mw_aroon(period: number): number;
   mw_commodity_channel_index(period: number): number;
   mw_close_changes(intervalSeconds: number): number;
@@ -1477,6 +1480,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_triple_exponential_moving_average(period: number): number;
   mw_hull_moving_average(period: number): number;
   mw_directional_movement(diPeriod: number, adxPeriod: number): number;
+  mw_adx_rating(diPeriod: number, adxPeriod: number): number;
   mw_money_flow_index(period: number): number;
   mw_volume_weighted_average(period: number): number;
   mw_chaikin_money_flow(period: number): number;
@@ -2860,6 +2864,17 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
     },
     kaufmanEfficiencyRatio(period, bars) {
       return observedCloseIndicator(api.mw_kaufman_efficiency_ratio, period, bars);
+    },
+    priceVolumeTrend(bars) {
+      if (bars.length > MAX_INDICATOR_PERIOD) throw new Error('Price Volume Trend supports up to 100,000 observed bars.');
+      putIndicatorBars(bars, 'Price Volume Trend');
+      return readWideIndicator(output(api.mw_price_volume_trend()), bars.length);
+    },
+    adxRating(diPeriod, adxPeriod, bars) {
+      if (![diPeriod, adxPeriod].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)
+        throw new Error('Directional periods and histories must fit within 100,000 bars.');
+      putIndicatorBars(bars, 'ADX Rating');
+      return readIndicatorTicks(output(api.mw_adx_rating(diPeriod, adxPeriod)), bars.length);
     },
     directionalMovement(diPeriod, adxPeriod, bars) {
       if (![diPeriod, adxPeriod].every(validIndicatorPeriod) || bars.length > MAX_INDICATOR_PERIOD)

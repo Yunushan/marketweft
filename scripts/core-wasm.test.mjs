@@ -98,6 +98,21 @@ test('anchored TWAP retains signed prices, exact elapsed time and prefix behavio
   assert.throws(() => core.anchoredTwap(0.5, bars), /whole UTC second/);
 });
 
+test('PVT and ADX Rating maintain exact signed volume, warmup and observed prefixes', async () => {
+  const bars = core.parseCsv(await readFile(new URL(
+    '../crates/core/tests/fixtures/synthetic-pvt-adxr.csv', import.meta.url,
+  ), 'utf8'));
+  const trend = [0n, -1250000n, -2500000n, null, -2500000n, -3500000n, -1000000n, -1000000n, -1000000n];
+  const rating = [null, null, null, 100000000n, 75000000n, 62500000n, 81250000n, 65625000n, 32812500n];
+  for (let end = 0; end <= bars.length; end++) {
+    assert.deepEqual(core.priceVolumeTrend(bars.slice(0, end)), trend.slice(0, end));
+    assert.deepEqual(core.adxRating(1, 2, bars.slice(0, end)), rating.slice(0, end));
+  }
+  const wide = core.parseCsv('time,open,high,low,close,volume\n0,0.000001,0.000001,0.000001,0.000001,0\n60,2000000000,2000000000,2000000000,2000000000,2000000000\n');
+  assert.equal(core.priceVolumeTrend(wide)[1], 3999999999999998000000000000000n);
+  assert.throws(() => core.adxRating(1, 0, bars), /100,000 bars/);
+});
+
 test('Fibonacci circles return exact signed ray projections and reject coincident anchors', () => {
   const start = { time: 240, ticks: -4000000 };
   const end = { time: 150, ticks: 5000000 };

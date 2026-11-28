@@ -49,3 +49,30 @@ pub fn cumulative_volume(bars: &[Bar]) -> Result<Vec<CumulativeVolume>, String> 
     }
     Ok(rows)
 }
+
+/// Accumulate each bar's volume weighted by its signed close-to-close return.
+/// A zero previous close leaves that bar's contribution unavailable.
+pub fn price_volume_trend(bars: &[Bar]) -> Result<Vec<Option<i128>>, String> {
+    if bars.len() > MAX_BARS {
+        return Err("Price Volume Trend supports up to 100,000 observed bars.".into());
+    }
+    let mut total = 0_i128;
+    bars.iter()
+        .enumerate()
+        .map(|(index, bar)| {
+            let previous = index.checked_sub(1).map(|prior| &bars[prior]);
+            validate_bar_time(bar.time, previous.map(|prior| prior.time), index)?;
+            validate_ohlcv(bar, index)?;
+            let Some(previous) = previous else {
+                return Ok(Some(total));
+            };
+            let baseline = i128::from(previous.close);
+            if baseline == 0 {
+                return Ok(None);
+            }
+            let move_volume = i128::from(bar.close - previous.close) * i128::from(bar.volume);
+            total += rounded_div(move_volume * baseline.signum(), baseline.abs());
+            Ok(Some(total))
+        })
+        .collect()
+}

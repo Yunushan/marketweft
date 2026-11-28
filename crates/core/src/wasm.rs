@@ -4423,6 +4423,20 @@ pub extern "C" fn mw_vortex_indicator(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_price_volume_trend() -> u32 {
+    process(|input| {
+        crate::price_volume_trend(&decode_bars(input)?).map(encode_wide_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_adx_rating(di_period: usize, adx_period: usize) -> u32 {
+    process(|input| {
+        crate::adx_rating(di_period, adx_period, &decode_bars(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_directional_movement(di_period: usize, adx_period: usize) -> u32 {
     process(|input| {
         let rows = crate::directional_movement(di_period, adx_period, &decode_bars(input)?)?;

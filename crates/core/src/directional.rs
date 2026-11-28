@@ -111,3 +111,23 @@ pub fn directional_movement(
     }
     Ok(rows)
 }
+
+/// Average current ADX with the value one smoothing window minus one bar earlier.
+pub fn adx_rating(
+    di_period: usize,
+    adx_period: usize,
+    bars: &[Bar],
+) -> Result<Vec<Option<i64>>, String> {
+    let rows = directional_movement(di_period, adx_period, bars)?;
+    let lag = adx_period - 1;
+    Ok(rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| {
+            let prior = index.checked_sub(lag).and_then(|prior| rows[prior].adx);
+            row.adx
+                .zip(prior)
+                .map(|(now, before)| rounded(i128::from(now + before), 2) as i64)
+        })
+        .collect())
+}
