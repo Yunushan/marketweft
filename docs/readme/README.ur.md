@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.226.0 · 0BSD**
+**0.227.0 · 0BSD**
 
 **دستاویز کی زبانیں**
 
@@ -21,18 +21,18 @@ MarketWeft تجزیہ کاروں، ڈویلپرز اور آپریٹرز کا م�
 
 <div dir="rtl">
 
-MarketWeft 0.226.0 درست قیمت اور UTC وقت کی تقسیم کے ساتھ قابل ترمیم Gann باکس شامل کرتا ہے۔ MarketWeft 0.7.0 کسی وقت پر دستیاب معلومات کے مطابق قیمت کی واپسی سے یونیورس کی درجہ بندی شامل کرتا ہے۔ سیشن پر مبنی ری پلے میں اسٹاک اسپلٹ، نقد منافع، رکنیت اور ڈی لسٹنگ شامل ہیں۔ مخزن میں الگ trading-bot سروس کے لیے صرف پڑھنے والا TypeScript آبزرور اور تجرباتی Tauri ریپر بھی ہے۔ ڈیٹا فیڈز، آرڈرز، دستخط شدہ انسٹالر اور کثیر صارف ہوسٹنگ روڈمیپ میں ہیں۔
+MarketWeft 0.227.0 Firefox اور WebKit میں آف لائن درآمد، تحقیق اور ورک اسپیس کی بحالی کی تصدیق کرتا ہے۔ MarketWeft 0.7.0 کسی وقت پر دستیاب معلومات کے مطابق قیمت کی واپسی سے یونیورس کی درجہ بندی شامل کرتا ہے۔ سیشن پر مبنی ری پلے میں اسٹاک اسپلٹ، نقد منافع، رکنیت اور ڈی لسٹنگ شامل ہیں۔ مخزن میں الگ trading-bot سروس کے لیے صرف پڑھنے والا TypeScript آبزرور اور تجرباتی Tauri ریپر بھی ہے۔ ڈیٹا فیڈز، آرڈرز، دستخط شدہ انسٹالر اور کثیر صارف ہوسٹنگ روڈمیپ میں ہیں۔
 
 </div>
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Gann box](../chart-workspace.md#gann-box)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Firefox and WebKit verification](../platforms.md#firefox-and-webkit-offline-verification)
 
 <!-- section:02 -->
 ## پورٹیبل ٹرمینل چلائیں
 
 <div dir="rtl">
 
-کامیاب GitHub رن سے browser-terminal-attempt-N حاصل کریں۔ MarketWeft-browser-0.226.0.zip کھولیں، dist/ کو serve-terminal.mjs کے ساتھ رکھیں اور اسی فولڈر میں کمانڈ چلائیں۔ WebAssembly، Canvas، BigInt اور IndexedDB والے براؤزر میں http://127.0.0.1:4173/ کھولیں۔ Node.js 22.12 یا نیا چاہیے۔ npm کی تنصیب درکار نہیں۔ نیٹ بند کرنے سے پہلے Offline ready دیکھیں۔
+کامیاب GitHub رن سے browser-terminal-attempt-N حاصل کریں۔ MarketWeft-browser-0.227.0.zip کھولیں، dist/ کو serve-terminal.mjs کے ساتھ رکھیں اور اسی فولڈر میں کمانڈ چلائیں۔ WebAssembly، Canvas، BigInt اور IndexedDB والے براؤزر میں http://127.0.0.1:4173/ کھولیں۔ Node.js 22.12 یا نیا چاہیے۔ npm کی تنصیب درکار نہیں۔ نیٹ بند کرنے سے پہلے Offline ready دیکھیں۔
 
 </div>
 

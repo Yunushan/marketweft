@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.227.0 · Firefox and WebKit offline verification
+
+- The Linux x64 package checks exercise Playwright Firefox 159.0 and WebKit 27.2 with the loopback server stopped after cache installation. Both engines reload, import the fixture, read the exact close of 1.234567 and open the cached research view for a February return of +23.4567%.
+- The backup file preserves the original CSV bytes, selected instrument and canonical SHA-256. The second browser profile restores it offline and reloads the same quote.
+
+[Firefox and WebKit offline verification](platforms.md#firefox-and-webkit-offline-verification)
+
 ## 0.226.0 · Gann box
 
 - Rust and Wasm verify both signed price directions, half-tick rounding, UTC offsets across the epoch, full price bounds and rejection of an invalid division count or insufficient span.

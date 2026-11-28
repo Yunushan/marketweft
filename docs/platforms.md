@@ -1,10 +1,10 @@
-# Platform support · MarketWeft 0.226.0
+# Platform support · MarketWeft 0.227.0
 
 A successful web test validates a specific browser, build and host. Producing a native artifact and validating installation, launch, upgrades and normal operation on its target are separate release gates. Operating system signing and notarization are tracked per platform.
 
 | Target | Current route / available evidence | Required for official native or operational support |
 | --- | --- | --- |
-| Browser / installable PWA | Static React app with a Wasm core. Windows x64 Chromium-family automation, responsive viewport, offline reload and same-profile portable upgrades. | Browser-engine and device matrix, broader install/update tests and storage lifecycle acceptance. |
+| Browser / installable PWA | Static React app with a Wasm core. Windows x64 Chromium-family automation covers responsive viewports, offline reload and same-profile upgrades. Linux x64 Playwright Firefox and WebKit cover offline import, research, reload and backup recovery from the portable archive. | Branded Safari and physical mobile-device evidence, additional install/update checks and storage lifecycle acceptance. |
 | Windows x64 | Per-user installer, native WebView2 CSV import and same-profile installer upgrade on hosted Windows Server 2022. | Windows client coverage and Authenticode verification. |
 | Windows ARM64 | Per-user installer, installed release startup, same-profile upgrade with an instrumented build and Python research SDK on hosted Windows 11 ARM64. | Authenticode verification. |
 | macOS Apple Silicon / Intel | Per-architecture app archives and read-only disk images. Hosted tests import CSV through the production app's native file picker and verify in-place upgrades with a saved WKWebView workspace in packaged test builds. | Developer ID signing and notarization. |
@@ -21,6 +21,17 @@ A successful web test validates a specific browser, build and host. Producing a 
 Run the updated archive at the same local address and open it in the same browser profile. When the terminal shows **Update ready**, close all MarketWeft tabs for that address and reopen it. The new service worker prepares its cache ahead of time. Open pages continue using their original cached build until they close, and the new worker clears the retired cache when it activates.
 
 The Chromium test gives the two builds different entry and replay files. It opens the old replay offline while the update waits, then activates the update, opens the new replay offline, and verifies the same imported quote. [Service-worker lifecycle](https://developer.chrome.com/docs/workbox/service-worker-lifecycle).
+
+### Firefox and WebKit offline verification
+
+The release workflow extracts the portable ZIP and starts its bundled loopback launcher. Firefox and WebKit each cache the terminal in two isolated browser contexts. The test stops the server and confirms the address is unreachable, then imports exact OHLCV, opens the monthly returns calendar, reloads the workspace and restores a checksummed backup in the second context. The checks use Playwright's Linux x64 browser engines. [Playwright browser and platform coverage](https://playwright.dev/docs/browsers).
+
+Run the same checks from a checkout with the locked npm dependencies installed. Set `MARKETWEFT_PORTABLE_ROOT` to the directory that contains the extracted ZIP contents.
+
+```sh
+npx --no-install playwright install --with-deps firefox webkit
+MARKETWEFT_PORTABLE_ROOT=/path/to/extracted/MarketWeft node --test scripts/portable-browser-engines.test.mjs
+```
 
 ## Android terminal
 
