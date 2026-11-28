@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.219.0 · Native and Python monthly returns
+
+- The local Rust command and installed Python SDK use the browser's synthetic calendar history. Fixtures verify exact result parity at both cutoffs, missing and zero baselines, leap-day observations, supported year boundaries and a return wider than 64 bits.
+- The native command rejects malformed UTF-8, protocols and cutoffs. Python checks that a truncated or inconsistent response raises an error before returning rows.
+
+[Native and Python monthly returns](chart-workspace.md#native-and-python-monthly-returns)
+
 ## 0.218.0 · Vortex and Balance of Power
 
 - Rust and Wasm verify signed price histories, observed-pair warm-up, zero true-range windows, signed one-third rounding, an actual zero and exact Vortex ratios beyond the 64-bit tick range. Rust verifies the maximum history length and rejects invalid bars and periods.

@@ -29,6 +29,53 @@ pub const MAX_AMERICAN_OPTION_REQUEST_BYTES: usize =
 pub const MAX_SCALAR_PLUGIN_REQUEST_BYTES: usize = crate::MAX_SCALAR_PLUGIN_BYTES + 128;
 pub const MAX_SCALAR_PLUGIN_SERIES_REQUEST_BYTES: usize =
     MAX_SCALAR_PLUGIN_REQUEST_BYTES + MAX_INPUT_BYTES;
+pub const MAX_MONTHLY_RETURNS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
+
+/// Return every requested UTC month and its supporting closes from the supplied history.
+pub fn monthly_returns_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_MONTHLY_RETURNS_REQUEST_BYTES {
+        return Err("Monthly returns request exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 monthly returns request.")?;
+    let (header, csv) = request
+        .split_once('\n')
+        .ok_or("Missing monthly returns request header.")?;
+    let fields = header.splitn(6, '\t').collect::<Vec<_>>();
+    let ["marketweft-monthly-returns", "1", first, last, cutoff] = fields.as_slice() else {
+        return Err("Invalid monthly returns request or protocol version.".into());
+    };
+    let (first, last) = first
+        .parse::<u16>()
+        .ok()
+        .zip(last.parse::<u16>().ok())
+        .ok_or("Use whole first and last UTC calendar years.")?;
+    let cutoff = exact_utc(cutoff).ok_or("Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.")?;
+    let rows = crate::monthly_returns(first, last, cutoff, &parse_csv(csv)?)?;
+    let mut output = format!(
+        "marketweft-monthly-returns\t{PROTOCOL_VERSION}\t{}\n",
+        rows.len()
+    );
+    for row in rows {
+        let window = match row.window {
+            crate::MonthWindow::Complete => "complete",
+            crate::MonthWindow::MonthToDate => "month-to-date",
+            crate::MonthWindow::Future => "future",
+        };
+        write!(output, "{}\t{}\t{window}", row.year, row.month).unwrap();
+        for close in [row.prior, row.current] {
+            if let Some(close) = close {
+                write!(output, "\t{}\t{}", close.at, close.ticks).unwrap();
+            } else {
+                output.push_str("\t\t");
+            }
+        }
+        let percent = row
+            .percent
+            .map_or_else(String::new, |value| value.to_string());
+        writeln!(output, "\t{percent}").unwrap();
+    }
+    Ok(output)
+}
 
 fn scalar_plugin_payload(bytes: &[u8], limit: usize) -> Result<(&str, &[u8]), String> {
     if bytes.len() > limit {

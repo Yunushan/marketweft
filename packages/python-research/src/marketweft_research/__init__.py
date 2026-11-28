@@ -1,6 +1,7 @@
 """Read-only research backed by the local MarketWeft Rust engine."""
 
 from dataclasses import dataclass
+from datetime import date, datetime
 import math
 from pathlib import Path
 import re
@@ -12,6 +13,7 @@ __all__ = [
     "FinancialFiling", "FinancialMarketCap", "FinancialMultiple", "FinancialMultiples",
     "FinancialSnapshot", "FinancialTrailing",
     "FormulaFunction", "FormulaResult", "FormulaRow",
+    "MonthlyClose", "MonthlyReturn",
     "OptionChainAnalytics", "OptionChainQuote", "OptionChainSnapshot", "OptionUnderlyingQuote",
     "ResearchEngine", "ResearchError", "ScalarPluginPoint",
     "ScreenPrice", "ScreenResult", "ScreenRow",
@@ -30,6 +32,10 @@ _MAX_SOURCE = 2048
 _MAX_CSV = 8 * 1024 * 1024
 _MAX_SCALAR_PLUGIN = 64 * 1024
 _MAX_SCALAR_SERIES = 256
+_MONTHLY_PROTOCOL = "marketweft-monthly-returns"
+_MAX_MONTHLY_YEARS = 30
+_MAX_PRICE_TICKS = 2_000_000_000_000_000
+_EPOCH_ORDINAL = date(1970, 1, 1).toordinal()
 _MAX_FINANCIAL_CSV = 1024 * 1024
 _MAX_OPTION_CSV = 2 * 1024 * 1024
 _MAX_OPTION_ROWS = 20_000
@@ -70,6 +76,22 @@ class ScalarPluginPoint:
     time: int
     close: int
     value: int
+
+
+@dataclass(frozen=True)
+class MonthlyClose:
+    at: int
+    ticks: int
+
+
+@dataclass(frozen=True)
+class MonthlyReturn:
+    year: int
+    month: int
+    window: str
+    prior: MonthlyClose | None
+    current: MonthlyClose | None
+    percent_micros: int | None
 
 
 @dataclass(frozen=True)
@@ -279,6 +301,50 @@ def _result(output: bytes) -> FormulaResult:
             raise ResearchError("Research rows are not in observed order.")
         rows.append(FormulaRow(timestamp, _whole(value) if value else None))
     return FormulaResult(version_number, tuple(rows))
+
+
+def _month_second(index: int) -> int:
+    year, month = divmod(index, 12)
+    ordinal = date.max.toordinal() + 1 if year == 9999 else date(year + 1, month + 1, 1).toordinal()
+    return (ordinal - _EPOCH_ORDINAL) * 86400
+
+
+def _monthly_close(at: str, ticks: str, start: int, end: int, through: int) -> MonthlyClose | None:
+    if not at and not ticks:
+        return None
+    second, amount = _whole(at), _whole(ticks)
+    if not start <= second < end or second > through or abs(amount) > _MAX_PRICE_TICKS:
+        raise ResearchError("Monthly return close lies outside its price or UTC bounds.")
+    return MonthlyClose(second, amount)
+
+
+def _monthly_returns(output: bytes, first_year: int, last_year: int, through: int) -> tuple[MonthlyReturn, ...]:
+    count, lines = _response(output, _MONTHLY_PROTOCOL)
+    if len(lines) != 12 * (last_year - first_year + 1) or _whole(count) != len(lines):
+        raise ResearchError("Invalid monthly returns row count.")
+    results: list[MonthlyReturn] = []
+    for index, line in enumerate(lines, start=(first_year - 1) * 12):
+        fields = line.split("\t")
+        if len(fields) != 8:
+            raise ResearchError("Invalid monthly return response row.")
+        year_text, month_text, window, prior_at, prior_ticks, close_at, close_ticks, percent = fields
+        year, month = _whole(year_text), _whole(month_text)
+        start, end = _month_second(index), _month_second(index + 1)
+        expected = "future" if through < start else "month-to-date" if through < end - 1 else "complete"
+        if (year, month, window) != (index // 12 + 1, index % 12 + 1, expected):
+            raise ResearchError("Invalid monthly return date or window.")
+        prior = _monthly_close(prior_at, prior_ticks, _month_second(max(0, index - 1)), start, through)
+        current = _monthly_close(close_at, close_ticks, start, end, through)
+        if (window == "future" and prior is not None) or (window != "future" and results and prior != results[-1].current):
+            raise ResearchError("Inconsistent prior close in monthly returns response.")
+        available = prior is not None and prior.ticks != 0 and current is not None
+        if bool(percent) != available or (percent and not _WIDE.fullmatch(percent)):
+            raise ResearchError("Invalid percentage in monthly returns response.")
+        value = int(percent) if percent else None
+        if value is not None and not -(1 << 127) <= value < (1 << 127):
+            raise ResearchError("Invalid percentage in monthly returns response.")
+        results.append(MonthlyReturn(year, month, window, prior, current, value))
+    return tuple(results)
 
 
 def _price(ticks: str, observed: str) -> ScreenPrice | None:
@@ -643,6 +709,28 @@ class ResearchEngine:
                 raise ResearchError("Scalar plugin series rows must be ordered within the requested UTC range.")
             points.append(point)
         return tuple(points)
+
+    def monthly_returns(
+        self, csv: str, *, first_year: int, last_year: int, observed_through: str,
+    ) -> tuple[MonthlyReturn, ...]:
+        """Return ordered UTC months with price and cutoff evidence from the supplied OHLCV."""
+        if (type(first_year) is not int or type(last_year) is not int
+                or not 1 <= first_year <= last_year <= 9999 or last_year - first_year >= _MAX_MONTHLY_YEARS):
+            raise ValueError("Choose up to 30 consecutive UTC calendar years between 0001 and 9999.")
+        if not isinstance(observed_through, str) or not _UTC.fullmatch(observed_through):
+            raise ValueError("Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.")
+        try:
+            cutoff = datetime.fromisoformat(observed_through[:-1])
+        except ValueError as exc:
+            raise ValueError("Use a valid UTC observation cutoff.") from exc
+        through = ((cutoff.toordinal() - _EPOCH_ORDINAL) * 86400
+                   + cutoff.hour * 3600 + cutoff.minute * 60 + cutoff.second)
+        history = csv.encode("utf-8")
+        if len(history) > _MAX_CSV:
+            raise ValueError("CSV exceeds 8 MiB.")
+        header = f"{_MONTHLY_PROTOCOL}\t1\t{first_year}\t{last_year}\t{observed_through}\n".encode("ascii")
+        output = self._invoke(header + history, "monthly-returns")
+        return _monthly_returns(output, first_year, last_year, through)
 
     def screen_universe(
         self,

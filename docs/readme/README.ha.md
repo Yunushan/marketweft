@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.218.0 · 0BSD**
+**0.219.0 · 0BSD**
 
 **Harsunan wannan jagora**
 
@@ -15,14 +15,14 @@
 
 MarketWeft tashar bincike ce da ke aiki a na’urar mai amfani. Tana buɗe OHLCV da aka ba da izini, tana nuna sandunan farashi da ƙarar ciniki, tana lissafin SMA da EMA da tsayayyun guraben goma, kuma tana ajiye jerin sa ido, kadara da alamomi a IndexedDB. Bayan an adana kayan aiki za ta yi aiki ba tare da intanet ba. Farashi da ƙarar da ke tare da ita na kwaikwayo ne, ba sai an buɗe asusun mai bayarwa ba.
 
-MarketWeft 0.218.0 yana ƙara alamomin Vortex da Balance of Power tare da ainihin rabo da saituna masu zaman kansu ga kowane sashe. MarketWeft 0.7.0 ya ƙara tsara membobin rukuni bisa canjin farashi da bayanan da aka sani lokacin tambaya. Sake kunna zaman kasuwa ya haɗa da rabon hannun jari, kuɗin riba, zama memba da cirewa daga kasuwa. Akwai mai lura na TypeScript mai karatu kawai don sabis na trading-bot daban da naɗin Tauri na gwaji. Hanyoyin bayanai, umarnin ciniki, masu sakawa da aka sa wa hannu da masaukin masu amfani da yawa suna cikin shirin gaba.
+MarketWeft 0.219.0 yana ba da kalandar ribar kowane wata ta UTC da ainihin farashin rufewa ta CLI da Python SDK. MarketWeft 0.7.0 ya ƙara tsara membobin rukuni bisa canjin farashi da bayanan da aka sani lokacin tambaya. Sake kunna zaman kasuwa ya haɗa da rabon hannun jari, kuɗin riba, zama memba da cirewa daga kasuwa. Akwai mai lura na TypeScript mai karatu kawai don sabis na trading-bot daban da naɗin Tauri na gwaji. Hanyoyin bayanai, umarnin ciniki, masu sakawa da aka sa wa hannu da masaukin masu amfani da yawa suna cikin shirin gaba.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Vortex and Balance of Power](../chart-workspace.md#vortex-and-balance-of-power)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Native monthly returns](../chart-workspace.md#native-and-python-monthly-returns)
 
 <!-- section:02 -->
 ## Kunna tashar ɗaukuwa
 
-Sauke browser-terminal-attempt-N daga gwajin GitHub da ya yi nasara. Cire MarketWeft-browser-0.218.0.zip, bar dist/ kusa da serve-terminal.mjs sannan gudanar da umarnin a can. Buɗe http://127.0.0.1:4173/ a burauza mai WebAssembly, Canvas, BigInt da IndexedDB. Ana buƙatar Node.js 22.12 ko sabo. Ba a buƙatar shigar da npm. Jira Offline ready kafin katse intanet.
+Sauke browser-terminal-attempt-N daga gwajin GitHub da ya yi nasara. Cire MarketWeft-browser-0.219.0.zip, bar dist/ kusa da serve-terminal.mjs sannan gudanar da umarnin a can. Buɗe http://127.0.0.1:4173/ a burauza mai WebAssembly, Canvas, BigInt da IndexedDB. Ana buƙatar Node.js 22.12 ko sabo. Ba a buƙatar shigar da npm. Jira Offline ready kafin katse intanet.
 
 ```sh
 node serve-terminal.mjs

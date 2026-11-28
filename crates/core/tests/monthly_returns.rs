@@ -1,3 +1,4 @@
+use marketweft_core::research::monthly_returns_request;
 use marketweft_core::{
     monthly_returns, parse_csv, parse_exact_utc, MonthWindow, MonthlyClose, MAX_TICKS,
 };
@@ -7,6 +8,27 @@ fn utc(text: &str) -> i64 {
 }
 
 const HISTORY: &str = include_str!("fixtures/synthetic-monthly-returns.csv");
+
+#[test]
+fn native_monthly_request_preserves_window_states_and_exact_price_evidence() {
+    let request =
+        format!("marketweft-monthly-returns\t1\t2024\t2024\t2024-01-15T16:00:00Z\n{HISTORY}");
+    let result = monthly_returns_request(request.as_bytes()).unwrap();
+    let january = format!(
+        "2024\t1\tmonth-to-date\t{}\t80000000\t{}\t90000000\t12500000",
+        utc("2023-12-29T16:00:00Z"),
+        utc("2024-01-15T16:00:00Z")
+    );
+    let lines: Vec<_> = result.lines().collect();
+    assert_eq!(lines.len(), 13);
+    assert_eq!(lines[0], "marketweft-monthly-returns\t1\t12");
+    assert_eq!(lines[1], january);
+    assert_eq!(lines[2], "2024\t2\tfuture\t\t\t\t\t");
+    assert!(monthly_returns_request(request.replacen("\t1\t", "\t2\t", 1).as_bytes()).is_err());
+    assert!(
+        monthly_returns_request(request.replace("2024-01-15", "2024-02-30").as_bytes()).is_err()
+    );
+}
 
 #[test]
 fn monthly_returns_rewind_and_preserve_each_close_and_gap() {

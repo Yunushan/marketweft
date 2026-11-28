@@ -5,7 +5,7 @@ Evaluate local OHLCV formulas with the native MarketWeft Rust engine. The Python
 Download the wheel from `python-research-sdk-attempt-N` and the engine executable for your OS and architecture from a matching `python-research-engine-*` artifact. Extract both archives. On Linux and macOS, run `chmod +x marketweft-research` after extraction. [GitHub Actions](https://github.com/Yunushan/marketweft/actions/workflows/verify.yml).
 
 ```sh
-python -m pip install --no-index --no-deps ./marketweft_research-0.12.0-py3-none-any.whl
+python -m pip install --no-index --no-deps ./marketweft_research-0.13.0-py3-none-any.whl
 ```
 
 To use a source checkout, build the engine and install the Python client with Python 3.10 or later.
@@ -33,6 +33,8 @@ Pass `observed_through` as an inclusive UTC second to reproduce a prefix. Pass a
 Pass a local Wasm module and a signed integer in millionths to `evaluate_scalar_plugin`. With the browser archive's `scalar-increment.wasm`, `engine.evaluate_scalar_plugin(Path("scalar-increment.wasm").read_bytes(), -123456789)` returns `-123456788`. [Scalar plugin ABI and native command](../../docs/time-series-language.md#python-and-native-scalar-plugins)
 
 Use `evaluate_scalar_plugin_series(module, history, from_second=..., through_second=...)` to evaluate up to 256 observed closes in an inclusive UTC range. The output contains the actual source timestamps, exact close inputs and exact plugin results. The engine applies a fresh instance to each close and meters the combined run. [Plugin series limits and native command](../../docs/time-series-language.md#scalar-plugins-on-observed-closes)
+
+Call `monthly_returns(history, first_year=2024, last_year=2024, observed_through="2024-02-29T16:00:00Z")` to select the same close evidence as the terminal calendar. Each result has an exact UTC window state, both close timestamps and price ticks when available, and a signed return in millionths of a percentage point. [Native monthly returns](../../docs/chart-workspace.md#native-and-python-monthly-returns).
 
 Call `screen_universe` with membership and prices CSV strings and exact baseline, effective and known UTC times. Each result retains membership and close provenance, with `None` for unavailable closes, ranks and returns. [Universe screening](../../docs/research-universe-screen.md).
 

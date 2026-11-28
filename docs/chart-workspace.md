@@ -414,6 +414,27 @@ The price return is `(current close − prior close) ÷ prior close × 100`, rou
 
 The calendar works offline and requires an automated-use grant for user-imported history. **Download monthly returns CSV** requires a separate redistribution grant and writes the selected source, cutoff, month state, price availability, exact UTC close timestamps and prices, and return. Repeating a prior cutoff with the same source reproduces the same CSV.
 
+### Native and Python monthly returns
+
+The `marketweft-research monthly-returns` command reads a tab-separated header followed by the same UTF-8 OHLCV CSV that the terminal imports. The header fields are `marketweft-monthly-returns`, `1`, first UTC year, last UTC year and the inclusive cutoff in `YYYY-MM-DDTHH:MM:SSZ` format. End the header with LF.
+
+The response starts with the protocol name, version and row count separated by tabs. Each following row contains the year, month, window (`complete`, `month-to-date` or `future`), preceding close UTC second and ticks, current close UTC second and ticks, and the return in millionths of a percentage point. Blank fields represent unavailable observations or returns.
+
+```python
+from pathlib import Path
+from marketweft_research import ResearchEngine
+
+engine = ResearchEngine("marketweft-research")
+rows = engine.monthly_returns(
+    Path("history.csv").read_text(encoding="utf-8"),
+    first_year=2024,
+    last_year=2024,
+    observed_through="2024-02-29T16:00:00Z",
+)
+```
+
+The SDK validates the response counts, UTC month bounds, close evidence and fixed-point fields before returning immutable `MonthlyReturn` records. The native executable, Python SDK and TypeScript SDK use the same Rust calculation. [Python SDK](../packages/python-research/README.md).
+
 ## Chart CSV export
 
 Open **Export CSV** beneath either pane. Choose **Visible bars** for that pane's current pan and zoom range, or **All bars** for its entire selected instrument. Exports work offline.
