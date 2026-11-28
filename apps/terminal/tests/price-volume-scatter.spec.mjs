@@ -19,16 +19,16 @@ async function recordScatter(page) {
     const target = context => context.canvas.getAttribute('aria-label')?.includes('interactive Close–volume scatter') &&
       context.canvas.closest('[aria-label="Primary chart pane"]')
     proto.scale = function (...args) {
-      if (target(this)) window.scatterProof = { points: [], labels: [] }
+      if (target(this)) this.canvas.scatterProof = { points: [], labels: [] }
       return scale.apply(this, args)
     }
     proto.fillRect = function (x, y, width, height) {
       if (target(this) && this.fillStyle === '#8abcf0' && width === 4 && height === 4)
-        window.scatterProof.points.push({ x: x + 2, y: y + 2 })
+        this.canvas.scatterProof.points.push({ x: x + 2, y: y + 2 })
       return fillRect.call(this, x, y, width, height)
     }
     proto.fillText = function (label, ...position) {
-      if (target(this)) window.scatterProof.labels.push(label)
+      if (target(this)) this.canvas.scatterProof.labels.push(label)
       return fillText.call(this, label, ...position)
     }
   })
@@ -70,8 +70,8 @@ test('scatter uses both coordinates, retains exact linked UTC and restores acros
   const readout = chart.getByRole('group', { name: 'Close and volume point', exact: true })
   const linked = comparison.getByRole('region', { name: 'Price and volume chart', exact: true })
   await expect(primary.getByRole('group', { name: 'Normalized Average True Range', exact: true })).toHaveCount(0)
-  await expect.poll(() => page.evaluate(() => window.scatterProof?.points.length)).toBe(5)
-  const { points, labels } = await page.evaluate(() => window.scatterProof)
+  await expect.poll(() => canvas.evaluate(element => element.scatterProof?.points.length)).toBe(5)
+  const { points, labels } = await canvas.evaluate(element => element.scatterProof)
   expect(labels).toEqual(expect.arrayContaining(['Close', 'Volume', '0', '2.5', '10']))
   const [zeroLow, zeroHigh, lower, upper, maximum] = points
   expect(zeroLow.x).toBe(zeroHigh.x)
@@ -81,13 +81,16 @@ test('scatter uses both coordinates, retains exact linked UTC and restores acros
   expect((lower.x - zeroLow.x) / (maximum.x - zeroLow.x)).toBeCloseTo(0.25)
   expect(maximum.y).toBeLessThan(upper.y)
   // Measure plot interactions in canvas coordinates without depending on page scroll position.
-  async function move(point) {
-    await canvas.evaluate((element, point) => {
+  async function move(point, rightmost = false) {
+    return canvas.evaluate((element, { point, rightmost }) => {
+      const sampled = rightmost ? [...element.scatterProof.points].sort((a, b) => a.x - b.x) : undefined
+      const target = sampled ? sampled.at(-1) : point
       const rect = element.getBoundingClientRect()
       element.dispatchEvent(new PointerEvent('pointermove', {
-        bubbles: true, pointerType: 'mouse', clientX: rect.left + point.x, clientY: rect.top + point.y,
+        bubbles: true, pointerType: 'mouse', clientX: rect.left + target.x, clientY: rect.top + target.y,
       }))
-    }, point)
+      return sampled
+    }, { point, rightmost })
   }
   async function checkPoint(time, close, volume) {
     const second = String(Date.parse(time) / 1000)
@@ -122,11 +125,13 @@ test('scatter uses both coordinates, retains exact linked UTC and restores acros
   await primary.getByText('Timeframe', { exact: true }).click()
   await primary.getByLabel('Source interval (seconds)').fill('60')
   await primary.getByLabel('Target interval (seconds)').fill('120')
-  await primary.getByRole('button', { name: 'Apply timeframe' }).click()
-  await expect.poll(() => page.evaluate(() => window.scatterProof?.points.length)).toBe(3)
-  const rolled = (await page.evaluate(() => window.scatterProof)).points.sort((a, b) => a.x - b.x)
+  await primary.getByRole('button', { name: 'Apply timeframe' }).press('Enter')
+  await expect(primary.getByRole('button', { name: 'Show source bars' })).toBeVisible()
+  await page.mouse.move(1, 1)
+  await expect.poll(() => canvas.evaluate(element => element.scatterProof?.points.length)).toBe(3)
+  const rolled = await move(null, true)
   expect((rolled[1].x - rolled[0].x) / (rolled[2].x - rolled[0].x)).toBeCloseTo(0.2)
-  await hover(rolled[2], '2025-06-06T14:02:00Z', '5.25', '12.5')
+  await checkPoint('2025-06-06T14:02:00Z', '5.25', '12.5')
 
   const current = await downloadWorkspace(page)
   expect(current.version).toBe(70)
@@ -154,11 +159,12 @@ test('scatter keeps signed closes selectable when all volumes are zero', async (
   await submitImport(page, 'ZEROS')
   await page.getByLabel('Primary chart type', { exact: true }).selectOption('volume-price-scatter')
   const chart = page.getByRole('region', { name: 'Close–volume scatter chart', exact: true })
-  await expect.poll(() => page.evaluate(() => window.scatterProof?.points.length)).toBe(2)
-  const [low, high] = (await page.evaluate(() => window.scatterProof)).points
+  const canvas = chart.locator('canvas')
+  await expect.poll(() => canvas.evaluate(element => element.scatterProof?.points.length)).toBe(2)
+  const [low, high] = (await canvas.evaluate(element => element.scatterProof)).points
   expect(low.x).toBe(high.x)
   expect(low.y).toBeGreaterThan(high.y)
-  const bounds = await chart.locator('canvas').boundingBox()
+  const bounds = await canvas.boundingBox()
   await page.mouse.move(bounds.x + low.x, bounds.y + low.y)
   const readout = chart.getByRole('group', { name: 'Close and volume point', exact: true })
   await expect(readout).toContainText('Close -2')
