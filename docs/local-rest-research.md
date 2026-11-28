@@ -136,6 +136,27 @@ The audit transaction reserves an admission and writes its receipt together. An 
 
 Quota state lives in the audit database and follows its snapshot and restore workflow. Multiple service processes using the same audit database share the same allowance. Meter rows contain the public credential ID, the current UTC minute and the admission count. Audit receipts retain the transport, scope and outcome.
 
+### Enable quotas in private deployments
+
+For the supplied Compose layout, export the quota before updating the research service. An unset or empty value leaves the quota disabled.
+
+```sh
+export MARKETWEFT_RESEARCH_QUOTA_PER_MINUTE=30
+docker compose -f apps/research-service/deploy/compose.yaml up -d --wait research
+```
+
+For the supplied Kubernetes layout, create or update the optional `research-admission` ConfigMap, then restart the deployment to read the new value.
+
+```sh
+kubectl -n marketweft-research create configmap research-admission \
+  --from-literal=quota-per-minute=30 --dry-run=client -o yaml \
+  | kubectl -n marketweft-research apply -f -
+kubectl -n marketweft-research rollout restart deployment/marketweft-research
+kubectl -n marketweft-research rollout status deployment/marketweft-research
+```
+
+The quota uses the existing writable audit volume and read-only credential volume. Clients continue to connect through the private TLS listener. A direct quota check can use two credentials for the same scope. After the first spends its allowance, it receives 429 with a retry delay while the second can still query.
+
 ## Localhost TLS
 
 Set `MARKETWEFT_RESEARCH_TLS_CERT` to a PEM certificate chain and `MARKETWEFT_RESEARCH_TLS_KEY` to its matching PEM private key. Supply both paths before starting the service. Use a certificate valid for `127.0.0.1` and configure clients to trust its issuing CA.

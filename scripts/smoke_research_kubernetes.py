@@ -93,11 +93,11 @@ def exercise(archive, temporary):
     def put(path, data):
         kube("exec", "-i", "research-peer", "--", "sh", "-c", 'cat > "$1"', "sh", path, content=data)
 
-    def client(stage):
+    def client(stage, *mode):
         print(f"Checking peer HTTPS {stage}.", flush=True)
         kube("exec", "-i", "research-peer", "--", "python", "-B", "-", HOST, content=WAIT_FOR_PEER_TLS)
         kube("exec", "-i", "research-peer", "--", "python", "-B", "-",
-             f"https://{HOST}:4174", content=PEER.read_bytes())
+             f"https://{HOST}:4174", *mode, content=PEER.read_bytes())
 
     def audit(operation, source, destination, count):
         output = kube("exec", DEPLOYMENT, "--", "marketweft-research-service", "audit", operation,
@@ -138,6 +138,9 @@ def exercise(archive, temporary):
             issued = kube("exec", "credentials-fixture", "--", "marketweft-research-service",
                           "credential", "issue", CREDENTIALS, scope, "600")
             put(f"/peer/{scope}.json", issued)
+        independent = kube("exec", "credentials-fixture", "--", "marketweft-research-service",
+                           "credential", "issue", CREDENTIALS, "formula", "600")
+        put("/peer/formula-peer.json", independent)
         kube("delete", "pod/credentials-fixture", "--timeout=80s")
         for filename in ("synthetic-formula-bars.csv", "synthetic-universe.csv", "synthetic-universe-prices.csv"):
             put(f"/repo/crates/core/tests/fixtures/{filename}", (FIXTURES / filename).read_bytes())
@@ -156,6 +159,11 @@ def exercise(archive, temporary):
         wait_for_research()
         client("with the restored ledger")
         audit("backup", "recovered", "reopened", RECOVERED_RECEIPTS)
+        kube("create", "configmap", "research-admission", "--from-literal=quota-per-minute=1")
+        kube("set", "env", DEPLOYMENT, f"MARKETWEFT_RESEARCH_AUDIT_DB={AUDIT}/quota.sqlite")
+        wait_for_research()
+        client("with the configured quota", "quota")
+        audit("backup", "quota", "quota-snapshot", 2)
     except (subprocess.CalledProcessError, AssertionError):
         for resources in (("get", "pods,service,endpointslices", "-o", "wide"),
                           ("logs", DEPLOYMENT, "--tail=15")):
@@ -175,6 +183,6 @@ if __name__ == "__main__":
     try:
         with tempfile.TemporaryDirectory(prefix="marketweft-kind-") as directory:
             exercise(Path(sys.argv[1]).resolve(strict=True), Path(directory))
-        print("Verified Kubernetes startup, restart and receipt continuity after restore.")
+        print("Verified private Kubernetes quota isolation, startup, restart and receipt continuity after restore.")
     except subprocess.CalledProcessError as error:
         raise SystemExit(error.stderr.decode(errors="replace").strip() or str(error)) from error

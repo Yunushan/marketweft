@@ -18,6 +18,7 @@ services:
       MARKETWEFT_RESEARCH_TLS_KEY: /run/marketweft/tls/tls.key
       MARKETWEFT_RESEARCH_CREDENTIALS_DB: /var/lib/marketweft/credentials/credentials.sqlite
       MARKETWEFT_RESEARCH_AUDIT_DB: /var/lib/marketweft/audit/${MARKETWEFT_RESEARCH_AUDIT_FILE:-audit.sqlite}
+      MARKETWEFT_RESEARCH_QUOTA_PER_MINUTE: "${MARKETWEFT_RESEARCH_QUOTA_PER_MINUTE:-}"
     networks:
       research:
         ipv4_address: ${MARKETWEFT_RESEARCH_BIND_IP:?Set the private service address}

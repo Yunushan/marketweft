@@ -45,17 +45,18 @@ def exercise(image, tls, peer, restore_from=None):
         MARKETWEFT_RESEARCH_IMAGE=image, MARKETWEFT_RESEARCH_HOST=HOST, MARKETWEFT_RESEARCH_PORT=PORT,
         MARKETWEFT_RESEARCH_TLS_DIRECTORY=str(tls), MARKETWEFT_RESEARCH_SUBNET="172.30.248.0/24",
         MARKETWEFT_RESEARCH_BIND_IP="172.30.248.10", MARKETWEFT_RESEARCH_AUDIT_FILE="audit.sqlite",
+        MARKETWEFT_RESEARCH_QUOTA_PER_MINUTE="",
     )
 
     def compose(*args):
         return docker("compose", "--file", str(COMPOSE), "--project-name", project, *args, env=environment)
 
-    def client():
+    def client(*mode):
         docker(
             "run", "--rm", "--network", f"{project}_research",
             "--mount", f"type=bind,source={peer},target=/peer,readonly",
             "--mount", f"type=bind,source={ROOT},target=/repo,readonly",
-            PYTHON, "python", "-B", f"/repo/{PEER.relative_to(ROOT).as_posix()}", f"https://{HOST}:{PORT}",
+            PYTHON, "python", "-B", f"/repo/{PEER.relative_to(ROOT).as_posix()}", f"https://{HOST}:{PORT}", *mode,
         )
 
     def start():
@@ -112,6 +113,14 @@ def exercise(image, tls, peer, restore_from=None):
         start()
         client()
         audit("backup", "recovered", "reopened", RECOVERED_RECEIPTS)
+        issued = compose("run", "--rm", "--no-deps", "-T", "credential-admin",
+                         "credential", "issue", CREDENTIALS, "formula", "300")
+        (peer / "formula-peer.json").write_bytes(issued)
+        environment["MARKETWEFT_RESEARCH_AUDIT_FILE"] = "quota.sqlite"
+        environment["MARKETWEFT_RESEARCH_QUOTA_PER_MINUTE"] = "1"
+        start()
+        client("quota")
+        audit("backup", "quota", "quota-snapshot", 2)
         return export("snapshot", peer / "audit-source.sqlite")
     finally:
         compose("down", "--volumes", "--remove-orphans")
@@ -149,6 +158,6 @@ if __name__ == "__main__":
                 assert all(row[-1] == "completed" for row in recovered)
             finally:
                 tls.chmod(0o700)
-        print("Verified private Compose restart and receipt continuity after a separate fresh-volume restore.")
+        print("Verified private Compose quota isolation, restart and receipt continuity after a separate fresh-volume restore.")
     except subprocess.CalledProcessError as error:
         raise SystemExit(error.stderr.decode(errors="replace").strip() or str(error)) from error

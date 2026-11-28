@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import ssl
 import sys
+import time
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 
@@ -10,13 +11,12 @@ from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 origin = sys.argv[1]
 fixtures = Path("/repo/crates/core/tests/fixtures")
 formula = json.loads(Path("/peer/formula.json").read_text())["token"]
-screen = json.loads(Path("/peer/screen.json").read_text())["token"]
 trusted = build_opener(
     ProxyHandler({}), HTTPSHandler(context=ssl.create_default_context(cafile="/peer/tls.crt"))
 )
 
 
-def post(path, token, payload, extra=None, client=trusted):
+def exchange(path, token, payload, extra=None, client=trusted):
     headers = {
         "Authorization": f"Bearer {token}", "Content-Type": "application/json", "Origin": origin,
     }
@@ -24,10 +24,15 @@ def post(path, token, payload, extra=None, client=trusted):
     request = Request(origin + path, json.dumps(payload).encode(), headers)
     try:
         with client.open(request, timeout=5) as reply:
-            return reply.status, json.load(reply)
+            return reply.status, json.load(reply), reply.headers
     except HTTPError as reply:
         with reply:
-            return reply.code, json.load(reply)
+            return reply.code, json.load(reply), reply.headers
+
+
+def post(path, token, payload, extra=None, client=trusted):
+    status, result, _ = exchange(path, token, payload, extra, client)
+    return status, result
 
 
 def fixture(name):
@@ -35,6 +40,23 @@ def fixture(name):
 
 
 query = {"formula": "close + 0.000001", "history_csv": fixture("synthetic-formula-bars.csv"), "limit": 1}
+
+if len(sys.argv) == 3 and sys.argv[2] == "quota":
+    independent = json.loads(Path("/peer/formula-peer.json").read_text())["token"]
+    remaining = 60 - int(time.time()) % 60
+    if remaining < 20:
+        time.sleep(remaining)
+    status, result = post("/v1/formula", formula, query)
+    assert status == 200 and result["rows"][0]["value_ticks"] == "10000001"
+    status, result, headers = exchange("/v1/formula", formula, query)
+    assert status == 429 and 1 <= int(headers["Retry-After"]) <= 60
+    assert result["error"] == "Research credential quota is exhausted."
+    status, result = post("/v1/formula", independent, query)
+    assert status == 200 and result["rows"][0]["value_ticks"] == "10000001"
+    print("Verified the private TLS quota and an independent credential.")
+    sys.exit(0)
+
+screen = json.loads(Path("/peer/screen.json").read_text())["token"]
 status, result = post("/v1/formula", formula, query)
 assert status == 200 and result["rows"][0]["value_ticks"] == "10000001"
 assert post("/v1/formula", screen, query)[0] == 403
