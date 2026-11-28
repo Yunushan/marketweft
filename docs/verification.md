@@ -1,5 +1,10 @@
 # MarketWeft verification
 
+## 0.299.0 · Native and Python dividend replay
+
+- The native process and installed Python wheel verify inclusive cutoff rewind, fixed and dated entitlements, exact currency reversals, and legacy gross reports. Python also rejects a supplied movement that fails to reconcile with the preceding balance.
+- Offline Chromium replays the packaged withholding example using the shared event encoder.
+
 ## 0.298.0 · Reported dividend withholding
 
 - Rust and Wasm verify gross receivables, exact net cash, reported withholding, revised currency reversals, late holdings corrections and cancellation after full withholding. The legacy eight-column path preserves gross balances.

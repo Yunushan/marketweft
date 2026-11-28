@@ -201,4 +201,6 @@ The read-only MCP tool `listing_downside_risk_as_of` exposes the same calculatio
 
 Call `ResearchEngine.recorded_trade_prints("NASDAQ:NVDA", trades_csv, known_at="2025-06-02T14:00:00Z")` to get individual capture records. The snapshot includes the applied cutoff and prints with exact trade times, full capture sequences, signed prices and sizes in millionths, and reported side. [Recorded print SDKs](../../docs/recorded-tick-bars.md#recorded-print-sdks)
 
+Call `ResearchEngine.dividend_ledger(instrument, dividends_csv, shares=100, known_at=cutoff)` for the cash dividend events known by an inclusive UTC cutoff. Use `positions_csv` for dated holdings. Each currency movement carries signed deltas and exact resulting balances, including optional reported withholding. [Native and Python dividend replay](../../docs/cash-dividends.md#native-and-python-dividend-replay)
+
 The MCP server offers the same records as read-only pages with exact decimal strings for sequence, price and size. [Recorded trade prints over MCP](../../docs/local-mcp-research.md#recorded-trade-prints)

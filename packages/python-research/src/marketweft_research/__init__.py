@@ -10,6 +10,7 @@ from typing import Sequence
 
 __all__ = [
     "AmericanOptionValuation", "OptionCashDividend",
+    "DividendLedgerEvent", "DividendLedgerMovement", "DividendLedgerSnapshot",
     "EquityConcentration", "EquityConcentrationPosition", "EquityConcentrationSnapshot",
     "EquityTargetDrift", "EquityTargetReport", "EquityTargetSnapshot",
     "FinancialFiling", "FinancialMarketCap", "FinancialMultiple", "FinancialMultiples",
@@ -45,6 +46,10 @@ _MONTHLY_PROTOCOL = "marketweft-monthly-returns"
 _MACRO_PROTOCOL = "marketweft-macro-calendar"
 _NOTIONAL_BARS_PROTOCOL = "marketweft-notional-bars"
 _TRADE_PRINTS_PROTOCOL = "marketweft-recorded-trade-prints"
+_DIVIDEND_LEDGER_PROTOCOL = "marketweft-dividend-ledger"
+_DIVIDEND_EVENT_KINDS = ("report", "ex", "pay", "entitlement")
+_MAX_DIVIDEND_CSV = 1024 * 1024
+_MAX_DIVIDEND_SHARES = 1_000_000
 _LISTING_DOWNSIDE_RISK_PROTOCOL = "marketweft-listing-downside-risk"
 _ALLOCATION_PROTOCOL = "marketweft-portfolio-allocation"
 _PORTFOLIO_PROTOCOL = "marketweft-portfolio-scenarios"
@@ -245,6 +250,41 @@ class RecordedTradePrintsSnapshot:
     instrument: str
     known_at: int | None
     prints: tuple[RecordedTradePrint, ...]
+
+
+@dataclass(frozen=True)
+class DividendLedgerMovement:
+    currency: str
+    receivable_delta: int
+    cash_delta: int
+    receivable: int
+    cash: int
+    withholding_delta: int | None
+    withholding: int | None
+
+
+@dataclass(frozen=True)
+class DividendLedgerEvent:
+    at: int
+    kind: str
+    dividend_id: str
+    announced_at: int
+    ex_at: int
+    pay_at: int
+    observed_at: int
+    currency: str
+    amount_per_share: int
+    entitled_shares: int | None
+    withholding_per_share: int | None
+    movements: tuple[DividendLedgerMovement, ...]
+
+
+@dataclass(frozen=True)
+class DividendLedgerSnapshot:
+    instrument: str
+    known_at: int | None
+    fixed_shares: int | None
+    events: tuple[DividendLedgerEvent, ...]
 
 
 @dataclass(frozen=True)
@@ -769,6 +809,72 @@ def _recorded_trade_prints(output: bytes, instrument: str, cutoff: int | None) -
         prints.append(RecordedTradePrint(executed, observed, sequence, price, size, side))
         last_observed, last_sequence = observed, sequence
     return RecordedTradePrintsSnapshot(instrument, cutoff, tuple(prints))
+
+
+def _dividend_ledger(output: bytes, instrument: str, cutoff: int | None, fixed: int | None) -> DividendLedgerSnapshot:
+    count, rows = _response(output, _DIVIDEND_LEDGER_PROTOCOL)
+    total = _whole(count)
+    if not 0 <= total <= 50_000 or len(rows) != total + 1:
+        raise ResearchError("Invalid dividend event count.")
+    mode = "dated" if fixed is None else "fixed"
+    fields = ["D", instrument, "" if cutoff is None else str(cutoff), mode, "" if fixed is None else str(fixed)]
+    if rows[0].split("\t") != fields:
+        raise ResearchError("Dividend ledger settings differ from the request.")
+
+    latest = _MAX_UTC_SECOND if cutoff is None else cutoff
+    prior = (_MIN_UTC_SECOND, "")
+    reported = None
+    balances: dict[str, tuple[int, int, int]] = {}
+    events = []
+    for row in rows[1:]:
+        fields = row.split("\t")
+        if len(fields) < 10:
+            raise ResearchError("Invalid dividend event row.")
+        at, kind_index = map(_whole, fields[:2])
+        dividend_id, currency = fields[2], fields[7]
+        announced, ex, pay, observed = map(_whole, fields[3:7])
+        amount = _whole(fields[8])
+        shares = _whole(fields[9]) if fields[9] else None
+        if (not 0 <= kind_index < len(_DIVIDEND_EVENT_KINDS) or not _IDENTITY.fullmatch(dividend_id)
+                or not _CURRENCY.fullmatch(currency) or not _MIN_UTC_SECOND <= announced <= observed <= at <= latest
+                or not _MIN_UTC_SECOND <= ex <= pay <= _MAX_UTC_SECOND or not 0 <= amount <= _MAX_PRICE_TICKS
+                or (at, dividend_id) < prior or shares is not None and not 0 <= shares <= _MAX_DIVIDEND_SHARES
+                or fixed is not None and shares != fixed):
+            raise ResearchError("Dividend evidence is inconsistent with the cutoff or requested entitlement.")
+        kind = _DIVIDEND_EVENT_KINDS[kind_index]
+        if (kind == "report" and at != observed or kind == "ex" and (at != ex or at <= observed or ex == pay)
+                or kind == "pay" and (at != pay or at <= observed)
+                or kind == "entitlement" and (at < ex or fixed is not None)):
+            raise ResearchError("Dividend evidence has an invalid event time.")
+        movements = fields[10:]
+        withholding = _whole(movements.pop(0)[2:]) if movements and movements[0].startswith("W=") else None
+        has_withholding = withholding is not None
+        if (has_withholding and not 0 <= withholding <= amount
+                or reported is not None and reported != has_withholding or len(movements) > 2):
+            raise ResearchError("Invalid dividend withholding or currency movements.")
+        reported = has_withholding
+        changes = []
+        seen = set()
+        for movement in movements:
+            components = movement.split(",")
+            code = components[0]
+            if len(components) != (7 if has_withholding else 5) or not _CURRENCY.fullmatch(code) or code in seen:
+                raise ResearchError("Invalid dividend movement fields.")
+            receivable_delta, cash_delta, receivable, cash, *withheld = map(_i128, components[1:])
+            withholding_delta, withheld_balance = withheld if has_withholding else (None, None)
+            old_receivable, old_cash, old_withheld = balances.get(code, (0, 0, 0))
+            new_withheld = 0 if withheld_balance is None else withheld_balance
+            if (min(receivable, cash, new_withheld) < 0 or receivable != old_receivable + receivable_delta
+                    or cash != old_cash + cash_delta or new_withheld != old_withheld + (withholding_delta or 0)):
+                raise ResearchError("Dividend movement does not reconcile with its prior balance.")
+            seen.add(code)
+            balances[code] = (receivable, cash, new_withheld)
+            changes.append(DividendLedgerMovement(code, receivable_delta, cash_delta, receivable, cash,
+                                                   withholding_delta, withheld_balance))
+        events.append(DividendLedgerEvent(at, kind, dividend_id, announced, ex, pay, observed, currency,
+                                          amount, shares, withholding, tuple(changes)))
+        prior = (at, dividend_id)
+    return DividendLedgerSnapshot(instrument, cutoff, fixed, tuple(events))
 
 
 def _listing_downside_risk(
@@ -1530,6 +1636,37 @@ class ResearchEngine:
         header = "\n".join((_TRADE_PRINTS_PROTOCOL + "\t1", instrument, known_at or "", "")).encode("ascii")
         output = self._invoke(header + capture, "trade-prints")
         return _recorded_trade_prints(output, instrument, cutoff)
+
+    def dividend_ledger(
+        self, instrument: str, dividends_csv: str, *, shares: int | None = None,
+        positions_csv: str | None = None, known_at: str | None = None,
+    ) -> DividendLedgerSnapshot:
+        """Replay cash dividend evidence through an inclusive UTC observation cutoff."""
+        if not isinstance(instrument, str) or not _INSTRUMENT.fullmatch(instrument):
+            raise ValueError("Use a canonical dividend instrument.")
+        if (shares is None) == (positions_csv is None):
+            raise ValueError("Supply fixed shares or a dated position CSV.")
+        if shares is not None and (type(shares) is not int or not 0 <= shares <= _MAX_DIVIDEND_SHARES):
+            raise ValueError("Supply 0–1,000,000 whole entitled shares.")
+        if not isinstance(dividends_csv, str) or positions_csv is not None and not isinstance(positions_csv, str):
+            raise TypeError("Supply dividend and dated position CSV contents as text.")
+        dividend_bytes = dividends_csv.encode("utf-8")
+        position_bytes = b"" if positions_csv is None else positions_csv.encode("utf-8")
+        if max(len(dividend_bytes), len(position_bytes)) > _MAX_DIVIDEND_CSV:
+            raise ValueError("Each dividend and position CSV must be at most 1 MiB.")
+        cutoff = None
+        if known_at is not None:
+            if not isinstance(known_at, str) or not _UTC.fullmatch(known_at):
+                raise ValueError("Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.")
+            try:
+                cutoff = _epoch_second(datetime.fromisoformat(known_at[:-1]))
+            except ValueError as error:
+                raise ValueError("Use a valid UTC observation cutoff.") from error
+        mode = "dated" if shares is None else "fixed"
+        prefix = "\t".join((_DIVIDEND_LEDGER_PROTOCOL, "1", mode, str(len(dividend_bytes))))
+        header = "\n".join((prefix, instrument, known_at or "", "" if shares is None else str(shares), "")).encode("ascii")
+        output = self._invoke(header + dividend_bytes + position_bytes, "dividend-ledger")
+        return _dividend_ledger(output, instrument, cutoff, shares)
 
     def listing_downside_risk_as_of(
         self, membership_csv: str, prices_csv: str, left_listing_id: str, right_listing_id: str, *,

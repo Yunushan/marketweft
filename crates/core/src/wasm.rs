@@ -55,55 +55,8 @@ pub extern "C" fn mw_dividend_position_ledger(dividend_bytes: usize) -> u32 {
 }
 
 fn encode_dividend_ledger(events: Vec<crate::DividendEvent>, include_positions: bool) -> Vec<u8> {
-    use std::fmt::Write;
     let mut text = String::new();
-    for event in events {
-        let row = event.revision;
-        write!(
-            &mut text,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            event.at,
-            event.kind as u8,
-            row.id,
-            row.announced_at,
-            row.ex_at,
-            row.pay_at,
-            row.observed_at,
-            row.currency,
-            row.amount_per_share
-        )
-        .unwrap();
-        if include_positions {
-            text.push('\t');
-            if let Some(shares) = event.entitled_shares {
-                write!(&mut text, "{shares}").unwrap();
-            }
-        }
-        if let Some(withholding) = event.withholding_per_share {
-            write!(&mut text, "\tW={withholding}").unwrap();
-        }
-        for movement in event.movements {
-            write!(
-                &mut text,
-                "\t{},{},{},{},{}",
-                movement.currency,
-                movement.receivable_delta,
-                movement.cash_delta,
-                movement.receivable,
-                movement.cash
-            )
-            .unwrap();
-            if event.withholding_per_share.is_some() {
-                write!(
-                    &mut text,
-                    ",{},{}",
-                    movement.withholding_delta, movement.withholding
-                )
-                .unwrap();
-            }
-        }
-        text.push('\n');
-    }
+    crate::dividend::write_ledger_rows(&mut text, &events, include_positions);
     text.into_bytes()
 }
 

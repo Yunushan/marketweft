@@ -434,6 +434,61 @@ pub(crate) fn parse_report<'a>(
     Ok(row)
 }
 
+pub(crate) fn write_ledger_rows(
+    text: &mut String,
+    events: &[DividendEvent],
+    include_positions: bool,
+) {
+    use std::fmt::Write;
+    for event in events {
+        let row = &event.revision;
+        write!(
+            text,
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            event.at,
+            event.kind as u8,
+            row.id,
+            row.announced_at,
+            row.ex_at,
+            row.pay_at,
+            row.observed_at,
+            row.currency,
+            row.amount_per_share
+        )
+        .unwrap();
+        if include_positions {
+            text.push('\t');
+            if let Some(shares) = event.entitled_shares {
+                write!(text, "{shares}").unwrap();
+            }
+        }
+        if let Some(withholding) = event.withholding_per_share {
+            write!(text, "\tW={withholding}").unwrap();
+        }
+        for movement in &event.movements {
+            write!(
+                text,
+                "\t{},{},{},{},{}",
+                movement.currency,
+                movement.receivable_delta,
+                movement.cash_delta,
+                movement.receivable,
+                movement.cash
+            )
+            .unwrap();
+            if event.withholding_per_share.is_some() {
+                write!(
+                    text,
+                    ",{},{}",
+                    movement.withholding_delta, movement.withholding
+                )
+                .unwrap();
+            }
+        }
+        text.push('\n');
+    }
+}
+
 pub(crate) const MAX_CASH_DIVIDEND_CSV_BYTES: usize = 1024 * 1024;
 
 pub fn parse_dividends(csv: &str, instrument: &Instrument) -> Result<DividendBook, String> {

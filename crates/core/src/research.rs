@@ -1,6 +1,6 @@
 //! Versioned native process interfaces for read-only research clients.
 
-use crate::dividend::MAX_CASH_DIVIDEND_CSV_BYTES;
+use crate::dividend::{write_ledger_rows, MAX_CASH_DIVIDEND_CSV_BYTES};
 use crate::financial_wire::financial_rows;
 use crate::formula::{decode_formula_library, MAX_FORMULA_LIBRARY_BYTES, MAX_SOURCE_BYTES};
 use crate::fundamentals::MAX_FINANCIAL_CSV_BYTES;
@@ -43,6 +43,7 @@ pub const MAX_MONTHLY_RETURNS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
 pub const MAX_MACRO_CALENDAR_REQUEST_BYTES: usize = MAX_MACRO_CSV_BYTES + 128;
 pub const MAX_NOTIONAL_BARS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 160;
 pub const MAX_TRADE_PRINTS_REQUEST_BYTES: usize = MAX_INPUT_BYTES + 128;
+pub const MAX_DIVIDEND_LEDGER_REQUEST_BYTES: usize = 2 * MAX_CASH_DIVIDEND_CSV_BYTES + 256;
 pub const MAX_LISTING_RISK_REQUEST_BYTES: usize = MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 256;
 pub const MAX_PORTFOLIO_ALLOCATION_REQUEST_BYTES: usize =
     MAX_MEMBERSHIP_BYTES + MAX_PRICE_BYTES + 1024;
@@ -167,6 +168,57 @@ fn recorded_observation_cutoff(known: &str) -> Result<Option<i64>, String> {
             .map(Some)
             .ok_or_else(|| "Use a YYYY-MM-DDTHH:MM:SSZ observation cutoff.".into())
     }
+}
+
+/// Replay the observed cash dividend ledger with fixed or dated entitlements.
+pub fn dividend_ledger_request(bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > MAX_DIVIDEND_LEDGER_REQUEST_BYTES {
+        return Err("Dividend ledger request exceeds its byte limit.".into());
+    }
+    let request = std::str::from_utf8(bytes).map_err(|_| "Use a UTF-8 dividend ledger request.")?;
+    let mut lines = request.splitn(5, '\n');
+    let [Some(header), Some(instrument), Some(known), Some(shares), Some(payload)] =
+        std::array::from_fn(|_| lines.next())
+    else {
+        return Err("Invalid dividend ledger request.".into());
+    };
+    let mut header = header.splitn(5, '\t');
+    let [Some("marketweft-dividend-ledger"), Some("1"), Some(mode), Some(dividend_bytes), None] =
+        std::array::from_fn(|_| header.next())
+    else {
+        return Err("Invalid dividend ledger protocol or version.".into());
+    };
+    let id = canonical_recorded_instrument(instrument)?;
+    let cutoff = recorded_observation_cutoff(known)?;
+    let dividend_bytes = dividend_bytes
+        .parse::<usize>()
+        .map_err(|_| "Use a dividend CSV byte length.")?;
+    let (dividends, positions) = payload.split_at_checked(dividend_bytes).ok_or(
+        "The dividend CSV byte length is outside the payload or splits a UTF-8 character.",
+    )?;
+    let book = crate::parse_replay_dividends(dividends, &id)?;
+    let (events, fixed) = match mode {
+        "fixed" if positions.is_empty() => {
+            let count = shares
+                .parse::<u32>()
+                .map_err(|_| "Supply 0–1,000,000 whole entitled shares.")?;
+            (book.ledger(count)?, count.to_string())
+        }
+        "dated" if shares.is_empty() => {
+            let history = crate::parse_dividend_positions(positions, &id)?;
+            (book.position_ledger(&history)?, String::new())
+        }
+        _ => return Err("Supply fixed shares or a dated position CSV.".into()),
+    };
+    let count = cutoff.map_or(events.len(), |known| {
+        events.partition_point(|event| event.at <= known)
+    });
+    let cutoff = cutoff.map_or_else(String::new, |value| value.to_string());
+    let mut result = format!(
+        "marketweft-dividend-ledger\t{PROTOCOL_VERSION}\t{count}\nD\t{instrument}\t{cutoff}\t{mode}\t{fixed}\n"
+    );
+    write_ledger_rows(&mut result, &events[..count], true);
+    Ok(result)
 }
 
 /// Read individual captured trades at an independent observation cutoff.
