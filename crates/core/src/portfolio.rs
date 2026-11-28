@@ -21,6 +21,7 @@ mod rights_journal;
 mod spinoff;
 #[path = "portfolio_successor.rs"]
 mod successor;
+pub(crate) use capital_return::parse_capital_return_reports;
 pub use capital_return::{
     compare_portfolio_capital_returns, portfolio_capital_returns_as_of, CapitalReturnAmounts,
     CapitalReturnBasis, CapitalReturnComparison, CapitalReturnCutoff, CapitalReturnMovement,

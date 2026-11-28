@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.201.0 · 0BSD**
+**0.202.0 · 0BSD**
 
 **Documentation languages**
 
@@ -15,14 +15,14 @@
 
 MarketWeft is a local-first research terminal for analysts, developers and operators who need inspectable historical market data. The browser opens authorized OHLCV files, renders interactive candles and volume, calculates fixed-point SMA and EMA, and saves the watchlist, selected instrument and overlays in IndexedDB. The application works offline after its assets are cached. Its bundled prices and volumes are synthetic and require no provider account.
 
-MarketWeft 0.201.0 exports threshold and moving-average alert evidence under recorded and current source grants. MarketWeft 0.7.0 adds point-in-time universe screening by price return. Session-aware replay includes stock splits, cash dividends, membership and delistings. The repository also includes a read-only TypeScript observer for a separate trading-bot service and an experimental Tauri wrapper. Provider feeds, order entry, signed native installers and multi-user hosting remain roadmap work.
+MarketWeft 0.202.0 replays returns of capital on simulated holdings and traces revised payments by currency. MarketWeft 0.7.0 adds point-in-time universe screening by price return. Session-aware replay includes stock splits, cash dividends, membership and delistings. The repository also includes a read-only TypeScript observer for a separate trading-bot service and an experimental Tauri wrapper. Provider feeds, order entry, signed native installers and multi-user hosting remain roadmap work.
 
-[ROADMAP.md](ROADMAP.md) · [docs/coverage.md](docs/coverage.md) · [Crossing alert export](docs/replay-alerts.md#export-crossing-alerts)
+[ROADMAP.md](ROADMAP.md) · [docs/coverage.md](docs/coverage.md) · [Paper capital returns](docs/paper-corporate-cash.md#paper-capital-returns)
 
 <!-- section:02 -->
 ## Start with the portable terminal
 
-Open a successful GitHub verification run and download its browser-terminal-attempt-N artifact. Extract the enclosed MarketWeft-browser-0.201.0.zip, keep dist/ beside serve-terminal.mjs and run the following command in that directory. Open http://127.0.0.1:4173/ in a current browser with WebAssembly, Canvas, BigInt and IndexedDB. Node.js 22.12 or later runs the launcher. The portable package needs no npm installation. Wait for Offline ready before disconnecting.
+Open a successful GitHub verification run and download its browser-terminal-attempt-N artifact. Extract the enclosed MarketWeft-browser-0.202.0.zip, keep dist/ beside serve-terminal.mjs and run the following command in that directory. Open http://127.0.0.1:4173/ in a current browser with WebAssembly, Canvas, BigInt and IndexedDB. Node.js 22.12 or later runs the launcher. The portable package needs no npm installation. Wait for Offline ready before disconnecting.
 
 ```sh
 node serve-terminal.mjs

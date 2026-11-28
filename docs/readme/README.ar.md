@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.201.0 · 0BSD**
+**0.202.0 · 0BSD**
 
 **لغات التوثيق**
 
@@ -21,18 +21,18 @@ MarketWeft محطة بحث محلية للمحللين والمطورين وال
 
 <div dir="rtl">
 
-يصدّر MarketWeft 0.201.0 أدلة تنبيهات العتبات والمتوسطات المتحركة وفق تراخيص المصدر المسجلة والحالية. يضيف MarketWeft 0.7.0 فرز أعضاء الكون حسب عائد السعر وفق البيانات المعروفة عند وقت الاستعلام. تشمل إعادة التشغيل وفق الجلسات تجزئات الأسهم والتوزيعات النقدية وتغير العضوية والشطب. يتضمن المستودع أيضًا مراقب TypeScript للقراءة فقط لخدمة trading-bot مستقلة وغلاف Tauri تجريبيًا. لا تزال تغذيات البيانات وإدخال الأوامر والمثبّتات الموقّعة والاستضافة متعددة المستخدمين على خارطة الطريق.
+يعيد MarketWeft 0.202.0 عرض ردّ رأس المال على الحيازات المحاكاة ويتتبّع المدفوعات المعدّلة حسب العملة. يضيف MarketWeft 0.7.0 فرز أعضاء الكون حسب عائد السعر وفق البيانات المعروفة عند وقت الاستعلام. تشمل إعادة التشغيل وفق الجلسات تجزئات الأسهم والتوزيعات النقدية وتغير العضوية والشطب. يتضمن المستودع أيضًا مراقب TypeScript للقراءة فقط لخدمة trading-bot مستقلة وغلاف Tauri تجريبيًا. لا تزال تغذيات البيانات وإدخال الأوامر والمثبّتات الموقّعة والاستضافة متعددة المستخدمين على خارطة الطريق.
 
 </div>
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Crossing alert export](../replay-alerts.md#export-crossing-alerts)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Paper capital returns](../paper-corporate-cash.md#paper-capital-returns)
 
 <!-- section:02 -->
 ## تشغيل المحطة المحمولة
 
 <div dir="rtl">
 
-نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.201.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
+نزّل browser-terminal-attempt-N من تحقق GitHub ناجح وفك MarketWeft-browser-0.202.0.zip. أبقِ dist/ بجوار serve-terminal.mjs ونفّذ الأمر في المجلد نفسه. افتح http://127.0.0.1:4173/ بمتصفح يدعم WebAssembly وCanvas وBigInt وIndexedDB. يتطلب المشغّل Node.js 22.12 أو أحدث ولا يحتاج تثبيت npm. انتظر Offline ready قبل قطع الاتصال.
 
 </div>
 

@@ -788,6 +788,56 @@ test('paper successor delivery journal transports holding receipts and signed ch
   assert.deepEqual(journal(through), first);
 });
 
+test('paper capital returns transport pre-ex fill evidence, exact cash and isolated fold scores', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, prices, liquidity, walkLiquidity, dividends, delistings, successorShares, capitalReturns] = await Promise.all([
+    fixture('synthetic-cross-section-membership'), fixture('synthetic-listing-risk-prices'),
+    fixture('synthetic-cross-section-liquidity'), fixture('synthetic-cross-section-walk-liquidity'),
+    fixture('synthetic-cross-section-dividends'), fixture('synthetic-cross-section-delisting'),
+    fixture('synthetic-paper-successor-shares'), fixture('synthetic-paper-capital-returns'),
+  ]);
+  const cfg = { paper: { startingCash: '1000', positionLimit: '10', exposureLimit: '1000', feePerShare: '0.1', feePerOrder: '0.5' },
+    decisionSeconds: '60', lookbackSeconds: '60', topListings: '1', targetShares: '4', limitBuffer: '1000', participation: '10000' };
+  const utc = minute => `2025-06-02T14:0${minute}:00Z`;
+  const base = { accountCurrency: 'USD', dividends, delistings };
+  const actions = { ...base, capitalReturns };
+  const replay = (effective, known, reports = actions) =>
+    core.crossSectionReplay(membership, prices, liquidity, utc(1), utc(effective), utc(known), cfg, reports);
+  assert.deepEqual(replay(6, 2).capitalReturnClaims, []);
+  const before = replay(4, 4);
+  const [claim] = before.capitalReturnClaims;
+  assert.deepEqual([claim.actionId, claim.shares, claim.amount, claim.state], ['ROC-1', 2n, 5000000n, 'receivable']);
+  assert.equal(before.cash, 536600000n);
+  assert.equal(before.equity, 1025600000n);
+  assert.equal(before.receipts.find(row => row.id === claim.positionReceiptId).sourceId, 'Q-9007199254740995');
+  const revised = replay(6, 7);
+  assert.equal(revised.cash, 1056600000n);
+  assert.deepEqual(revised.capitalReturnPostings.map(row => [row.currency, row.cashDelta]), [
+    ['USD', 5000000n], ['USD', -5000000n], ['EUR', 6000002n],
+  ]);
+  assert.equal(revised.capitalReturnPostings[2].receiptId, null);
+  for (const row of revised.capitalReturnPostings.slice(0, 2)) {
+    const receipt = revised.receipts.find(receipt => receipt.id === row.receiptId);
+    assert.equal(receipt.cashDelta, row.cashDelta);
+  }
+  const canceled = replay(6, 8);
+  assert.equal(canceled.capitalReturnClaims[0].state, 'no-payment');
+  assert.equal(canceled.capitalReturnPostings[3].cashDelta, -6000002n);
+  assert.deepEqual(replay(4, 4), before);
+  const both = { ...actions, successorShares };
+  const [delivery] = core.crossSectionSuccessorDeliveryJournal(membership, prices, liquidity, utc(1), utc(6), utc(6), cfg, both);
+  const combined = replay(6, 6, both);
+  assert.equal(combined.receipts.find(row => row.id === delivery.positionReceiptId).sourceId, 'Q-9007199254740996');
+  const walk = { trainingDecisions: '3', testDecisions: '3', candidates: '60:1,60:2' };
+  const fold = reports => core.crossSectionWalk(membership, prices, walkLiquidity, utc(1), utc(6), utc(8), cfg, walk, reports)[0];
+  const baseline = fold(base);
+  const shifted = capitalReturns.replaceAll(utc(5), utc(6)).replaceAll(utc(3), utc(5));
+  const withReturn = fold({ ...base, capitalReturns: shifted });
+  assert.deepEqual(withReturn.trainingScores, baseline.trainingScores);
+  assert.equal(withReturn.testScore.cash, baseline.testScore.cash + 10000000n);
+  assert.equal(withReturn.testScore.equity, baseline.testScore.equity + 10000000n);
+});
+
 function marksWithoutA(prices) {
   return prices.split('\n').filter(line => !line.startsWith('RISK,A,2025-06-02T14:06:00Z')).join('\n');
 }

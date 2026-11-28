@@ -4,14 +4,15 @@ use crate::{
     paper::MAX_SHARES,
     parse_delistings,
     portfolio::{
-        parse_successor_terms, successor_delivery_postings_from_observed_positions,
-        value_successor_shares, PortfolioIncomeReports, SuccessorReports,
+        parse_capital_return_reports, parse_successor_terms,
+        successor_delivery_postings_from_observed_positions, value_successor_shares,
+        PortfolioIncomeReports, SuccessorReports,
     },
     screen::rounded_div,
     ChildShares, DelistingBook, DelistingState, LiquidityTape, PaperAccount, PaperAction,
-    PaperConfig, PaperEvent, PaperOrderStatus, PaperReceipt, PaperSide, PriceBook,
-    PriceObservation, SuccessorDeliveryPosting, SuccessorShareState, SuccessorShareTerms,
-    UniverseAction, MAX_TICKS,
+    PaperConfig, PaperEvent, PaperOrderStatus, PaperReceipt, PaperSide, PortfolioDividendState,
+    PriceBook, PriceObservation, SuccessorDeliveryPosting, SuccessorShareState,
+    SuccessorShareTerms, UniverseAction, MAX_TICKS,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -87,6 +88,7 @@ pub struct CrossSectionActionSources<'a> {
 
 struct CorporateReports<'a> {
     income: Option<PortfolioIncomeReports>,
+    capital_returns: Option<PortfolioIncomeReports>,
     delistings: DelistingBook,
     successors: Option<SuccessorReports>,
     currency: &'a str,
@@ -97,6 +99,7 @@ impl<'a> CorporateReports<'a> {
         prices: &PriceBook<'_>,
         sources: CrossSectionActionSources<'a>,
         successor_terms: &str,
+        capital_returns: &str,
     ) -> Result<Self, String> {
         if !valid_currency(sources.account_currency) {
             return Err("Use a three-letter uppercase paper account currency.".into());
@@ -111,6 +114,9 @@ impl<'a> CorporateReports<'a> {
         };
         Ok(Self {
             income,
+            capital_returns: (!capital_returns.is_empty())
+                .then(|| parse_capital_return_reports(prices.universe, capital_returns))
+                .transpose()?,
             delistings,
             successors: (!successor_terms.is_empty())
                 .then(|| parse_successor_terms(prices.universe, successor_terms))
@@ -166,6 +172,51 @@ pub struct CrossSectionSuccessorPosting {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CrossSectionCapitalReturnPosting {
+    pub listing_id: String,
+    pub action_id: String,
+    pub posted_at: i64,
+    pub observed_at: i64,
+    pub ex_at: i64,
+    pub pay_at: i64,
+    pub entitled_shares: u64,
+    pub currency: String,
+    pub cash_delta: i128,
+    pub receipt_id: Option<String>,
+}
+
+impl From<CrossSectionDividendPosting> for CrossSectionCapitalReturnPosting {
+    fn from(row: CrossSectionDividendPosting) -> Self {
+        Self {
+            listing_id: row.listing_id,
+            action_id: row.dividend_id,
+            posted_at: row.posted_at,
+            observed_at: row.observed_at,
+            ex_at: row.ex_at,
+            pay_at: row.pay_at,
+            entitled_shares: row.entitled_shares,
+            currency: row.currency,
+            cash_delta: row.cash_delta,
+            receipt_id: row.receipt_id,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CrossSectionCapitalReturnClaim {
+    pub listing_id: String,
+    pub action_id: String,
+    pub observed_at: i64,
+    pub ex_at: i64,
+    pub pay_at: i64,
+    pub entitled_shares: u64,
+    pub currency: String,
+    pub amount: i128,
+    pub state: PortfolioDividendState,
+    pub position_receipt_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CrossSectionReport {
     pub config: CrossSectionConfig,
     pub decisions: Vec<RankingDecision>,
@@ -177,6 +228,8 @@ pub struct CrossSectionReport {
     pub turnover: i128,
     pub equity: Option<i128>,
     pub dividend_postings: Vec<CrossSectionDividendPosting>,
+    pub capital_return_claims: Vec<CrossSectionCapitalReturnClaim>,
+    pub capital_return_postings: Vec<CrossSectionCapitalReturnPosting>,
     pub delisting_claims: Vec<CrossSectionDelistingClaim>,
     pub delisting_postings: Vec<CrossSectionDelistingPosting>,
     pub successor_claims: Vec<CrossSectionSuccessorClaim>,
@@ -492,7 +545,18 @@ impl PriceBook<'_> {
         corporate: CrossSectionActionSources<'_>,
         successor_terms: &str,
     ) -> Result<CrossSectionReport, String> {
-        let reports = CorporateReports::parse(self, corporate, successor_terms)?;
+        self.cross_section_with_distributions(liquidity, config, corporate, successor_terms, "")
+    }
+
+    pub fn cross_section_with_distributions(
+        &self,
+        liquidity: &LiquidityTape,
+        config: CrossSectionConfig,
+        corporate: CrossSectionActionSources<'_>,
+        successor_terms: &str,
+        capital_returns: &str,
+    ) -> Result<CrossSectionReport, String> {
+        let reports = CorporateReports::parse(self, corporate, successor_terms, capital_returns)?;
         self.run_cross_section(liquidity, config, Some(&reports))
             .map(|run| run.report)
     }
@@ -504,7 +568,24 @@ impl PriceBook<'_> {
         corporate: CrossSectionActionSources<'_>,
         successor_terms: &str,
     ) -> Result<Vec<CrossSectionSuccessorPosting>, String> {
-        let reports = CorporateReports::parse(self, corporate, successor_terms)?;
+        self.cross_section_successor_journal_with_distributions(
+            liquidity,
+            config,
+            corporate,
+            successor_terms,
+            "",
+        )
+    }
+
+    pub fn cross_section_successor_journal_with_distributions(
+        &self,
+        liquidity: &LiquidityTape,
+        config: CrossSectionConfig,
+        corporate: CrossSectionActionSources<'_>,
+        successor_terms: &str,
+        capital_returns: &str,
+    ) -> Result<Vec<CrossSectionSuccessorPosting>, String> {
+        let reports = CorporateReports::parse(self, corporate, successor_terms, capital_returns)?;
         let successors = reports
             .successors
             .as_ref()
@@ -553,6 +634,9 @@ impl PriceBook<'_> {
         let mut dividends = corporate
             .and_then(|reports| reports.income.as_ref())
             .map(|income| DividendReplay::new(income, account_currency));
+        let return_reports = corporate.and_then(|reports| reports.capital_returns.as_ref());
+        let mut capital_returns =
+            return_reports.map(|reports| DividendReplay::new(reports, account_currency));
         let mut delistings = corporate
             .map(|reports| {
                 DelistingReplay::new(
@@ -581,7 +665,8 @@ impl PriceBook<'_> {
             aliases,
             pending: BTreeMap::new(),
             events: Vec::new(),
-            holdings: (dividends.is_some() || successors.is_some()).then(BTreeMap::new),
+            holdings: (dividends.is_some() || successors.is_some() || capital_returns.is_some())
+                .then(BTreeMap::new),
         };
         let observed = liquidity.through(config.known_at);
         let first = observed.partition_point(|quote| quote.observed_at < config.from_at);
@@ -593,12 +678,18 @@ impl PriceBook<'_> {
             loop {
                 let quote_time = observed.peek().map(|row| row.observed_at);
                 let dividend_time = dividends.as_mut().and_then(DividendReplay::next_time);
+                let capital_return_time =
+                    capital_returns.as_mut().and_then(DividendReplay::next_time);
                 let delisting_time = delistings.as_mut().and_then(DelistingReplay::next_time);
-                let Some(at) = [quote_time, dividend_time, delisting_time]
-                    .into_iter()
-                    .flatten()
-                    .min()
-                else {
+                let Some(at) = [
+                    quote_time,
+                    dividend_time,
+                    delisting_time,
+                    capital_return_time,
+                ]
+                .into_iter()
+                .flatten()
+                .min() else {
                     break;
                 };
                 if at > through {
@@ -610,20 +701,15 @@ impl PriceBook<'_> {
                         .unwrap()
                         .advance(replay, config.through_at)?;
                 } else if dividend_time == Some(at) {
-                    let income = dividends.as_mut().unwrap();
-                    for mut posting in
-                        income.next_postings(config.through_at, replay.holdings.as_ref().unwrap())
-                    {
-                        if posting.currency == income.currency {
-                            posting.receipt_id = Some(replay.post_cash(
-                                &posting.listing_id,
-                                at,
-                                &posting.dividend_id,
-                                posting.cash_delta,
-                            )?);
-                        }
-                        income.postings.push(posting);
-                    }
+                    dividends
+                        .as_mut()
+                        .unwrap()
+                        .advance(replay, config.through_at)?;
+                } else if capital_return_time == Some(at) {
+                    capital_returns
+                        .as_mut()
+                        .unwrap()
+                        .advance(replay, config.through_at)?;
                 } else {
                     let quote = observed.next().unwrap();
                     replay.fill(quote, config.participation_bps)?;
@@ -749,6 +835,54 @@ impl PriceBook<'_> {
                 .iter()
                 .try_fold(total, |total, claim| Some(total + claim.value?))
         });
+        let mut capital_return_claims = Vec::new();
+        let cutoff = config.through_at.min(config.known_at);
+        if let Some(reports) = return_reports {
+            let holdings = replay.holdings.as_ref().unwrap();
+            for (listing, book) in reports.dividend_books() {
+                for row in book
+                    .known_reports(config.known_at)
+                    .filter(|row| row.ex_at <= cutoff)
+                {
+                    let observation = holdings
+                        .get(listing)
+                        .and_then(|history| history.range(..row.ex_at).next_back())
+                        .map(|(_, observation)| observation);
+                    let entitled_shares =
+                        observation.map_or(0, |position| u64::from(position.shares));
+                    let amount = i128::from(entitled_shares) * i128::from(row.amount_per_share);
+                    let state = if amount == 0 {
+                        PortfolioDividendState::NoPayment
+                    } else if row.pay_at <= cutoff {
+                        PortfolioDividendState::Paid
+                    } else {
+                        PortfolioDividendState::Receivable
+                    };
+                    capital_return_claims.push(CrossSectionCapitalReturnClaim {
+                        listing_id: listing.to_owned(),
+                        action_id: row.id.clone(),
+                        observed_at: row.observed_at,
+                        ex_at: row.ex_at,
+                        pay_at: row.pay_at,
+                        entitled_shares,
+                        currency: row.currency.clone(),
+                        amount,
+                        state,
+                        position_receipt_id: observation
+                            .map(|position| replay.events[position.event_index].event.id.clone()),
+                    });
+                }
+            }
+        }
+        let receivable: i128 = capital_return_claims
+            .iter()
+            .filter(|claim| {
+                claim.state == PortfolioDividendState::Receivable
+                    && claim.currency == account_currency
+            })
+            .map(|claim| claim.amount)
+            .sum();
+        let equity = equity.map(|value| value + receivable);
         let fees = replay.events.iter().map(|event| event.receipt.fee).sum();
         let turnover = replay
             .events
@@ -771,6 +905,10 @@ impl PriceBook<'_> {
             turnover,
             equity,
             dividend_postings: dividends.map_or_else(Vec::new, |income| income.postings),
+            capital_return_claims,
+            capital_return_postings: capital_returns.map_or_else(Vec::new, |reports| {
+                reports.postings.into_iter().map(Into::into).collect()
+            }),
             delisting_claims,
             delisting_postings: delistings.map_or_else(Vec::new, |book| book.postings),
             successor_claims,

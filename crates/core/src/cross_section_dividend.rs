@@ -1,4 +1,4 @@
-use super::PaperHoldings;
+use super::{PaperHoldings, Replay};
 use crate::{dividend::DividendSchedule, portfolio::PortfolioIncomeReports};
 use std::{collections::BTreeMap, iter::Peekable, vec};
 
@@ -17,7 +17,7 @@ pub struct CrossSectionDividendPosting {
 }
 
 pub(super) struct DividendReplay<'a> {
-    pub currency: &'a str,
+    currency: &'a str,
     pub postings: Vec<CrossSectionDividendPosting>,
     schedule: Peekable<vec::IntoIter<(&'a str, DividendSchedule<'a>)>>,
     paid: BTreeMap<(&'a str, &'a str), (&'a str, i128)>,
@@ -44,7 +44,27 @@ impl<'a> DividendReplay<'a> {
         self.schedule.peek().map(|(_, event)| event.at)
     }
 
-    pub fn next_postings(
+    pub(super) fn advance(
+        &mut self,
+        replay: &mut Replay<'_>,
+        effective: i64,
+    ) -> Result<(), String> {
+        let mut changes = self.next_postings(effective, replay.holdings.as_ref().unwrap());
+        for posting in &mut changes {
+            if posting.currency == self.currency {
+                posting.receipt_id = Some(replay.post_cash(
+                    &posting.listing_id,
+                    posting.posted_at,
+                    &posting.dividend_id,
+                    posting.cash_delta,
+                )?);
+            }
+        }
+        self.postings.extend(changes);
+        Ok(())
+    }
+
+    fn next_postings(
         &mut self,
         effective: i64,
         holdings: &PaperHoldings,

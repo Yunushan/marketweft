@@ -109,6 +109,10 @@ With effective time at 14:06, compare knowledge at 14:06 and 14:07 UTC to
 see a delivered 4/3 shares become a receivable of two shares after revision.
 Expand Paper successor delivery journal to see the 4/3-share delivery,
 the matching reversal and the original simulated position receipt.
+Choose Use sample capital returns or upload paper-capital-returns.csv.
+Set both cutoffs to 14:04 UTC for the 5 USD claim on two pre-ex shares,
+then set effective time to 14:06 UTC and move knowledge from 14:06 to
+14:08 UTC to follow payment, the currency correction and cancellation.
 
 Select the NVDA chart and open Recorded market depth. Choose Load depth demo
 or open depth.csv. Inspect the sequence gap at 14:00:05 UTC and the recovered
@@ -255,6 +259,7 @@ def main():
     files["cross-section-dividends.csv"] = (fixture / "synthetic-cross-section-dividends.csv").read_bytes()
     files["cross-section-delisting.csv"] = (fixture / "synthetic-cross-section-delisting.csv").read_bytes()
     files["paper-successor-shares.csv"] = (fixture / "synthetic-paper-successor-shares.csv").read_bytes()
+    files["paper-capital-returns.csv"] = (fixture / "synthetic-paper-capital-returns.csv").read_bytes()
     files["universe-sectors.csv"] = (fixture / "synthetic-universe-sectors.csv").read_bytes()
     files["financial-filings.csv"] = (fixture / "synthetic-financial-filings.csv").read_bytes()
     files["financial-market-caps.csv"] = (fixture / "synthetic-financial-market-caps.csv").read_bytes()

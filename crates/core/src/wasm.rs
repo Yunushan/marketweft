@@ -1459,7 +1459,7 @@ pub extern "C" fn mw_cross_section_actions(
             input,
             membership_bytes,
             price_bytes,
-            Some((liquidity_bytes, dividend_bytes, None)),
+            Some((liquidity_bytes, dividend_bytes, None, None)),
             CrossSectionOutput::Replay,
         )
     })
@@ -1477,7 +1477,7 @@ pub extern "C" fn mw_cross_section_walk(
             input,
             membership_bytes,
             price_bytes,
-            Some((liquidity_bytes, dividend_bytes, None)),
+            Some((liquidity_bytes, dividend_bytes, None, None)),
             CrossSectionOutput::Walk,
         )
     })
@@ -1497,7 +1497,7 @@ pub extern "C" fn mw_cross_section_with_successors(
             input,
             membership_bytes,
             price_bytes,
-            Some((liquidity_bytes, dividend_bytes, Some(delisting_bytes))),
+            Some((liquidity_bytes, dividend_bytes, Some(delisting_bytes), None)),
             if walk == 0 {
                 CrossSectionOutput::Replay
             } else {
@@ -1520,8 +1520,40 @@ pub extern "C" fn mw_cross_section_successor_delivery_journal(
             input,
             membership_bytes,
             price_bytes,
-            Some((liquidity_bytes, dividend_bytes, Some(delisting_bytes))),
+            Some((liquidity_bytes, dividend_bytes, Some(delisting_bytes), None)),
             CrossSectionOutput::SuccessorJournal,
+        )
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_cross_section_with_distributions(
+    membership_bytes: usize,
+    price_bytes: usize,
+    liquidity_bytes: usize,
+    dividend_bytes: usize,
+    delisting_bytes: usize,
+    successor_bytes: usize,
+    mode: u32,
+) -> u32 {
+    process(|input| {
+        let mode = match mode {
+            0 => CrossSectionOutput::Replay,
+            1 => CrossSectionOutput::Walk,
+            2 => CrossSectionOutput::SuccessorJournal,
+            _ => return Err("Invalid cross-sectional output mode.".into()),
+        };
+        cross_section_input(
+            input,
+            membership_bytes,
+            price_bytes,
+            Some((
+                liquidity_bytes,
+                dividend_bytes,
+                Some(delisting_bytes),
+                Some(successor_bytes),
+            )),
+            mode,
         )
     })
 }
@@ -1536,7 +1568,7 @@ fn cross_section_input(
     input: &[u8],
     membership_bytes: usize,
     price_bytes: usize,
-    reports: Option<(usize, usize, Option<usize>)>,
+    reports: Option<(usize, usize, Option<usize>, Option<usize>)>,
     mode: CrossSectionOutput,
 ) -> Result<Vec<u8>, String> {
     let ([from_at, through_at, known_at], rest) = screen_inputs(input)?;
@@ -1586,16 +1618,21 @@ fn cross_section_input(
     };
     let universe = parse_universe(membership)?;
     let book = PriceBook::parse(&universe, prices)?;
-    let report = if let Some((liquidity_bytes, dividend_bytes, delisting_bytes)) = reports {
+    let report = if let Some((liquidity_bytes, dividend_bytes, delisting_bytes, successor_bytes)) =
+        reports
+    {
         let (liquidity, rest) = rest
             .split_at_checked(liquidity_bytes)
             .ok_or("Invalid liquidity data.")?;
         let (dividends, rest) = rest
             .split_at_checked(dividend_bytes)
             .ok_or("Invalid dividend data.")?;
-        let (delistings, successors) = rest
+        let (delistings, rest) = rest
             .split_at_checked(delisting_bytes.unwrap_or(rest.len()))
             .ok_or("Invalid delisting data.")?;
+        let (successors, capital_returns) = rest
+            .split_at_checked(successor_bytes.unwrap_or(rest.len()))
+            .ok_or("Invalid successor share data.")?;
         let tape = crate::LiquidityTape::parse(&universe, liquidity)?;
         let corporate = crate::CrossSectionActionSources {
             dividends,
@@ -1622,11 +1659,14 @@ fn cross_section_input(
                 });
             }
             if currency.is_empty()
-                && (!dividends.is_empty() || !delistings.is_empty() || !successors.is_empty())
+                && (!dividends.is_empty()
+                    || !delistings.is_empty()
+                    || !successors.is_empty()
+                    || !capital_returns.is_empty())
             {
                 return Err("Supply the paper account currency for corporate reports.".into());
             }
-            let folds = book.cross_section_walk_with_successor_shares(
+            let folds = book.cross_section_walk_with_distributions(
                 &tape,
                 crate::CrossSectionWalkConfig {
                     replay: query,
@@ -1636,13 +1676,19 @@ fn cross_section_input(
                     corporate: (!currency.is_empty()).then_some(corporate),
                 },
                 successors,
+                capital_returns,
             )?;
             return Ok(encode_cross_section_walk(&folds).into_bytes());
         }
         if matches!(mode, CrossSectionOutput::SuccessorJournal) {
             use std::fmt::Write;
-            let rows =
-                book.cross_section_successor_delivery_journal(&tape, query, corporate, successors)?;
+            let rows = book.cross_section_successor_journal_with_distributions(
+                &tape,
+                query,
+                corporate,
+                successors,
+                capital_returns,
+            )?;
             let mut text = String::new();
             for row in rows {
                 write_successor_delivery(&mut text, &row.delivery);
@@ -1650,7 +1696,7 @@ fn cross_section_input(
             }
             return Ok(text.into_bytes());
         }
-        book.cross_section_with_successor_shares(&tape, query, corporate, successors)?
+        book.cross_section_with_distributions(&tape, query, corporate, successors, capital_returns)?
     } else {
         let tape = crate::LiquidityTape::parse(&universe, rest)?;
         book.cross_section_replay(&tape, query)?
@@ -1753,6 +1799,40 @@ fn encode_cross_section(report: crate::CrossSectionReport) -> String {
             row.currency,
             row.cash_delta,
             row.receipt_id.as_deref().unwrap_or("")
+        )
+        .unwrap();
+    }
+    for row in report.capital_return_postings {
+        writeln!(
+            &mut text,
+            "R\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            row.listing_id,
+            row.action_id,
+            row.posted_at,
+            row.observed_at,
+            row.ex_at,
+            row.pay_at,
+            row.entitled_shares,
+            row.currency,
+            row.cash_delta,
+            row.receipt_id.as_deref().unwrap_or("")
+        )
+        .unwrap();
+    }
+    for row in report.capital_return_claims {
+        writeln!(
+            &mut text,
+            "K\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            row.listing_id,
+            row.action_id,
+            row.observed_at,
+            row.ex_at,
+            row.pay_at,
+            row.entitled_shares,
+            row.currency,
+            row.amount,
+            capital_return_state(row.state),
+            row.position_receipt_id.as_deref().unwrap_or("")
         )
         .unwrap();
     }

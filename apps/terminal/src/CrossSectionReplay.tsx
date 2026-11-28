@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { CrossSectionConfig, CrossSectionReport, CrossSectionWalkConfig, MarketCore, PaperConfig, PaperReceipt } from './market-core'
 import { CrossSectionWalk } from './CrossSectionWalk'
+import { PaperCapitalReturns } from './PaperCapitalReturns'
 import { SuccessorDeliveryLedger } from './SuccessorDeliveryLedger'
 import { quoteText } from './chart-export'
 import { downloadFile } from './download'
@@ -12,6 +13,7 @@ import demoWalkLiquidity from '../../../crates/core/tests/fixtures/synthetic-cro
 import demoDividends from '../../../crates/core/tests/fixtures/synthetic-cross-section-dividends.csv?raw'
 import demoDelistings from '../../../crates/core/tests/fixtures/synthetic-cross-section-delisting.csv?raw'
 import demoSuccessors from '../../../crates/core/tests/fixtures/synthetic-paper-successor-shares.csv?raw'
+import demoCapitalReturns from '../../../crates/core/tests/fixtures/synthetic-paper-capital-returns.csv?raw'
 
 const defaults: CrossSectionConfig = {
   decisionSeconds: '60', lookbackSeconds: '60', topListings: '1', targetShares: '4',
@@ -33,6 +35,7 @@ const accountFields: [keyof PaperConfig, string][] = [
 type Source = { csv: string; name: string }
 type CorporateReports = {
   accountCurrency: string; dividends: Source | null; delistings: Source | null; successorShares: Source | null
+  capitalReturns: Source | null
 }
 type Run = { from: string; config: CrossSectionConfig; liquidity: Source; corporate: CorporateReports | null }
 type ReplayProps = {
@@ -43,7 +46,8 @@ type ReplayProps = {
 function calculationInputs(reports: CorporateReports | null) {
   if (!reports) return undefined
   return { accountCurrency: reports.accountCurrency, dividends: reports.dividends?.csv ?? '',
-    delistings: reports.delistings?.csv ?? '', successorShares: reports.successorShares?.csv ?? '' }
+    delistings: reports.delistings?.csv ?? '', successorShares: reports.successorShares?.csv ?? '',
+    capitalReturns: reports.capitalReturns?.csv ?? '' }
 }
 
 async function readReport(file: File | null, prior: Source | null, label: string, limit: number) {
@@ -220,9 +224,11 @@ export function CrossSectionReplay(props: ReplayProps) {
   const [dividendFile, setDividendFile] = useState<File | null>(null)
   const [delistingFile, setDelistingFile] = useState<File | null>(null)
   const [successorFile, setSuccessorFile] = useState<File | null>(null)
+  const [capitalReturnFile, setCapitalReturnFile] = useState<File | null>(null)
   const [dividends, setDividends] = useState<Source | null>(null)
   const [delistings, setDelistings] = useState<Source | null>(null)
   const [successorShares, setSuccessorShares] = useState<Source | null>(null)
+  const [capitalReturns, setCapitalReturns] = useState<Source | null>(null)
   const [from, setFrom] = useState(() => utc(Date.parse(firstCutoff) / 1000 + 60))
   const [draft, setDraft] = useState(defaults)
   const [run, setRun] = useState<Run | null>(null)
@@ -254,15 +260,17 @@ export function CrossSectionReplay(props: ReplayProps) {
     if (!file && !source) return
     setBusy(true)
     try {
-      const [liquidity, dividendReport, delistingReport, successorReport] = await Promise.all([
+      const [liquidity, dividendReport, delistingReport, successorReport, capitalReturnReport] = await Promise.all([
         readReport(file, source, 'Paper liquidity', 2),
         readReport(enableCorporate ? dividendFile : null, dividends, 'Paper dividend', 1),
         readReport(enableCorporate ? delistingFile : null, delistings, 'Paper delisting', 1),
         readReport(enableCorporate ? successorFile : null, successorShares, 'Paper successor share', 1),
+        readReport(enableCorporate ? capitalReturnFile : null, capitalReturns, 'Paper capital return', 1),
       ])
       if (!liquidity) return
       const corporate = enableCorporate ? { accountCurrency: accountCurrency.trim(),
-        dividends: dividendReport, delistings: delistingReport, successorShares: successorReport } : null
+        dividends: dividendReport, delistings: delistingReport, successorShares: successorReport,
+        capitalReturns: capitalReturnReport } : null
       const next = { from: from.trim(), config: draft, liquidity, corporate }
       core.crossSectionReplay(membership, prices, liquidity.csv, next.from, effective, known, draft,
         calculationInputs(corporate))
@@ -273,9 +281,11 @@ export function CrossSectionReplay(props: ReplayProps) {
         setDividends(dividendReport)
         setDelistings(delistingReport)
         setSuccessorShares(successorReport)
+        setCapitalReturns(capitalReturnReport)
         setDividendFile(null)
         setDelistingFile(null)
         setSuccessorFile(null)
+        setCapitalReturnFile(null)
       }
       setError('')
     } catch (cause) {
@@ -342,6 +352,11 @@ export function CrossSectionReplay(props: ReplayProps) {
             setSuccessorShares({ name: 'Synthetic paper successor share terms', csv: demoSuccessors })
             setSuccessorFile(null)
           }}>Use sample successor share terms</button>}
+          {corporateDemo && <button type="button" className="outline" disabled={busy} onClick={() => {
+            setEnableCorporate(true)
+            setCapitalReturns({ name: 'Synthetic paper capital returns', csv: demoCapitalReturns })
+            setCapitalReturnFile(null)
+          }}>Use sample capital returns</button>}
           {enableCorporate && <div className="universe-query">
             <label>Paper account currency
               <input value={accountCurrency} maxLength={3} required disabled={busy}
@@ -359,12 +374,18 @@ export function CrossSectionReplay(props: ReplayProps) {
               <input type="file" accept=".csv,text/csv" disabled={busy}
                 onChange={event => setSuccessorFile(event.target.files?.[0] ?? null)} />
             </label>
+            <label>Paper capital returns CSV
+              <input type="file" accept=".csv,text/csv" disabled={busy}
+                onChange={event => setCapitalReturnFile(event.target.files?.[0] ?? null)} />
+            </label>
             {dividends && <div>{dividends.name} <button type="button" className="outline" disabled={busy}
               onClick={() => { setDividends(null); setDividendFile(null) }}>Remove dividend source</button></div>}
             {delistings && <div>{delistings.name} <button type="button" className="outline" disabled={busy}
               onClick={() => { setDelistings(null); setDelistingFile(null) }}>Remove delisting source</button></div>}
             {successorShares && <div>{successorShares.name} <button type="button" className="outline" disabled={busy}
               onClick={() => { setSuccessorShares(null); setSuccessorFile(null) }}>Remove successor share source</button></div>}
+            {capitalReturns && <div>{capitalReturns.name} <button type="button" className="outline" disabled={busy}
+              onClick={() => { setCapitalReturns(null); setCapitalReturnFile(null) }}>Remove capital return source</button></div>}
           </div>}
         </details>
         <button type="submit" className="outline" disabled={busy || !file && !source}>Run ranking replay</button>
@@ -395,6 +416,16 @@ export function CrossSectionReplay(props: ReplayProps) {
         </div>}
         <Receipts rows={report.receipts} />
         {run.corporate && <CorporateCash report={report} run={run.corporate} props={props} />}
+        {run.corporate?.capitalReturns && <PaperCapitalReturns report={report} provenance={[
+          ['membership_source', props.membershipSource], ['price_source', props.priceSource],
+          ['liquidity_source', run.liquidity.name], ['capital_return_source', run.corporate.capitalReturns.name],
+          ['dividend_source', run.corporate.dividends?.name ?? ''], ['delisting_source', run.corporate.delistings?.name ?? ''],
+          ['successor_source', run.corporate.successorShares?.name ?? ''],
+          ['account_currency', run.corporate.accountCurrency], ['from_utc', run.from],
+          ['effective_through_utc', effective], ['known_through_utc', known],
+          ...rankingFields.map(([key]): [string, string] => [key, run.config[key]]),
+          ...accountFields.map(([key]): [string, string] => [key, run.config.paper[key]]),
+        ]} />}
         {run.corporate?.successorShares && <SuccessorClaims report={report} source={run.corporate.successorShares}
           currency={run.corporate.accountCurrency} props={props} />}
         {run.corporate?.successorShares && <SuccessorDeliveryLedger title="Paper successor delivery journal"
@@ -403,6 +434,7 @@ export function CrossSectionReplay(props: ReplayProps) {
             ['membership_source', props.membershipSource], ['price_source', props.priceSource],
             ['liquidity_source', run.liquidity.name], ['successor_source', run.corporate.successorShares.name],
             ['dividend_source', run.corporate.dividends?.name ?? ''], ['delisting_source', run.corporate.delistings?.name ?? ''],
+            ...(run.corporate.capitalReturns ? [['capital_return_source', run.corporate.capitalReturns.name] as [string, string]] : []),
             ['account_currency', run.corporate.accountCurrency], ['from_utc', run.from],
           ]} />}
         <button type="button" className="outline" onClick={() => downloadReplay(report, run, props)}>Download paper replay</button>
@@ -412,6 +444,7 @@ export function CrossSectionReplay(props: ReplayProps) {
         ['liquidity_source', run.liquidity.name], ['dividend_source', run.corporate?.dividends?.name ?? ''],
         ['delisting_source', run.corporate?.delistings?.name ?? ''], ['account_currency', run.corporate?.accountCurrency ?? ''],
         ...(run.corporate?.successorShares ? [['successor_share_source', run.corporate.successorShares.name] as [string, string]] : []),
+        ...(run.corporate?.capitalReturns ? [['capital_return_source', run.corporate.capitalReturns.name] as [string, string]] : []),
         ['from_utc', run.from], ['effective_through_utc', effective], ['known_through_utc', known],
         ['decision_seconds', run.config.decisionSeconds], ['target_shares', run.config.targetShares],
         ['limit_buffer_bps', run.config.limitBuffer], ['participation_bps', run.config.participation],

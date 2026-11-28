@@ -13,6 +13,13 @@ const HEADER: &str =
     "universe,listing_id,action_id,announced_at,ex_at,pay_at,observed_at,currency,amount_per_share";
 const BASIS_HEADER: &str = "universe,listing_id,action_id,observed_at,currency,basis_before";
 
+pub(crate) fn parse_capital_return_reports(
+    universe: &UniverseBook,
+    csv: &str,
+) -> Result<PortfolioIncomeReports, String> {
+    PortfolioIncomeReports::parse_named(universe, csv, HEADER, "capital return")
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CapitalReturnBasis {
     pub observed_at: i64,
@@ -186,8 +193,7 @@ impl CapitalReturnBook {
         basis: Option<&str>,
     ) -> Result<Self, String> {
         let holdings = parse_holdings(universe, holdings)?;
-        let returns =
-            PortfolioIncomeReports::parse_named(universe, returns, HEADER, "capital return")?;
+        let returns = parse_capital_return_reports(universe, returns)?;
         let basis = basis
             .map(|csv| parse_basis(universe, &returns, csv))
             .transpose()?;

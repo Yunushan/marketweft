@@ -1,5 +1,14 @@
 # MarketWeft verification
 
+## 0.202.0 · Paper capital returns
+
+- The Rust and Wasm fixtures verify that two shares held before ex-time earn a 5 USD receivable, and the exactly-at-ex fill falls outside the entitlement. The known pay cutoff credits 5 USD, a later currency correction reverses it and records 6.000002 EUR, and cancellation reverses the foreign payment.
+- The walk-forward fixture preserves the earlier training scores and posts the cash from its own test fills. The successor delivery journal resolves the same position receipt when capital return reports are included.
+- Offline Chromium verifies CSV import, position and cash receipts, spendable cash, marked receivables, currency corrections and byte-identical export after returning to the earlier cutoffs.
+- An offline upgrade from the hosted 0.201.0 archive to the locally built 0.202.0 archive preserved the saved quote and reproduced the USD and EUR cash movements from the packaged input.
+
+[Paper capital returns](paper-corporate-cash.md#paper-capital-returns)
+
 ## 0.201.0 · Rights-aware crossing alert export
 
 - Offline Chromium verifies that a threshold or moving-average alert exports its exact rule and observation evidence. The moving-average download matches the fixture sent by the native loopback webhook test.

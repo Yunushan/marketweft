@@ -1,7 +1,7 @@
 use marketweft_core::{
     parse_universe, CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,
-    CrossSectionWalkConfig, DelistingState, LiquidityTape, PaperAction, PaperConfig, PriceBook,
-    SuccessorShareState, SCALE,
+    CrossSectionWalkConfig, DelistingState, LiquidityTape, PaperAction, PaperConfig,
+    PortfolioDividendState, PriceBook, SuccessorShareState, SCALE,
 };
 
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-listing-risk-membership.csv");
@@ -12,6 +12,7 @@ const ACTION_MEMBERSHIP: &str = include_str!("fixtures/synthetic-cross-section-m
 const DELISTING: &str = include_str!("fixtures/synthetic-cross-section-delisting.csv");
 const WALK_LIQUIDITY: &str = include_str!("fixtures/synthetic-cross-section-walk-liquidity.csv");
 const SUCCESSORS: &str = include_str!("fixtures/synthetic-paper-successor-shares.csv");
+const CAPITAL_RETURNS: &str = include_str!("fixtures/synthetic-paper-capital-returns.csv");
 
 const CANDIDATES: [CrossSectionCandidate; 2] = [
     CrossSectionCandidate {
@@ -123,6 +124,16 @@ fn cross_section_folds_reuse_observed_corporate_cash_in_test_accounts() {
     assert_eq!(test.accepted_fills, 1);
     assert_eq!(test.cash, 1_015_100_000);
     assert_eq!(test.equity, Some(1_015_100_000));
+    let capital_returns = CAPITAL_RETURNS
+        .replace("14:05:00Z", "14:06:00Z")
+        .replace("14:03:00Z", "14:05:00Z");
+    let with_return = prices
+        .cross_section_walk_with_distributions(&liquidity, request, "", &capital_returns)
+        .unwrap();
+    assert_eq!(with_return[0].training_scores, folded[0].training_scores);
+    let test_with_return = with_return[0].test_score.as_ref().unwrap();
+    assert_eq!(test_with_return.cash, test.cash + 10_000_000);
+    assert_eq!(test_with_return.equity, Some(1_025_100_000));
     let no_actions = prices
         .cross_section_walk_forward(
             &liquidity,
@@ -143,6 +154,113 @@ fn cross_section_folds_reuse_observed_corporate_cash_in_test_accounts() {
             }
         )
         .is_err());
+}
+
+#[test]
+fn cross_section_capital_returns_use_pre_ex_fills_and_causal_cash_movements() {
+    let universe = parse_universe(ACTION_MEMBERSHIP).unwrap();
+    let book = PriceBook::parse(&universe, PRICES).unwrap();
+    let liquidity = LiquidityTape::parse(&universe, LIQUIDITY).unwrap();
+    let start = universe.checkpoints()[0];
+    let replay = |effective: i64, known, capital_returns| {
+        let mut config = settings(start, known);
+        config.through_at = start + effective * 60;
+        book.cross_section_with_distributions(
+            &liquidity,
+            config,
+            CrossSectionActionSources {
+                account_currency: "USD",
+                dividends: DIVIDENDS,
+                delistings: DELISTING,
+            },
+            "",
+            capital_returns,
+        )
+        .unwrap()
+    };
+    let before_ex = replay(6, 2, CAPITAL_RETURNS);
+    assert!(before_ex.capital_return_claims.is_empty());
+    assert!(before_ex.capital_return_postings.is_empty());
+    assert!(replay(2, 8, CAPITAL_RETURNS)
+        .capital_return_claims
+        .is_empty());
+    let before_payment = replay(4, 4, CAPITAL_RETURNS);
+    let baseline = replay(4, 4, "");
+    let claim = &before_payment.capital_return_claims[0];
+    assert_eq!(claim.entitled_shares, 2);
+    assert_eq!(claim.amount, 5_000_000);
+    assert_eq!(claim.state, PortfolioDividendState::Receivable);
+    assert_eq!(before_payment.positions[0].shares, 4);
+    assert_eq!(before_payment.cash, baseline.cash);
+    assert_eq!(
+        before_payment.equity,
+        baseline.equity.map(|value| value + 5_000_000)
+    );
+    assert!(before_payment.capital_return_postings.is_empty());
+    let entitlement = before_payment
+        .events
+        .iter()
+        .find(|row| Some(&row.event.id) == claim.position_receipt_id.as_ref())
+        .unwrap();
+    assert!(matches!(
+        entitlement.event.action,
+        PaperAction::Fill { shares: 2, .. }
+    ));
+    assert_eq!(entitlement.event.observed_at, start + 120);
+    let payment = replay(6, 6, CAPITAL_RETURNS);
+    assert_eq!(
+        payment.capital_return_claims[0].state,
+        PortfolioDividendState::Paid
+    );
+    assert_eq!(payment.cash, 1_045_600_000);
+    assert_eq!(payment.capital_return_postings[0].cash_delta, 5_000_000);
+    assert_eq!(payment.capital_return_postings[0].posted_at, start + 300);
+    let receipt = payment.capital_return_postings[0]
+        .receipt_id
+        .as_deref()
+        .unwrap();
+    assert!(payment.events.iter().any(|row| row.event.id == receipt
+        && matches!(row.event.action, PaperAction::CorporateCash { .. })));
+    assert_eq!(replay(4, 6, CAPITAL_RETURNS).cash, baseline.cash);
+    let revision = replay(6, 7, CAPITAL_RETURNS);
+    let currencies = revision
+        .capital_return_postings
+        .iter()
+        .map(|row| {
+            (
+                row.currency.as_str(),
+                row.cash_delta,
+                row.receipt_id.is_some(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        currencies,
+        [
+            ("USD", 5_000_000, true),
+            ("USD", -5_000_000, true),
+            ("EUR", 6_000_002, false)
+        ]
+    );
+    assert_eq!(revision.cash, 1_056_600_000);
+    assert_eq!(revision.capital_return_claims[0].amount, 6_000_002);
+    let canceled = replay(6, 8, CAPITAL_RETURNS);
+    assert_eq!(
+        canceled.capital_return_claims[0].state,
+        PortfolioDividendState::NoPayment
+    );
+    assert_eq!(canceled.capital_return_postings[3].cash_delta, -6_000_002);
+    assert_eq!(canceled.cash, 536_600_000);
+    let reordered = CAPITAL_RETURNS.lines().collect::<Vec<_>>();
+    let reordered = [reordered[0], reordered[3], reordered[2], reordered[1]].join("\n");
+    assert_eq!(
+        replay(4, 4, &reordered).capital_return_postings,
+        before_payment.capital_return_postings
+    );
+    assert_eq!(
+        replay(6, 7, &reordered).capital_return_postings,
+        revision.capital_return_postings
+    );
 }
 
 #[test]

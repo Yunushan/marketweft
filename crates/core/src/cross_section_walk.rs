@@ -96,6 +96,16 @@ impl PriceBook<'_> {
         config: CrossSectionWalkConfig<'_>,
         successor_terms: &str,
     ) -> Result<Vec<CrossSectionFold>, String> {
+        self.cross_section_walk_with_distributions(liquidity, config, successor_terms, "")
+    }
+
+    pub fn cross_section_walk_with_distributions(
+        &self,
+        liquidity: &LiquidityTape,
+        config: CrossSectionWalkConfig<'_>,
+        successor_terms: &str,
+        capital_returns: &str,
+    ) -> Result<Vec<CrossSectionFold>, String> {
         let CrossSectionWalkConfig {
             replay,
             training_decisions,
@@ -122,8 +132,11 @@ impl PriceBook<'_> {
         if corporate.is_none() && !successor_terms.is_empty() {
             return Err("Supply the paper account currency for successor share reports.".into());
         }
+        if corporate.is_none() && !capital_returns.is_empty() {
+            return Err("Supply the paper account currency for capital return reports.".into());
+        }
         let corporate = corporate
-            .map(|sources| CorporateReports::parse(self, sources, successor_terms))
+            .map(|sources| CorporateReports::parse(self, sources, successor_terms, capital_returns))
             .transpose()?;
         let first = replay.from_at;
         let last = replay.through_at.min(replay.known_at);

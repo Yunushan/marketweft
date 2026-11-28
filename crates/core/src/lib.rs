@@ -90,11 +90,11 @@ pub use chart_movement::PriceMovement;
 pub use close_change::close_changes;
 pub use close_swings::{confirmed_close_swings, ConfirmedSwing, SwingSide};
 pub use cross_section::{
-    CrossSectionActionSources, CrossSectionCandidate, CrossSectionConfig,
-    CrossSectionDelistingClaim, CrossSectionDelistingPosting, CrossSectionDividendPosting,
-    CrossSectionEvent, CrossSectionFold, CrossSectionPosition, CrossSectionReport,
-    CrossSectionScore, CrossSectionSuccessorClaim, CrossSectionSuccessorPosting,
-    CrossSectionWalkConfig, RankingDecision,
+    CrossSectionActionSources, CrossSectionCandidate, CrossSectionCapitalReturnClaim,
+    CrossSectionCapitalReturnPosting, CrossSectionConfig, CrossSectionDelistingClaim,
+    CrossSectionDelistingPosting, CrossSectionDividendPosting, CrossSectionEvent, CrossSectionFold,
+    CrossSectionPosition, CrossSectionReport, CrossSectionScore, CrossSectionSuccessorClaim,
+    CrossSectionSuccessorPosting, CrossSectionWalkConfig, RankingDecision,
 };
 pub use cross_section_liquidity::{LiquidityTape, ReplayLiquidity};
 pub use cumulative_volume::{cumulative_volume, CumulativeVolume};

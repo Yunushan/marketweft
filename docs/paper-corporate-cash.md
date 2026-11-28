@@ -57,3 +57,21 @@ The effective cutoff caps the delisting and delivery schedule, and the knowledge
 With the sample effective cutoff at 14:06 UTC, set knowledge to 14:05:30 UTC to see an empty journal. At known 14:06, the journal posts 4/3 shares of B and identifies the accepted fill that left four shares of A at 14:03. At known 14:07, a rescheduled delivery reverses 4/3 shares and leaves a zero delivered balance. The reversal references the same holding receipt. The 14:08 delisting cancellation restores the original paper position through the cash workflow.
 
 **Download paper successor delivery journal** exports the source names, both cutoffs, evidence timestamps, receipt IDs, and exact numerators and denominators. Rewind knowledge to 14:06 to reproduce the first export.
+
+## Paper capital returns
+
+Upload a **Paper capital returns CSV** under **Corporate cash reports** using the [listing-based return-of-capital format](portfolio-capital-returns.md). Each report supplies an ex-time, pay time, observation time, currency and amount per share. A revision keeps the same listing and action ID and uses a later observation time. An amount of zero cancels the distribution.
+
+The claim uses the accepted simulated holding immediately before the ex-time. **Position receipt** links to the ledger event that established that holding. The ex-time must be within both cutoffs. The latest visible report determines the claim's terms. A receivable in the account currency contributes to marked equity, and the amount becomes spendable when both cutoffs reach payment. A late correction produces a signed movement at its observation time. A currency change reverses the old amount and records the new amount separately. Foreign cash movements appear in their source currencies, with ledger receipts issued for movements in the account currency. Paper capital returns use gross cash and leave the acquisition cost used for paper execution at its recorded value. The [portfolio capital return workflow](portfolio-capital-returns.md) computes separately reported basis reductions. Walk-forward folds use their own accepted fills and report cutoffs.
+
+Start the corporate cash demo, choose **Use sample liquidity**, **Use sample corporate reports**, and **Use sample capital returns**, then run the ranking replay. The sample fill at 14:03 UTC brings the holding to four shares. The 14:02 fill establishes the two shares that qualify.
+
+| Effective UTC | Known UTC | Capital return | Spendable USD |
+| --- | --- | --- | ---: |
+| 14:06 | 14:02 | The claim has yet to reach ex-time. | — |
+| 14:04 | 14:04 | Two shares earn a 5 USD receivable. Marked equity is 1,025.6 USD. | 536.6 |
+| 14:06 | 14:06 | The account has received 5 USD. | 1,045.6 |
+| 14:06 | 14:07 | The revision reverses 5 USD and records 6.000002 EUR. | 1,056.6 |
+| 14:06 | 14:08 | Cancellation reverses 6.000002 EUR. | 536.6 |
+
+**Download paper capital returns** exports the claims, movements, source filenames, cutoffs, settings and receipt IDs. Rewind both cutoffs to 14:04 to reproduce the first claim CSV. [Synthetic input](../crates/core/tests/fixtures/synthetic-paper-capital-returns.csv)
