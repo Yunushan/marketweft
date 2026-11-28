@@ -2,7 +2,7 @@
 
 # MarketWeft
 
-**0.259.0 · 0BSD**
+**0.260.0 · 0BSD**
 
 **Belge dilleri**
 
@@ -15,14 +15,14 @@
 
 MarketWeft analistler, geliştiriciler ve operatörler için yerel öncelikli bir araştırma terminalidir. İzinli OHLCV dosyalarını açar, etkileşimli mumları ve hacmi çizer, sabit noktalı SMA ve EMA hesaplar. İzleme listesi, seçili araç ve göstergeler IndexedDB'de tutulur. Kaynaklar önbelleğe alındıktan sonra çevrimdışı çalışır. Hazır fiyat ve hacimler sentetiktir ve sağlayıcı hesabı gerektirmez.
 
-MarketWeft 0.259.0, iki UTC kesim çiftiyle birlikte kesin hisse yoğunlaşması karşılaştırmalarını dışa aktarır. MarketWeft 0.7.0, sorgu anında bilinen verilerle fiyat getirisine göre noktasal evren taraması ekler. Seans tabanlı yeniden oynatma hisse bölünmelerini, nakit temettüleri, üyeliği ve kot dışı kalmayı kapsar. Depoda ayrı trading-bot hizmeti için salt okunur bir TypeScript gözlemcisi ve deneysel Tauri sarmalayıcısı da bulunur. Veri akışları, emir iletimi, imzalı kurucular ve çok kullanıcılı barındırma yol haritasındadır.
+MarketWeft 0.260.0 Dikey Yatay Filtre ve Psikolojik Çizgi göstergelerini ekler. MarketWeft 0.7.0, sorgu anında bilinen verilerle fiyat getirisine göre noktasal evren taraması ekler. Seans tabanlı yeniden oynatma hisse bölünmelerini, nakit temettüleri, üyeliği ve kot dışı kalmayı kapsar. Depoda ayrı trading-bot hizmeti için salt okunur bir TypeScript gözlemcisi ve deneysel Tauri sarmalayıcısı da bulunur. Veri akışları, emir iletimi, imzalı kurucular ve çok kullanıcılı barındırma yol haritasındadır.
 
-[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Equity concentration CSV](../portfolio-replay.md#export-an-equity-comparison)
+[ROADMAP.md](../../ROADMAP.md) · [docs/coverage.md](../../docs/coverage.md) · [Vertical Horizontal Filter and Psychological Line](../chart-workspace.md#vertical-horizontal-filter-and-psychological-line)
 
 <!-- section:02 -->
 ## Taşınabilir terminali başlatın
 
-Başarılı GitHub doğrulamasından browser-terminal-attempt-N çıktısını indirin ve MarketWeft-browser-0.259.0.zip dosyasını çıkarın. dist/ ile serve-terminal.mjs aynı dizinde kalsın ve aşağıdaki komutu orada çalıştırın. WebAssembly, Canvas, BigInt ve IndexedDB destekleyen güncel tarayıcıda http://127.0.0.1:4173/ adresini açın. Node.js 22.12 veya sonrası gerekir. npm kurulumu gerekmez. Bağlantıyı kesmeden Offline ready yazısını bekleyin.
+Başarılı GitHub doğrulamasından browser-terminal-attempt-N çıktısını indirin ve MarketWeft-browser-0.260.0.zip dosyasını çıkarın. dist/ ile serve-terminal.mjs aynı dizinde kalsın ve aşağıdaki komutu orada çalıştırın. WebAssembly, Canvas, BigInt ve IndexedDB destekleyen güncel tarayıcıda http://127.0.0.1:4173/ adresini açın. Node.js 22.12 veya sonrası gerekir. npm kurulumu gerekmez. Bağlantıyı kesmeden Offline ready yazısını bekleyin.
 
 ```sh
 node serve-terminal.mjs

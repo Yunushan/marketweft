@@ -47,6 +47,8 @@ export const STUDIES = {
   coppock: { name: 'Coppock Curve', label: 'Coppock Curve', minPeriod: 1, defaultPeriod: 10,
     periodLabel: 'Coppock smoothing', color: '#e8b185' },
   cmo: { name: 'CMO', label: 'Chande Momentum Oscillator', minPeriod: 2, defaultPeriod: 20, color: '#82c4e8' },
+  vhf: { name: 'Vertical Horizontal Filter', label: 'Vertical Horizontal Filter', minPeriod: 2, defaultPeriod: 28, color: '#bfc18a' },
+  psychological_line: { name: 'Psychological Line', label: 'Psychological Line', minPeriod: 1, defaultPeriod: 12, color: '#a2cbe9' },
   trix: { name: 'TRIX', label: 'TRIX', minPeriod: 1, defaultPeriod: 30, color: '#dfba79' },
   vortex: { name: 'Vortex', label: 'Vortex Indicator', minPeriod: 1, defaultPeriod: 14 },
   bop: { name: 'Balance of Power', label: 'Balance of Power', color: '#b5a2e5' },
@@ -371,6 +373,12 @@ export function computeStudies(core: MarketCore, settings: StudySet | undefined,
       const series = kind === 'cmo' ? core.chandeMomentumOscillator(period, bars) : core.trix(period, bars)
       return [{ kind, periods: [period], zeroLine: true, lines: [{ color: STUDIES[kind].color, series }] }]
     }
+    if (kind === 'vhf') return [{ kind, periods: [period], unit: 'index', guides: [0, 1], lines: [
+      { color: STUDIES.vhf.color, series: core.verticalHorizontalFilter(period, bars) },
+    ] }]
+    if (kind === 'psychological_line') return [{ kind, periods: [period], guides: [0, 50, 100], lines: [
+      { color: STUDIES.psychological_line.color, series: core.psychologicalLine(period, bars) },
+    ] }]
     if (kind === 'kaufman_efficiency') return [{ kind, periods: [period], guides: [0, 50, 100], lines: [
       { color: STUDIES[kind].color, series: core.kaufmanEfficiencyRatio(period, bars) },
     ] }]

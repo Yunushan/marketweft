@@ -472,6 +472,14 @@ Both studies use observed bars and preserve separate pane settings. Research CSV
 
 The studies save independent periods for each pane. Research CSV columns use exact signed values with up to six decimal places, including `ppo_line_12_26_9`, `ppo_signal_12_26_9`, `ppo_histogram_12_26_9` and `natr_14` with the defaults. Workspace backup version 69 stores these settings and reads earlier formats.
 
+### Vertical Horizontal Filter and Psychological Line
+
+**Vertical Horizontal Filter** divides the span of the latest `N` observed closes by the sum of the latest `N` absolute close-to-close changes. It needs a preceding close for the first change. The default window is 28 bars. A flat price path leaves the ratio unavailable. A flat span with a measurable path can produce zero. Results are rounded to six places and appear on a 0–1 scale. [Vertical Horizontal Filter calculation](https://traders.com/Documentation/FEEDbk_docs/2000/07/Abstracts_new/Gopalakrishnan/Gopalakrishnan.html)
+
+**Psychological Line** shows the percentage of the latest `N` observed closes above their predecessor. Unchanged closes count in the window. A full window with no rising closes displays 0%. The default window is 12 bars, and results use six decimal places in percentage points. [Psychological Line reference](https://static.ninjatrader.com/support/helpGuides/nt8/psychological_line.htm)
+
+The chart waits for a full window of close changes. Observations retain their actual timestamps across gaps. Research CSV includes `vhf_28` and `psychological_line_12` at the default periods, with unavailable values left blank. Workspace backup version 76 preserves the periods independently in each pane.
+
 ### Price Volume Trend and ADX Rating
 
 **Price Volume Trend** starts at zero and adds each bar’s volume multiplied by its signed close-to-close return. Each contribution rounds to millionths of volume before being added. A zero previous close leaves a gap for that bar and preserves the running subtotal of previously calculated contributions. An unchanged nonzero close gives an exact zero contribution. [cTrader Price Volume Trend](https://help.ctrader.com/indicators/built-in/volume/price-volume-trend/)

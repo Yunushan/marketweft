@@ -1,7 +1,59 @@
 use marketweft_core::{
     chande_momentum_oscillator, commodity_channel_index, observed_drawdown, parse_csv,
-    rate_of_change, rebased_percent_changes, trix, Bar, MAX_BARS, MAX_TICKS, SCALE,
+    psychological_line, rate_of_change, rebased_percent_changes, trix, vertical_horizontal_filter,
+    Bar, MAX_BARS, MAX_TICKS, SCALE,
 };
+
+#[test]
+fn directional_close_studies_distinguish_flat_paths_and_genuine_zero_for_every_prefix() {
+    let bars = parse_csv(include_str!(
+        "fixtures/synthetic-directional-close-studies.csv"
+    ))
+    .unwrap();
+    let closes: Vec<_> = bars.iter().map(|bar| bar.close).collect();
+    let vhf = [
+        None,
+        None,
+        None,
+        Some(400_000),
+        Some(500_000),
+        Some(500_000),
+        Some(0),
+        None,
+        Some(1_000_000),
+        Some(500_000),
+    ];
+    let psy = [
+        None,
+        None,
+        None,
+        Some(33_333_333),
+        Some(33_333_333),
+        Some(33_333_333),
+        Some(33_333_333),
+        Some(0),
+        Some(0),
+        Some(33_333_333),
+    ];
+    for end in 0..=closes.len() {
+        assert_eq!(
+            vertical_horizontal_filter(3, &closes[..end]).unwrap(),
+            vhf[..end]
+        );
+        assert_eq!(psychological_line(3, &closes[..end]).unwrap(), psy[..end]);
+    }
+    assert_eq!(
+        vertical_horizontal_filter(2, &[-MAX_TICKS, MAX_TICKS, -MAX_TICKS]).unwrap()[2],
+        Some(500_000)
+    );
+    assert_eq!(
+        psychological_line(1, &[-1, 0, 0]).unwrap(),
+        [None, Some(100_000_000), Some(0)]
+    );
+    assert!(vertical_horizontal_filter(1, &closes).is_err());
+    assert!(psychological_line(0, &closes).is_err());
+    assert!(psychological_line(3, &[MAX_TICKS + 1]).is_err());
+}
 
 #[test]
 fn cmo_uses_the_exact_net_move_and_absolute_variation_in_each_prefix() {

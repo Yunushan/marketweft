@@ -1,4 +1,5 @@
 use crate::{
+    donchian::RollingExtrema,
     history::{typical_sum, valid_second, validate_bar_time, validate_ohlcv},
     indicator::exponential_tail,
     moving_averages::weighted_tail,
@@ -155,6 +156,55 @@ fn validate_closes(period: usize, closes: &[i64]) -> Result<(), String> {
         return Err("A close is outside the supported fixed-point range.".into());
     }
     Ok(())
+}
+
+/// Distance between the highest and lowest close in the current period
+/// divided by the sum of the same number of absolute close changes.
+/// Outputs are millionths of a unit ratio. A zero denominator is unavailable.
+pub fn vertical_horizontal_filter(
+    period: usize,
+    closes: &[i64],
+) -> Result<Vec<Option<i64>>, String> {
+    validate_closes(period, closes)?;
+    if period < 2 {
+        return Err("Vertical Horizontal Filter needs at least two bars per window.".into());
+    }
+    let mut result = vec![None; closes.len()];
+    let mut extrema = RollingExtrema::default();
+    let mut path = 0_i128;
+    let distance = |index: usize| i128::from((closes[index] - closes[index - 1]).abs());
+    for (index, value) in result.iter_mut().enumerate().skip(1) {
+        path += distance(index);
+        if index > period {
+            path -= distance(index - period);
+        }
+        let bounds = extrema.advance(period, index, |i| closes[i], |i| closes[i]);
+        if let Some((high, low)) = bounds.filter(|_| index >= period && path > 0) {
+            let span = i128::from(closes[high] - closes[low]);
+            *value = Some(rounded_div(span * i128::from(SCALE), path) as i64);
+        }
+    }
+    Ok(result)
+}
+
+/// Percentage of observed close changes that rose in a complete window.
+/// Unchanged closes count in the denominator and the output uses millionths
+/// of a percentage point.
+pub fn psychological_line(period: usize, closes: &[i64]) -> Result<Vec<Option<i64>>, String> {
+    validate_closes(period, closes)?;
+    let mut result = vec![None; closes.len()];
+    let mut rising = 0_i128;
+    let up = |index: usize| i128::from(closes[index] > closes[index - 1]);
+    for (index, value) in result.iter_mut().enumerate().skip(1) {
+        rising += up(index);
+        if index > period {
+            rising -= up(index - period);
+        }
+        if index >= period {
+            *value = Some(rounded_div(rising * i128::from(100 * SCALE), period as i128) as i64);
+        }
+    }
+    Ok(result)
 }
 
 /// The unsmoothed Chande Momentum Oscillator in millionths of a percent.

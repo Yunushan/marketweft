@@ -1305,6 +1305,8 @@ export interface MarketCore {
   confirmedCloseSwings(left: number, right: number, intervalSeconds: number, bars: readonly Bar[]): (ConfirmedSwing | null)[];
   rateOfChange(period: number, bars: readonly Bar[]): (bigint | null)[];
   coppockCurve(smoothing: number, first: number, second: number, bars: readonly Bar[]): (bigint | null)[];
+  verticalHorizontalFilter(period: number, bars: readonly Bar[]): (bigint | null)[];
+  psychologicalLine(period: number, bars: readonly Bar[]): (bigint | null)[];
   chandeMomentumOscillator(period: number, bars: readonly Bar[]): (bigint | null)[];
   trix(period: number, bars: readonly Bar[]): (bigint | null)[];
   vortexIndicator(period: number, bars: readonly Bar[]): (VortexValue | null)[];
@@ -1491,6 +1493,8 @@ interface MarketExports extends WebAssembly.Exports {
   mw_confirmed_close_swings(left: number, right: number, intervalSeconds: number): number;
   mw_rate_of_change(period: number): number;
   mw_coppock_curve(smoothing: number, first: number, second: number): number;
+  mw_vertical_horizontal_filter(period: number): number;
+  mw_psychological_line(period: number): number;
   mw_chande_momentum_oscillator(period: number): number;
   mw_trix(period: number): number;
   mw_linearly_weighted_average(period: number): number;
@@ -2778,6 +2782,13 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
       for (const period of [smoothing, first, second]) validateIndicatorHistory(period, bars.length);
       putIndicatorCloses(bars);
       return readWideIndicator(output(api.mw_coppock_curve(smoothing, first, second)), bars.length);
+    },
+    verticalHorizontalFilter(period, bars) {
+      if (period < 2) throw new Error('Vertical Horizontal Filter needs at least two bars per window.');
+      return observedCloseIndicator(api.mw_vertical_horizontal_filter, period, bars);
+    },
+    psychologicalLine(period, bars) {
+      return observedCloseIndicator(api.mw_psychological_line, period, bars);
     },
     chandeMomentumOscillator(period, bars) {
       return observedCloseIndicator(api.mw_chande_momentum_oscillator, period, bars);

@@ -66,6 +66,20 @@ test('scalar plugin series keeps inclusive UTC starting and ending rows and a sh
   assert.deepEqual(run(60, 60), [{ time: 60, close: -5n, value: -4n }]);
 });
 
+test('Vertical Horizontal Filter and Psychological Line preserve warmup, flat paths and exact ratios', async () => {
+  const csv = await readFile(new URL('../crates/core/tests/fixtures/synthetic-directional-close-studies.csv', import.meta.url), 'utf8');
+  const bars = core.parseCsv(csv);
+  const expectedVhf = [null, null, null, 400000n, 500000n, 500000n, 0n, null, 1000000n, 500000n];
+  const expectedPsy = [null, null, null, 33333333n, 33333333n, 33333333n, 33333333n, 0n, 0n, 33333333n];
+  for (let length = 0; length <= bars.length; length++) {
+    const prefix = bars.slice(0, length);
+    assert.deepEqual(core.verticalHorizontalFilter(3, prefix), expectedVhf.slice(0, length));
+    assert.deepEqual(core.psychologicalLine(3, prefix), expectedPsy.slice(0, length));
+  }
+  assert.throws(() => core.verticalHorizontalFilter(1, bars), /at least two/);
+  assert.throws(() => core.psychologicalLine(0, bars), /period/i);
+});
+
 test('weighted, double, triple and Hull moving averages keep exact signed prefixes in Wasm', () => {
   const bars = [-5, -2, 4, 9, 3, -6, 0, 7, 11].map((tick, index) => {
     const close = tick / 1e6;

@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.260.0 · Vertical Horizontal Filter and Psychological Line
+
+- Rust and Wasm verify every prefix of the same signed fixture. The Vertical Horizontal Filter distinguishes a zero span with a measurable price path from a flat, unavailable path. The Psychological Line preserves exact 33.333333% and genuine 0%.
+- Chromium verifies 33.333333% and 50% in independently configured panes and exports exact values and blank warmup fields. Versions 75 and 76 restore the original imported bars and saved Price Volume Trend.
+
+[Vertical Horizontal Filter and Psychological Line](chart-workspace.md#vertical-horizontal-filter-and-psychological-line)
+
 ## 0.259.0 · Export equity concentration comparisons
 
 - The offline CSV contains both UTC cutoff pairs, exact marks and percentage weights, and independent states for absent equity and unavailable marks. The USD BETA-001 correction is `-2071349` millionths of a percentage point with rank improvement `0`.

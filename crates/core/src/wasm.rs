@@ -4142,6 +4142,21 @@ pub extern "C" fn mw_rate_of_change(period: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_vertical_horizontal_filter(period: usize) -> u32 {
+    process(|input| {
+        crate::vertical_horizontal_filter(period, &indicator_closes(input)?)
+            .map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn mw_psychological_line(period: usize) -> u32 {
+    process(|input| {
+        crate::psychological_line(period, &indicator_closes(input)?).map(encode_indicator_values)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_chande_momentum_oscillator(period: usize) -> u32 {
     process(|input| {
         crate::chande_momentum_oscillator(period, &indicator_closes(input)?)

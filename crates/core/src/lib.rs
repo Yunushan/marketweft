@@ -211,7 +211,8 @@ pub use portfolio::{
 };
 pub use price_momentum::{
     chande_momentum_oscillator, commodity_channel_index, coppock_curve, observed_drawdown,
-    rate_of_change, rebased_percent_changes, trix, DrawdownPoint,
+    psychological_line, rate_of_change, rebased_percent_changes, trix, vertical_horizontal_filter,
+    DrawdownPoint,
 };
 pub use provider_history::{ProviderBar, ProviderHistory, ProviderObservation};
 pub use range_bars::RangeBar;
