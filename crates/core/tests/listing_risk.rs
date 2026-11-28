@@ -1,4 +1,4 @@
-use marketweft_core::{parse_universe, ListingRiskQuery, PriceBook};
+use marketweft_core::{parse_universe, ListingRiskQuery, PortfolioVarianceQuery, PriceBook};
 
 const MEMBERSHIP: &str = include_str!("fixtures/synthetic-listing-risk-membership.csv");
 const PRICES: &str = include_str!("fixtures/synthetic-listing-risk-prices.csv");
@@ -121,4 +121,113 @@ fn constant_returns_have_zero_volatility_and_undefined_correlation() {
             }
         )
         .is_err());
+}
+
+#[test]
+fn portfolio_variance_uses_common_return_coverage_and_never_fills_an_unseen_price() {
+    let universe = parse_universe(MEMBERSHIP).unwrap();
+    let prices = PriceBook::parse(&universe, PRICES).unwrap();
+    let base = universe.checkpoints()[0];
+    let query = |through: i64, known: i64| PortfolioVarianceQuery {
+        from_at: base,
+        through_at: base + through * 60,
+        known_at: base + known * 60,
+        interval_seconds: 60,
+    };
+    let at = |through, known| {
+        prices
+            .portfolio_variance("A", "B", query(through, known))
+            .unwrap()
+    };
+    let pending = at(6, 1);
+    assert_eq!(pending.paired_returns, 1);
+    assert!(pending.sample.is_none());
+    let first = at(6, 6);
+    assert_eq!(
+        (
+            first.expected_returns,
+            first.left_returns,
+            first.right_returns,
+            first.paired_returns
+        ),
+        (6, 6, 4, 4)
+    );
+    assert_eq!(at(6, 7).paired_returns, 6);
+    let removal = at(6, 8);
+    assert_eq!(
+        (
+            removal.left_returns,
+            removal.right_returns,
+            removal.paired_returns
+        ),
+        (4, 6, 4)
+    );
+    assert_eq!(at(6, 6), first);
+    let sample = first.sample.unwrap();
+    assert_eq!(sample.minimum.left_basis_points, 5000);
+    assert_eq!(sample.minimum.mean_return, 0.0);
+    assert_eq!(sample.minimum.volatility, 0.0);
+    assert!((sample.covariance + 1.0 / 300.0).abs() < 1e-14);
+    assert_eq!(sample.equal, sample.minimum);
+
+    let constant = constant_left();
+    let constant = PriceBook::parse(&universe, &constant).unwrap();
+    assert_eq!(
+        constant
+            .portfolio_variance("A", "B", query(6, 7))
+            .unwrap()
+            .sample
+            .unwrap()
+            .minimum
+            .left_basis_points,
+        10_000
+    );
+    assert_eq!(
+        constant
+            .portfolio_variance("B", "A", query(6, 7))
+            .unwrap()
+            .sample
+            .unwrap()
+            .minimum
+            .left_basis_points,
+        0
+    );
+    let altered = PRICES
+        .replace(",90\n", ",80\n")
+        .replace(",81\n", ",64\n")
+        .replace(",72.9\n", ",51.2\n");
+    let altered = PriceBook::parse(&universe, &altered).unwrap();
+    let non_equal = altered
+        .portfolio_variance("A", "B", query(6, 7))
+        .unwrap()
+        .sample
+        .unwrap();
+    assert_eq!(non_equal.minimum.left_basis_points, 6667);
+    assert!(non_equal.minimum.volatility < non_equal.equal.volatility);
+    let reversed = altered
+        .portfolio_variance("B", "A", query(6, 7))
+        .unwrap()
+        .sample
+        .unwrap();
+    assert_eq!(reversed.minimum.left_basis_points, 3333);
+
+    let flat = PRICES
+        .lines()
+        .map(|line| {
+            if line.starts_with("RISK,") {
+                format!("{},100", line.rsplit_once(',').unwrap().0)
+            } else {
+                line.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let flat = PriceBook::parse(&universe, &flat)
+        .unwrap()
+        .portfolio_variance("A", "B", query(6, 7))
+        .unwrap()
+        .sample
+        .unwrap();
+    assert_eq!(flat.minimum.left_basis_points, 5000);
+    assert_eq!(flat.minimum.volatility, 0.0);
 }

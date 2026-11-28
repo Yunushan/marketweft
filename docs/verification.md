@@ -1,5 +1,11 @@
 # MarketWeft verification
 
+## 0.270.0 · Two-listing minimum variance
+
+- Rust and Wasm check common-sample coverage, a late close and a later membership removal, source-order reversal, a 6,667-basis-point minimum, single-listing endpoints and zero volatility. Rolling risk and correlated scenario tests retain their previous results.
+- The offline terminal shows 4, 6 and 4 paired intervals across the three knowledge cutoffs, preserves coverage with no estimate for a one-pair sample, and reproduces the source-labelled CSV on rewind.
+- The terminal retains the accepted result when an invalid interval would put the end off the selected grid.
+
 ## 0.269.0 · Equity target drift comparison
 
 - The Rust and Wasm tests join both cutoff results by currency and stable listing, preserve exact target observations and leave a change unavailable when a drift is missing.

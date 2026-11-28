@@ -15,7 +15,10 @@ pub use portfolio_scenarios::{
 };
 #[path = "listing_risk.rs"]
 mod listing_risk;
-pub use listing_risk::{ListingRiskPoint, ListingRiskQuery};
+pub use listing_risk::{
+    ListingRiskPoint, ListingRiskQuery, PortfolioVarianceAllocation, PortfolioVarianceQuery,
+    PortfolioVarianceReport, PortfolioVarianceSample,
+};
 
 const MAX_PRICE_ROWS: usize = 20_000;
 pub(crate) const MAX_PRICE_BYTES: usize = 2 * 1024 * 1024;

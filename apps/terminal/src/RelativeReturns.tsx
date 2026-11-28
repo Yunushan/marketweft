@@ -4,6 +4,7 @@ import { quoteText } from './chart-export'
 import { downloadFile } from './download'
 import { fixed } from './fixed-point'
 import { ListingRisk } from './ListingRisk'
+import { PortfolioVariance } from './PortfolioVariance'
 import type { MarketCore, RelativeLegPoint, RelativePoint, UniverseListing } from './market-core'
 import { utc } from './workspace'
 
@@ -234,6 +235,8 @@ export function RelativeReturns({
               downloadFile('relative-returns.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }))
             }}>Download relative returns</button>
             <ListingRisk core={core} pair={pair} membership={membership} membershipSource={membershipSource}
+              prices={prices} priceSource={priceSource} effective={effective} known={known} />
+            <PortfolioVariance core={core} pair={pair} membership={membership} membershipSource={membershipSource}
               prices={prices} priceSource={priceSource} effective={effective} known={known} />
           </>
         )}

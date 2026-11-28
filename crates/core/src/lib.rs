@@ -237,9 +237,10 @@ pub use rsi::relative_strength_index;
 pub use scenarios::{run_scenarios, ScenarioConfig, ScenarioReport, ScenarioStats, ThreeQuantiles};
 pub use screen::{
     ListingRiskPoint, ListingRiskQuery, PortfolioScenarioConfig, PortfolioScenarioPath,
-    PortfolioScenarioReport, PriceBook, PriceObservation, RelativeLegPoint, RelativePoint,
-    ScenarioAllocation, ScenarioCoverage, ScreenComparisonLeg, ScreenComparisonRow, ScreenCutoff,
-    ScreenRow,
+    PortfolioScenarioReport, PortfolioVarianceAllocation, PortfolioVarianceQuery,
+    PortfolioVarianceReport, PortfolioVarianceSample, PriceBook, PriceObservation,
+    RelativeLegPoint, RelativePoint, ScenarioAllocation, ScenarioCoverage, ScreenComparisonLeg,
+    ScreenComparisonRow, ScreenCutoff, ScreenRow,
 };
 pub use sector::{Classification, Heatmap, HeatmapComparison, HeatmapListing, SectorGroup};
 pub use stochastic::{stochastic_oscillator, stochastic_rsi, StochasticValue};

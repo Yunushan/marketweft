@@ -26,6 +26,39 @@ pub struct ListingRiskPoint {
     pub correlation: Option<f64>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PortfolioVarianceQuery {
+    pub from_at: i64,
+    pub through_at: i64,
+    pub known_at: i64,
+    pub interval_seconds: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PortfolioVarianceAllocation {
+    pub left_basis_points: u16,
+    pub mean_return: f64,
+    pub volatility: f64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PortfolioVarianceSample {
+    pub covariance: f64,
+    pub left: PortfolioVarianceAllocation,
+    pub equal: PortfolioVarianceAllocation,
+    pub minimum: PortfolioVarianceAllocation,
+    pub right: PortfolioVarianceAllocation,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PortfolioVarianceReport {
+    pub expected_returns: usize,
+    pub left_returns: usize,
+    pub right_returns: usize,
+    pub paired_returns: usize,
+    pub sample: Option<PortfolioVarianceSample>,
+}
+
 #[derive(Clone, Copy, Default)]
 struct Moments {
     count: u32,
@@ -168,43 +201,24 @@ impl PriceBook<'_> {
             return Err("Use a positive interval and volatility scale, and a window of 2 to 100,000 returns.".into());
         }
         let interval = i64::from(interval_seconds);
-        let span = through_at - from_at;
-        if span % interval != 0 {
-            return Err("The UTC end must fall on an interval boundary from the beginning.".into());
-        }
-        let slots = span / interval;
-        if slots > MAX_BARS as i64 {
-            return Err("The selected range exceeds 100,000 return intervals.".into());
-        }
-        let timeline = self.relative_series(left_id, right_id, from_at, through_at, known_at)?;
-        let mut points = timeline.into_iter().peekable();
-        let mut closes = |time: i64| {
-            while points.peek().is_some_and(|point| point.effective_at < time) {
-                points.next();
-            }
-            if points
-                .peek()
-                .is_some_and(|point| point.effective_at == time)
-            {
-                let point = points.next().expect("peeked exact close");
-                (point.left.close, point.right.close)
-            } else {
-                (None, None)
-            }
-        };
-        let mut previous = closes(from_at);
+        let returns = self.adjacent_returns(
+            left_id,
+            right_id,
+            PortfolioVarianceQuery {
+                from_at,
+                through_at,
+                known_at,
+                interval_seconds,
+            },
+        )?;
         let window = i64::from(window_periods);
         let scale = f64::from(volatility_periods).sqrt();
         let mut moments = RollingMoments::default();
         let mut output = Vec::new();
-        for slot in 1..=slots {
+        for (index, (left, right)) in returns.enumerate() {
+            let slot = index as i64 + 1;
             let through_at = from_at + slot * interval;
-            let current = closes(through_at);
-            moments.push(RiskMoments::new(
-                return_of(previous.0, current.0),
-                return_of(previous.1, current.1),
-            ));
-            previous = current;
+            moments.push(RiskMoments::new(left, right));
             if slot > window {
                 moments.expire_oldest();
             }
@@ -224,6 +238,141 @@ impl PriceBook<'_> {
             }
         }
         Ok(output)
+    }
+
+    /// Estimate long-only minimum sample variance using common adjacent returns.
+    /// The two weights sum to 10,000 basis points. Flat variance prefers equal weights.
+    pub fn portfolio_variance(
+        &self,
+        left_id: &str,
+        right_id: &str,
+        query: PortfolioVarianceQuery,
+    ) -> Result<PortfolioVarianceReport, String> {
+        let returns = self.adjacent_returns(left_id, right_id, query)?;
+        let expected_returns = returns.len();
+        let mut left_returns = 0;
+        let mut right_returns = 0;
+        let mut same_slots = Vec::new();
+        for (left, right) in returns {
+            left_returns += usize::from(left.is_some());
+            right_returns += usize::from(right.is_some());
+            same_slots.extend(left.zip(right));
+        }
+        Ok(PortfolioVarianceReport {
+            expected_returns,
+            left_returns,
+            right_returns,
+            paired_returns: same_slots.len(),
+            sample: (same_slots.len() >= 2).then(|| variance_sample(&same_slots)),
+        })
+    }
+
+    fn adjacent_returns(
+        &self,
+        left_id: &str,
+        right_id: &str,
+        PortfolioVarianceQuery {
+            from_at,
+            through_at,
+            known_at,
+            interval_seconds,
+        }: PortfolioVarianceQuery,
+    ) -> Result<impl ExactSizeIterator<Item = (Option<f64>, Option<f64>)>, String> {
+        if ![from_at, through_at, known_at]
+            .into_iter()
+            .all(valid_second)
+            || from_at > through_at
+        {
+            return Err("Use valid UTC cutoffs with the beginning at or before the end.".into());
+        }
+        if interval_seconds == 0 {
+            return Err("Use a positive return interval.".into());
+        }
+        let interval = i64::from(interval_seconds);
+        let span = through_at - from_at;
+        if span % interval != 0 {
+            return Err("The UTC end must fall on an interval boundary from the beginning.".into());
+        }
+        let slots = span / interval;
+        if slots > MAX_BARS as i64 {
+            return Err("The selected range exceeds 100,000 return intervals.".into());
+        }
+        let mut points = self
+            .relative_series(left_id, right_id, from_at, through_at, known_at)?
+            .into_iter()
+            .peekable();
+        let mut closes = move |time: i64| {
+            while points.peek().is_some_and(|point| point.effective_at < time) {
+                points.next();
+            }
+            if points
+                .peek()
+                .is_some_and(|point| point.effective_at == time)
+            {
+                let point = points.next().expect("peeked exact close");
+                (point.left.close, point.right.close)
+            } else {
+                (None, None)
+            }
+        };
+        let mut previous = closes(from_at);
+        Ok((0..slots as usize).map(move |index| {
+            let current = closes(from_at + (index as i64 + 1) * interval);
+            let changes = (
+                return_of(previous.0, current.0),
+                return_of(previous.1, current.1),
+            );
+            previous = current;
+            changes
+        }))
+    }
+}
+
+fn variance_sample(returns: &[(f64, f64)]) -> PortfolioVarianceSample {
+    let (moments, difference) = returns.iter().fold(
+        (Moments::default(), Moments::default()),
+        |(moments, difference), &(left, right)| {
+            (
+                moments.merge(Moments::sample(left, right)),
+                difference.merge(Moments::sample(left - right, right)),
+            )
+        },
+    );
+    // A weighted portfolio is right + weight * (left - right).
+    let weight = if difference.square_x == 0.0 {
+        5000
+    } else {
+        let vertex = (-difference.cross / difference.square_x * 10_000.0).clamp(0.0, 10_000.0);
+        let lower = vertex.floor();
+        let upper = vertex.ceil();
+        let down = vertex - lower;
+        let up = upper - vertex;
+        if down < up || (down == up && vertex > 5000.0) {
+            lower as u16
+        } else {
+            upper as u16
+        }
+    };
+    let allocate = |left_basis_points| {
+        let left_weight = f64::from(left_basis_points) / 10_000.0;
+        let stats = returns
+            .iter()
+            .fold(Moments::default(), |stats, &(left, right)| {
+                let value = left_weight * left + (1.0 - left_weight) * right;
+                stats.merge(Moments::sample(value, 0.0))
+            });
+        PortfolioVarianceAllocation {
+            left_basis_points,
+            mean_return: stats.mean_x,
+            volatility: stats.volatility(1.0).expect("two or more common returns"),
+        }
+    };
+    PortfolioVarianceSample {
+        covariance: moments.cross / f64::from(moments.count - 1),
+        left: allocate(10_000),
+        equal: allocate(5000),
+        minimum: allocate(weight),
+        right: allocate(0),
     }
 }
 

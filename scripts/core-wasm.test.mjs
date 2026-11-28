@@ -1358,6 +1358,32 @@ test('portfolio scenarios resample whole vectors and reconcile exact fee paths',
   }));
 });
 
+test('portfolio variance uses common returns, quantizes allocations and keeps cutoff coverage', async () => {
+  const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8');
+  const [membership, prices] = await Promise.all([fixture('membership'), fixture('prices')]);
+  const utc = minute => '2025-06-02T14:0' + minute + ':00Z';
+  const at = (known, source = prices, left = 'A', right = 'B') =>
+    core.portfolioVariance(membership, source, left, right, { from: utc(0), through: utc(6), known: utc(known), intervalSeconds: 60 });
+  assert.deepEqual(at(1), { expectedReturns: 6, leftReturns: 1, rightReturns: 1, pairedReturns: 1, sample: null });
+  const original = at(6);
+  assert.equal(original.pairedReturns, 4);
+  assert.equal(original.leftReturns, 6);
+  assert.equal(original.rightReturns, 4);
+  assert.deepEqual(original.sample.minimum, { leftBasisPoints: 5000, meanReturn: 0, volatility: 0 });
+  assert.ok(Math.abs(original.sample.covariance + 1 / 300) < 1e-14);
+  assert.equal(at(7).pairedReturns, 6);
+  const removed = at(8);
+  assert.deepEqual([removed.leftReturns, removed.rightReturns, removed.pairedReturns], [4, 6, 4]);
+  assert.deepEqual(at(6), original);
+  const altered = prices.replaceAll(',90\n', ',80\n').replaceAll(',81\n', ',64\n').replaceAll(',72.9\n', ',51.2\n');
+  const minimum = at(7, altered).sample.minimum;
+  assert.equal(minimum.leftBasisPoints, 6667);
+  assert.ok(minimum.volatility < at(7, altered).sample.equal.volatility);
+  assert.equal(at(7, altered, 'B', 'A').sample.minimum.leftBasisPoints, 3333);
+  assert.throws(() => core.portfolioVariance(membership, prices, 'A', 'A',
+    { from: utc(0), through: utc(6), known: utc(7), intervalSeconds: 60 }), /distinct/i);
+});
+
 test('listing risk pairs exact adjacent intervals and preserves missing and zero-variance values', async () => {
   const fixture = name => readFile(new URL('../crates/core/tests/fixtures/synthetic-listing-risk-' + name + '.csv', import.meta.url), 'utf8');
   const [membership, prices] = await Promise.all([fixture('membership'), fixture('prices')]);

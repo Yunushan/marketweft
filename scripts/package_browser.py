@@ -90,6 +90,8 @@ Start listing risk demo under Universe replay, or open the matching
 listing-risk-membership.csv and listing-risk-prices.csv files. Compare A
 and B, then expand Rolling risk. Use an effective time of 14:06 UTC and
 compare knowledge at 14:06, 14:07 and 14:08 to inspect paired coverage.
+Expand Two-listing minimum variance after comparing A and B. Use a
+60-second interval to estimate and export the allocation for those cutoffs.
 Expand Correlated portfolio scenarios in the same view. Choose A and B
 with 5,000 basis points each. Run the same windows, then use 14:01 UTC
 for one move with a 100-basis-point rebalance fee to reconcile net value.

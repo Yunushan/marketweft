@@ -1490,6 +1490,45 @@ pub extern "C" fn mw_relative_series(membership_bytes: usize) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn mw_portfolio_variance(membership_bytes: usize, interval_seconds: u32) -> u32 {
+    process(|input| {
+        let PairInputs {
+            times: [from_at, through_at, known_at],
+            listing_ids: [left, right],
+            membership,
+            closes,
+        } = pair_inputs(input, membership_bytes)?;
+        let universe = parse_universe(membership)?;
+        let prices = PriceBook::parse(&universe, closes)?;
+        let query = crate::PortfolioVarianceQuery {
+            from_at,
+            through_at,
+            known_at,
+            interval_seconds,
+        };
+        let report = prices.portfolio_variance(left, right, query)?;
+        let mut bytes = Vec::with_capacity(96);
+        for count in [
+            report.expected_returns,
+            report.left_returns,
+            report.right_returns,
+            report.paired_returns,
+        ] {
+            bytes.extend_from_slice(&(count as u32).to_le_bytes());
+        }
+        if let Some(sample) = report.sample {
+            bytes.extend_from_slice(&sample.covariance.to_le_bytes());
+            for row in [sample.left, sample.equal, sample.minimum, sample.right] {
+                bytes.extend_from_slice(&row.left_basis_points.to_le_bytes());
+                bytes.extend_from_slice(&row.mean_return.to_le_bytes());
+                bytes.extend_from_slice(&row.volatility.to_le_bytes());
+            }
+        }
+        Ok(bytes)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn mw_listing_risk(
     membership_bytes: usize,
     interval_seconds: u32,

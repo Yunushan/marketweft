@@ -381,6 +381,33 @@ export interface ScreenPrice {
   observedAt: number;
 }
 
+export interface PortfolioVarianceQuery {
+  from: string;
+  through: string;
+  known: string;
+  intervalSeconds: number;
+}
+
+export interface PortfolioVarianceAllocation {
+  leftBasisPoints: number;
+  meanReturn: number;
+  volatility: number;
+}
+
+export interface PortfolioVarianceReport {
+  expectedReturns: number;
+  leftReturns: number;
+  rightReturns: number;
+  pairedReturns: number;
+  sample: {
+    covariance: number;
+    left: PortfolioVarianceAllocation;
+    equal: PortfolioVarianceAllocation;
+    minimum: PortfolioVarianceAllocation;
+    right: PortfolioVarianceAllocation;
+  } | null;
+}
+
 export interface ListingRiskQuery {
   from: string;
   through: string;
@@ -1409,6 +1436,8 @@ export interface MarketCore {
     effectiveAt: string, knownAt: string): ScreenRow[];
   relativeSeries(membership: string, prices: string, leftId: string, rightId: string,
     baselineAt: string, effectiveAt: string, knownAt: string): RelativePoint[];
+  portfolioVariance(membership: string, prices: string, leftId: string, rightId: string,
+    query: PortfolioVarianceQuery): PortfolioVarianceReport;
   listingRisk(membership: string, prices: string, leftId: string, rightId: string, query: ListingRiskQuery): ListingRiskPoint[];
   crossSectionReplay(membership: string, prices: string, liquidity: string, from: string,
     through: string, known: string, config: CrossSectionConfig, actions?: CrossSectionActions): CrossSectionReport;
@@ -1592,6 +1621,7 @@ interface MarketExports extends WebAssembly.Exports {
   mw_universe_screen(membershipBytes: number): number;
   mw_compare_universe_ranks(membershipBytes: number): number;
   mw_relative_series(membershipBytes: number): number;
+  mw_portfolio_variance(membershipBytes: number, intervalSeconds: number): number;
   mw_listing_risk(membershipBytes: number, intervalSeconds: number, windowPeriods: number, volatilityPeriods: number): number;
   mw_portfolio_scenarios(membershipBytes: number): number;
   mw_portfolio_fx_as_of(): number;
@@ -3570,6 +3600,28 @@ export async function instantiateMarketCore(bytes: ArrayBuffer): Promise<MarketC
         return { effectiveAt: Number(at), left: leg(leftState, leftClose, leftReturn),
           right: leg(rightState, rightClose, rightReturn), spreadUnits: spread === '' ? null : BigInt(spread) };
       });
+    },
+    portfolioVariance(membership, prices, leftId, rightId, { from, through, known, intervalSeconds }) {
+      if (!Number.isInteger(intervalSeconds) || intervalSeconds < 1 || intervalSeconds > 0xffffffff) {
+        throw new Error('Use a positive whole number for the price interval.');
+      }
+      putPairInput(membership, prices, leftId, rightId, [from, through, known]);
+      const out = output(api.mw_portfolio_variance(encoder.encode(membership).length, intervalSeconds));
+      const readAllocation = (offset: number): PortfolioVarianceAllocation => ({
+        leftBasisPoints: out.getUint16(offset, true),
+        meanReturn: out.getFloat64(offset + 2, true),
+        volatility: out.getFloat64(offset + 10, true),
+      });
+      return {
+        expectedReturns: out.getUint32(0, true),
+        leftReturns: out.getUint32(4, true),
+        rightReturns: out.getUint32(8, true),
+        pairedReturns: out.getUint32(12, true),
+        sample: out.byteLength === 16 ? null : {
+          covariance: out.getFloat64(16, true), left: readAllocation(24), equal: readAllocation(42),
+          minimum: readAllocation(60), right: readAllocation(78),
+        },
+      };
     },
     listingRisk(membership, prices, leftId, rightId, { from, through, known, intervalSeconds, windowPeriods, volatilityPeriods }) {
       if ([intervalSeconds, windowPeriods, volatilityPeriods].some(value =>
