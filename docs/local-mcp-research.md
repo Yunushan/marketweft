@@ -1,6 +1,6 @@
 # Local MCP research
 
-MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+MarketWeft exposes historical formulas, point-in-time universe screening and rank comparisons, monthly returns, economic releases, portfolio scenarios, financial snapshots and option-chain snapshots through a local Model Context Protocol server. Install the Python SDK and configure your MCP client to start the server with the native research executable for your system. The subprocess communicates over standard input and output. [Python SDK](../packages/python-research/README.md) · [MCP stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 
 ```json
 {
@@ -43,6 +43,14 @@ Call the read-only `macro_calendar_as_of` tool with the contents of an authorize
 The response echoes the cutoffs and includes `total_releases`, `total_rows`, `offset`, `next_offset` and `rows`. Each row carries the release, series and record IDs, unit, reference date, record kind, publication time, observation time and predecessor ID when available. Scheduled time is present on schedule rows. The numeric `value_ticks` field uses a signed decimal string in integer millionths or `null`. UTC fields in rows use whole Unix seconds.
 
 Rows follow the calendar's release order. Within each release, the visible schedule and forecast precede its actual and revisions. Set `limit` from 1 to 250 evidence rows. The default is 100. Pass `next_offset` as `offset` with the same CSV and cutoffs to continue, including when a revision chain spans pages. A `null` offset marks the end. At the synthetic inflation release's 14:52 UTC observation cutoff, the revisions link `CPI-A0`, `CPI-A1` and `CPI-A2`, while the earlier 14:31:59 UTC cutoff has the schedule and forecast available. [Synthetic economic calendar](../crates/core/tests/fixtures/synthetic-macro-calendar.csv)
+
+## Portfolio scenarios
+
+Call the read-only `portfolio_scenarios_as_of` tool with `membership_csv` and `prices_csv` contents, plus `from_at`, `through_at`, and `known_at` as exact UTC timestamps. Set `allocations` to stable listing IDs and their weights in basis points. Send `interval_seconds`, `starting_value` as a decimal string, `fee_basis_points`, `seed` as an unsigned 64-bit decimal string, `paths`, and `horizon`. Omit `block_size` for independent moves or set it up to the number of moves per path. [Portfolio scenario inputs and sampling rules](portfolio-scenarios.md).
+
+Each page echoes the dates, seed, horizon and block size. It reports complete return vectors, eligible blocks, listing coverage, loss paths and the 5th, 50th and 95th percentiles across all paths. Ending value and fees use decimal strings in millionths of portfolio currency. Drawdown uses decimal strings in millionths of the portfolio's peak value.
+
+Path numbers start at 1. Use `limit` from 1 to 250, with a default of 100. Pass `next_offset` as `offset` with identical inputs to fetch the next page. A `null` offset marks the last page. The synthetic pair's three-move blocks give one eligible block at 14:06 UTC, four when the late close becomes known at 14:07, and two after the membership removal becomes known at 14:08. [Portfolio scenario fixture and cutoff example](portfolio-scenarios.md#research-sdks).
 
 ## Financial snapshots
 

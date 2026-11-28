@@ -4,18 +4,22 @@ import argparse
 from dataclasses import asdict
 import json
 from pathlib import Path
+import re
 import sys
 from typing import BinaryIO
 
-from . import FinancialMultiples, FinancialSnapshot, FormulaFunction, ResearchEngine, ResearchError, ScreenComparisonLeg, ScreenPrice
+from . import (
+    FinancialMultiples, FinancialSnapshot, FormulaFunction, ResearchEngine, ResearchError, ScenarioAllocation,
+    ScreenComparisonLeg, ScreenPrice,
+)
 from . import (
     _MAX_CSV, _MAX_FINANCIAL_CSV, _MAX_MACRO_CSV, _MAX_MACRO_REPORTS, _MAX_MONTHLY_YEARS, _MAX_OPTION_CSV, _MAX_OPTION_DIVIDEND_CSV,
-    _MAX_OPTION_ROWS, _OPTION_STATUSES,
+    _MAX_OPTION_ROWS, _OPTION_STATUSES, _PORTFOLIO_START,
 )
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.12.0"
+SERVER_VERSION = "0.13.0"
 MAX_FRAME_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 1_000
 MAX_I64 = (1 << 63) - 1
@@ -28,6 +32,7 @@ OPTION_SNAPSHOT_TOOL_NAME = "option_snapshot_as_of"
 AMERICAN_OPTION_TOOL_NAME = "american_option_valuation_as_of"
 MONTHLY_RETURNS_TOOL_NAME = "monthly_returns_as_of"
 MACRO_CALENDAR_TOOL_NAME = "macro_calendar_as_of"
+PORTFOLIO_SCENARIOS_TOOL_NAME = "portfolio_scenarios_as_of"
 _UTC_SCHEMA = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
 INPUT_SCHEMA = {
     "type": "object",
@@ -451,6 +456,70 @@ AMERICAN_OPTION_TOOL = {
     "outputSchema": AMERICAN_OPTION_OUTPUT,
 }
 
+_PORTFOLIO_TIMES = dict.fromkeys(("from_at", "through_at", "known_at"), _UTC_SCHEMA)
+_PORTFOLIO_MAX_PAGE = 250
+_PORTFOLIO_MAX_PATHS = 10_000
+_PORTFOLIO_INTEGERS = {
+    "interval_seconds": (1, _U32_MAX), "fee_basis_points": (0, 10_000),
+    "paths": (1, _PORTFOLIO_MAX_PATHS), "horizon": (1, 1_000),
+}
+_PORTFOLIO_VALUE_FIELDS = ("ending_value", "drawdown_millionths", "fees")
+_PORTFOLIO_SEED = r"(?:0|[1-9][0-9]{0,19})"
+_PORTFOLIO_TEXT = {
+    **{name: SCREEN_INPUT_SCHEMA["properties"][name] for name in ("membership_csv", "prices_csv")},
+    **_PORTFOLIO_TIMES,
+    "starting_value": {"type": "string", "pattern": f"^{_PORTFOLIO_START}$"},
+    "seed": {"type": "string", "pattern": f"^{_PORTFOLIO_SEED}$"},
+}
+_PORTFOLIO_ALLOCATION = {
+    "listing_id": _IDENTIFIER_SCHEMA,
+    "weight_basis_points": {"type": "integer", "minimum": 1, "maximum": 10_000},
+}
+PORTFOLIO_SCENARIOS_INPUT = {
+    **_object_schema({
+        **_PORTFOLIO_TEXT,
+        **{name: {"type": "integer", "minimum": low, "maximum": high}
+           for name, (low, high) in _PORTFOLIO_INTEGERS.items()},
+        "allocations": {"type": "array", "minItems": 2, "maxItems": 16, "items": _object_schema(_PORTFOLIO_ALLOCATION)},
+        "block_size": {"type": "integer", "minimum": 1, "maximum": 1_000, "default": 1},
+        "offset": {"type": "integer", "minimum": 0, "maximum": _PORTFOLIO_MAX_PATHS, "default": 0},
+        "limit": {"type": "integer", "minimum": 1, "maximum": _PORTFOLIO_MAX_PAGE, "default": 100},
+    }),
+    "required": [*_PORTFOLIO_TEXT, *_PORTFOLIO_INTEGERS, "allocations"],
+}
+PORTFOLIO_SCENARIOS_OUTPUT = _object_schema({
+    **_PORTFOLIO_TIMES,
+    "seed": _PORTFOLIO_TEXT["seed"],
+    "horizon": PORTFOLIO_SCENARIOS_INPUT["properties"]["horizon"],
+    "block_size": {"type": "integer", "minimum": 1, "maximum": 1_000},
+    **dict.fromkeys(("expected_vectors", "eligible_vectors", "eligible_blocks"),
+                    {"type": "integer", "minimum": 1, "maximum": 100_000}),
+    "loss_paths": {"type": "integer", "minimum": 0, "maximum": _PORTFOLIO_MAX_PATHS},
+    "total_paths": PORTFOLIO_SCENARIOS_INPUT["properties"]["paths"],
+    "offset": {"type": "integer", "minimum": 0, "maximum": _PORTFOLIO_MAX_PATHS},
+    "next_offset": {"type": ["integer", "null"], "minimum": 0, "maximum": _PORTFOLIO_MAX_PATHS},
+    "coverage": {"type": "array", "minItems": 2, "maxItems": 16, "items": _object_schema({
+        **_PORTFOLIO_ALLOCATION, "known_returns": {"type": "integer", "minimum": 1, "maximum": 100_000},
+    })},
+    "percentiles": _object_schema(dict.fromkeys(
+        _PORTFOLIO_VALUE_FIELDS, {"type": "array", "minItems": 3, "maxItems": 3, "items": _TICKS_SCHEMA},
+    )),
+    "paths": {"type": "array", "maxItems": _PORTFOLIO_MAX_PAGE, "items": _object_schema({
+        "path_number": {"type": "integer", "minimum": 1, "maximum": _PORTFOLIO_MAX_PATHS},
+        **dict.fromkeys(_PORTFOLIO_VALUE_FIELDS, _TICKS_SCHEMA),
+    })},
+})
+PORTFOLIO_SCENARIOS_TOOL = {
+    "name": PORTFOLIO_SCENARIOS_TOOL_NAME,
+    "description": (
+        "Sample seeded joint portfolio return paths from supplied membership and close CSV contents at independent UTC "
+        "cutoffs. Choose consecutive moves per block and reuse the same inputs with next_offset for another page."
+    ),
+    "annotations": TOOL["annotations"],
+    "inputSchema": PORTFOLIO_SCENARIOS_INPUT,
+    "outputSchema": PORTFOLIO_SCENARIOS_OUTPUT,
+}
+
 
 class RequestError(Exception):
     def __init__(self, code: int, message: str):
@@ -577,7 +646,7 @@ class ResearchServer:
             if params.get("cursor") is not None:
                 raise RequestError(-32602, "The tool list fits on a single page.")
             return {"tools": [TOOL, SCREEN_TOOL, RANK_COMPARISON_TOOL, FINANCIAL_TOOL, OPTION_SNAPSHOT_TOOL,
-                              AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL, MACRO_CALENDAR_TOOL]}
+                              AMERICAN_OPTION_TOOL, MONTHLY_RETURNS_TOOL, MACRO_CALENDAR_TOOL, PORTFOLIO_SCENARIOS_TOOL]}
         if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments")
@@ -597,6 +666,8 @@ class ResearchServer:
                 return self._monthly_returns(arguments)
             if name == MACRO_CALENDAR_TOOL_NAME:
                 return self._macro_calendar(arguments)
+            if name == PORTFOLIO_SCENARIOS_TOOL_NAME:
+                return self._portfolio_scenarios(arguments)
             raise RequestError(-32602, "Unknown research tool.")
         raise RequestError(-32601, "Method not found.")
 
@@ -688,6 +759,50 @@ class ResearchServer:
                 "observed_at": record.observed_at, "scheduled_at": record.scheduled_at,
                 "value_ticks": None if record.value is None else str(record.value), "supersedes": record.supersedes,
             } for release, kind, record in page],
+        })
+
+    def _portfolio_scenarios(self, arguments) -> dict:
+        if not isinstance(arguments, dict) or set(arguments) - PORTFOLIO_SCENARIOS_INPUT["properties"].keys():
+            raise RequestError(-32602, "Supply only the documented portfolio scenario arguments.")
+        if set(PORTFOLIO_SCENARIOS_INPUT["required"]) - arguments.keys():
+            raise RequestError(-32602, "Supply both CSVs, UTC cutoffs, scenario settings and allocations.")
+        text = {field: arguments[field] for field in _PORTFOLIO_TEXT}
+        if not all(isinstance(value, str) and value for value in text.values()):
+            raise RequestError(-32602, "Supply CSV contents, UTC cutoffs, starting value and seed as text.")
+        seed = text["seed"]
+        if not re.fullmatch(_PORTFOLIO_SEED, seed) or int(seed) >= 1 << 64:
+            raise RequestError(-32602, "Supply an unsigned 64-bit seed as decimal text.")
+        allocations = arguments["allocations"]
+        if not isinstance(allocations, list) or not 2 <= len(allocations) <= 16 or any(
+                not isinstance(item, dict) or item.keys() != _PORTFOLIO_ALLOCATION.keys() for item in allocations):
+            raise RequestError(-32602, "Supply 2 to 16 allocations with listing IDs and weights in basis points.")
+        settings = {field: _integer(arguments, field, low, low, high)
+                    for field, (low, high) in _PORTFOLIO_INTEGERS.items()}
+        size = _integer(arguments, "block_size", 1, 1, settings["horizon"])
+        offset = _integer(arguments, "offset", 0, 0, _PORTFOLIO_MAX_PATHS)
+        limit = _integer(arguments, "limit", 100, 1, _PORTFOLIO_MAX_PAGE)
+        try:
+            result = self._engine.portfolio_scenarios(
+                **{**text, "seed": int(seed)}, **settings,
+                allocations=tuple(ScenarioAllocation(**item) for item in allocations), block_size=size,
+            )
+        except (ResearchError, ValueError) as error:
+            return {"content": _text(str(error)), "isError": True}
+
+        page = result.paths[offset:offset + limit]
+        end = offset + len(page)
+        return _structured({
+            **{field: text[field] for field in _PORTFOLIO_TIMES},
+            "seed": seed, "horizon": settings["horizon"], "block_size": result.block_size,
+            "expected_vectors": result.expected_vectors, "eligible_vectors": result.eligible_vectors,
+            "eligible_blocks": result.eligible_blocks, "loss_paths": result.loss_paths,
+            "total_paths": len(result.paths), "offset": offset, "next_offset": end if end < len(result.paths) else None,
+            "coverage": [asdict(row) for row in result.coverage],
+            "percentiles": {field: list(map(str, getattr(result, field))) for field in _PORTFOLIO_VALUE_FIELDS},
+            "paths": [
+                {"path_number": number, **_fixed_fields(path, *_PORTFOLIO_VALUE_FIELDS)}
+                for number, path in enumerate(page, offset + 1)
+            ],
         })
 
     def _screen(self, arguments) -> dict:

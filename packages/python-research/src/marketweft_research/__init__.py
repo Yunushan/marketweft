@@ -37,6 +37,7 @@ _MAX_SCALAR_SERIES = 256
 _MONTHLY_PROTOCOL = "marketweft-monthly-returns"
 _MACRO_PROTOCOL = "marketweft-macro-calendar"
 _PORTFOLIO_PROTOCOL = "marketweft-portfolio-scenarios"
+_PORTFOLIO_START = r"[0-9]{1,20}(?:\.[0-9]{1,6})?"
 _MAX_MACRO_CSV = 1024 * 1024
 _MAX_MACRO_REPORTS = 10_000
 _MAX_MACRO_TICKS = 10 ** 27
@@ -981,7 +982,7 @@ class ResearchEngine:
         settings = (interval_seconds, fee_basis_points, paths, horizon, block_size)
         if (any(type(value) is not int or not 0 <= value <= 0xFFFFFFFF for value in settings)
                 or not isinstance(starting_value, str)
-                or not re.fullmatch(r"[0-9]{1,20}(?:\.[0-9]{1,6})?", starting_value)):
+                or not re.fullmatch(_PORTFOLIO_START, starting_value)):
             raise ValueError("Use whole scenario settings and a starting value with up to six fractional digits.")
         weights = tuple(allocations)
         if not 2 <= len(weights) <= 16 or any(

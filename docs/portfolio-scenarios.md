@@ -56,6 +56,8 @@ Use the synthetic pair from the listing risk guide to reproduce one eligible blo
 
 The Python SDK exposes `ResearchEngine.portfolio_scenarios` and returns frozen result records with exact Python integers. Use `ScenarioAllocation("A", 5000)` and `ScenarioAllocation("B", 5000)` as the allocations. The equivalent keyword arguments are `from_at`, `through_at`, `known_at`, `interval_seconds`, `starting_value`, `fee_basis_points`, `seed`, `paths`, `horizon`, and `block_size`. Omitting the block size in either SDK uses one move per sample. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md).
 
+The local read-only MCP tool returns the same simulation and pages the paths as exact decimal strings. [Portfolio scenarios over MCP](local-mcp-research.md#portfolio-scenarios).
+
 ### Native portfolio scenarios protocol
 
 Run `marketweft-research portfolio-scenarios` and send the UTF-8 request through standard input. The initial line is the tab-separated protocol name `marketweft-portfolio-scenarios`, version `1`, and membership CSV byte length. Send the following fields on separate lines in this order.

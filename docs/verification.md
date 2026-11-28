@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.245.0 · Local MCP portfolio scenarios
+
+- The installed wheel's stdio tests negotiate MCP, reject numeric or out-of-range seeds and unexpected file paths, and verify five exact paths across three pages while preserving earlier tool behavior.
+- The official MCP SDK verifies the output schema, exact decimal strings, equal structured and text results, and block counts of one, four, two and one through cutoff changes and rewind.
+
+[Portfolio scenarios over MCP](local-mcp-research.md#portfolio-scenarios)
+
 ## 0.244.0 · Portfolio scenario research SDKs
 
 - The native CLI and both SDKs check five exact paths ending at 99.95 with 0.05% drawdown and 0.05 fees per path. The three-move block count follows a late close and a known membership removal from one to four to two, then rewinds to one.

@@ -69,7 +69,7 @@ class McpTest(unittest.TestCase):
         self.assertEqual([item["name"] for item in tools],
                          [mcp.TOOL_NAME, mcp.SCREEN_TOOL_NAME, mcp.RANK_COMPARISON_TOOL_NAME, mcp.FINANCIAL_TOOL_NAME,
                           mcp.OPTION_SNAPSHOT_TOOL_NAME, mcp.AMERICAN_OPTION_TOOL_NAME, mcp.MONTHLY_RETURNS_TOOL_NAME,
-                          mcp.MACRO_CALENDAR_TOOL_NAME])
+                          mcp.MACRO_CALENDAR_TOOL_NAME, mcp.PORTFOLIO_SCENARIOS_TOOL_NAME])
         self.assertTrue(tools[0]["annotations"]["readOnlyHint"])
         self.assertIn("outputSchema", tools[0])
         pages = [message["result"]["structuredContent"] for message in replies[3:6]]
@@ -196,6 +196,61 @@ class McpTest(unittest.TestCase):
         self.assertTrue(replies[14]["result"]["isError"])
         self.assertEqual((page(15)["rows"], page(15)["next_offset"]), ([], None))
         self.assertEqual((page(16)["rows"], page(16)["total_releases"]), ([], 0))
+
+    def test_portfolio_scenarios_paging_preserves_exact_seed_paths_and_rewind(self):
+        fixtures = ROOT / "crates/core/tests/fixtures"
+        arguments = {
+            "membership_csv": (fixtures / "synthetic-listing-risk-membership.csv").read_text(encoding="utf-8"),
+            "prices_csv": (fixtures / "synthetic-listing-risk-prices.csv").read_text(encoding="utf-8"),
+            "from_at": "2025-06-02T14:00:00Z", "through_at": "2025-06-02T14:06:00Z",
+            "known_at": "2025-06-02T14:06:00Z", "interval_seconds": 60, "starting_value": "100",
+            "fee_basis_points": 100, "seed": "9007199254740993", "paths": 5, "horizon": 4,
+            "block_size": 3, "limit": 2,
+            "allocations": [{"listing_id": listing, "weight_basis_points": 5000} for listing in ("B", "A")],
+        }
+
+        def query(request_id, **changes):
+            return rpc("tools/call", request_id, {"name": mcp.PORTFOLIO_SCENARIOS_TOOL_NAME,
+                                                "arguments": arguments | changes})
+
+        process = subprocess.run(
+            [sys.executable, "-B", "-m", "marketweft_research.mcp", "--engine", str(EXECUTABLE)],
+            input=wire(
+                rpc("initialize", "init", INITIALIZE), rpc("notifications/initialized"), rpc("tools/list", "tools"),
+                query("first"), query("second", offset=2), query("third", offset=4),
+                query("late", known_at="2025-06-02T14:07:00Z"),
+                query("removed", known_at="2025-06-02T14:08:00Z"), query("rewind"),
+                query("numeric-seed", seed=9007199254740993), query("overflow-seed", seed="18446744073709551616"),
+                query("bad-file", membership_path="membership.csv"), query("gap", block_size=4), rpc("ping", "ping"),
+            ),
+            timeout=15, capture_output=True, check=True,
+        )
+        self.assertEqual(process.stderr, b"")
+        replies = {reply["id"]: reply for reply in map(json.loads, process.stdout.splitlines())}
+        tool = next(tool for tool in replies["tools"]["result"]["tools"] if tool["name"] == mcp.PORTFOLIO_SCENARIOS_TOOL_NAME)
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertEqual(tool["inputSchema"]["properties"]["seed"]["type"], "string")
+
+        def data(request_id):
+            result = replies[request_id]["result"]
+            self.assertEqual(json.loads(result["content"][0]["text"]), result["structuredContent"])
+            return result["structuredContent"]
+
+        first, second, third = map(data, ("first", "second", "third"))
+        self.assertEqual((first["next_offset"], second["next_offset"], third["next_offset"]), (2, 4, None))
+        self.assertEqual((first["seed"], first["total_paths"], first["block_size"]), ("9007199254740993", 5, 3))
+        self.assertEqual([row["listing_id"] for row in first["coverage"]], ["A", "B"])
+        for number, row in enumerate(first["paths"] + second["paths"] + third["paths"], 1):
+            self.assertEqual(row, {"path_number": number, "ending_value": "99950000",
+                                   "drawdown_millionths": "500", "fees": "50000"})
+        self.assertEqual(first["percentiles"]["fees"], ["50000"] * 3)
+        self.assertEqual([data(result)["eligible_blocks"] for result in ("first", "late", "removed", "rewind")], [1, 4, 2, 1])
+        self.assertEqual(data("rewind"), first)
+        for name in ("numeric-seed", "overflow-seed", "bad-file"):
+            self.assertEqual(replies[name]["error"]["code"], -32602)
+        self.assertTrue(replies["gap"]["result"]["isError"])
+        self.assertIn("No complete return block", replies["gap"]["result"]["content"][0]["text"])
+        self.assertEqual(replies["ping"]["result"], {})
 
     def test_tool_and_protocol_errors_preserve_the_session(self):
         server = mcp.ResearchServer(ResearchEngine(EXECUTABLE))
