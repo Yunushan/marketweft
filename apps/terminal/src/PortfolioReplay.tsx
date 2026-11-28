@@ -7,6 +7,8 @@ import { PortfolioRightsExercises } from './PortfolioRightsExercises'
 import { PortfolioRightsSettlementJournal } from './PortfolioRightsSettlementJournal'
 import { PortfolioCapitalReturns } from './PortfolioCapitalReturns'
 import { PortfolioCapitalReturnComparison } from './PortfolioCapitalReturnComparison'
+import { quoteText } from './chart-export'
+import { downloadFile } from './download'
 import { fixed } from './fixed-point'
 import { utc } from './workspace'
 import demoHoldings from '../../../crates/core/tests/fixtures/synthetic-portfolio-holdings.csv?raw'
@@ -85,6 +87,25 @@ function concentrationSide(side: EquityConcentrationChange['before']): string {
   return money(side.mark) + ' · ' + money(side.weightMicros) + '% · Rank ' + side.rank
 }
 
+function downloadEquityComparison(rows: EquityConcentrationChange[], baseline: PortfolioCutoff, current: PortfolioCutoff) {
+  const header = [
+    'baseline_effective_utc', 'baseline_known_utc', 'current_effective_utc', 'current_known_utc', 'listing_id', 'quote_currency',
+    'baseline_state', 'baseline_mark_ticks', 'baseline_weight_micros', 'baseline_rank',
+    'current_state', 'current_mark_ticks', 'current_weight_micros', 'current_rank',
+    'weight_change_micros', 'rank_improvement',
+  ].join(',')
+  const fields = (side: EquityConcentrationChange['before']) => {
+    if (!side) return ['outside-equity', '', '', '']
+    return [side.mark === null ? 'mark-unavailable' : 'marked', side.mark, side.weightMicros, side.rank]
+  }
+  const lines = rows.map(row => [
+    baseline.effectiveAt, baseline.knownAt, current.effectiveAt, current.knownAt, quoteText(row.listing), row.currency,
+    ...fields(row.before), ...fields(row.after), row.weightChangeMicros, row.rankImprovement,
+  ].join(','))
+  downloadFile('portfolio-equity-concentration-comparison.csv', new Blob([[header, ...lines].join('\r\n') + '\r\n'],
+    { type: 'text/csv;charset=utf-8' }))
+}
+
 function EquityConcentrationValues({ groups, core, source, membership, effective, known }: {
   groups: EquityConcentration[]; core: MarketCore; source: ConcentrationSources; membership: string
   effective: string; known: string
@@ -94,9 +115,10 @@ function EquityConcentrationValues({ groups, core, source, membership, effective
   const comparison = useMemo(() => {
     if (!baseline) return null
     try {
+      const current = { effectiveAt: effective, knownAt: known }
       const rows = core.compareEquityConcentration(membership, source.holdings, source.prices, source.terms,
-        baseline, { effectiveAt: effective, knownAt: known })
-      return { rows }
+        baseline, current)
+      return { rows, baseline, current }
     } catch (error) {
       return { error: error instanceof Error ? error.message : 'The equity concentration comparison failed.' }
     }
@@ -125,6 +147,10 @@ function EquityConcentrationValues({ groups, core, source, membership, effective
           {baseline ? 'Replace equity baseline' : 'Pin equity baseline'}
         </button>
         {baseline && <button className="outline" type="button" onClick={() => saveBaseline(null)}>Clear equity baseline</button>}
+        {comparison?.rows?.length ? <button className="outline" type="button"
+          onClick={() => downloadEquityComparison(comparison.rows, comparison.baseline, comparison.current)}>
+          Download equity comparison
+        </button> : null}
       </div>
       {baseline && <p>Baseline effective {baseline.effectiveAt} · Known {baseline.knownAt}</p>}
       {comparison?.error && <p role="alert" className="warning replay-error">{comparison.error}</p>}

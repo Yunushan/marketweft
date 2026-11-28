@@ -39,6 +39,12 @@ Open **Equity concentration** and select **Pin equity baseline**. Set a differen
 
 Pin the demo at effective 14:10 and known 14:12 UTC, then change knowledge to 14:16. BETA-001’s USD weight falls by 2.071349 percentage points and its rank stays at 1. At effective and known 14:45, the old USD listing is outside equity and BETA-002 appears in EUR. Rewind to the pinned cutoffs to see zero changes. Choose **Replace equity baseline** to pin the current result or **Clear equity baseline** to remove the comparison. Opening a new set of reports clears the baseline.
 
+#### Export an equity comparison
+
+Choose **Download equity comparison** to save every row with both effective and knowledge times in UTC. The CSV uses signed integer millionths of a currency unit for marks and integer millionths of a percentage point for weights and weight changes. Ranks and rank improvement use whole numbers. Each cutoff has its own `marked`, `mark-unavailable` or `outside-equity` state. Blank numeric cells mean the value was unavailable, and a recorded zero is written as `0`.
+
+The corrected demo row records a weight change of `-2071349` and rank improvement of `0`. Repeating the download after rewinding to the same cutoffs produces the same bytes. The CSV downloads locally and works offline.
+
 ### Equity concentration SDKs
 
 The TypeScript SDK exposes `equityConcentrationAsOf(membershipCsv, holdingsCsv, pricesCsv, effectiveAt, knownAt)`. Python exposes `ResearchEngine.equity_concentration_as_of` with the same three CSV contents and the `effective_at` and `known_at` keyword cutoffs. Both return the applied cutoffs in whole Unix seconds and the same ranked groups shown by the terminal. Marks and weights are integer millionths. TypeScript uses `bigint` for both, and Python uses integers. Missing values are `null` in TypeScript and `None` in Python. [TypeScript SDK](../packages/research/README.md) · [Python SDK](../packages/python-research/README.md)

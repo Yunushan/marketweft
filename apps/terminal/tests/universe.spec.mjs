@@ -148,19 +148,41 @@ test('offline equity concentration compares a pinned cutoff through mark revisio
   await portfolio.getByRole('button', { name: 'Pin equity baseline' }).click()
   const table = portfolio.getByRole('table', { name: 'Equity concentration comparison', exact: true })
   const cells = id => table.getByRole('row', { name: new RegExp('^' + id + ' ') }).getByRole('cell')
+  const downloadButton = portfolio.getByRole('button', { name: 'Download equity comparison', exact: true })
+  const download = async () => {
+    const pending = page.waitForEvent('download')
+    await downloadButton.click()
+    const file = await pending
+    expect(file.suggestedFilename()).toBe('portfolio-equity-concentration-comparison.csv')
+    return readFile(await file.path(), 'utf8')
+  }
   await query('14:10:00', '14:12:00')
   await expect(cells('BETA-001')).toHaveText(['USD', 'Mark unavailable', '560 · 73.298429% · Rank 1', '—', '—'])
   await expect(cells('ALFA-001')).toHaveText(['USD', '204 · 100% · Rank 1', '204 · 26.701571% · Rank 2', '-73.298429', '-1'])
+  const first = (await download()).split('\r\n')
+  expect(first[0]).toBe('baseline_effective_utc,baseline_known_utc,current_effective_utc,current_known_utc,listing_id,quote_currency,baseline_state,baseline_mark_ticks,baseline_weight_micros,baseline_rank,current_state,current_mark_ticks,current_weight_micros,current_rank,weight_change_micros,rank_improvement')
+  expect(first[2]).toBe([
+    utc('14:10:00'), utc('14:10:00'), utc('14:10:00'), utc('14:12:00'), '"BETA-001"', 'USD',
+    'mark-unavailable', '', '', '', 'marked', '560000000', '73298429', '1', '', '',
+  ].join(','))
   await portfolio.getByRole('button', { name: 'Replace equity baseline' }).click()
+  const original = await download()
+  expect(original).toContain('"BETA-001",USD,marked,560000000,73298429,1,marked,560000000,73298429,1,0,0\r\n')
   await query('14:10:00', '14:16:00')
   await expect(cells('BETA-001')).toHaveText(['USD', '560 · 73.298429% · Rank 1', '505 · 71.22708% · Rank 1', '-2.071349', '0'])
+  expect(await download()).toContain('"BETA-001",USD,marked,560000000,73298429,1,marked,505000000,71227080,1,-2071349,0\r\n')
   await query('14:45:00')
   await expect(cells('BETA-001')).toHaveText(['USD', '560 · 73.298429% · Rank 1', 'Outside equity', '—', '—'])
   await expect(cells('BETA-002')).toHaveText(['EUR', 'Outside equity', '225 · 100% · Rank 1', '—', '—'])
+  const afterDelisting = await download()
+  expect(afterDelisting).toContain('"BETA-001",USD,marked,560000000,73298429,1,outside-equity,,,,,\r\n')
+  expect(afterDelisting).toContain('"BETA-002",EUR,outside-equity,,,,marked,225000000,100000000,1,,\r\n')
   await query('14:10:00', '14:12:00')
   await expect(cells('BETA-001')).toHaveText(['USD', '560 · 73.298429% · Rank 1', '560 · 73.298429% · Rank 1', '0', '0'])
+  expect(await download()).toBe(original)
   await portfolio.getByRole('button', { name: 'Load portfolio demo', exact: true }).click()
   await expect(table).toHaveCount(0)
+  await expect(downloadButton).toHaveCount(0)
 })
 
 test('offline portfolio translates known subtotals with original and revised FX evidence', async ({ page, context }) => {

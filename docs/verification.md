@@ -1,5 +1,12 @@
 # MarketWeft verification
 
+## 0.259.0 · Export equity concentration comparisons
+
+- The offline CSV contains both UTC cutoff pairs, exact marks and percentage weights, and independent states for absent equity and unavailable marks. The USD BETA-001 correction is `-2071349` millionths of a percentage point with rank improvement `0`.
+- After the revised close and the later EUR listing, rewinding and downloading at the original cutoffs produces the same bytes.
+
+[Concentration CSV](portfolio-replay.md#export-an-equity-comparison)
+
 ## 0.258.0 · Compare portfolio equity cutoffs
 
 - Native Rust and Wasm preserve the original missing mark and the revised USD mark by stable listing ID. At an unchanged effective cutoff, BETA-001 falls from 73.298429% to 71.22708%, a change of −2.071349 percentage points with rank still at 1. Reversing the cutoffs reverses the sign.
